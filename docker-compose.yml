@@ -1,0 +1,11 @@
+services:
+  frontend:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.dev
+    container_name: fixlife_frontend
+    volumes:
+      - .:/app
+      - /app/node_modules
+    ports:
+      - "3000:3000"

@@ -1,0 +1,9 @@
+services:
+  frontend:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.prod
+    container_name: fixlife_frontend_prod
+    ports:
+      - "80:80"
+    restart: unless-stopped

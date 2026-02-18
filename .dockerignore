@@ -1,0 +1,28 @@
+# Node
+node_modules
+npm-debug.log
+dist
+.vite
+
+# Git
+.git
+.gitignore
+
+# IDE
+.vscode
+.idea
+
+# Environment
+.env
+.env.local
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Build
+build
+dist
+
+# Backend (legacy)
+backend
