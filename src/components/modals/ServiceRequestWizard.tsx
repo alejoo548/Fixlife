@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ServiceRequestData } from '../types';
+import { ServiceRequestData } from '../../types';
 
 interface ServiceRequestWizardProps {
     isOpen: boolean;

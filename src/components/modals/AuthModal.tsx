@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { AuthMode } from '../types';
+import { AuthMode } from '../../types';
 
 interface AuthModalProps {
   isOpen: boolean;

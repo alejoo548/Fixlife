@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { HeroSliderProps } from '../types';
+import { HeroSliderProps } from '../../types';
 
 const SLIDES = [
   {
