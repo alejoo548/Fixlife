@@ -1,11 +1,12 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ProSidebar } from './ProSidebar';
 import { RequestsView } from '../dashboard/RequestsView';
 import { EarningsView } from '../dashboard/EarningsView';
 import { ScheduleView } from '../dashboard/ScheduleView';
 import { SettingsView } from '../dashboard/SettingsView';
+import { UploadDocumentsView } from '../dashboard/UploadDocumentsView';
 
 interface ProDashboardProps {
    isOpen: boolean;
@@ -16,6 +17,24 @@ export const ProDashboard: React.FC<ProDashboardProps> = ({ isOpen, onClose }) =
    const [isOnline, setIsOnline] = useState(false);
    const [activeTab, setActiveTab] = useState('requests');
    const [mobileView, setMobileView] = useState<'list' | 'map'>('list');
+   const [isVerified, setIsVerified] = useState(false); // Por defecto falso
+   const [hasUploadedDocs, setHasUploadedDocs] = useState(false); // Por defecto falso
+   const [userName, setUserName] = useState('Alex');
+   const [token, setToken] = useState<string | null>(null);
+
+   useEffect(() => {
+      const userData = localStorage.getItem('user');
+      const storedToken = localStorage.getItem('token');
+      
+      if (storedToken) setToken(storedToken);
+
+      if (userData) {
+         const user = JSON.parse(userData);
+         setIsVerified(user.worker_profile?.is_verified === 1 || user.worker_profile?.is_verified === true);
+         setHasUploadedDocs(!!user.worker_profile?.dui_document); // Revisamos si ya subió el DUI
+         setUserName(user.name || 'Alex');
+      }
+   }, []);
 
    if (!isOpen) return null;
 
@@ -104,7 +123,7 @@ export const ProDashboard: React.FC<ProDashboardProps> = ({ isOpen, onClose }) =
                      transition={{ delay: 0.3 }}
                      className="text-gray-600 text-xs md:text-sm hidden sm:block"
                   >
-                     Welcome back, Alex.
+                     Welcome back, {userName}.
                   </motion.p>
                </div>
 
@@ -140,6 +159,60 @@ export const ProDashboard: React.FC<ProDashboardProps> = ({ isOpen, onClose }) =
                </motion.div>
             </motion.div>
 
+            {/* Verification Banner */}
+            {!isVerified && hasUploadedDocs && (
+               <motion.div
+                  initial={{ opacity: 0, y: -20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.3 }}
+                  className="mx-4 md:mx-8 mt-4 mb-2 relative overflow-hidden"
+               >
+                  <div className="bg-gradient-to-r from-amber-400 via-orange-400 to-amber-500 rounded-2xl p-4 md:p-5 shadow-lg border border-amber-300">
+                     <div className="flex items-start gap-3 md:gap-4">
+                        <motion.div
+                           animate={{ 
+                              rotate: [0, 10, -10, 10, 0],
+                              scale: [1, 1.1, 1]
+                           }}
+                           transition={{ 
+                              duration: 2,
+                              repeat: Infinity,
+                              repeatDelay: 3
+                           }}
+                           className="shrink-0"
+                        >
+                           <div className="w-10 h-10 md:w-12 md:h-12 bg-white/90 rounded-full flex items-center justify-center shadow-md">
+                              <svg className="w-6 h-6 md:w-7 md:h-7 text-amber-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                              </svg>
+                           </div>
+                        </motion.div>
+                        
+                        <div className="flex-1 min-w-0">
+                           <h3 className="text-white font-bold text-base md:text-lg mb-1 flex items-center gap-2">
+                              Account Verification Pending
+                              <motion.span
+                                 animate={{ opacity: [1, 0.5, 1] }}
+                                 transition={{ duration: 2, repeat: Infinity }}
+                                 className="inline-block w-2 h-2 bg-white rounded-full"
+                              />
+                           </h3>
+                           <p className="text-white/95 text-sm md:text-base leading-relaxed">
+                              Your account is currently under review. Our team will verify your profile within 24-48 hours. 
+                              You'll receive an email notification once approved and can start accepting requests.
+                           </p>
+                           <div className="mt-3 flex items-center gap-2 text-white/90 text-xs md:text-sm">
+                              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                              </svg>
+                              <span className="font-medium">You can explore the dashboard, but requests are disabled until verification.</span>
+                           </div>
+                        </div>
+                     </div>
+                  </div>
+               </motion.div>
+            )}
+
             {/* Content area */}
             <motion.div
                initial={{ opacity: 0, y: 20 }}
@@ -147,59 +220,88 @@ export const ProDashboard: React.FC<ProDashboardProps> = ({ isOpen, onClose }) =
                transition={{ delay: 0.3 }}
                className="flex-1 flex flex-col md:flex-row overflow-hidden rounded-tl-3xl border-t border-l border-gray-200 bg-white/50 backdrop-blur-sm relative"
             >
-               <AnimatePresence mode="wait">
-                  {activeTab === 'requests' && (
-                     <motion.div
-                        key="requests"
-                        initial={{ opacity: 0, x: 20 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        exit={{ opacity: 0, x: -20 }}
-                        transition={{ duration: 0.3 }}
-                        className="w-full h-full flex"
-                     >
-                        <RequestsView isOnline={isOnline} mobileView={mobileView} />
-                     </motion.div>
-                  )}
+               {!isVerified && !hasUploadedDocs ? (
+                  <UploadDocumentsView 
+                     token={token} 
+                     onSuccess={() => setHasUploadedDocs(true)} 
+                  />
+               ) : (
+                  <>
+                     {!isVerified && hasUploadedDocs && (
+                        <div className="absolute inset-0 z-[60] bg-white/50 backdrop-blur-[6px] flex flex-col items-center justify-center p-6 text-center">
+                           <motion.div 
+                              initial={{ scale: 0.9, opacity: 0 }}
+                              animate={{ scale: 1, opacity: 1 }}
+                              className="bg-white/95 p-8 rounded-3xl shadow-2xl max-w-sm border border-gray-200 pointer-events-auto"
+                           >
+                              <div className="w-20 h-20 bg-amber-100 rounded-full flex items-center justify-center mx-auto mb-6 shadow-inner">
+                                 <svg className="w-10 h-10 text-amber-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                                 </svg>
+                              </div>
+                              <h3 className="text-2xl font-bold text-gray-900 mb-3">Dashboard Locked</h3>
+                              <p className="text-gray-600 leading-relaxed">
+                                 Your documents have been submitted and are currently under review. 
+                                 You will gain full access to the dashboard once your account is verified.
+                              </p>
+                           </motion.div>
+                        </div>
+                     )}
+                     <AnimatePresence mode="wait">
+                     {activeTab === 'requests' && (
+                        <motion.div
+                           key="requests"
+                           initial={{ opacity: 0, x: 20 }}
+                           animate={{ opacity: 1, x: 0 }}
+                           exit={{ opacity: 0, x: -20 }}
+                           transition={{ duration: 0.3 }}
+                           className="w-full h-full flex"
+                        >
+                           <RequestsView isOnline={isOnline} mobileView={mobileView} />
+                        </motion.div>
+                     )}
 
-                  {activeTab === 'earnings' && (
-                     <motion.div
-                        key="earnings"
-                        initial={{ opacity: 0, x: 20 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        exit={{ opacity: 0, x: -20 }}
-                        transition={{ duration: 0.3 }}
-                        className="w-full h-full"
-                     >
-                        <EarningsView />
-                     </motion.div>
-                  )}
+                     {activeTab === 'earnings' && (
+                        <motion.div
+                           key="earnings"
+                           initial={{ opacity: 0, x: 20 }}
+                           animate={{ opacity: 1, x: 0 }}
+                           exit={{ opacity: 0, x: -20 }}
+                           transition={{ duration: 0.3 }}
+                           className="w-full h-full"
+                        >
+                           <EarningsView />
+                        </motion.div>
+                     )}
 
-                  {activeTab === 'schedule' && (
-                     <motion.div
-                        key="schedule"
-                        initial={{ opacity: 0, x: 20 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        exit={{ opacity: 0, x: -20 }}
-                        transition={{ duration: 0.3 }}
-                        className="w-full h-full"
-                     >
-                        <ScheduleView />
-                     </motion.div>
-                  )}
+                     {activeTab === 'schedule' && (
+                        <motion.div
+                           key="schedule"
+                           initial={{ opacity: 0, x: 20 }}
+                           animate={{ opacity: 1, x: 0 }}
+                           exit={{ opacity: 0, x: -20 }}
+                           transition={{ duration: 0.3 }}
+                           className="w-full h-full"
+                        >
+                           <ScheduleView />
+                        </motion.div>
+                     )}
 
-                  {activeTab === 'settings' && (
-                     <motion.div
-                        key="settings"
-                        initial={{ opacity: 0, x: 20 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        exit={{ opacity: 0, x: -20 }}
-                        transition={{ duration: 0.3 }}
-                        className="w-full h-full"
-                     >
-                        <SettingsView />
-                     </motion.div>
-                  )}
-               </AnimatePresence>
+                     {activeTab === 'settings' && (
+                        <motion.div
+                           key="settings"
+                           initial={{ opacity: 0, x: 20 }}
+                           animate={{ opacity: 1, x: 0 }}
+                           exit={{ opacity: 0, x: -20 }}
+                           transition={{ duration: 0.3 }}
+                           className="w-full h-full"
+                        >
+                           <SettingsView />
+                        </motion.div>
+                     )}
+                  </AnimatePresence>
+                  </>
+               )}
             </motion.div>
 
             {/* Mobile bottom navigation */}

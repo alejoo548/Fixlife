@@ -1,8 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Navbar } from './components/layout/Navbar';
 import { NavItemType, AuthMode } from './types';
 import { AuthModal } from './components/modals/AuthModal';
+import { WorkerAuthModal } from './components/modals/WorkerAuthModal';
 import { HeroSlider } from './components/sections/HeroSlider';
 import { ProBento } from './components/sections/ProBento';
 import { StepsSection } from './components/sections/StepsSection';
@@ -32,8 +33,26 @@ const navItems: NavItemType[] = [
 const App: React.FC = () => {
   const [isAuthOpen, setIsAuthOpen] = useState(false);
   const [authMode, setAuthMode] = useState<AuthMode>('signin');
-
+  const [isWorkerAuthOpen, setIsWorkerAuthOpen] = useState(false);
+  const [workerAuthMode, setWorkerAuthMode] = useState<'signin' | 'signup'>('signup');
   const [currentView, setCurrentView] = useState<'landing' | 'app' | 'pro-dashboard'>('landing');
+
+  // Sync with URL on mount
+  useEffect(() => {
+    const path = window.location.pathname;
+    console.log('[App] Initial path:', path);
+    if (path === '/pro-dashboard') {
+      console.log('[App] Setting initial view to pro-dashboard');
+      setCurrentView('pro-dashboard');
+    } else if (path === '/app') {
+      setCurrentView('app');
+    }
+  }, []);
+
+  // Debug current view changes
+  useEffect(() => {
+    console.log('[App] Current view changed to:', currentView);
+  }, [currentView]);
 
   const handleOpenAuth = (mode: AuthMode) => {
     setAuthMode(mode);
@@ -41,13 +60,29 @@ const App: React.FC = () => {
   };
 
   const handleStartBooking = () => {
-    window.scrollTo(0, 0);
+    console.log('[App] handleStartBooking called');
+    window.history.pushState({}, '', '/app');
     setCurrentView('app');
+    window.scrollTo(0, 0);
   };
 
   const handleOpenProDashboard = () => {
-    window.scrollTo(0, 0);
+    console.log('[App] handleOpenProDashboard called');
+    window.history.pushState({}, '', '/pro-dashboard');
     setCurrentView('pro-dashboard');
+    window.scrollTo(0, 0);
+  }
+
+  const handleOpenWorkerAuth = (mode: 'signin' | 'signup') => {
+    setWorkerAuthMode(mode);
+    setIsWorkerAuthOpen(true);
+  }
+
+  const handleBackToLanding = () => {
+    console.log('[App] handleBackToLanding called');
+    window.history.pushState({}, '', '/');
+    setCurrentView('landing');
+    window.scrollTo(0, 0);
   }
 
   const services = [
@@ -96,22 +131,31 @@ const App: React.FC = () => {
         initialMode={authMode}
       />
 
+      <WorkerAuthModal
+        isOpen={isWorkerAuthOpen}
+        onClose={() => setIsWorkerAuthOpen(false)}
+        mode={workerAuthMode}
+        onSuccess={handleOpenProDashboard}
+      />
 
+
+
+      {(() => {
+        console.log('[App] Rendering with currentView:', currentView);
+        return null;
+      })()}
 
       {currentView === 'app' ? (
-
         <ServiceRequestWizard
           isOpen={true}
-          onClose={() => setCurrentView('landing')}
+          onClose={handleBackToLanding}
         />
       ) : currentView === 'pro-dashboard' ? (
-
         <ProDashboard
           isOpen={true}
-          onClose={() => setCurrentView('landing')}
+          onClose={handleBackToLanding}
         />
       ) : (
-
         <>
 
           <Navbar
@@ -386,7 +430,7 @@ const App: React.FC = () => {
             </ScrollReveal>
 
             <section className="mb-24 md:mb-32">
-              <ScrollReveal><ProBento onOpenPro={handleOpenProDashboard} /></ScrollReveal>
+              <ScrollReveal><ProBento onOpenPro={handleOpenProDashboard} onOpenWorkerAuth={handleOpenWorkerAuth} /></ScrollReveal>
             </section>
           </main>
           <Footer onOpenPro={handleOpenProDashboard} />
