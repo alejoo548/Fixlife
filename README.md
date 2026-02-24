@@ -1,4 +1,5 @@
 # 🏠 Fixlife - Home Services Platform
+<img width="1024" height="1024" alt="Fixilogo" src="https://github.com/user-attachments/assets/4196b4fb-bc62-4ca1-ac24-3c69a22dce42" />
 
 A web platform to connect users with home service professionals (plumbing, electricity, cleaning, etc.).
 
