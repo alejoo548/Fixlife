@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 
 interface ProBentoProps {
   onOpenPro?: () => void;
+  onOpenWorkerAuth?: (mode: 'signin' | 'signup') => void;
 }
 
 const PRO_PROFILES = [
@@ -49,7 +50,7 @@ const StatIcon = ({ type }: { type: string }) => {
   return null;
 };
 
-export const ProBento: React.FC<ProBentoProps> = ({ onOpenPro }) => {
+export const ProBento: React.FC<ProBentoProps> = ({ onOpenPro, onOpenWorkerAuth }) => {
   const [activeProfile, setActiveProfile] = useState(0);
 
   useEffect(() => {
@@ -180,7 +181,7 @@ export const ProBento: React.FC<ProBentoProps> = ({ onOpenPro }) => {
             <motion.button
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
-              onClick={onOpenPro}
+              onClick={() => onOpenWorkerAuth?.('signup')}
               className="w-full sm:w-auto px-8 py-4 rounded-xl bg-gradient-to-r from-bird-blue to-bird-lightBlue text-white font-bold text-base shadow-xl shadow-bird-blue/30 flex items-center justify-center gap-2 group hover:shadow-2xl hover:shadow-bird-blue/40 transition-all"
             >
               Apply as Pro
@@ -191,9 +192,10 @@ export const ProBento: React.FC<ProBentoProps> = ({ onOpenPro }) => {
             <motion.button
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
+              onClick={() => onOpenWorkerAuth?.('signin')}
               className="w-full sm:w-auto px-8 py-4 rounded-xl bg-white border-2 border-gray-200 text-gray-900 font-bold hover:border-bird-blue hover:text-bird-blue transition-all"
             >
-              See Benefits
+              Pro Sign In
             </motion.button>
           </motion.div>
         </motion.div>

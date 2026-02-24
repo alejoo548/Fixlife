@@ -1,324 +1,89 @@
-# 🏠 Fixlife - Plataforma de Servicios del Hogar
+# 🏠 Fixlife - Home Services Platform
 
-Plataforma web para conectar usuarios con profesionales de servicios del hogar (plomería, electricidad, limpieza, etc.).
+A web platform to connect users with home service professionals (plumbing, electricity, cleaning, etc.).
 
-## 🚀 Stack Tecnológico
+## 🚀 Tech Stack
 
-- **Frontend**: React + Vite + Tailwind CSS + TypeScript
-- **Backend**: Django + Django REST Framework
-- **Base de Datos**: MySQL 8.0
-- **Gestión DB**: phpMyAdmin
-- **Containerización**: Docker + Docker Compose
+- **Frontend**: React + Vite + Tailwind CSS + TypeScript + Framer Motion
+- **Backend**: Node.js + Express + TypeScript
+- **Database**: MySQL 8.0
+- **Database Management**: phpMyAdmin
+- **Containerization**: Docker + Docker Compose
 
-## 📋 Requisitos Previos
+## 📋 Prerequisites
 
-- Docker Desktop instalado y corriendo
+- Docker Desktop installed and running
 - Git
-- Puerto 3000, 8000, 3307 y 8080 disponibles
+- Ports 3000, 8000, 3307, and 8080 must be available.
 
-## 🎯 Inicio Rápido
+## 🎯 Quick Start Guide for the Team
 
-### 1. Clonar el Repositorio
+If you are cloning this project for the first time, you don't need to install Node, npm, or MySQL locally. **Docker will handle absolutely everything for you.**
+
+### 1. Clone the Repository
 
 ```bash
 git clone https://github.com/alejoo548/Fixlife.git
 cd Fixlife
 ```
 
-### 2. Configurar Variables de Entorno
+### 2. Configure Environment Variables
 
-Copia el archivo de ejemplo y ajusta si es necesario:
+Copy the example file to `.env`:
 
 ```bash
 cp .env.example .env
 ```
+*(The `.env.example` file is already correctly configured with the default database passwords, so you shouldn't need to change anything for local development).*
 
-El archivo `.env` contiene:
-```env
-MYSQL_ROOT_PASSWORD=Info2026/*-
-MYSQL_DATABASE=fixlife_db
-```
+### 3. Start the Containers
 
-### 3. Iniciar los Servicios
-
-**Opción A - Scripts de inicio rápido:**
-
-Linux/Mac:
-```bash
-chmod +x start.sh
-./start.sh
-```
-
-Windows:
-```bash
-start.bat
-```
-
-**Opción B - Docker Compose directo:**
+Run the following command to build and start the entire stack:
 
 ```bash
 docker-compose up --build
 ```
+*(If you want to run it in the background, use `docker-compose up -d --build`).*
 
-### 4. Esperar a que Todo Esté Listo
+### 4. Wait for Initialization
 
-La primera vez puede tardar 2-3 minutos. Verás mensajes como:
+The very first time you run this, Docker will download the images, install npm dependencies, and **automatically create the database and all necessary tables** from the `docker/mysql-init.sql` and `docker/fixlife_db.sql` files. Wait until you see messages indicating the backend is running on `0.0.0.0:8000` and Vite is ready.
 
-```
-✅ fixlife_mysql      | ready for connections
-✅ fixlife_backend    | Starting development server at http://0.0.0.0:8000/
-✅ fixlife_frontend   | VITE ready in XXX ms
-✅ fixlife_phpmyadmin | Apache configured
-```
+### 5. Access the Services
 
-### 5. Acceder a los Servicios
-
-- **Frontend**: http://localhost:3000
+- **Frontend Web App**: http://localhost:3000
 - **Backend API**: http://localhost:8000
-- **phpMyAdmin**: http://localhost:8080
-- **MySQL**: localhost:3307
+- **phpMyAdmin (DB Manager)**: http://localhost:8080
+- **MySQL Database**: `localhost:3307`
 
-## 🔑 Credenciales
+## 🔑 Database Credentials
 
-### phpMyAdmin / MySQL
-- **Usuario**: `root`
-- **Contraseña**: `Info2026/*-`
-- **Base de Datos**: `fixlife_db`
+If you need to log into phpMyAdmin or connect directly to MySQL:
+- **Host**: `mysql` (if inside docker) or `localhost` (if connecting from outside via port 3307)
+- **User**: `root`
+- **Password**: `Info2026/*-`
+- **Database**: `fixlife_db`
 
-## 🛠️ Comandos Útiles
+## 🛠️ Useful Docker Commands
 
-### Ver Logs
-
+### View Logs
 ```bash
-# Todos los servicios
 docker-compose logs -f
-
-# Solo un servicio específico
-docker-compose logs -f backend
-docker-compose logs -f frontend
-docker-compose logs -f mysql
 ```
 
-### Detener Servicios
-
+### Stop Services
 ```bash
-# Detener (mantiene datos)
 docker-compose down
+```
 
-# Detener y eliminar volúmenes (borra datos de MySQL)
+### Completely Reset the Database
+If you broke the database and want to start fresh from the schema file:
+```bash
 docker-compose down -v
-```
-
-### Reiniciar un Servicio
-
-```bash
-docker-compose restart backend
-docker-compose restart frontend
-```
-
-### Reconstruir Contenedores
-
-```bash
 docker-compose up --build
 ```
+*(The `-v` flag deletes the Docker volume where the MySQL data is stored, forcing a fresh recreation of tables next time it starts).*
 
-### Ejecutar Comandos en Contenedores
-
-```bash
-# Migraciones de Django
-docker-compose exec backend python manage.py migrate
-
-# Crear superusuario de Django
-docker-compose exec backend python manage.py createsuperuser
-
-# Shell de Django
-docker-compose exec backend python manage.py shell
-
-# Acceder a MySQL
-docker-compose exec mysql mysql -u root -p
-```
-
-## 📁 Estructura del Proyecto
-
-```
-fixlife/
-├── backend/                    # Backend Django
-│   ├── fixlife_backend/       # Proyecto Django
-│   │   ├── settings.py        # Configuración
-│   │   ├── urls.py            # URLs principales
-│   │   └── views/             # Vistas modulares
-│   │       ├── login.py       # (vacío, listo para implementar)
-│   │       └── register.py    # (vacío, listo para implementar)
-│   ├── manage.py
-│   └── requirements.txt
-├── docker/                     # Dockerfiles
-│   ├── Dockerfile.dev         # Frontend dev
-│   ├── Dockerfile.backend.dev # Backend dev
-│   ├── Dockerfile.prod        # Frontend prod
-│   ├── mysql-init.sql         # Script de inicialización MySQL
-│   └── README.md              # Documentación Docker
-├── src/                        # Código fuente React
-│   ├── components/
-│   ├── App.tsx
-│   └── main.tsx
-├── public/                     # Assets estáticos
-├── docker-compose.yml          # Orquestación de servicios
-├── .env                        # Variables de entorno (no versionado)
-├── .env.example                # Template de variables
-├── package.json
-└── README.md
-```
-
-## 🔧 Desarrollo
-
-### Hot Reload
-
-Los cambios en el código se reflejan automáticamente:
-
-- **Frontend**: Cambios en archivos `.tsx`, `.ts`, `.css` se recargan al instante
-- **Backend**: Cambios en archivos `.py` reinician el servidor automáticamente
-
-### Agregar Dependencias
-
-**Frontend:**
-```bash
-# Detener contenedores
-docker-compose down
-
-# Agregar dependencia en package.json
-npm install <paquete>
-
-# Reconstruir
-docker-compose up --build
-```
-
-**Backend:**
-```bash
-# Agregar dependencia en backend/requirements.txt
-echo "nueva-dependencia==1.0.0" >> backend/requirements.txt
-
-# Reconstruir
-docker-compose down
-docker-compose up --build backend
-```
-
-## 🐛 Troubleshooting
-
-### Puerto Ocupado
-
-Si ves un error como "port is already allocated":
-
-**Windows:**
-```bash
-netstat -ano | findstr :3000
-netstat -ano | findstr :8000
-netstat -ano | findstr :3307
-```
-
-**Linux/Mac:**
-```bash
-lsof -i :3000
-lsof -i :8000
-lsof -i :3307
-```
-
-Detén el proceso que está usando el puerto o cambia el puerto en `docker-compose.yml`.
-
-### Backend No Conecta a MySQL
-
-Espera unos segundos más. MySQL puede tardar en iniciar la primera vez.
-
-```bash
-# Ver logs de MySQL
-docker-compose logs mysql
-
-# Reiniciar backend
-docker-compose restart backend
-```
-
-### Cambios No Se Reflejan
-
-```bash
-# Reinicia el servicio específico
-docker-compose restart frontend
-docker-compose restart backend
-
-# O reconstruye completamente
-docker-compose down
-docker-compose up --build
-```
-
-### Limpiar Todo y Empezar de Cero
-
-```bash
-# Detener y eliminar todo (incluye volúmenes)
-docker-compose down -v
-
-# Eliminar imágenes
-docker-compose down --rmi all
-
-# Reconstruir desde cero
-docker-compose up --build
-```
-
-### Error de Permisos en Linux
-
-```bash
-# Dar permisos al script de inicio
-chmod +x start.sh
-
-# Si hay problemas con volúmenes
-sudo chown -R $USER:$USER .
-```
-
-## 📚 Documentación Adicional
-
-- **Docker**: Ver `docker/README.md` para documentación detallada de Docker
-- **Backend**: Ver `backend/README.md` para documentación del backend Django
-- **Quick Start**: Ver `QUICK_START.md` para guía de inicio rápido
-
-## 🚢 Producción
-
-Para desplegar en producción, usa:
-
-```bash
-docker-compose -f docker-compose.prod.yml up -d
-```
-
-**Nota**: Antes de producción, asegúrate de:
-- Cambiar `SECRET_KEY` de Django
-- Cambiar contraseñas de MySQL
-- Configurar `DEBUG=False` en Django
-- Configurar CORS correctamente
-- Usar HTTPS
-
-## 🤝 Contribuir
-
-1. Fork el proyecto
-2. Crea una rama para tu feature (`git checkout -b feature/AmazingFeature`)
-3. Commit tus cambios (`git commit -m 'Add some AmazingFeature'`)
-4. Push a la rama (`git push origin feature/AmazingFeature`)
-5. Abre un Pull Request
-
-## 📝 Notas Importantes
-
-- Esta configuración es para **desarrollo local**
-- El modo DEBUG está habilitado en Django
-- CORS acepta peticiones desde localhost:3000
-- Las contraseñas por defecto son inseguras (cambiar en producción)
-- El archivo `.env` está en `.gitignore` y no se versionará
-
-## 📄 Licencia
-
-Este proyecto es privado y confidencial.
-
-## 👥 Equipo
-
-- Desarrollo Frontend & Backend
-- Infraestructura Docker
-
----
-
-**¿Problemas?** Revisa la sección de Troubleshooting o consulta `docker/README.md` para más detalles.
-
-**Happy coding! 🚀**
+## ⚠️ Notes for Developers
+- **File Uploads**: The platform allows file uploads (up to 10MB) for ID documents and Certifications. Files are stored in the `backend/uploads` folder.
+- **Auto-Reload**: Both the Frontend (React/Vite) and Backend (Node.js/Nodemon) are configured for hot-reloading. Changes you make to the code will apply instantly inside the containers.
