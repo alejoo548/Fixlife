@@ -15,13 +15,43 @@ export const registerWorker = async (req: Request, res: Response): Promise<void>
       return;
     }
 
-    if (!email.includes('@')) {
-      res.status(400).json({ error: 'Invalid email' });
+    const nameRegex = /^[a-zA-Z\s]+$/;
+    const phoneRegex = /^[+\d\-\s]+$/;
+    const usernameRegex = /^[a-zA-Z0-9_]+$/;
+
+    const trimmedName = name.trim();
+    const trimmedLastname = lastname.trim();
+    const trimmedEmail = email.trim();
+    const trimmedPhoneNumber = phone_number.trim();
+    const trimmedUsername = username ? username.trim() : undefined;
+
+    if (!nameRegex.test(trimmedName) || trimmedName.length > 50) {
+      res.status(400).json({ error: 'First name is invalid or too long (max 50 chars, letters only)' });
       return;
     }
 
-    if (password.length < 8) {
-      res.status(400).json({ error: 'Password must be at least 8 characters' });
+    if (!nameRegex.test(trimmedLastname) || trimmedLastname.length > 50) {
+      res.status(400).json({ error: 'Last name is invalid or too long (max 50 chars, letters only)' });
+      return;
+    }
+
+    if (trimmedUsername && (!usernameRegex.test(trimmedUsername) || trimmedUsername.length > 30)) {
+      res.status(400).json({ error: 'Username is invalid or too long (max 30 chars, alphanumeric and underscores only)' });
+      return;
+    }
+
+    if (!phoneRegex.test(trimmedPhoneNumber) || trimmedPhoneNumber.length > 15) {
+      res.status(400).json({ error: 'Phone number is invalid or too long (max 15 chars)' });
+      return;
+    }
+
+    if (trimmedEmail.length > 100 || !trimmedEmail.includes('@')) {
+      res.status(400).json({ error: 'Invalid email or too long (max 100 chars)' });
+      return;
+    }
+
+    if (password.length < 8 || password.length > 128) {
+      res.status(400).json({ error: 'Password must be between 8 and 128 characters' });
       return;
     }
 
@@ -32,7 +62,7 @@ export const registerWorker = async (req: Request, res: Response): Promise<void>
 
       const [existingUsers] = await connection.execute<RowDataPacket[]>(
         'SELECT id_user FROM users WHERE email = ?',
-        [email]
+        [trimmedEmail]
       );
 
       if (existingUsers.length > 0) {
@@ -41,12 +71,25 @@ export const registerWorker = async (req: Request, res: Response): Promise<void>
         return;
       }
 
+      if (trimmedUsername) {
+        const [existingUsernames] = await connection.execute<RowDataPacket[]>(
+          'SELECT id_user FROM users WHERE username = ?',
+          [trimmedUsername]
+        );
+
+        if (existingUsernames.length > 0) {
+          await connection.rollback();
+          res.status(400).json({ error: 'Username is already taken' });
+          return;
+        }
+      }
+
       const password_hash = await bcrypt.hash(password, 12);
 
       const [insertUserResult] = await connection.execute<ResultSetHeader>(
         `INSERT INTO users (name, lastname, email, phone_number, password_hash, rol, username, created_at)
          VALUES (?, ?, ?, ?, ?, 'worker', ?, NOW())`,
-        [name, lastname, email, phone_number, password_hash, username || null]
+        [trimmedName, trimmedLastname, trimmedEmail, trimmedPhoneNumber, password_hash, trimmedUsername || null]
       );
 
       const userId = insertUserResult.insertId;
@@ -72,11 +115,11 @@ export const registerWorker = async (req: Request, res: Response): Promise<void>
         message: 'Worker account created successfully',
         user: {
           id_user: userId,
-          name,
-          lastname,
-          email,
+          name: trimmedName,
+          lastname: trimmedLastname,
+          email: trimmedEmail,
           rol: 'worker',
-          username: username || null,
+          username: trimmedUsername || null,
           worker_profile: {
             id_worker_profile: workerProfileId,
             dui_document: null,
