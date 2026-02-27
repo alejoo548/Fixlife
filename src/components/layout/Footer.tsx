@@ -3,9 +3,10 @@ import { Logo } from '../common/Logo';
 
 interface FooterProps {
   onOpenPro?: () => void;
+  onOpenAdmin?: () => void;
 }
 
-export const Footer: React.FC<FooterProps> = ({ onOpenPro }) => {
+export const Footer: React.FC<FooterProps> = ({ onOpenPro, onOpenAdmin }) => {
   return (
     <footer className="relative bg-gradient-to-b from-transparent via-orange-50/30 to-gray-50 pt-32 pb-10 border-t border-gray-200">
 
@@ -154,12 +155,19 @@ export const Footer: React.FC<FooterProps> = ({ onOpenPro }) => {
         </div>
 
         <div className="pt-8 border-t border-gray-200 flex flex-col md:flex-row items-center justify-between gap-4 text-xs text-gray-500 text-center md:text-left">
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 text-gray-400">
             <p>© 2024 Fixlife Inc. All rights reserved.</p>
-            <span className="hidden md:inline text-gray-300">•</span>
-            <p className="hidden md:inline text-gray-400">Made with ❤️ for your home</p>
+            <span className="hidden md:inline">•</span>
+            <p className="hidden md:inline">Made with ❤️ for your home</p>
           </div>
-          <div className="flex flex-wrap justify-center gap-6 md:gap-8">
+          <div className="flex flex-wrap justify-center gap-6 md:gap-8 items-center">
+            <button onClick={onOpenAdmin} className="text-gray-400 hover:text-bird-blue transition-colors font-bold text-xs">
+              <span className="flex items-center gap-1">
+                <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 11c0 3.517-1.009 6.799-2.753 9.571m-3.44-2.04l.054-.09A13.916 13.916 0 008 11a4 4 0 118 0c0 1.017-.07 2.019-.203 3m-2.118 6.844A21.88 21.88 0 0015.171 17m3.839 1.132c.645-2.266.99-4.659.99-7.132A8 8 0 008 4.07M3 15.364c.64-1.319 1-2.8 1-4.364 0-1.457.39-2.823 1.07-4" /></svg>
+                Admin Area
+              </span>
+            </button>
+            <span className="text-gray-300 hidden md:inline">|</span>
             <a href="#" className="hover:text-bird-blue transition-colors font-medium">Privacy Policy</a>
             <a href="#" className="hover:text-bird-blue transition-colors font-medium">Terms of Service</a>
             <a href="#" className="hover:text-bird-blue transition-colors font-medium">Sitemap</a>

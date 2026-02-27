@@ -59,6 +59,46 @@ export const WorkerAuthModal: React.FC<WorkerAuthModalProps> = ({ isOpen, onClos
           return;
         }
 
+        const nameRegex = /^[a-zA-Z\s]+$/;
+        const phoneRegex = /^[+\d\-\s]+$/;
+        const usernameRegex = /^[a-zA-Z0-9_]+$/;
+
+        if (!nameRegex.test(formData.name.trim()) || formData.name.trim().length > 50) {
+          notyf.error('First name is invalid or too long (max 50 chars, letters only)');
+          setLoading(false);
+          return;
+        }
+
+        if (!nameRegex.test(formData.lastname.trim()) || formData.lastname.trim().length > 50) {
+          notyf.error('Last name is invalid or too long (max 50 chars, letters only)');
+          setLoading(false);
+          return;
+        }
+
+        if (formData.username && (!usernameRegex.test(formData.username.trim()) || formData.username.trim().length > 30)) {
+          notyf.error('Username is invalid or too long (max 30 chars, alphanumeric and underscores only)');
+          setLoading(false);
+          return;
+        }
+
+        if (!phoneRegex.test(formData.phone_number.trim()) || formData.phone_number.trim().length > 15) {
+          notyf.error('Phone number is invalid or too long (max 15 chars)');
+          setLoading(false);
+          return;
+        }
+        
+        if (formData.email.trim().length > 100) {
+          notyf.error('Email is too long (max 100 chars)');
+          setLoading(false);
+          return;
+        }
+
+        if (formData.password.length < 8 || formData.password.length > 128) {
+          notyf.error('Password must be between 8 and 128 characters');
+          setLoading(false);
+          return;
+        }
+
         const response = await fetch(API_ENDPOINTS.auth.registerWorker, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -173,32 +213,32 @@ export const WorkerAuthModal: React.FC<WorkerAuthModalProps> = ({ isOpen, onClos
           <form className="w-full flex flex-col gap-2.5" onSubmit={handleSubmit}>
             <div className="grid grid-cols-2 gap-2.5">
               <div className="bg-gray-50 rounded-lg p-1 border border-gray-200 focus-within:border-bird-orange/50 transition-colors">
-                <input required value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} type="text" placeholder="First Name" className="w-full bg-transparent px-3 py-2 text-sm text-gray-900 outline-none placeholder-gray-500" />
+                <input required value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} type="text" maxLength={50} placeholder="First Name" className="w-full bg-transparent px-3 py-2 text-sm text-gray-900 outline-none placeholder-gray-500" />
               </div>
               <div className="bg-gray-50 rounded-lg p-1 border border-gray-200 focus-within:border-bird-orange/50 transition-colors">
-                <input required value={formData.lastname} onChange={e => setFormData({...formData, lastname: e.target.value})} type="text" placeholder="Last Name" className="w-full bg-transparent px-3 py-2 text-sm text-gray-900 outline-none placeholder-gray-500" />
+                <input required value={formData.lastname} onChange={e => setFormData({...formData, lastname: e.target.value})} type="text" maxLength={50} placeholder="Last Name" className="w-full bg-transparent px-3 py-2 text-sm text-gray-900 outline-none placeholder-gray-500" />
               </div>
             </div>
 
             <div className="grid grid-cols-2 gap-2.5">
               <div className="bg-gray-50 rounded-lg p-1 border border-gray-200 focus-within:border-bird-orange/50 transition-colors">
-                <input value={formData.username} onChange={e => setFormData({...formData, username: e.target.value})} type="text" placeholder="Username (Optional)" className="w-full bg-transparent px-3 py-2 text-sm text-gray-900 outline-none placeholder-gray-500" />
+                <input value={formData.username} onChange={e => setFormData({...formData, username: e.target.value})} type="text" maxLength={30} placeholder="Username (Optional)" className="w-full bg-transparent px-3 py-2 text-sm text-gray-900 outline-none placeholder-gray-500" />
               </div>
               <div className="bg-gray-50 rounded-lg p-1 border border-gray-200 focus-within:border-bird-orange/50 transition-colors">
-                <input required value={formData.phone_number} onChange={e => setFormData({...formData, phone_number: e.target.value})} type="tel" placeholder="Phone Number" className="w-full bg-transparent px-3 py-2 text-sm text-gray-900 outline-none placeholder-gray-500" />
+                <input required value={formData.phone_number} onChange={e => setFormData({...formData, phone_number: e.target.value})} type="tel" maxLength={15} placeholder="Phone Number" className="w-full bg-transparent px-3 py-2 text-sm text-gray-900 outline-none placeholder-gray-500" />
               </div>
             </div>
 
             <div className="bg-gray-50 rounded-lg p-1 border border-gray-200 focus-within:border-bird-orange/50 transition-colors">
-              <input required value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} type="email" placeholder="Email Address" className="w-full bg-transparent px-3 py-2 text-sm text-gray-900 outline-none placeholder-gray-500" />
+              <input required value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} type="email" maxLength={100} placeholder="Email Address" className="w-full bg-transparent px-3 py-2 text-sm text-gray-900 outline-none placeholder-gray-500" />
             </div>
 
             <div className="grid grid-cols-2 gap-2.5">
               <div className="bg-gray-50 rounded-lg p-1 border border-gray-200 focus-within:border-bird-orange/50 transition-colors">
-                <input required value={formData.password} onChange={e => setFormData({...formData, password: e.target.value})} type="password" placeholder="Password" className="w-full bg-transparent px-3 py-2 text-sm text-gray-900 outline-none placeholder-gray-500" />
+                <input required value={formData.password} onChange={e => setFormData({...formData, password: e.target.value})} type="password" maxLength={128} placeholder="Password" className="w-full bg-transparent px-3 py-2 text-sm text-gray-900 outline-none placeholder-gray-500" />
               </div>
               <div className="bg-gray-50 rounded-lg p-1 border border-gray-200 focus-within:border-bird-orange/50 transition-colors">
-                <input required value={formData.confirmPassword} onChange={e => setFormData({...formData, confirmPassword: e.target.value})} type="password" placeholder="Confirm Password" className="w-full bg-transparent px-3 py-2 text-sm text-gray-900 outline-none placeholder-gray-500" />
+                <input required value={formData.confirmPassword} onChange={e => setFormData({...formData, confirmPassword: e.target.value})} type="password" maxLength={128} placeholder="Confirm Password" className="w-full bg-transparent px-3 py-2 text-sm text-gray-900 outline-none placeholder-gray-500" />
               </div>
             </div>
 
@@ -230,10 +270,10 @@ export const WorkerAuthModal: React.FC<WorkerAuthModalProps> = ({ isOpen, onClos
 
           <form className="w-full flex flex-col gap-4" onSubmit={handleSubmit}>
             <div className="bg-gray-50 rounded-lg p-1 border border-gray-200 focus-within:border-bird-orange/50 transition-colors">
-              <input required value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} type="email" placeholder="Email Address" className="w-full bg-transparent px-3 py-3 text-sm text-gray-900 outline-none placeholder-gray-500" />
+              <input required value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} type="email" maxLength={100} placeholder="Email Address" className="w-full bg-transparent px-3 py-3 text-sm text-gray-900 outline-none placeholder-gray-500" />
             </div>
             <div className="bg-gray-50 rounded-lg p-1 border border-gray-200 focus-within:border-bird-orange/50 transition-colors">
-              <input required value={formData.password} onChange={e => setFormData({...formData, password: e.target.value})} type="password" placeholder="Password" className="w-full bg-transparent px-3 py-3 text-sm text-gray-900 outline-none placeholder-gray-500" />
+              <input required value={formData.password} onChange={e => setFormData({...formData, password: e.target.value})} type="password" maxLength={128} placeholder="Password" className="w-full bg-transparent px-3 py-3 text-sm text-gray-900 outline-none placeholder-gray-500" />
             </div>
             
             <a href="#" className="text-xs text-gray-500 hover:text-bird-orange transition-colors self-end my-1">Forgot your password?</a>
@@ -300,32 +340,32 @@ export const WorkerAuthModal: React.FC<WorkerAuthModalProps> = ({ isOpen, onClos
                 <div className="animate-fade-in-up space-y-3">
                   <div className="grid grid-cols-2 gap-3">
                     <div className="bg-white rounded-xl px-4 py-3 border border-gray-200 focus-within:border-bird-orange/50 transition-colors shadow-sm">
-                      <input required value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} type="text" placeholder="First Name" className="w-full bg-transparent text-sm text-gray-900 outline-none placeholder-gray-500" />
+                      <input required value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} type="text" maxLength={50} placeholder="First Name" className="w-full bg-transparent text-sm text-gray-900 outline-none placeholder-gray-500" />
                     </div>
                     <div className="bg-white rounded-xl px-4 py-3 border border-gray-200 focus-within:border-bird-orange/50 transition-colors shadow-sm">
-                      <input required value={formData.lastname} onChange={e => setFormData({...formData, lastname: e.target.value})} type="text" placeholder="Last Name" className="w-full bg-transparent text-sm text-gray-900 outline-none placeholder-gray-500" />
+                      <input required value={formData.lastname} onChange={e => setFormData({...formData, lastname: e.target.value})} type="text" maxLength={50} placeholder="Last Name" className="w-full bg-transparent text-sm text-gray-900 outline-none placeholder-gray-500" />
                     </div>
                   </div>
                   <div className="bg-white rounded-xl px-4 py-3 border border-gray-200 focus-within:border-bird-orange/50 transition-colors shadow-sm">
-                    <input value={formData.username} onChange={e => setFormData({...formData, username: e.target.value})} type="text" placeholder="Username (Optional)" className="w-full bg-transparent text-sm text-gray-900 outline-none placeholder-gray-500" />
+                    <input value={formData.username} onChange={e => setFormData({...formData, username: e.target.value})} type="text" maxLength={30} placeholder="Username (Optional)" className="w-full bg-transparent text-sm text-gray-900 outline-none placeholder-gray-500" />
                   </div>
                   <div className="bg-white rounded-xl px-4 py-3 border border-gray-200 focus-within:border-bird-orange/50 transition-colors shadow-sm">
-                    <input required value={formData.phone_number} onChange={e => setFormData({...formData, phone_number: e.target.value})} type="tel" placeholder="Phone Number" className="w-full bg-transparent text-sm text-gray-900 outline-none placeholder-gray-500" />
+                    <input required value={formData.phone_number} onChange={e => setFormData({...formData, phone_number: e.target.value})} type="tel" maxLength={15} placeholder="Phone Number" className="w-full bg-transparent text-sm text-gray-900 outline-none placeholder-gray-500" />
                   </div>
                 </div>
               )}
 
               <div className="bg-white rounded-xl px-4 py-3 border border-gray-200 focus-within:border-bird-orange/50 transition-colors shadow-sm">
-                <input required value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} type="email" placeholder="Email Address" className="w-full bg-transparent text-sm text-gray-900 outline-none placeholder-gray-500" />
+                <input required value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} type="email" maxLength={100} placeholder="Email Address" className="w-full bg-transparent text-sm text-gray-900 outline-none placeholder-gray-500" />
               </div>
 
               <div className="grid grid-cols-1 gap-3">
                 <div className="bg-white rounded-xl px-4 py-3 border border-gray-200 focus-within:border-bird-orange/50 transition-colors shadow-sm">
-                  <input required value={formData.password} onChange={e => setFormData({...formData, password: e.target.value})} type="password" placeholder="Password" className="w-full bg-transparent text-sm text-gray-900 outline-none placeholder-gray-500" />
+                  <input required value={formData.password} onChange={e => setFormData({...formData, password: e.target.value})} type="password" maxLength={128} placeholder="Password" className="w-full bg-transparent text-sm text-gray-900 outline-none placeholder-gray-500" />
                 </div>
                 {isSignup && (
                   <div className="bg-white rounded-xl px-4 py-3 border border-gray-200 focus-within:border-bird-orange/50 transition-colors shadow-sm animate-fade-in-up">
-                    <input required value={formData.confirmPassword} onChange={e => setFormData({...formData, confirmPassword: e.target.value})} type="password" placeholder="Confirm Password" className="w-full bg-transparent text-sm text-gray-900 outline-none placeholder-gray-500" />
+                    <input required value={formData.confirmPassword} onChange={e => setFormData({...formData, confirmPassword: e.target.value})} type="password" maxLength={128} placeholder="Confirm Password" className="w-full bg-transparent text-sm text-gray-900 outline-none placeholder-gray-500" />
                   </div>
                 )}
               </div>
