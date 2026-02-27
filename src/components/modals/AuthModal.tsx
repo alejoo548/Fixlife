@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { AuthMode } from '../../types';
+import { Notyf } from 'notyf';
+import 'notyf/notyf.min.css';
 
 interface AuthModalProps {
   isOpen: boolean;
@@ -15,6 +17,26 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMo
       setView(initialMode);
     }
   }, [initialMode, isOpen]);
+
+  const notyf = new Notyf({
+    position: { x: 'right', y: 'bottom' },
+    ripple: true,
+  });
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (view === 'signup') {
+      notyf.success('Account created successfully!');
+    } else {
+      notyf.success('Welcome back!');
+    }
+    setTimeout(() => onClose(), 1500);
+  };
+
+  const handleSocialLogin = (provider: string) => {
+    notyf.success(`Signing in with ${provider}...`);
+    setTimeout(() => onClose(), 1500);
+  };
 
   if (!isOpen) return null;
 
@@ -63,7 +85,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMo
           <h2 className="text-3xl font-bold mb-4 text-bird-blue">Create Account</h2>
 
           <p className="text-xs text-gray-500 mb-4">or use your email for registration</p>
-          <form className="w-full flex flex-col gap-2.5" onSubmit={e => e.preventDefault()}>
+          <form className="w-full flex flex-col gap-2.5" onSubmit={handleSubmit}>
             <div className="grid grid-cols-2 gap-2.5">
               <div className="bg-gray-50 rounded-lg p-1 border border-gray-200 focus-within:border-bird-blue/50 transition-colors">
                 <input type="text" placeholder="First Name" className="w-full bg-transparent px-3 py-2 text-sm text-gray-900 outline-none placeholder-gray-500" />
@@ -121,18 +143,18 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMo
           <h2 className="text-3xl font-bold mb-6 text-bird-blue">Sign in to Fixlife</h2>
 
           <div className="flex flex-col gap-3 w-full mb-6">
-            <button className="flex items-center justify-center gap-3 py-2.5 rounded-lg bg-white border border-gray-200 text-gray-800 font-bold text-xs hover:bg-gray-50 transition-colors shadow-sm">
+            <button onClick={() => handleSocialLogin('Google')} className="flex items-center justify-center gap-3 py-2.5 rounded-lg bg-white border border-gray-200 text-gray-800 font-bold text-xs hover:bg-gray-50 transition-colors shadow-sm">
               <img src="https://www.svgrepo.com/show/475656/google-color.svg" className="w-5 h-5" alt="Google" />
               Sign in with Google
             </button>
-            <button className="flex items-center justify-center gap-3 py-2.5 rounded-lg bg-[#1877F2] text-white font-bold text-xs hover:bg-[#1864D9] transition-colors shadow-sm">
+            <button onClick={() => handleSocialLogin('Facebook')} className="flex items-center justify-center gap-3 py-2.5 rounded-lg bg-[#1877F2] text-white font-bold text-xs hover:bg-[#1864D9] transition-colors shadow-sm">
               <svg className="w-5 h-5 fill-current" viewBox="0 0 24 24"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z" /></svg>
               Sign in with Facebook
             </button>
           </div>
 
           <p className="text-xs text-gray-500 mb-4">or use your email account</p>
-          <form className="w-full flex flex-col gap-3" onSubmit={e => e.preventDefault()}>
+          <form className="w-full flex flex-col gap-3" onSubmit={handleSubmit}>
             <div className="bg-gray-50 rounded-lg p-1 border border-gray-200 focus-within:border-bird-blue/50 transition-colors">
               <input type="email" placeholder="Email" className="w-full bg-transparent px-3 py-2 text-sm text-gray-900 outline-none placeholder-gray-500" />
             </div>
@@ -198,11 +220,11 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMo
 
             {!isSignup && (
               <div className="flex flex-col gap-3 mb-6">
-                <button className="flex items-center justify-center gap-3 py-3 rounded-xl bg-white border border-gray-200 text-gray-800 font-bold text-xs hover:bg-gray-50 transition-colors shadow-sm">
+                <button onClick={() => handleSocialLogin('Google')} className="flex items-center justify-center gap-3 py-3 rounded-xl bg-white border border-gray-200 text-gray-800 font-bold text-xs hover:bg-gray-50 transition-colors shadow-sm">
                   <img src="https://www.svgrepo.com/show/475656/google-color.svg" className="w-5 h-5" alt="Google" />
                   Sign in with Google
                 </button>
-                <button className="flex items-center justify-center gap-3 py-3 rounded-xl bg-[#1877F2] text-white font-bold text-xs hover:bg-[#1864D9] transition-colors shadow-sm">
+                <button onClick={() => handleSocialLogin('Facebook')} className="flex items-center justify-center gap-3 py-3 rounded-xl bg-[#1877F2] text-white font-bold text-xs hover:bg-[#1864D9] transition-colors shadow-sm">
                   <svg className="w-5 h-5 fill-current" viewBox="0 0 24 24"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z" /></svg>
                   Sign in with Facebook
                 </button>
@@ -215,7 +237,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMo
               <div className="flex-grow border-t border-gray-200"></div>
             </div>
 
-            <form className="flex flex-col gap-3" onSubmit={e => e.preventDefault()}>
+            <form className="flex flex-col gap-3" onSubmit={handleSubmit}>
               {isSignup && (
                 <div className="animate-fade-in-up space-y-3">
                   <div className="grid grid-cols-2 gap-3">
