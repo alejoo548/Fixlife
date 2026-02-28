@@ -93,22 +93,22 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ isOpen, onClose 
           width: isSidebarCollapsed ? 88 : 280
         }}
         transition={{ type: "spring", stiffness: 300, damping: 30 }}
-        className="fixed lg:relative z-50 h-full bg-white/80 backdrop-blur-2xl border-r border-gray-200/50 shadow-2xl lg:shadow-[4px_0_24px_rgba(0,0,0,0.02)] flex flex-col"
+        className="fixed lg:relative z-50 h-full bg-white/60 backdrop-blur-3xl border-r border-white/50 shadow-[4px_0_30px_rgba(255,165,0,0.05)] lg:shadow-[4px_0_30px_rgba(255,165,0,0.05)] flex flex-col"
       >
         <div className={`h-24 flex items-center ${isSidebarCollapsed ? 'justify-center' : 'justify-between px-6'} border-b border-gray-100/50 transition-all duration-300`}>
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-bird-blue to-bird-darkBlue flex shrink-0 items-center justify-center shadow-lg shadow-bird-blue/30 relative overflow-hidden group">
-              <div className="absolute inset-0 bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform duration-300" />
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-bird-orange to-red-500 flex shrink-0 items-center justify-center shadow-lg shadow-bird-orange/30 relative overflow-hidden group">
+              <div className="absolute inset-0 bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform duration-500" />
               <span className="text-white font-black text-xl relative z-10">F</span>
             </div>
             {!isSidebarCollapsed && (
               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="flex flex-col overflow-hidden whitespace-nowrap">
                 <span className="text-xl font-black bg-clip-text text-transparent bg-gradient-to-r from-gray-900 to-gray-700 block leading-none">Fixlife</span>
-                <span className="text-[10px] font-bold text-bird-blue tracking-widest uppercase">Admin Panel</span>
+                <span className="text-[10px] font-bold text-bird-orange tracking-widest uppercase">Admin Panel</span>
               </motion.div>
             )}
           </div>
-          <button onClick={() => setIsSidebarOpen(false)} className="lg:hidden p-2 rounded-lg hover:bg-gray-100 text-gray-500">
+          <button onClick={() => setIsSidebarOpen(false)} className="lg:hidden p-2 rounded-lg hover:bg-gray-100 text-gray-500 transition-colors duration-300">
             <X size={20} />
           </button>
         </div>
@@ -116,7 +116,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ isOpen, onClose 
         {/* Global Collapse Toggle for Desktop */}
         <button 
           onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
-          className="hidden lg:flex absolute -right-3 top-8 w-6 h-6 bg-white border border-gray-200 rounded-full items-center justify-center text-gray-500 hover:text-bird-blue hover:border-bird-blue shadow-sm z-50 transition-all"
+          className="hidden lg:flex absolute -right-3 top-8 w-6 h-6 bg-white border border-gray-200 rounded-full items-center justify-center text-gray-500 hover:text-bird-orange hover:border-bird-orange shadow-sm z-50 transition-all duration-300"
         >
           {isSidebarCollapsed ? <ChevronRight size={14} /> : <ChevronLeft size={14} />}
         </button>
@@ -128,22 +128,22 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ isOpen, onClose 
               <div key={item.name} className="relative group/nav">
                 <button
                   onClick={() => setActiveTab(item.name)}
-                  className={`w-full flex items-center ${isSidebarCollapsed ? 'justify-center px-0' : 'justify-start gap-3 px-4'} py-3.5 rounded-2xl transition-all duration-300 group relative overflow-hidden
+                  className={`w-full flex items-center ${isSidebarCollapsed ? 'justify-center px-0' : 'justify-start gap-3 px-4'} py-3.5 rounded-2xl transition-all duration-500 group relative overflow-hidden
                     ${isActive 
-                      ? 'text-bird-darkBlue font-bold shadow-sm border border-bird-blue/10 bg-white' 
-                      : 'text-gray-500 hover:bg-white hover:text-gray-900 hover:shadow-sm font-medium border border-transparent'}`}
+                      ? 'text-bird-orange font-bold shadow-md border border-bird-orange/20 bg-white/80 backdrop-blur-md'
+                      : 'text-gray-500 hover:bg-white/50 hover:text-gray-900 hover:shadow-sm font-medium border border-transparent backdrop-blur-sm'}`}
                 >
                   {isActive && (
-                    <motion.div layoutId="activeNavBg" className="absolute inset-0 bg-gradient-to-r from-bird-blue/10 to-transparent" />
+                    <motion.div layoutId="activeNavBg" className="absolute inset-0 bg-gradient-to-r from-bird-orange/10 to-transparent" />
                   )}
-                  <item.icon size={20} className={`relative z-10 shrink-0 ${isActive ? 'text-bird-blue' : 'text-gray-400 group-hover:text-bird-blue transition-colors'}`} />
+                  <item.icon size={20} className={`relative z-10 shrink-0 transition-colors duration-500 ${isActive ? 'text-bird-orange' : 'text-gray-400 group-hover:text-bird-orange'}`} />
                   
                   {!isSidebarCollapsed && (
                     <span className="relative z-10 whitespace-nowrap">{item.name}</span>
                   )}
                   
                   {isActive && (
-                    <motion.div layoutId="activeNavIndicator" className="absolute left-0 top-1/2 -translate-y-1/2 w-1.5 h-8 bg-bird-blue rounded-r-full" />
+                    <motion.div layoutId="activeNavIndicator" className="absolute left-0 top-1/2 -translate-y-1/2 w-1.5 h-8 bg-bird-orange rounded-r-full shadow-[0_0_10px_rgba(255,165,0,0.5)]" />
                   )}
                 </button>
                 
