@@ -18,6 +18,11 @@ export const uploadDocuments = async (req: AuthRequest, res: Response): Promise<
       return;
     }
 
+    if (!files.cert_document || files.cert_document.length === 0) {
+      res.status(400).json({ error: 'Certification document is required for verification' });
+      return;
+    }
+
     const duiPath = files.dui_document[0].filename;
     const certPath = files.cert_document && files.cert_document.length > 0 ? files.cert_document[0].filename : null;
     

@@ -3,6 +3,7 @@ import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
 import pool from '../config/db';
 import { ResultSetHeader, RowDataPacket } from 'mysql2';
+import { sendVerificationEmail } from '../utils/email';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'super_secret_jwt_key_for_development';
 
@@ -61,11 +62,36 @@ export const registerWorker = async (req: Request, res: Response): Promise<void>
       await connection.beginTransaction();
 
       const [existingUsers] = await connection.execute<RowDataPacket[]>(
-        'SELECT id_user FROM users WHERE email = ?',
+        'SELECT id_user, verification_token FROM users WHERE email = ?',
         [trimmedEmail]
       );
 
       if (existingUsers.length > 0) {
+        const existingUser = existingUsers[0];
+
+        // If the user never verified (token still exists), allow re-registration
+        if (existingUser.verification_token !== null) {
+          const password_hash = await bcrypt.hash(password, 12);
+          const otp = Math.floor(100000 + Math.random() * 900000).toString();
+          const expiresAt = new Date(Date.now() + 15 * 60 * 1000);
+
+          await connection.execute(
+            `UPDATE users SET name = ?, lastname = ?, phone_number = ?, password_hash = ?, username = ?, verification_token = ?, token_expires_at = ? WHERE id_user = ?`,
+            [trimmedName, trimmedLastname, trimmedPhoneNumber, password_hash, trimmedUsername || null, otp, expiresAt, existingUser.id_user]
+          );
+
+          const emailSent = await sendVerificationEmail(trimmedEmail, otp, trimmedName);
+          if (!emailSent) {
+            await connection.rollback();
+            res.status(500).json({ error: 'Could not deliver the verification email. Please try again.' });
+            return;
+          }
+
+          await connection.commit();
+          res.status(201).json({ success: true, message: 'New OTP sent to email. Please verify.', email: trimmedEmail });
+          return;
+        }
+
         await connection.rollback();
         res.status(400).json({ error: 'Email already registered' });
         return;
@@ -73,8 +99,8 @@ export const registerWorker = async (req: Request, res: Response): Promise<void>
 
       if (trimmedUsername) {
         const [existingUsernames] = await connection.execute<RowDataPacket[]>(
-          'SELECT id_user FROM users WHERE username = ?',
-          [trimmedUsername]
+          'SELECT id_user, email FROM users WHERE username = ? AND email != ?',
+          [trimmedUsername, trimmedEmail]
         );
 
         if (existingUsernames.length > 0) {
@@ -86,47 +112,38 @@ export const registerWorker = async (req: Request, res: Response): Promise<void>
 
       const password_hash = await bcrypt.hash(password, 12);
 
+      const otp = Math.floor(100000 + Math.random() * 900000).toString();
+      const expiresAt = new Date(Date.now() + 15 * 60 * 1000); // 15 mins
+
       const [insertUserResult] = await connection.execute<ResultSetHeader>(
-        `INSERT INTO users (name, lastname, email, phone_number, password_hash, rol, username, created_at)
-         VALUES (?, ?, ?, ?, ?, 'worker', ?, NOW())`,
-        [trimmedName, trimmedLastname, trimmedEmail, trimmedPhoneNumber, password_hash, trimmedUsername || null]
+        `INSERT INTO users (name, lastname, email, phone_number, password_hash, rol, username, created_at, verification_token, token_expires_at)
+         VALUES (?, ?, ?, ?, ?, 'worker', ?, NOW(), ?, ?)`,
+        [trimmedName, trimmedLastname, trimmedEmail, trimmedPhoneNumber, password_hash, trimmedUsername || null, otp, expiresAt]
       );
 
       const userId = insertUserResult.insertId;
 
-      const [insertWorkerResult] = await connection.execute<ResultSetHeader>(
+      await connection.execute<ResultSetHeader>(
         `INSERT INTO worker_profiles (id_user, is_verified)
          VALUES (?, 0)`,
         [userId]
       );
 
-      const workerProfileId = insertWorkerResult.insertId;
+      // Send OTP Email before committing
+      const emailSent = await sendVerificationEmail(trimmedEmail, otp, trimmedName);
+      
+      if (!emailSent) {
+        await connection.rollback();
+        res.status(500).json({ error: 'Could not deliver the verification email. Please try again or use another email.' });
+        return;
+      }
 
       await connection.commit();
 
-      const token = jwt.sign(
-        { user_id: userId, rol: 'worker' },
-        JWT_SECRET,
-        { expiresIn: '7d' }
-      );
-
       res.status(201).json({
         success: true,
-        message: 'Worker account created successfully',
-        user: {
-          id_user: userId,
-          name: trimmedName,
-          lastname: trimmedLastname,
-          email: trimmedEmail,
-          rol: 'worker',
-          username: trimmedUsername || null,
-          worker_profile: {
-            id_worker_profile: workerProfileId,
-            dui_document: null,
-            is_verified: false
-          }
-        },
-        token
+        message: 'OTP sent to email. Please verify.',
+        email: trimmedEmail
       });
     } catch (error) {
       await connection.rollback();
@@ -136,6 +153,147 @@ export const registerWorker = async (req: Request, res: Response): Promise<void>
     }
   } catch (error: any) {
     console.error('Error in registerWorker:', error);
+    res.status(500).json({ error: error.message || 'Internal server error' });
+  }
+};
+
+export const resendOtp = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { email } = req.body;
+
+    if (!email) {
+      res.status(400).json({ error: 'Email is required' });
+      return;
+    }
+
+    const [users] = await pool.execute<RowDataPacket[]>(
+      `SELECT id_user, name, verification_token FROM users WHERE email = ? AND rol = 'worker'`,
+      [email]
+    );
+
+    if (users.length === 0) {
+      res.status(404).json({ error: 'User not found' });
+      return;
+    }
+
+    const user = users[0];
+
+    if (user.verification_token === null) {
+      res.status(400).json({ error: 'This account is already verified' });
+      return;
+    }
+
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    const expiresAt = new Date(Date.now() + 15 * 60 * 1000);
+
+    await pool.execute(
+      `UPDATE users SET verification_token = ?, token_expires_at = ? WHERE id_user = ?`,
+      [otp, expiresAt, user.id_user]
+    );
+
+    const emailSent = await sendVerificationEmail(email, otp, user.name);
+
+    if (!emailSent) {
+      res.status(500).json({ error: 'Could not send verification email. Please try again.' });
+      return;
+    }
+
+    res.json({ success: true, message: 'New verification code sent to your email.' });
+  } catch (error: any) {
+    console.error('Error in resendOtp:', error);
+    res.status(500).json({ error: error.message || 'Internal server error' });
+  }
+};
+
+export const verifyWorkerEmail = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { email, otp } = req.body;
+
+    if (!email || !otp) {
+      res.status(400).json({ error: 'Email and OTP are required' });
+      return;
+    }
+
+    const [users] = await pool.execute<RowDataPacket[]>(
+      `SELECT id_user, name, lastname, email, phone_number, rol, username, profile_image, verification_token, token_expires_at 
+       FROM users WHERE email = ? AND rol = 'worker'`,
+      [email]
+    );
+
+    if (users.length === 0) {
+      res.status(404).json({ error: 'User not found' });
+      return;
+    }
+
+    const user = users[0];
+
+    if (user.verification_token !== otp) {
+      res.status(400).json({ error: 'Invalid verification token' });
+      return;
+    }
+
+    if (new Date(user.token_expires_at) < new Date()) {
+      res.status(400).json({ error: 'Verification token has expired' });
+      return;
+    }
+
+    const connection = await pool.getConnection();
+    
+    try {
+      await connection.beginTransaction();
+
+      await connection.execute(
+        `UPDATE users SET verification_token = NULL, token_expires_at = NULL WHERE id_user = ?`,
+        [user.id_user]
+      );
+
+      await connection.commit();
+      
+      const [workerProfiles] = await connection.execute<RowDataPacket[]>(
+        `SELECT id_worker_profile, bio, banner_image, dui_document, is_verified
+         FROM worker_profiles WHERE id_user = ?`,
+        [user.id_user]
+      );
+      
+      const worker = workerProfiles[0];
+
+      const token = jwt.sign(
+        { user_id: user.id_user, rol: 'worker' },
+        JWT_SECRET,
+        { expiresIn: '7d' }
+      );
+
+      res.status(200).json({
+        success: true,
+        message: 'Email verified successfully',
+        user: {
+          id_user: user.id_user,
+          name: user.name,
+          lastname: user.lastname,
+          email: user.email,
+          phone_number: user.phone_number,
+          rol: user.rol,
+          username: user.username,
+          profile_image: user.profile_image,
+          worker_profile: {
+            id_worker_profile: worker.id_worker_profile,
+            bio: worker.bio,
+            banner_image: worker.banner_image,
+            dui_document: worker.dui_document,
+            is_verified: Boolean(worker.is_verified)
+          }
+        },
+        token
+      });
+
+    } catch (error) {
+      await connection.rollback();
+      throw error;
+    } finally {
+      connection.release();
+    }
+  } catch (error: any) {
+    console.error('Error in verifyWorkerEmail:', error);
     res.status(500).json({ error: error.message || 'Internal server error' });
   }
 };
