@@ -97,6 +97,86 @@ export const registerWorker = async (req: Request, res: Response): Promise<void>
   }
 };
 
+export const registerUser = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { name, lastname, email, phone_number, password, username } = req.body;
+
+    if (!name || !lastname || !email || !password) {
+      res.status(400).json({ error: 'Missing required fields' });
+      return;
+    }
+
+    if (!email.includes('@')) {
+      res.status(400).json({ error: 'Invalid email' });
+      return;
+    }
+
+    if (password.length < 8) {
+      res.status(400).json({ error: 'Password must be at least 8 characters' });
+      return;
+    }
+
+    const connection = await pool.getConnection();
+
+    try {
+      await connection.beginTransaction();
+
+      const [existingUsers] = await connection.execute<RowDataPacket[]>(
+        'SELECT id_user FROM users WHERE email = ?',
+        [email]
+      );
+
+      if (existingUsers.length > 0) {
+        await connection.rollback();
+        res.status(400).json({ error: 'Email already registered' });
+        return;
+      }
+
+      const password_hash = await bcrypt.hash(password, 12);
+
+      const [insertUserResult] = await connection.execute<ResultSetHeader>(
+        `INSERT INTO users 
+         (name, lastname, email, phone_number, password_hash, rol, username, created_at)
+         VALUES (?, ?, ?, ?, ?, 'client', ?, NOW())`,
+        [name, lastname, email, phone_number || null, password_hash, username || null]
+      );
+
+      const userId = insertUserResult.insertId;
+
+      await connection.commit();
+
+      const token = jwt.sign(
+        { user_id: userId, rol: 'client' },
+        JWT_SECRET,
+        { expiresIn: '7d' }
+      );
+
+      res.status(201).json({
+        success: true,
+        message: 'User account created successfully',
+        user: {
+          id_user: userId,
+          name,
+          lastname,
+          email,
+          phone_number: phone_number || null,
+          rol: 'client',
+          username: username || null
+        },
+        token
+      });
+    } catch (error) {
+      await connection.rollback();
+      throw error;
+    } finally {
+      connection.release();
+    }
+  } catch (error: any) {
+    console.error('Error in registerUser:', error);
+    res.status(500).json({ error: error.message || 'Internal server error' });
+  }
+};
+
 export const login = async (req: Request, res: Response): Promise<void> => {
   try {
     const { email, password } = req.body;

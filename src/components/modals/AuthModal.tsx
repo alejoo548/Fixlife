@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
+import { API_ENDPOINTS } from '../../config/api';
 import { AuthMode } from '../../types';
+import { useAuth } from '../../context/AuthContext';
 
 interface AuthModalProps {
   isOpen: boolean;
@@ -9,6 +11,25 @@ interface AuthModalProps {
 
 export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMode }) => {
   const [view, setView] = useState<AuthMode>(initialMode);
+
+  const [formData, setFormData] = useState({
+  name: '',
+  lastname: '',
+  username: '',
+  phone_number: '',
+  email: '',
+  password: '',
+  confirmPassword: ''
+});
+
+const { login } = useAuth();
+
+const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  setFormData({
+    ...formData,
+    [e.target.name]: e.target.value
+  });
+};
 
   useEffect(() => {
     if (isOpen) {
@@ -20,6 +41,84 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMo
 
   const isSignup = view === 'signup';
   const toggleView = () => setView(isSignup ? 'signin' : 'signup');
+
+  const handleSignup = async (e: React.FormEvent<HTMLFormElement>) => {
+  e.preventDefault();
+
+  if (formData.password !== formData.confirmPassword) {
+    alert('Passwords do not match');
+    return;
+  }
+
+  try {
+    const res = await fetch(API_ENDPOINTS.auth.registerUser, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        name: formData.name,
+        lastname: formData.lastname,
+        username: formData.username,
+        phone_number: formData.phone_number,
+        email: formData.email,
+        password: formData.password,
+      }),
+    });
+
+    const data = await res.json();
+
+    if (!res.ok) {
+      alert(data.error || 'Registration failed');
+      return;
+    }
+
+    login(data.user, data.token);
+
+    onClose();
+  } catch (err) {
+    console.error(err);
+    alert('Connection error');
+  }
+};
+
+const handleSignin = async (e: React.FormEvent<HTMLFormElement>) => {
+  e.preventDefault();
+
+  if (!formData.email || !formData.password) {
+  alert('Email and password are required');
+  return;
+}
+
+const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+if (!emailRegex.test(formData.email)) {
+  alert('Invalid email format');
+  return;
+}
+
+  try {
+    const res = await fetch(API_ENDPOINTS.auth.login, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        email: formData.email,
+        password: formData.password,
+      }),
+    });
+
+    const data = await res.json();
+
+    if (!res.ok) {
+      alert(data.error || 'Login failed');
+      return;
+    }
+
+    login(data.user, data.token);
+
+    onClose();
+  } catch (err) {
+    console.error(err);
+    alert('Connection error');
+  }
+};
 
   const transitionClass = "transition-all duration-700 ease-[cubic-bezier(0.23,1,0.32,1)]";
 
@@ -63,35 +162,35 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMo
           <h2 className="text-3xl font-bold mb-4 text-bird-blue">Create Account</h2>
 
           <p className="text-xs text-gray-500 mb-4">or use your email for registration</p>
-          <form className="w-full flex flex-col gap-2.5" onSubmit={e => e.preventDefault()}>
+          <form className="w-full flex flex-col gap-2.5" onSubmit={handleSignup}>
             <div className="grid grid-cols-2 gap-2.5">
               <div className="bg-gray-50 rounded-lg p-1 border border-gray-200 focus-within:border-bird-blue/50 transition-colors">
-                <input type="text" placeholder="First Name" className="w-full bg-transparent px-3 py-2 text-sm text-gray-900 outline-none placeholder-gray-500" />
+                <input type="text" name="name" value={formData.name} onChange={handleChange} placeholder="First Name" className="w-full bg-transparent px-3 py-2 text-sm text-gray-900 outline-none placeholder-gray-500" />
               </div>
               <div className="bg-gray-50 rounded-lg p-1 border border-gray-200 focus-within:border-bird-blue/50 transition-colors">
-                <input type="text" placeholder="Last Name" className="w-full bg-transparent px-3 py-2 text-sm text-gray-900 outline-none placeholder-gray-500" />
+                <input type="text" name="lastname" value={formData.lastname} onChange={handleChange} placeholder="Last Name" className="w-full bg-transparent px-3 py-2 text-sm text-gray-900 outline-none placeholder-gray-500" />
               </div>
             </div>
 
             <div className="grid grid-cols-2 gap-2.5">
               <div className="bg-gray-50 rounded-lg p-1 border border-gray-200 focus-within:border-bird-blue/50 transition-colors">
-                <input type="text" placeholder="Username" className="w-full bg-transparent px-3 py-2 text-sm text-gray-900 outline-none placeholder-gray-500" />
+                <input type="text" name="username" value={formData.username} onChange={handleChange} placeholder="Username" className="w-full bg-transparent px-3 py-2 text-sm text-gray-900 outline-none placeholder-gray-500" />
               </div>
               <div className="bg-gray-50 rounded-lg p-1 border border-gray-200 focus-within:border-bird-blue/50 transition-colors">
-                <input type="tel" placeholder="Phone" className="w-full bg-transparent px-3 py-2 text-sm text-gray-900 outline-none placeholder-gray-500" />
+                <input type="tel" name="phone_number" value={formData.phone_number} onChange={handleChange} placeholder="Phone" className="w-full bg-transparent px-3 py-2 text-sm text-gray-900 outline-none placeholder-gray-500" />
               </div>
             </div>
 
             <div className="bg-gray-50 rounded-lg p-1 border border-gray-200 focus-within:border-bird-blue/50 transition-colors">
-              <input type="email" placeholder="Email" className="w-full bg-transparent px-3 py-2 text-sm text-gray-900 outline-none placeholder-gray-500" />
+              <input type="email" name="email" value={formData.email} onChange={handleChange} placeholder="Email" className="w-full bg-transparent px-3 py-2 text-sm text-gray-900 outline-none placeholder-gray-500" />
             </div>
 
             <div className="grid grid-cols-2 gap-2.5">
               <div className="bg-gray-50 rounded-lg p-1 border border-gray-200 focus-within:border-bird-blue/50 transition-colors">
-                <input type="password" placeholder="Password" className="w-full bg-transparent px-3 py-2 text-sm text-gray-900 outline-none placeholder-gray-500" />
+                <input type="password" name="password" value={formData.password} onChange={handleChange} placeholder="Password" className="w-full bg-transparent px-3 py-2 text-sm text-gray-900 outline-none placeholder-gray-500" />
               </div>
               <div className="bg-gray-50 rounded-lg p-1 border border-gray-200 focus-within:border-bird-blue/50 transition-colors">
-                <input type="password" placeholder="Confirm" className="w-full bg-transparent px-3 py-2 text-sm text-gray-900 outline-none placeholder-gray-500" />
+                <input type="password" name="confirmPassword" value={formData.confirmPassword} onChange={handleChange} placeholder="Confirm" className="w-full bg-transparent px-3 py-2 text-sm text-gray-900 outline-none placeholder-gray-500" />
               </div>
             </div>
 
@@ -132,12 +231,12 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMo
           </div>
 
           <p className="text-xs text-gray-500 mb-4">or use your email account</p>
-          <form className="w-full flex flex-col gap-3" onSubmit={e => e.preventDefault()}>
+          <form className="w-full flex flex-col gap-3" onSubmit={handleSignin}>
             <div className="bg-gray-50 rounded-lg p-1 border border-gray-200 focus-within:border-bird-blue/50 transition-colors">
-              <input type="email" placeholder="Email" className="w-full bg-transparent px-3 py-2 text-sm text-gray-900 outline-none placeholder-gray-500" />
+              <input type="email" name="email" value={formData.email} onChange={handleChange} placeholder="Email" className="w-full bg-transparent px-3 py-2 text-sm text-gray-900 outline-none placeholder-gray-500" />
             </div>
             <div className="bg-gray-50 rounded-lg p-1 border border-gray-200 focus-within:border-bird-blue/50 transition-colors">
-              <input type="password" placeholder="Password" className="w-full bg-transparent px-3 py-2 text-sm text-gray-900 outline-none placeholder-gray-500" />
+              <input type="password" name="password" value={formData.password} onChange={handleChange} placeholder="Password" className="w-full bg-transparent px-3 py-2 text-sm text-gray-900 outline-none placeholder-gray-500" />
             </div>
             <a href="#" className="text-xs text-gray-500 hover:text-bird-blue transition-colors self-end my-1">Forgot your password?</a>
             <button className="w-full py-3.5 rounded-full bg-bird-blue text-white font-bold text-sm tracking-wide shadow-lg shadow-bird-blue/20 hover:bg-bird-darkBlue hover:scale-[1.02] transition-all duration-300">
@@ -215,37 +314,37 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMo
               <div className="flex-grow border-t border-gray-200"></div>
             </div>
 
-            <form className="flex flex-col gap-3" onSubmit={e => e.preventDefault()}>
+            <form className="flex flex-col gap-3" onSubmit={isSignup ? handleSignup : handleSignin}>
               {isSignup && (
                 <div className="animate-fade-in-up space-y-3">
                   <div className="grid grid-cols-2 gap-3">
                     <div className="bg-gray-50 rounded-xl px-4 py-3 border border-gray-200 focus-within:border-bird-blue/50 transition-colors">
-                      <input type="text" placeholder="Name" className="w-full bg-transparent text-sm text-gray-900 outline-none placeholder-gray-500" />
+                      <input type="text" name="name" value={formData.name} onChange={handleChange} placeholder="Name" className="w-full bg-transparent text-sm text-gray-900 outline-none placeholder-gray-500" />
                     </div>
                     <div className="bg-gray-50 rounded-xl px-4 py-3 border border-gray-200 focus-within:border-bird-blue/50 transition-colors">
-                      <input type="text" placeholder="Surname" className="w-full bg-transparent text-sm text-gray-900 outline-none placeholder-gray-500" />
+                      <input type="text" name="lastname" value={formData.lastname} onChange={handleChange} placeholder="Surname" className="w-full bg-transparent text-sm text-gray-900 outline-none placeholder-gray-500" />
                     </div>
                   </div>
                   <div className="bg-gray-50 rounded-xl px-4 py-3 border border-gray-200 focus-within:border-bird-blue/50 transition-colors">
-                    <input type="text" placeholder="Username" className="w-full bg-transparent text-sm text-gray-900 outline-none placeholder-gray-500" />
+                    <input type="text" name="username" value={formData.username} onChange={handleChange} placeholder="Username" className="w-full bg-transparent text-sm text-gray-900 outline-none placeholder-gray-500" />
                   </div>
                   <div className="bg-gray-50 rounded-xl px-4 py-3 border border-gray-200 focus-within:border-bird-blue/50 transition-colors">
-                    <input type="tel" placeholder="Phone Number" className="w-full bg-transparent text-sm text-gray-900 outline-none placeholder-gray-500" />
+                    <input type="tel" name="phone_number" value={formData.phone_number} onChange={handleChange} placeholder="Phone Number" className="w-full bg-transparent text-sm text-gray-900 outline-none placeholder-gray-500" />
                   </div>
                 </div>
               )}
 
               <div className="bg-gray-50 rounded-xl px-4 py-3 border border-gray-200 focus-within:border-bird-blue/50 transition-colors">
-                <input type="email" placeholder="Email Address" className="w-full bg-transparent text-sm text-gray-900 outline-none placeholder-gray-500" />
+                <input type="email" name="email" value={formData.email} onChange={handleChange} placeholder="Email Address" className="w-full bg-transparent text-sm text-gray-900 outline-none placeholder-gray-500" />
               </div>
 
               <div className="grid grid-cols-1 gap-3">
                 <div className="bg-gray-50 rounded-xl px-4 py-3 border border-gray-200 focus-within:border-bird-blue/50 transition-colors">
-                  <input type="password" placeholder="Password" className="w-full bg-transparent text-sm text-gray-900 outline-none placeholder-gray-500" />
+                  <input type="password" name="password" value={formData.password} onChange={handleChange} placeholder="Password" className="w-full bg-transparent text-sm text-gray-900 outline-none placeholder-gray-500" />
                 </div>
                 {isSignup && (
                   <div className="bg-gray-50 rounded-xl px-4 py-3 border border-gray-200 focus-within:border-bird-blue/50 transition-colors animate-fade-in-up">
-                    <input type="password" placeholder="Confirm Password" className="w-full bg-transparent text-sm text-gray-900 outline-none placeholder-gray-500" />
+                    <input type="password" name="confirmPassword" value={formData.confirmPassword} onChange={handleChange} placeholder="Confirm Password" className="w-full bg-transparent text-sm text-gray-900 outline-none placeholder-gray-500" />
                   </div>
                 )}
               </div>
