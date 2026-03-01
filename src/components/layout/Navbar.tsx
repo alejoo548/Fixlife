@@ -1,8 +1,10 @@
 import React, { useState } from 'react';
-import { NavItemType, NavbarProps, AuthMode } from '../../types';
+import { NavbarProps, AuthMode } from '../../types';
 import { Logo } from '../common/Logo';
+import { useAuth } from '../../context/AuthContext';
 
 export const Navbar: React.FC<NavbarProps> = ({ navItems, onOpenAuth, onStartBooking }) => {
+  const { user, logout } = useAuth();
   const [activeItem, setActiveItem] = useState<number | null>(null);
   const [isAccountOpen, setIsAccountOpen] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -87,7 +89,7 @@ export const Navbar: React.FC<NavbarProps> = ({ navItems, onOpenAuth, onStartBoo
               onClick={() => setIsAccountOpen(!isAccountOpen)}
             >
               <div className="flex items-center gap-2 z-20 transform group-hover:scale-105 transition-transform duration-200">
-                <span className="font-bold text-sm tracking-wide">Account</span>
+                <span className="font-bold text-sm tracking-wide">{user ? user.name : 'Account'}</span>
                 <svg
                   className={`w-4 h-4 transition-transform duration-300 ${isAccountOpen ? 'rotate-180 text-bird-blue' : 'group-hover:text-bird-blue'}`}
                   fill="none" stroke="currentColor" viewBox="0 0 24 24"
@@ -102,31 +104,67 @@ export const Navbar: React.FC<NavbarProps> = ({ navItems, onOpenAuth, onStartBoo
                 onClick={(e) => e.stopPropagation()}
               >
                 <div className="p-1">
-                  <button
-                    onClick={(e) => handleAuthClick(e, 'signin')}
-                    className="w-full flex items-center gap-3 px-4 py-3 text-sm text-gray-600 hover:bg-bird-blue/5 hover:text-bird-blue rounded-lg transition-colors text-left font-medium"
-                  >
-                    <svg className="w-4 h-4 text-bird-yellow" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1" />
-                    </svg>
-                    Login
-                  </button>
-                  <button
-                    onClick={(e) => handleAuthClick(e, 'signup')}
-                    className="w-full flex items-center gap-3 px-4 py-3 text-sm text-gray-600 hover:bg-bird-blue/5 hover:text-bird-blue rounded-lg transition-colors text-left font-medium"
-                  >
-                    <svg className="w-4 h-4 text-bird-blue" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
-                    </svg>
-                    Register
-                  </button>
-                </div>
-                <div className="border-t border-gray-200 p-2 bg-gray-50 text-center">
-                  <span className="text-xs text-gray-500">v1.0.2</span>
+                  {!user ? (
+                    <>
+                      <button
+                        onClick={(e) => handleAuthClick(e, 'signin')}
+                        className="w-full flex items-center gap-3 px-4 py-3 text-sm text-gray-600 hover:bg-bird-blue/5 hover:text-bird-blue rounded-lg transition-colors text-left font-medium"
+                      >
+                        <svg
+                          className="w-4 h-4 text-bird-yellow"
+                          fill="none"
+                          viewBox="0 0 24 24"
+                          stroke="currentColor"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1"
+                          />
+                        </svg>
+                        Sign In
+                      </button>
+
+                      <button
+                        onClick={(e) => handleAuthClick(e, 'signup')}
+                        className="w-full flex items-center gap-3 px-4 py-3 text-sm text-gray-600 hover:bg-bird-blue/5 hover:text-bird-blue rounded-lg transition-colors text-left font-medium"
+                      >
+                        <svg
+                          className="w-4 h-4 text-bird-blue"
+                          fill="none"
+                          viewBox="0 0 24 24"
+                          stroke="currentColor"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z"
+                          />
+                        </svg>
+                        Sign Up
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <button
+                        className="w-full px-4 py-3 text-sm text-gray-600 hover:bg-bird-blue/5 rounded-lg text-left font-medium"
+                      >
+                        My Profile
+                      </button>
+
+                      <button
+                        onClick={logout}
+                        className="w-full px-4 py-3 text-sm text-red-500 hover:bg-red-50 rounded-lg text-left font-medium"
+                      >
+                        Log Out
+                      </button>
+                    </>
+                  )}
                 </div>
               </div>
             </div>
-
           </div>
 
           <div
@@ -150,7 +188,7 @@ export const Navbar: React.FC<NavbarProps> = ({ navItems, onOpenAuth, onStartBoo
             </svg>
           </button>
         </div>
-      </header>
+      </header >
 
       <div
         className={`fixed inset-0 z-[60] bg-white/95 backdrop-blur-xl lg:hidden transition-all duration-300 ease-in-out ${isMobileMenuOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
