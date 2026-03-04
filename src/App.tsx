@@ -11,6 +11,7 @@ import { Footer } from './components/layout/Footer';
 import { ScrollReveal } from './components/common/ScrollReveal';
 import { ServiceRequestWizard } from './components/modals/ServiceRequestWizard';
 import { ProDashboard } from './components/modals/ProDashboard';
+import { AdminDashboard } from './components/modals/AdminDashboard';
 import { ParticlesBackground } from './components/effects/ParticlesBackground';
 import { TestimonialsCarousel } from './components/sections/TestimonialsCarousel';
 import { FAQSection } from './components/sections/FAQSection';
@@ -35,7 +36,7 @@ const App: React.FC = () => {
   const [authMode, setAuthMode] = useState<AuthMode>('signin');
   const [isWorkerAuthOpen, setIsWorkerAuthOpen] = useState(false);
   const [workerAuthMode, setWorkerAuthMode] = useState<'signin' | 'signup'>('signup');
-  const [currentView, setCurrentView] = useState<'landing' | 'app' | 'pro-dashboard'>('landing');
+  const [currentView, setCurrentView] = useState<'landing' | 'app' | 'pro-dashboard' | 'admin-dashboard'>('landing');
 
   // Sync with URL on mount
   useEffect(() => {
@@ -44,6 +45,8 @@ const App: React.FC = () => {
     if (path === '/pro-dashboard') {
       console.log('[App] Setting initial view to pro-dashboard');
       setCurrentView('pro-dashboard');
+    } else if (path === '/admin-dashboard') {
+      setCurrentView('admin-dashboard');
     } else if (path === '/app') {
       setCurrentView('app');
     }
@@ -70,6 +73,13 @@ const App: React.FC = () => {
     console.log('[App] handleOpenProDashboard called');
     window.history.pushState({}, '', '/pro-dashboard');
     setCurrentView('pro-dashboard');
+    window.scrollTo(0, 0);
+  }
+
+  const handleOpenAdminDashboard = () => {
+    console.log('[App] handleOpenAdminDashboard called');
+    window.history.pushState({}, '', '/admin-dashboard');
+    setCurrentView('admin-dashboard');
     window.scrollTo(0, 0);
   }
 
@@ -152,6 +162,11 @@ const App: React.FC = () => {
         />
       ) : currentView === 'pro-dashboard' ? (
         <ProDashboard
+          isOpen={true}
+          onClose={handleBackToLanding}
+        />
+      ) : currentView === 'admin-dashboard' ? (
+        <AdminDashboard
           isOpen={true}
           onClose={handleBackToLanding}
         />
@@ -433,7 +448,7 @@ const App: React.FC = () => {
               <ScrollReveal><ProBento onOpenPro={handleOpenProDashboard} onOpenWorkerAuth={handleOpenWorkerAuth} /></ScrollReveal>
             </section>
           </main>
-          <Footer onOpenPro={handleOpenProDashboard} />
+          <Footer onOpenPro={handleOpenProDashboard} onOpenAdmin={handleOpenAdminDashboard} />
         </>
       )}
 
