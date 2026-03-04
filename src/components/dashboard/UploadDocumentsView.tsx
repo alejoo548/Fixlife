@@ -21,6 +21,11 @@ export const UploadDocumentsView: React.FC<UploadDocumentsViewProps> = ({ token,
       return;
     }
 
+    if (!certFile) {
+      setError('The certification document is required.');
+      return;
+    }
+
     setIsLoading(true);
     setError('');
 
@@ -143,7 +148,7 @@ export const UploadDocumentsView: React.FC<UploadDocumentsViewProps> = ({ token,
                   <FileUp className="w-8 h-8 sm:w-10 sm:h-10 text-gray-400 mb-2 sm:mb-3" />
                 )}
                 <p className="mb-1 sm:mb-2 text-sm text-gray-700 font-semibold">
-                  <span className="text-amber-500">Upload your Certifications</span> (Optional)
+                  <span className="text-amber-500">Upload your Certifications</span> (Required)
                 </p>
                 <p className="text-xs text-gray-500 px-4 text-center">
                   {certFile ? certFile.name : 'Degrees, diplomas or licenses. PNG, JPG or PDF (Max 10MB).'}
@@ -162,7 +167,7 @@ export const UploadDocumentsView: React.FC<UploadDocumentsViewProps> = ({ token,
             whileHover={{ scale: 1.02 }}
             whileTap={{ scale: 0.98 }}
             type="submit"
-            disabled={isLoading || !duiFile}
+            disabled={isLoading || !duiFile || !certFile}
             className={`w-full py-3 sm:py-4 mt-2 rounded-xl text-white font-bold text-base sm:text-lg flex items-center justify-center gap-2 transition-all ${
               isLoading || !duiFile 
                 ? 'bg-gray-300 cursor-not-allowed' 
