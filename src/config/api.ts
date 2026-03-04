@@ -4,5 +4,7 @@ export const API_ENDPOINTS = {
   auth: {
     login: `${API_URL}/api/auth/login`,
     registerWorker: `${API_URL}/api/auth/register/worker`,
+    verifyWorkerEmail: `${API_URL}/api/auth/verify-worker-email`,
+    resendOtp: `${API_URL}/api/auth/resend-otp`,
   },
 };
