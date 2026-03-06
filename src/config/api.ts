@@ -5,5 +5,8 @@ export const API_ENDPOINTS = {
     login: `${API_URL}/api/auth/login`,
     registerUser: `${API_URL}/api/auth/register-user`,
     registerWorker: `${API_URL}/api/auth/register/worker`,
+    forgotPassword: `${API_URL}/api/auth/forgot-password`,
+    verifyResetToken: `${API_URL}/api/auth/verify-reset-token`,
+    resetPassword: `${API_URL}/api/auth/reset-password`,
   },
 };

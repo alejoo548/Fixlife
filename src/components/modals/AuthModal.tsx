@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { API_ENDPOINTS } from '../../config/api';
 import { AuthMode } from '../../types';
 import { useAuth } from '../../context/AuthContext';
+import ForgotPassword from '../../pages/ForgotPassword';
 
 interface AuthModalProps {
   isOpen: boolean;
@@ -10,7 +11,8 @@ interface AuthModalProps {
 }
 
 export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMode }) => {
-  const [view, setView] = useState<AuthMode>(initialMode);
+  type AuthView = AuthMode | 'forgot';
+  const [view, setView] = useState<AuthView>(initialMode);
 
   const [formData, setFormData] = useState({
   name: '',
@@ -121,6 +123,21 @@ if (!emailRegex.test(formData.email)) {
 };
 
   const transitionClass = "transition-all duration-700 ease-[cubic-bezier(0.23,1,0.32,1)]";
+
+  if (view === 'forgot') {
+  return (
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+      <div
+        className="absolute inset-0 bg-black/70 backdrop-blur-md"
+        onClick={onClose}
+      />
+
+      <div className="relative bg-white rounded-3xl shadow-2xl p-8 w-full max-w-md animate-zoom-in">
+        <ForgotPassword onBack={() => setView('signin')} />
+      </div>
+    </div>
+  );
+}
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
@@ -238,7 +255,7 @@ if (!emailRegex.test(formData.email)) {
             <div className="bg-gray-50 rounded-lg p-1 border border-gray-200 focus-within:border-bird-blue/50 transition-colors">
               <input type="password" name="password" value={formData.password} onChange={handleChange} placeholder="Password" className="w-full bg-transparent px-3 py-2 text-sm text-gray-900 outline-none placeholder-gray-500" />
             </div>
-            <a href="#" className="text-xs text-gray-500 hover:text-bird-blue transition-colors self-end my-1">Forgot your password?</a>
+            <button type="button" onClick={() => setView('forgot')} className="text-xs text-gray-500 hover:text-bird-blue transition-colors self-end my-1"> Forgot your password? </button>
             <button className="w-full py-3.5 rounded-full bg-bird-blue text-white font-bold text-sm tracking-wide shadow-lg shadow-bird-blue/20 hover:bg-bird-darkBlue hover:scale-[1.02] transition-all duration-300">
               SIGN IN
             </button>
@@ -351,7 +368,7 @@ if (!emailRegex.test(formData.email)) {
 
               {!isSignup && (
                 <div className="flex justify-end">
-                  <a href="#" className="text-xs text-gray-600 hover:text-bird-blue transition-colors">Forgot password?</a>
+                  <button type="button" onClick={() => setView('forgot')} className="text-xs text-gray-500 hover:text-bird-blue transition-colors self-end my-1"> Forgot your password?</button>
                 </div>
               )}
 
