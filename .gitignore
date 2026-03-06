@@ -45,3 +45,7 @@ db.sqlite3
 db.sqlite3-journal
 /static/
 /media/
+
+# Backend uploads: keep folder, ignore runtime files
+backend/uploads/*
+!backend/uploads/.gitkeep
