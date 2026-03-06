@@ -4,6 +4,8 @@ import {
   verifyResetToken,
   resetPassword
 } from "../services/authService";
+import { Notyf } from 'notyf';
+import 'notyf/notyf.min.css';
 
 interface ForgotPasswordProps {
   onBack?: () => void;
@@ -12,6 +14,11 @@ interface ForgotPasswordProps {
 const ForgotPassword: React.FC<ForgotPasswordProps> = ({ onBack }) => {
 
   const [step, setStep] = useState(1);
+
+  const notyf = new Notyf({
+    position: { x: 'right', y: 'bottom' },
+    ripple: true,
+  });
 
   const [email, setEmail] = useState("");
   const [token, setToken] = useState("");
@@ -26,11 +33,11 @@ const ForgotPassword: React.FC<ForgotPasswordProps> = ({ onBack }) => {
     setLoading(true);
 
     try {
-      await forgotPassword(email);
-      alert("Verification code sent to your email");
+      await forgotPassword(email.trim());
+      notyf.success("Verification code sent to your email");
       setStep(2);
-    } catch {
-      alert("Error sending email");
+    } catch (error: any) {
+      notyf.error(error.response?.data?.error || "Error sending email");
     } finally {
       setLoading(false);
     }
@@ -41,11 +48,12 @@ const ForgotPassword: React.FC<ForgotPasswordProps> = ({ onBack }) => {
     setLoading(true);
 
     try {
-      await verifyResetToken(email, token);
-      alert("Token verified");
+      await verifyResetToken(email.trim(), token.trim());
+      notyf.success("Token verified");
       setStep(3);
-    } catch {
-      alert("Invalid or expired token");
+    } catch (error: any) {
+      const msg = error.response?.data?.message || error.response?.data?.error || "Invalid or expired token";
+      notyf.error(msg);
     } finally {
       setLoading(false);
     }
@@ -55,21 +63,21 @@ const ForgotPassword: React.FC<ForgotPasswordProps> = ({ onBack }) => {
     e.preventDefault();
 
     if (password !== confirmPassword) {
-      alert("Passwords do not match");
+      notyf.error("Passwords do not match");
       return;
     }
 
     setLoading(true);
 
     try {
-      await resetPassword(email, token, password);
+      await resetPassword(email.trim(), token.trim(), password);
 
-      alert("Password successfully updated");
+      notyf.success("Password successfully updated");
 
       if (onBack) onBack();
 
-    } catch {
-      alert("Error resetting password");
+    } catch (error: any) {
+      notyf.error(error.response?.data?.error || "Error resetting password");
     } finally {
       setLoading(false);
     }
