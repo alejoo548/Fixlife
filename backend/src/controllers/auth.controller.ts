@@ -31,32 +31,6 @@ export const registerWorker = async (req: Request, res: Response): Promise<void>
       res.status(400).json({ error: 'First name is invalid or too long (max 50 chars, letters only)' });
       return;
     }
-
-    if (!nameRegex.test(trimmedLastname) || trimmedLastname.length > 50) {
-      res.status(400).json({ error: 'Last name is invalid or too long (max 50 chars, letters only)' });
-      return;
-    }
-
-    if (trimmedUsername && (!usernameRegex.test(trimmedUsername) || trimmedUsername.length > 30)) {
-      res.status(400).json({ error: 'Username is invalid or too long (max 30 chars, alphanumeric and underscores only)' });
-      return;
-    }
-
-    if (!phoneRegex.test(trimmedPhoneNumber)) {
-      res.status(400).json({ error: 'Phone number must be exactly 8 digits.' });
-      return;
-    }
-
-    if (trimmedEmail.length > 100 || !trimmedEmail.includes('@')) {
-      res.status(400).json({ error: 'Invalid email or too long (max 100 chars)' });
-      return;
-    }
-
-    if (password.length < 8 || password.length > 128) {
-      res.status(400).json({ error: 'Password must be between 8 and 128 characters' });
-      return;
-    }
-
     const connection = await pool.getConnection();
 
     try {
@@ -70,7 +44,6 @@ export const registerWorker = async (req: Request, res: Response): Promise<void>
       if (existingUsers.length > 0) {
         const existingUser = existingUsers[0];
 
-        // If the user never verified (token still exists), allow re-registration
         if (existingUser.verification_token !== null) {
           const password_hash = await bcrypt.hash(password, 12);
           const otp = Math.floor(100000 + Math.random() * 900000).toString();
