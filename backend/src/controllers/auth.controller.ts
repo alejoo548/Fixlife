@@ -3,6 +3,7 @@ import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
 import pool from '../config/db';
 import { ResultSetHeader, RowDataPacket } from 'mysql2';
+import { sendResetEmail } from '../config/mail';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'super_secret_jwt_key_for_development';
 
@@ -254,5 +255,115 @@ export const login = async (req: Request, res: Response): Promise<void> => {
   } catch (error: any) {
     console.error('Error in login:', error);
     res.status(500).json({ error: error.message || 'Internal server error' });
+  }
+};
+
+export const forgotPassword = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { email } = req.body;
+
+    const [users] = await pool.execute<RowDataPacket[]>(
+      'SELECT id_user FROM users WHERE email = ?',
+      [email]
+    );
+
+    if (users.length === 0) {
+      res.json({ success: true });
+      return;
+    }
+
+    const token = Math.floor(100000 + Math.random() * 900000).toString();
+    const expires = new Date(Date.now() + 15 * 60 * 1000);
+
+    await pool.execute(
+      `UPDATE users 
+       SET verification_token = ?, token_expires_at = ?
+       WHERE email = ?`,
+      [token, expires, email]
+    );
+
+    await sendResetEmail(email, token);
+
+    res.json({ success: true });
+
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+};
+
+export const resetPassword = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { email, token, newPassword } = req.body;
+
+    if (!email || !token || !newPassword) {
+      res.status(400).json({ error: 'Missing fields' });
+      return;
+    }
+
+    const [users] = await pool.execute<RowDataPacket[]>(
+      `SELECT id_user, token_expires_at
+       FROM users
+       WHERE email = ? AND verification_token = ?`,
+      [email, token]
+    );
+
+    if (users.length === 0) {
+      res.status(400).json({ error: 'Invalid token' });
+      return;
+    }
+
+    const expiresAt = new Date(users[0].token_expires_at);
+    if (expiresAt < new Date()) {
+      res.status(400).json({ error: 'Token expired' });
+      return;
+    }
+
+    const passwordHash = await bcrypt.hash(newPassword, 12);
+
+    await pool.execute(
+      `UPDATE users
+       SET password_hash = ?, verification_token = NULL, token_expires_at = NULL
+       WHERE email = ?`,
+      [passwordHash, email]
+    );
+
+    res.json({ success: true, message: 'Password updated' });
+  } catch (error) {
+    console.error('resetPassword error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
+export const verifyResetToken = async (req: Request, res: Response) => {
+  try {
+
+    const { email, token } = req.body;
+
+    const [rows]: any = await pool.query(
+      `SELECT verification_token, token_expires_at
+       FROM users
+       WHERE email = ?`,
+      [email]
+    );
+
+    if (rows.length === 0) {
+      return res.status(400).json({ message: "Invalid email" });
+    }
+
+    const user = rows[0];
+
+    if (String(user.verification_token) !== String(token)) {
+      return res.status(400).json({ message: "Invalid code" });
+    }
+
+    if (new Date(user.token_expires_at) < new Date()) {
+      return res.status(400).json({ message: "Code expired" });
+    }
+
+    res.json({ message: "Token valid" });
+
+  } catch (error) {
+    res.status(500).json({ message: "Server error" });
   }
 };

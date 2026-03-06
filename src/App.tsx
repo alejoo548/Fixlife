@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useLocation } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Navbar } from './components/layout/Navbar';
 import { NavItemType, AuthMode } from './types';
@@ -37,19 +38,19 @@ const App: React.FC = () => {
   const [workerAuthMode, setWorkerAuthMode] = useState<'signin' | 'signup'>('signup');
   const [currentView, setCurrentView] = useState<'landing' | 'app' | 'pro-dashboard'>('landing');
 
-  // Sync with URL on mount
   useEffect(() => {
     const path = window.location.pathname;
     console.log('[App] Initial path:', path);
+
     if (path === '/pro-dashboard') {
-      console.log('[App] Setting initial view to pro-dashboard');
       setCurrentView('pro-dashboard');
-    } else if (path === '/app') {
+    }
+    else if (path === '/app') {
       setCurrentView('app');
     }
+
   }, []);
 
-  // Debug current view changes
   useEffect(() => {
     console.log('[App] Current view changed to:', currentView);
   }, [currentView]);
@@ -212,7 +213,7 @@ const App: React.FC = () => {
                       />
                       <span className="text-xs font-bold text-green-700 tracking-wider uppercase">Available Now</span>
                     </motion.div>
-                    
+
                     <motion.h1
                       initial={{ opacity: 0, y: 20 }}
                       animate={{ opacity: 1, y: 0 }}
@@ -235,7 +236,7 @@ const App: React.FC = () => {
                         Fixlife
                       </motion.span>
                     </motion.h1>
-                    
+
                     <motion.p
                       initial={{ opacity: 0, y: 20 }}
                       animate={{ opacity: 1, y: 0 }}
@@ -245,7 +246,7 @@ const App: React.FC = () => {
                       Connecting top-rated professionals with your repair and maintenance projects. <span className="text-gray-900 font-bold">Fast, safe, and guaranteed.</span>
                     </motion.p>
                   </div>
-                  
+
                   <div className="mt-auto">
                     <motion.div
                       initial={{ opacity: 0, y: 20 }}
@@ -266,7 +267,7 @@ const App: React.FC = () => {
                       >
                         Get Started
                       </Button>
-                      
+
                       <Button
                         variant="outline"
                         size="lg"
@@ -275,7 +276,7 @@ const App: React.FC = () => {
                         How it Works
                       </Button>
                     </motion.div>
-                    
+
                     <motion.div
                       initial={{ opacity: 0, y: 20 }}
                       animate={{ opacity: 1, y: 0 }}
