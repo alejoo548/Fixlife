@@ -2,18 +2,28 @@ import express, { Request, Response } from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import path from 'path';
+import helmet from 'helmet';
 import authRoutes from './routes/auth.routes';
 import workerRoutes from './routes/worker.routes';
+import { globalLimiter } from './middlewares/security.middleware';
 
 dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 8000;
+const uploadsDir = path.resolve(process.cwd(), 'uploads');
 
 app.use(cors());
-app.use(express.json());
+app.use(
+  helmet({
+    crossOriginResourcePolicy: false,
+  })
+);
+app.use(globalLimiter);
+app.use(express.json({ limit: '1mb' }));
+app.use(express.urlencoded({ extended: true, limit: '1mb' }));
 
-app.use('/uploads', express.static(path.join(__dirname, '../../uploads')));
+app.use('/uploads', express.static(uploadsDir));
 
 app.use('/api/auth', authRoutes);
 app.use('/api/worker', workerRoutes); 

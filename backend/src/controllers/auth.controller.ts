@@ -17,7 +17,7 @@ export const registerWorker = async (req: Request, res: Response): Promise<void>
     }
 
     const nameRegex = /^[a-zA-Z\s]+$/;
-    const phoneRegex = /^[+\d\-\s]+$/;
+    const phoneRegex = /^\d{8}$/;
     const usernameRegex = /^[a-zA-Z0-9_]+$/;
 
     const trimmedName = name.trim();
@@ -41,8 +41,8 @@ export const registerWorker = async (req: Request, res: Response): Promise<void>
       return;
     }
 
-    if (!phoneRegex.test(trimmedPhoneNumber) || trimmedPhoneNumber.length > 15) {
-      res.status(400).json({ error: 'Phone number is invalid or too long (max 15 chars)' });
+    if (!phoneRegex.test(trimmedPhoneNumber)) {
+      res.status(400).json({ error: 'Phone number must be exactly 8 digits.' });
       return;
     }
 
@@ -250,7 +250,7 @@ export const verifyWorkerEmail = async (req: Request, res: Response): Promise<vo
       await connection.commit();
       
       const [workerProfiles] = await connection.execute<RowDataPacket[]>(
-        `SELECT id_worker_profile, bio, banner_image, dui_document, is_verified
+        `SELECT id_worker_profile, bio, banner_image, dui_document, cert_document, is_verified
          FROM worker_profiles WHERE id_user = ?`,
         [user.id_user]
       );
@@ -280,6 +280,7 @@ export const verifyWorkerEmail = async (req: Request, res: Response): Promise<vo
             bio: worker.bio,
             banner_image: worker.banner_image,
             dui_document: worker.dui_document,
+            cert_document: worker.cert_document,
             is_verified: Boolean(worker.is_verified)
           }
         },
@@ -344,7 +345,7 @@ export const login = async (req: Request, res: Response): Promise<void> => {
 
     if (user.rol === 'worker') {
       const [workerProfiles] = await pool.execute<RowDataPacket[]>(
-        `SELECT id_worker_profile, bio, banner_image, dui_document, is_verified
+        `SELECT id_worker_profile, bio, banner_image, dui_document, cert_document, is_verified
          FROM worker_profiles WHERE id_user = ?`,
         [user.id_user]
       );
@@ -356,6 +357,7 @@ export const login = async (req: Request, res: Response): Promise<void> => {
           bio: worker.bio,
           banner_image: worker.banner_image,
           dui_document: worker.dui_document, 
+          cert_document: worker.cert_document,
           is_verified: Boolean(worker.is_verified)
         };
       }

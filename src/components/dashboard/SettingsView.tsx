@@ -1,108 +1,598 @@
+import React, { useEffect, useMemo, useState } from 'react';
+import { Notyf } from 'notyf';
+import 'notyf/notyf.min.css';
+import { API_URL } from '../../config/api';
+import { clearAuthSession, getToken as getSessionToken } from '../../utils/session';
 
-import React, { useState } from 'react';
+type PortfolioItem = {
+  id_photo: number;
+  image_url: string;
+  image_full_url?: string;
+  description?: string | null;
+};
 
 export const SettingsView: React.FC = () => {
-    const [isOnline, setIsOnline] = useState(false);
+  const notyf = useMemo(
+    () =>
+      new Notyf({
+        position: { x: 'left', y: 'bottom' },
+        duration: 3200,
+        ripple: true,
+      }),
+    []
+  );
 
-    return (
-        <div className="w-full h-full overflow-y-auto custom-scrollbar p-3 md:p-6 lg:p-8 pb-20 md:pb-8 flex flex-col gap-4 md:gap-6 animate-fade-in">
+  const [loading, setLoading] = useState(true);
+  const [savingInfo, setSavingInfo] = useState(false);
+  const [savingPassword, setSavingPassword] = useState(false);
+  const [sendingEmailToken, setSendingEmailToken] = useState(false);
+  const [verifyingEmailToken, setVerifyingEmailToken] = useState(false);
+  const [uploadingProfileImage, setUploadingProfileImage] = useState(false);
+  const [uploadingPortfolio, setUploadingPortfolio] = useState(false);
 
-            <div className="bg-white rounded-2xl md:rounded-3xl border border-gray-200 p-6 md:p-8 relative overflow-hidden shadow-sm">
-                <div className="absolute top-0 left-0 w-full h-24 md:h-32 bg-gradient-to-r from-bird-blue/10 to-bird-yellow/10"></div>
-                <div className="relative flex flex-col md:flex-row items-center md:items-end gap-4 md:gap-6">
-                    <div className="w-24 h-24 md:w-32 md:h-32 rounded-full border-4 border-white bg-gray-100 relative shadow-xl">
-                        <img src="https://images.unsplash.com/photo-1599566150163-29194dcaad36?ixlib=rb-4.0.3&auto=format&fit=crop&w=300&q=80" alt="Profile" className="w-full h-full object-cover rounded-full" />
-                        <button className="absolute bottom-1 right-1 md:bottom-2 md:right-2 w-7 h-7 md:w-8 md:h-8 rounded-full bg-bird-blue text-white flex items-center justify-center hover:bg-bird-darkBlue transition-colors shadow-lg">
-                            <svg className="w-3.5 h-3.5 md:w-4 md:h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
-                        </button>
-                    </div>
-                    <div className="flex-1 text-center md:text-left mb-2">
-                        <h2 className="text-2xl md:text-3xl font-bold text-gray-900 mb-1">Alex Johnson</h2>
-                        <div className="flex items-center justify-center md:justify-start gap-2 text-gray-600 text-sm">
-                            <svg className="w-4 h-4 text-bird-blue" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" /></svg>
-                            <span className="font-medium">Verified Professional</span>
-                            <span className="hidden sm:inline w-1 h-1 rounded-full bg-gray-400"></span>
-                            <span className="hidden sm:inline">Plumbing & Repairs</span>
-                        </div>
-                    </div>
-                    <button className="px-4 md:px-6 py-2 rounded-lg md:rounded-xl bg-gray-100 border border-gray-200 text-gray-900 text-sm font-bold hover:bg-gray-200 transition-colors">
-                        Edit Public Profile
-                    </button>
-                </div>
-            </div>
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
+  const [currentEmail, setCurrentEmail] = useState('');
+  const [phoneNumber, setPhoneNumber] = useState('');
+  const [bio, setBio] = useState('');
+  const [profileImage, setProfileImage] = useState<string | null>(null);
+  const [profileImagePreview, setProfileImagePreview] = useState<string | null>(null);
+  const [profileImageFile, setProfileImageFile] = useState<File | null>(null);
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
-                <div className="bg-white rounded-2xl md:rounded-3xl border border-gray-200 p-6 md:p-8 shadow-sm">
-                    <h3 className="text-lg md:text-xl font-bold text-gray-900 mb-4 md:mb-6 flex items-center gap-2">
-                        <svg className="w-4 h-4 md:w-5 md:h-5 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
-                        Personal Information
-                    </h3>
-                    <div className="space-y-3 md:space-y-4">
-                        <div className="grid grid-cols-2 gap-3 md:gap-4">
-                            <div>
-                                <label className="block text-[10px] md:text-xs font-bold text-gray-500 uppercase mb-1 ml-1">First Name</label>
-                                <input type="text" defaultValue="Alex" className="w-full bg-gray-50 border border-gray-200 rounded-lg md:rounded-xl px-3 md:px-4 py-2.5 md:py-3 text-gray-900 text-sm focus:outline-none focus:border-bird-blue transition-colors" />
-                            </div>
-                            <div>
-                                <label className="block text-[10px] md:text-xs font-bold text-gray-500 uppercase mb-1 ml-1">Last Name</label>
-                                <input type="text" defaultValue="Johnson" className="w-full bg-gray-50 border border-gray-200 rounded-lg md:rounded-xl px-3 md:px-4 py-2.5 md:py-3 text-gray-900 text-sm focus:outline-none focus:border-bird-blue transition-colors" />
-                            </div>
-                        </div>
-                        <div>
-                            <label className="block text-[10px] md:text-xs font-bold text-gray-500 uppercase mb-1 ml-1">Email Address</label>
-                            <input type="email" defaultValue="alex.johnson@example.com" className="w-full bg-gray-50 border border-gray-200 rounded-lg md:rounded-xl px-3 md:px-4 py-2.5 md:py-3 text-gray-900 text-sm focus:outline-none focus:border-bird-blue transition-colors" />
-                        </div>
-                        <div>
-                            <label className="block text-[10px] md:text-xs font-bold text-gray-500 uppercase mb-1 ml-1">Phone Number</label>
-                            <input type="tel" defaultValue="+1 (555) 012-3456" className="w-full bg-gray-50 border border-gray-200 rounded-lg md:rounded-xl px-3 md:px-4 py-2.5 md:py-3 text-gray-900 text-sm focus:outline-none focus:border-bird-blue transition-colors" />
-                        </div>
-                    </div>
-                    <div className="mt-4 md:mt-6 flex justify-end">
-                        <button className="px-4 md:px-6 py-2 rounded-lg md:rounded-xl bg-bird-blue text-white font-bold text-sm shadow-lg shadow-bird-blue/20 hover:bg-bird-darkBlue transition-colors">
-                            Save Changes
-                        </button>
-                    </div>
-                </div>
+  const [newEmail, setNewEmail] = useState('');
+  const [emailToken, setEmailToken] = useState('');
 
-                <div className="flex flex-col gap-4 md:gap-6">
-                    <div className="bg-white rounded-2xl md:rounded-3xl border border-gray-200 p-6 md:p-8 flex items-center justify-between shadow-sm">
-                        <div>
-                            <h3 className="text-base md:text-lg font-bold text-gray-900 mb-1">Available for Jobs</h3>
-                            <p className="text-gray-600 text-xs md:text-sm">Turn off to stop receiving new requests</p>
-                        </div>
-                        <div
-                            onClick={() => setIsOnline(!isOnline)}
-                            className={`w-12 h-7 md:w-14 md:h-8 rounded-full p-1 transition-colors duration-300 cursor-pointer ${isOnline ? 'bg-green-500' : 'bg-gray-300'}`}
-                        >
-                            <div className={`w-5 h-5 md:w-6 md:h-6 rounded-full bg-white shadow-md transform transition-transform duration-300 ${isOnline ? 'translate-x-5 md:translate-x-6' : 'translate-x-0'}`} />
-                        </div>
-                    </div>
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
 
-                    <div className="bg-white rounded-2xl md:rounded-3xl border border-gray-200 p-5 md:p-6 flex-1 shadow-sm">
-                        <h3 className="text-gray-600 font-bold text-xs md:text-sm uppercase tracking-wider mb-3 md:mb-4">App Settings</h3>
-                        <div className="space-y-1">
-                            {['Notifications', 'Dark Mode', 'Sound Effects', 'Location Services'].map((setting, i) => (
-                                <div key={setting} className="flex items-center justify-between p-2.5 md:p-3 rounded-lg md:rounded-xl hover:bg-gray-50 transition-colors cursor-pointer group">
-                                    <span className="text-gray-900 font-medium text-sm">{setting}</span>
-                                    {i === 1 ? (
-                                        <span className="text-[10px] md:text-xs font-bold text-bird-blue bg-bird-blue/10 px-2 py-1 rounded border border-bird-blue/20">Always On</span>
-                                    ) : (
-                                        <div className="w-9 h-5 md:w-10 md:h-6 rounded-full bg-gray-200 p-1 relative flex items-center">
-                                            <div className={`w-3 h-3 md:w-4 md:h-4 rounded-full shadow-sm transition-transform ${i === 0 || i === 3 ? 'translate-x-4 md:translate-x-4 bg-green-500' : 'translate-x-0 bg-gray-400'}`}></div>
-                                        </div>
-                                    )}
-                                </div>
-                            ))}
-                            <div className="pt-3 md:pt-4 mt-3 md:mt-4 border-t border-gray-200">
-                                <button className="w-full py-2.5 md:py-3 rounded-lg md:rounded-xl bg-red-50 text-red-600 font-bold text-sm hover:bg-red-100 transition-colors flex items-center justify-center gap-2 border border-red-200">
-                                    <svg className="w-4 h-4 md:w-5 md:h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg>
-                                    Sign Out
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
+  const [portfolioDescription, setPortfolioDescription] = useState('');
+  const [portfolioFiles, setPortfolioFiles] = useState<File[]>([]);
+  const [portfolioPreviews, setPortfolioPreviews] = useState<string[]>([]);
+  const [portfolio, setPortfolio] = useState<PortfolioItem[]>([]);
+  const [profileImgBroken, setProfileImgBroken] = useState(false);
+  const [brokenPortfolio, setBrokenPortfolio] = useState<Record<number, boolean>>({});
+
+  const authFetch = async (url: string, options: RequestInit = {}) => {
+    const token = getSessionToken();
+    if (!token) throw new Error('No token found. Please sign in again.');
+    const headers = new Headers(options.headers || {});
+    headers.set('Authorization', `Bearer ${token}`);
+    return fetch(url, { ...options, headers });
+  };
+
+  const toPublicUrl = (imagePath?: string | null) => {
+    if (!imagePath) return null;
+    if (imagePath.startsWith('http://') || imagePath.startsWith('https://')) return imagePath;
+    return `${API_URL}/uploads/${encodeURIComponent(imagePath)}`;
+  };
+
+  const loadData = async () => {
+    try {
+      const res = await authFetch(`${API_URL}/api/worker/me`);
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error || 'Error loading profile data.');
+
+      const user = data?.user || {};
+      const workerProfile = data?.worker_profile || {};
+      const portfolioItems = Array.isArray(data?.portfolio) ? data.portfolio : [];
+
+      setFirstName(user.name || '');
+      setLastName(user.lastname || '');
+      setCurrentEmail(user.email || '');
+      setPhoneNumber(user.phone_number || '');
+      setBio(workerProfile.bio || '');
+      setProfileImage(user.profile_image_url || toPublicUrl(user.profile_image));
+      setProfileImgBroken(false);
+      setProfileImagePreview(null);
+      setPortfolio(
+        portfolioItems.map((item: PortfolioItem) => ({
+          ...item,
+          image_full_url: item.image_full_url || toPublicUrl(item.image_url) || undefined,
+        }))
+      );
+    } catch (error: any) {
+      notyf.error(error.message || 'Could not load settings.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadData();
+  }, []);
+
+  const handleProfileImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!['image/png', 'image/jpeg', 'image/jpg'].includes(file.type)) {
+      notyf.error('Only PNG/JPG images are allowed.');
+      return;
+    }
+    if (file.size > 10 * 1024 * 1024) {
+      notyf.error('Image is too large. Max size is 10MB.');
+      return;
+    }
+    setProfileImageFile(file);
+    const preview = URL.createObjectURL(file);
+    setProfileImagePreview(preview);
+    notyf.success('Profile image selected. Click "Save Profile Image".');
+  };
+
+  const handleSaveProfileImage = async () => {
+    if (!profileImageFile) {
+      notyf.error('Select an image first.');
+      return;
+    }
+    setUploadingProfileImage(true);
+    try {
+      const formData = new FormData();
+      formData.append('profile_image', profileImageFile);
+      const res = await authFetch(`${API_URL}/api/worker/profile-image`, {
+        method: 'POST',
+        body: formData,
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error || 'Could not upload profile image.');
+
+      setProfileImage(data.profile_image_url || toPublicUrl(data.profile_image));
+      setProfileImagePreview(null);
+      setProfileImageFile(null);
+      notyf.success('Profile image updated.');
+    } catch (error: any) {
+      notyf.error(error.message || 'Error updating profile image.');
+    } finally {
+      setUploadingProfileImage(false);
+    }
+  };
+
+  const handleSaveInfo = async () => {
+    if (!/^\d{8}$/.test(phoneNumber)) {
+      notyf.error('Phone number must be exactly 8 digits.');
+      return;
+    }
+    setSavingInfo(true);
+    try {
+      const res = await authFetch(`${API_URL}/api/worker/settings`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          phone_number: phoneNumber,
+          bio,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error || 'Could not save settings.');
+      notyf.success('Phone and description updated.');
+    } catch (error: any) {
+      notyf.error(error.message || 'Error saving settings.');
+    } finally {
+      setSavingInfo(false);
+    }
+  };
+
+  const handleChangePassword = async () => {
+    setSavingPassword(true);
+    try {
+      const res = await authFetch(`${API_URL}/api/worker/change-password`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          current_password: currentPassword,
+          new_password: newPassword,
+          confirm_password: confirmPassword,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error || 'Could not change password.');
+      setCurrentPassword('');
+      setNewPassword('');
+      setConfirmPassword('');
+      notyf.success('Password changed successfully.');
+    } catch (error: any) {
+      notyf.error(error.message || 'Error changing password.');
+    } finally {
+      setSavingPassword(false);
+    }
+  };
+
+  const handleSendEmailToken = async () => {
+    setSendingEmailToken(true);
+    try {
+      const res = await authFetch(`${API_URL}/api/worker/email-change/request`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ new_email: newEmail }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error || 'Could not send token.');
+      notyf.success('Verification token sent to your new email.');
+    } catch (error: any) {
+      notyf.error(error.message || 'Error sending token.');
+    } finally {
+      setSendingEmailToken(false);
+    }
+  };
+
+  const handleVerifyEmailToken = async () => {
+    setVerifyingEmailToken(true);
+    try {
+      const res = await authFetch(`${API_URL}/api/worker/email-change/verify`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token: emailToken }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error || 'Could not verify token.');
+      setCurrentEmail(data?.new_email || newEmail);
+      setNewEmail('');
+      setEmailToken('');
+
+      const userData = localStorage.getItem('user');
+      if (userData) {
+        const user = JSON.parse(userData);
+        user.email = data?.new_email || user.email;
+        localStorage.setItem('user', JSON.stringify(user));
+      }
+
+      notyf.success('Email updated successfully.');
+    } catch (error: any) {
+      notyf.error(error.message || 'Error verifying token.');
+    } finally {
+      setVerifyingEmailToken(false);
+    }
+  };
+
+  const handlePortfolioSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const selected = Array.from(e.target.files || []);
+    if (selected.length === 0) return;
+
+    const invalid = selected.find(
+      (file) => !['image/png', 'image/jpeg', 'image/jpg'].includes(file.type)
     );
+    if (invalid) {
+      notyf.error('Only PNG/JPG images are allowed.');
+      return;
+    }
+
+    const maxAdd = Math.max(0, 10 - portfolio.length);
+    const accepted = selected.slice(0, maxAdd);
+    if (accepted.length < selected.length) {
+      notyf.error('Portfolio limit is 10 photos.');
+    }
+
+    setPortfolioFiles(accepted);
+    setPortfolioPreviews(accepted.map((file) => URL.createObjectURL(file)));
+    notyf.success(`${accepted.length} file(s) ready to upload.`);
+  };
+
+  const handleUploadPortfolio = async () => {
+    if (portfolioFiles.length === 0) {
+      notyf.error('Select images first.');
+      return;
+    }
+    setUploadingPortfolio(true);
+    try {
+      const formData = new FormData();
+      portfolioFiles.forEach((file) => formData.append('portfolio_images', file));
+      formData.append('description', portfolioDescription);
+
+      const res = await authFetch(`${API_URL}/api/worker/portfolio`, {
+        method: 'POST',
+        body: formData,
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error || 'Could not upload portfolio.');
+
+      const nextPortfolio = Array.isArray(data?.portfolio) ? data.portfolio : [];
+      setPortfolio(
+        nextPortfolio.map((item: PortfolioItem) => ({
+          ...item,
+          image_full_url: item.image_full_url || toPublicUrl(item.image_url) || undefined,
+        }))
+      );
+      setPortfolioFiles([]);
+      setPortfolioPreviews([]);
+      setPortfolioDescription('');
+      notyf.success('Portfolio updated.');
+    } catch (error: any) {
+      notyf.error(error.message || 'Error uploading portfolio.');
+    } finally {
+      setUploadingPortfolio(false);
+    }
+  };
+
+  const handleDeletePortfolio = async (idPhoto: number) => {
+    try {
+      const res = await authFetch(`${API_URL}/api/worker/portfolio/${idPhoto}`, {
+        method: 'DELETE',
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error || 'Could not delete photo.');
+      setPortfolio((prev) => prev.filter((item) => item.id_photo !== idPhoto));
+      notyf.success('Portfolio photo deleted.');
+    } catch (error: any) {
+      notyf.error(error.message || 'Error deleting photo.');
+    }
+  };
+
+  const handleSignOut = () => {
+    clearAuthSession();
+    window.history.replaceState({}, '', '/');
+    window.location.assign('/');
+  };
+
+  const displayProfileImage = profileImagePreview || profileImage;
+
+  if (loading) {
+    return (
+      <div className="w-full h-full flex items-center justify-center text-gray-600">
+        Loading settings...
+      </div>
+    );
+  }
+
+  return (
+    <div className="w-full h-full overflow-y-auto custom-scrollbar p-4 md:p-6 lg:p-8 pb-24 md:pb-8 flex flex-col gap-6 animate-fade-in">
+      <div className="rounded-3xl border border-cyan-200 bg-gradient-to-br from-cyan-600 to-sky-500 p-5 md:p-6 shadow-lg transition-all duration-300 hover:shadow-cyan-500/30 hover:-translate-y-0.5">
+        <div className="text-white font-bold text-xl mb-1">Profile</div>
+        <p className="text-cyan-50 text-xs mb-4">Change your profile photo before saving.</p>
+
+        <div className="flex flex-col md:flex-row items-center md:items-end gap-5">
+          <div className="relative">
+            <div className="w-24 h-24 rounded-full overflow-hidden border-4 border-white shadow-lg bg-slate-100 transition-transform duration-300 hover:scale-105">
+              {displayProfileImage && !profileImgBroken ? (
+                <img
+                  src={displayProfileImage}
+                  alt="Profile"
+                  className="w-full h-full object-cover"
+                  onError={() => setProfileImgBroken(true)}
+                />
+              ) : (
+                <img src="/mascot.png" alt="Profile fallback" className="w-full h-full object-cover" />
+              )}
+            </div>
+            <div className="absolute -right-1 -bottom-1 w-8 h-8 rounded-full bg-white text-cyan-600 font-bold flex items-center justify-center shadow">
+              +
+            </div>
+          </div>
+
+          <div className="flex-1 w-full space-y-3">
+            <label className="w-full rounded-xl p-3 bg-white/90 border border-cyan-100 flex items-center justify-between gap-3 cursor-pointer hover:bg-white transition">
+              <span className="text-sm text-gray-700">Upload profile image (PNG/JPG)</span>
+              <span className="bg-cyan-600 text-white px-3 py-1.5 rounded-lg text-sm font-semibold">Dropify</span>
+              <input
+                type="file"
+                accept="image/png,image/jpeg,image/jpg"
+                className="hidden"
+                onChange={handleProfileImageSelect}
+              />
+            </label>
+
+            <button
+              onClick={handleSaveProfileImage}
+              disabled={uploadingProfileImage}
+              className="px-4 py-2 rounded-xl bg-slate-900 text-white font-bold hover:bg-black disabled:bg-gray-400"
+            >
+              {uploadingProfileImage ? 'Saving...' : 'Save Profile Image'}
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+        <div className="bg-white rounded-3xl border border-gray-200 p-5 md:p-6 shadow-sm">
+          <h3 className="text-2xl font-bold text-gray-900 mb-5">Personal Information</h3>
+          <div className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-bold text-gray-500 uppercase mb-1">First Name</label>
+                <input value={firstName} disabled className="w-full bg-gray-100 border border-gray-200 rounded-xl px-4 py-3 text-gray-600" />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Last Name</label>
+                <input value={lastName} disabled className="w-full bg-gray-100 border border-gray-200 rounded-xl px-4 py-3 text-gray-600" />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Current Email</label>
+              <input value={currentEmail} disabled className="w-full bg-gray-100 border border-gray-200 rounded-xl px-4 py-3 text-gray-600" />
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Phone Number</label>
+              <input
+                value={phoneNumber}
+                onChange={(e) => setPhoneNumber(e.target.value.replace(/\D/g, '').slice(0, 8))}
+                className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-gray-900"
+                placeholder="8 digits only"
+                inputMode="numeric"
+                maxLength={8}
+              />
+              <p className="text-[11px] text-gray-500 mt-1">Must be exactly 8 digits.</p>
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Description</label>
+              <textarea
+                value={bio}
+                onChange={(e) => setBio(e.target.value)}
+                className="w-full min-h-[110px] bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-gray-900"
+                placeholder="Tell clients about your experience and services..."
+              />
+            </div>
+          </div>
+
+          <button
+            onClick={handleSaveInfo}
+            disabled={savingInfo}
+            className="mt-5 px-5 py-3 rounded-xl bg-blue-500 text-white font-bold hover:bg-blue-600 disabled:bg-gray-300"
+          >
+            {savingInfo ? 'Saving...' : 'Save Phone & Description'}
+          </button>
+        </div>
+
+        <div className="flex flex-col gap-6">
+          <div className="bg-white rounded-3xl border border-gray-200 p-5 md:p-6 shadow-sm">
+            <h3 className="text-2xl font-bold text-gray-900 mb-4">Change Password</h3>
+            <div className="space-y-3">
+              <input
+                type="password"
+                value={currentPassword}
+                onChange={(e) => setCurrentPassword(e.target.value)}
+                placeholder="Current password"
+                className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3"
+              />
+              <input
+                type="password"
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
+                placeholder="New password (min 8 chars)"
+                className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3"
+              />
+              <input
+                type="password"
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                placeholder="Confirm new password"
+                className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3"
+              />
+              <button
+                onClick={handleChangePassword}
+                disabled={savingPassword}
+                className="w-full py-3 rounded-xl bg-slate-950 text-white font-bold hover:bg-black disabled:bg-gray-300"
+              >
+                {savingPassword ? 'Changing...' : 'Change Password'}
+              </button>
+            </div>
+          </div>
+
+          <div className="bg-white rounded-3xl border border-gray-200 p-5 md:p-6 shadow-sm">
+            <h3 className="text-2xl font-bold text-gray-900 mb-4">Change Email (Token Verification)</h3>
+            <div className="space-y-3">
+              <input
+                type="email"
+                value={newEmail}
+                onChange={(e) => setNewEmail(e.target.value)}
+                placeholder="new-email@example.com"
+                className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3"
+              />
+              <button
+                onClick={handleSendEmailToken}
+                disabled={sendingEmailToken}
+                className="w-full py-3 rounded-xl bg-amber-500 text-white font-bold hover:bg-amber-600 disabled:bg-gray-300"
+              >
+                {sendingEmailToken ? 'Sending...' : 'Send Verification Token'}
+              </button>
+              <input
+                value={emailToken}
+                onChange={(e) => setEmailToken(e.target.value)}
+                placeholder="Enter token"
+                className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3"
+              />
+              <button
+                onClick={handleVerifyEmailToken}
+                disabled={verifyingEmailToken}
+                className="w-full py-3 rounded-xl bg-slate-900 text-white font-bold hover:bg-black disabled:bg-gray-300"
+              >
+                {verifyingEmailToken ? 'Verifying...' : 'Verify Token and Update Email'}
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="bg-white rounded-3xl border border-gray-200 p-5 md:p-6 shadow-sm transition-all duration-300 hover:shadow-md">
+        <h3 className="text-2xl font-bold text-gray-900 mb-1">Portfolio (max 10 photos)</h3>
+        <p className="text-gray-600 mb-4">{portfolio.length}/10 uploaded</p>
+
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+          <div className="lg:col-span-1 border border-gray-200 rounded-2xl p-4 bg-gray-50 transition-all duration-300 hover:shadow-sm">
+            <input
+              value={portfolioDescription}
+              onChange={(e) => setPortfolioDescription(e.target.value)}
+              placeholder="Optional description"
+              className="w-full bg-white border border-gray-200 rounded-xl px-4 py-3 mb-3"
+            />
+
+            <label className="w-full border-2 border-dashed border-gray-300 rounded-2xl p-4 flex flex-col items-center justify-center gap-2 cursor-pointer hover:border-blue-400 transition bg-white hover:bg-blue-50/40">
+              <div className="text-2xl font-bold text-blue-500">+</div>
+              <div className="font-semibold text-gray-700 text-sm">Dropify Upload</div>
+              <div className="text-gray-500 text-xs">PNG/JPG only</div>
+              <span className="bg-blue-500 text-white px-3 py-1.5 rounded-lg text-sm font-bold">Select Files</span>
+              <input type="file" className="hidden" multiple accept="image/png,image/jpeg,image/jpg" onChange={handlePortfolioSelect} />
+            </label>
+
+            {portfolioPreviews.length > 0 && (
+              <>
+                <div className="text-xs font-semibold text-gray-600 mt-3 mb-2">Pending preview</div>
+                <div className="grid grid-cols-3 gap-2">
+                  {portfolioPreviews.map((preview, idx) => (
+                    <img key={`${preview}-${idx}`} src={preview} alt="preview" className="w-full h-16 object-cover rounded-lg border border-gray-200" />
+                  ))}
+                </div>
+                <button
+                  onClick={handleUploadPortfolio}
+                  disabled={uploadingPortfolio}
+                  className="mt-3 w-full px-4 py-2.5 rounded-xl bg-blue-600 text-white font-bold hover:bg-blue-700 disabled:bg-gray-300"
+                >
+                  {uploadingPortfolio ? 'Uploading...' : 'Upload'}
+                </button>
+              </>
+            )}
+          </div>
+
+          <div className="lg:col-span-2 border border-gray-200 rounded-2xl p-4 transition-all duration-300 hover:shadow-sm">
+            <div className="text-sm font-semibold text-gray-700 mb-3">Your portfolio</div>
+            {portfolio.length === 0 ? (
+              <div className="h-28 rounded-xl border border-dashed border-gray-300 flex items-center justify-center text-sm text-gray-500">
+                No photos uploaded yet
+              </div>
+            ) : (
+              <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-3">
+                {portfolio.map((photo) => (
+                  <div key={photo.id_photo} className="group relative rounded-xl overflow-hidden border border-gray-200 bg-gray-100 shadow-sm transition-all duration-300 hover:shadow-lg hover:-translate-y-0.5">
+                    {brokenPortfolio[photo.id_photo] ? (
+                      <div className="w-full h-24 flex items-center justify-center text-xs text-gray-500 bg-gray-100">Image not found</div>
+                    ) : (
+                      <>
+                        <img
+                          src={photo.image_full_url || toPublicUrl(photo.image_url) || ''}
+                          alt="Portfolio"
+                          className="w-full h-24 object-cover transition duration-300 group-hover:scale-110 group-hover:blur-[1px]"
+                          onError={() =>
+                            setBrokenPortfolio((prev) => ({ ...prev, [photo.id_photo]: true }))
+                          }
+                        />
+                        <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent opacity-0 group-hover:opacity-100 transition duration-300" />
+                      </>
+                    )}
+                    <button
+                      onClick={() => handleDeletePortfolio(photo.id_photo)}
+                      className="absolute top-1.5 right-1.5 w-8 h-8 rounded-full bg-red-500/90 text-white flex items-center justify-center opacity-100 md:opacity-0 md:group-hover:opacity-100 transition hover:bg-red-600 shadow"
+                      title="Delete photo"
+                    >
+                      <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M3 6h18M8 6V4h8v2m-1 0v14a2 2 0 01-2 2h-2a2 2 0 01-2-2V6" />
+                      </svg>
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      <div className="bg-white rounded-2xl border border-gray-200 p-4">
+        <button
+          onClick={handleSignOut}
+          className="w-full py-3 rounded-xl bg-red-50 text-red-600 border border-red-200 font-bold hover:bg-red-100"
+        >
+          Sign Out
+        </button>
+      </div>
+    </div>
+  );
 };

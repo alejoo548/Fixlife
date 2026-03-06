@@ -7,6 +7,8 @@ import { EarningsView } from '../dashboard/EarningsView';
 import { ScheduleView } from '../dashboard/ScheduleView';
 import { SettingsView } from '../dashboard/SettingsView';
 import { UploadDocumentsView } from '../dashboard/UploadDocumentsView';
+import { API_URL } from '../../config/api';
+import { getAuthUser, getToken as getSessionToken, isAuthenticated } from '../../utils/session';
 
 interface ProDashboardProps {
    isOpen: boolean;
@@ -19,22 +21,79 @@ export const ProDashboard: React.FC<ProDashboardProps> = ({ isOpen, onClose }) =
    const [mobileView, setMobileView] = useState<'list' | 'map'>('list');
    const [isVerified, setIsVerified] = useState(false); // Por defecto falso
    const [hasUploadedDocs, setHasUploadedDocs] = useState(false); // Por defecto falso
-   const [userName, setUserName] = useState('Alex');
+   const [userName, setUserName] = useState('');
    const [token, setToken] = useState<string | null>(null);
 
-   useEffect(() => {
-      const userData = localStorage.getItem('user');
-      const storedToken = localStorage.getItem('token');
-      
-      if (storedToken) setToken(storedToken);
-
-      if (userData) {
-         const user = JSON.parse(userData);
-         setIsVerified(user.worker_profile?.is_verified === 1 || user.worker_profile?.is_verified === true);
-         setHasUploadedDocs(!!user.worker_profile?.dui_document); // Revisamos si ya subió el DUI
-         setUserName(user.name || 'Alex');
+   const normalizeBool = (value: any) => {
+      if (value === true || value === 1) return true;
+      if (typeof value === 'string') {
+         const v = value.trim().toLowerCase();
+         return v === '1' || v === 'true' || v === 'yes';
       }
-   }, []);
+      return false;
+   };
+
+   const syncWorkerStatus = async (jwtToken: string) => {
+      try {
+         const response = await fetch(`${API_URL}/api/worker/me`, {
+            headers: { Authorization: `Bearer ${jwtToken}` },
+         });
+         if (!response.ok) return;
+
+         const data = await response.json();
+         const wp = data?.worker_profile || {};
+         const verified = normalizeBool(wp.is_verified);
+         const uploaded = Boolean(wp.dui_document) || Boolean(wp.cert_document);
+
+         setIsVerified(verified);
+         setHasUploadedDocs(uploaded);
+
+         const userData = localStorage.getItem('user');
+         if (userData) {
+            const user = JSON.parse(userData);
+            user.worker_profile = {
+               ...(user.worker_profile || {}),
+               ...wp,
+               is_verified: verified,
+            };
+            localStorage.setItem('user', JSON.stringify(user));
+         }
+      } catch (error) {
+         console.error('syncWorkerStatus error:', error);
+      }
+   };
+
+   useEffect(() => {
+      if (!isAuthenticated()) {
+         onClose();
+         return;
+      }
+
+      const user = getAuthUser();
+      const storedToken = getSessionToken();
+
+      if (storedToken) {
+         setToken(storedToken);
+         syncWorkerStatus(storedToken);
+      }
+
+      if (user) {
+         setIsVerified(normalizeBool(user.worker_profile?.is_verified));
+         setHasUploadedDocs(!!user.worker_profile?.dui_document || !!user.worker_profile?.cert_document);
+         setUserName(typeof user.name === 'string' ? user.name : '');
+      }
+   }, [onClose]);
+
+   useEffect(() => {
+      if (!isOpen || !token) return;
+
+      syncWorkerStatus(token);
+      const intervalId = window.setInterval(() => {
+         syncWorkerStatus(token);
+      }, 3000);
+
+      return () => window.clearInterval(intervalId);
+   }, [isOpen, token]);
 
    if (!isOpen) return null;
 
@@ -123,7 +182,7 @@ export const ProDashboard: React.FC<ProDashboardProps> = ({ isOpen, onClose }) =
                      transition={{ delay: 0.3 }}
                      className="text-gray-600 text-xs md:text-sm hidden sm:block"
                   >
-                     Welcome back, {userName}.
+                     {userName ? `Welcome back, ${userName}.` : 'Welcome back.'}
                   </motion.p>
                </div>
 
@@ -223,7 +282,11 @@ export const ProDashboard: React.FC<ProDashboardProps> = ({ isOpen, onClose }) =
                {!isVerified && !hasUploadedDocs ? (
                   <UploadDocumentsView 
                      token={token} 
-                     onSuccess={() => setHasUploadedDocs(true)} 
+                     onSuccess={() => {
+                        setHasUploadedDocs(true);
+                        setIsVerified(true);
+                        if (token) syncWorkerStatus(token);
+                     }} 
                   />
                ) : (
                   <>

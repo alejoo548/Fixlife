@@ -17,6 +17,7 @@ import { TestimonialsCarousel } from './components/sections/TestimonialsCarousel
 import { FAQSection } from './components/sections/FAQSection';
 import { SafetySection } from './components/sections/SafetySection';
 import { Button } from './components/common/Button';
+import { hasRole, isAuthenticated } from './utils/session';
 
 const navItems: NavItemType[] = [
   { name: "Services" },
@@ -38,19 +39,59 @@ const App: React.FC = () => {
   const [workerAuthMode, setWorkerAuthMode] = useState<'signin' | 'signup'>('signup');
   const [currentView, setCurrentView] = useState<'landing' | 'app' | 'pro-dashboard' | 'admin-dashboard'>('landing');
 
-  // Sync with URL on mount
-  useEffect(() => {
-    const path = window.location.pathname;
-    console.log('[App] Initial path:', path);
-    if (path === '/pro-dashboard') {
-      console.log('[App] Setting initial view to pro-dashboard');
-      setCurrentView('pro-dashboard');
-    } else if (path === '/admin-dashboard') {
-      setCurrentView('admin-dashboard');
-    } else if (path === '/app') {
+  const goLandingWithReplace = () => {
+    window.history.replaceState({}, '', '/');
+    setCurrentView('landing');
+  };
+
+  const resolveViewFromPath = (path: string) => {
+    if (path === '/app') {
       setCurrentView('app');
+      return;
     }
+
+    if (path === '/pro-dashboard') {
+      if (isAuthenticated() && hasRole('worker')) {
+        setCurrentView('pro-dashboard');
+      } else {
+        goLandingWithReplace();
+      }
+      return;
+    }
+
+    if (path === '/admin-dashboard') {
+      if (isAuthenticated() && hasRole('admin')) {
+        setCurrentView('admin-dashboard');
+      } else {
+        goLandingWithReplace();
+      }
+      return;
+    }
+
+    setCurrentView('landing');
+  };
+
+  // Sync with URL on mount and browser navigation
+  useEffect(() => {
+    const handleRoute = () => resolveViewFromPath(window.location.pathname);
+
+    handleRoute();
+    window.addEventListener('popstate', handleRoute);
+
+    return () => window.removeEventListener('popstate', handleRoute);
   }, []);
+
+  // Guard already-open private views in case session disappears
+  useEffect(() => {
+    if (currentView === 'pro-dashboard' && (!isAuthenticated() || !hasRole('worker'))) {
+      goLandingWithReplace();
+      return;
+    }
+
+    if (currentView === 'admin-dashboard' && (!isAuthenticated() || !hasRole('admin'))) {
+      goLandingWithReplace();
+    }
+  }, [currentView]);
 
   // Debug current view changes
   useEffect(() => {
@@ -71,6 +112,10 @@ const App: React.FC = () => {
 
   const handleOpenProDashboard = () => {
     console.log('[App] handleOpenProDashboard called');
+    if (!isAuthenticated() || !hasRole('worker')) {
+      goLandingWithReplace();
+      return;
+    }
     window.history.pushState({}, '', '/pro-dashboard');
     setCurrentView('pro-dashboard');
     window.scrollTo(0, 0);
@@ -78,6 +123,10 @@ const App: React.FC = () => {
 
   const handleOpenAdminDashboard = () => {
     console.log('[App] handleOpenAdminDashboard called');
+    if (!isAuthenticated() || !hasRole('admin')) {
+      goLandingWithReplace();
+      return;
+    }
     window.history.pushState({}, '', '/admin-dashboard');
     setCurrentView('admin-dashboard');
     window.scrollTo(0, 0);
@@ -161,15 +210,19 @@ const App: React.FC = () => {
           onClose={handleBackToLanding}
         />
       ) : currentView === 'pro-dashboard' ? (
-        <ProDashboard
-          isOpen={true}
-          onClose={handleBackToLanding}
-        />
+        isAuthenticated() && hasRole('worker') ? (
+          <ProDashboard
+            isOpen={true}
+            onClose={handleBackToLanding}
+          />
+        ) : null
       ) : currentView === 'admin-dashboard' ? (
-        <AdminDashboard
-          isOpen={true}
-          onClose={handleBackToLanding}
-        />
+        isAuthenticated() && hasRole('admin') ? (
+          <AdminDashboard
+            isOpen={true}
+            onClose={handleBackToLanding}
+          />
+        ) : null
       ) : (
         <>
 
