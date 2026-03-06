@@ -4,25 +4,77 @@ import jwt from 'jsonwebtoken';
 import pool from '../config/db';
 import { ResultSetHeader, RowDataPacket } from 'mysql2';
 import { sendResetEmail } from '../config/mail';
+import { AuthRequest } from '../middlewares/auth.middleware';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'super_secret_jwt_key_for_development';
 
+const sanitizeText = (value: unknown): string => String(value ?? '').trim();
+
+const isValidEmail = (email: string): boolean => {
+  if (email.length > 120) return false;
+  return /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[A-Za-z]{2,}$/.test(email);
+};
+
+const isValidName = (value: string): boolean => {
+  if (value.length < 2 || value.length > 60) return false;
+  return /^[\p{L}]+(?:[\p{L} .'-]*[\p{L}])?$/u.test(value);
+};
+
+const isValidPhone = (value: string): boolean => {
+  if (!value) return true;
+  return /^\+?[0-9]{8,15}$/.test(value);
+};
+
+const isValidUsername = (value: string): boolean => {
+  if (!value) return true;
+  return /^[a-zA-Z0-9._-]{3,30}$/.test(value);
+};
+
+const isValidPassword = (value: string): boolean => {
+  if (value.length < 8 || value.length > 72) return false;
+  return /[A-Z]/.test(value) && /[a-z]/.test(value) && /[0-9]/.test(value);
+};
+
+const isValidResetCode = (value: string): boolean => /^\d{6}$/.test(value);
+
 export const registerWorker = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { name, lastname, email, phone_number, password, username } = req.body;
+    const name = sanitizeText(req.body.name);
+    const lastname = sanitizeText(req.body.lastname);
+    const email = sanitizeText(req.body.email).toLowerCase();
+    const phone_number = sanitizeText(req.body.phone_number);
+    const password = String(req.body.password ?? '');
+    const username = sanitizeText(req.body.username);
 
     if (!name || !lastname || !email || !phone_number || !password) {
       res.status(400).json({ error: 'Missing required fields' });
       return;
     }
 
-    if (!email.includes('@')) {
-      res.status(400).json({ error: 'Invalid email' });
+    if (!isValidName(name) || !isValidName(lastname)) {
+      res.status(400).json({ error: 'Invalid name or lastname format' });
       return;
     }
 
-    if (password.length < 8) {
-      res.status(400).json({ error: 'Password must be at least 8 characters' });
+    if (!isValidEmail(email)) {
+      res.status(400).json({ error: 'Invalid email format' });
+      return;
+    }
+
+    if (!isValidPhone(phone_number)) {
+      res.status(400).json({ error: 'Invalid phone number format' });
+      return;
+    }
+
+    if (!isValidUsername(username)) {
+      res.status(400).json({ error: 'Invalid username format' });
+      return;
+    }
+
+    if (!isValidPassword(password)) {
+      res.status(400).json({
+        error: 'Password must be 8-72 chars and include uppercase, lowercase, and number'
+      });
       return;
     }
 
@@ -100,20 +152,42 @@ export const registerWorker = async (req: Request, res: Response): Promise<void>
 
 export const registerUser = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { name, lastname, email, phone_number, password, username } = req.body;
+    const name = sanitizeText(req.body.name);
+    const lastname = sanitizeText(req.body.lastname);
+    const email = sanitizeText(req.body.email).toLowerCase();
+    const phone_number = sanitizeText(req.body.phone_number);
+    const password = String(req.body.password ?? '');
+    const username = sanitizeText(req.body.username);
 
     if (!name || !lastname || !email || !password) {
       res.status(400).json({ error: 'Missing required fields' });
       return;
     }
 
-    if (!email.includes('@')) {
-      res.status(400).json({ error: 'Invalid email' });
+    if (!isValidName(name) || !isValidName(lastname)) {
+      res.status(400).json({ error: 'Invalid name or lastname format' });
       return;
     }
 
-    if (password.length < 8) {
-      res.status(400).json({ error: 'Password must be at least 8 characters' });
+    if (!isValidEmail(email)) {
+      res.status(400).json({ error: 'Invalid email format' });
+      return;
+    }
+
+    if (!isValidPhone(phone_number)) {
+      res.status(400).json({ error: 'Invalid phone number format' });
+      return;
+    }
+
+    if (!isValidUsername(username)) {
+      res.status(400).json({ error: 'Invalid username format' });
+      return;
+    }
+
+    if (!isValidPassword(password)) {
+      res.status(400).json({
+        error: 'Password must be 8-72 chars and include uppercase, lowercase, and number'
+      });
       return;
     }
 
@@ -180,10 +254,16 @@ export const registerUser = async (req: Request, res: Response): Promise<void> =
 
 export const login = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { email, password } = req.body;
+    const email = sanitizeText(req.body.email).toLowerCase();
+    const password = String(req.body.password ?? '');
 
     if (!email || !password) {
       res.status(400).json({ error: 'Email and password required' });
+      return;
+    }
+
+    if (!isValidEmail(email)) {
+      res.status(400).json({ error: 'Invalid email format' });
       return;
     }
 
@@ -260,7 +340,12 @@ export const login = async (req: Request, res: Response): Promise<void> => {
 
 export const forgotPassword = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { email } = req.body;
+    const email = sanitizeText(req.body.email).toLowerCase();
+
+    if (!email || !isValidEmail(email)) {
+      res.status(400).json({ error: 'Invalid email format' });
+      return;
+    }
 
     const [users] = await pool.execute<RowDataPacket[]>(
       'SELECT id_user FROM users WHERE email = ?',
@@ -294,10 +379,29 @@ export const forgotPassword = async (req: Request, res: Response): Promise<void>
 
 export const resetPassword = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { email, token, newPassword } = req.body;
+    const email = sanitizeText(req.body.email).toLowerCase();
+    const token = sanitizeText(req.body.token);
+    const newPassword = String(req.body.newPassword ?? '');
 
     if (!email || !token || !newPassword) {
       res.status(400).json({ error: 'Missing fields' });
+      return;
+    }
+
+    if (!isValidEmail(email)) {
+      res.status(400).json({ error: 'Invalid email format' });
+      return;
+    }
+
+    if (!isValidResetCode(token)) {
+      res.status(400).json({ error: 'Invalid verification code format' });
+      return;
+    }
+
+    if (!isValidPassword(newPassword)) {
+      res.status(400).json({
+        error: 'Password must be 8-72 chars and include uppercase, lowercase, and number'
+      });
       return;
     }
 
@@ -338,7 +442,20 @@ export const resetPassword = async (req: Request, res: Response): Promise<void> 
 export const verifyResetToken = async (req: Request, res: Response) => {
   try {
 
-    const { email, token } = req.body;
+    const email = sanitizeText(req.body.email).toLowerCase();
+    const token = sanitizeText(req.body.token);
+
+    if (!email || !token) {
+      return res.status(400).json({ message: "Missing fields" });
+    }
+
+    if (!isValidEmail(email)) {
+      return res.status(400).json({ message: "Invalid email format" });
+    }
+
+    if (!isValidResetCode(token)) {
+      return res.status(400).json({ message: "Invalid code format" });
+    }
 
     const [rows]: any = await pool.query(
       `SELECT verification_token, token_expires_at
@@ -365,5 +482,43 @@ export const verifyResetToken = async (req: Request, res: Response) => {
 
   } catch (error) {
     res.status(500).json({ message: "Server error" });
+  }
+};
+
+export const uploadProfileImage = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const userId = req.user?.user_id;
+
+    if (!userId) {
+      res.status(401).json({ error: 'Unauthorized' });
+      return;
+    }
+
+    if (!req.file) {
+      res.status(400).json({ error: 'Profile image is required' });
+      return;
+    }
+
+    if (!req.file.mimetype.startsWith('image/')) {
+      res.status(400).json({ error: 'Only image files are allowed' });
+      return;
+    }
+
+    const imageFilename = req.file.filename;
+
+    await pool.execute(
+      `UPDATE users
+       SET profile_image = ?
+       WHERE id_user = ?`,
+      [imageFilename, userId]
+    );
+
+    res.json({
+      success: true,
+      profile_image: imageFilename
+    });
+  } catch (error) {
+    console.error('uploadProfileImage error:', error);
+    res.status(500).json({ error: 'Internal server error' });
   }
 };

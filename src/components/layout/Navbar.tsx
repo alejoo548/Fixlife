@@ -3,7 +3,7 @@ import { NavbarProps, AuthMode } from '../../types';
 import { Logo } from '../common/Logo';
 import { useAuth } from '../../context/AuthContext';
 
-export const Navbar: React.FC<NavbarProps> = ({ navItems, onOpenAuth, onStartBooking }) => {
+export const Navbar: React.FC<NavbarProps> = ({ navItems, onOpenAuth, onStartBooking, onOpenProfile }) => {
   const { user, logout } = useAuth();
   const [activeItem, setActiveItem] = useState<number | null>(null);
   const [isAccountOpen, setIsAccountOpen] = useState(false);
@@ -28,6 +28,12 @@ export const Navbar: React.FC<NavbarProps> = ({ navItems, onOpenAuth, onStartBoo
     setIsMobileMenuOpen(false);
     onStartBooking();
   }
+
+  const handleOpenProfile = () => {
+    setIsAccountOpen(false);
+    setIsMobileMenuOpen(false);
+    onOpenProfile();
+  };
 
   const ITEM_WIDTH = '140px';
 
@@ -149,6 +155,7 @@ export const Navbar: React.FC<NavbarProps> = ({ navItems, onOpenAuth, onStartBoo
                   ) : (
                     <>
                       <button
+                        onClick={handleOpenProfile}
                         className="w-full px-4 py-3 text-sm text-gray-600 hover:bg-bird-blue/5 rounded-lg text-left font-medium"
                       >
                         My Profile
@@ -230,18 +237,37 @@ export const Navbar: React.FC<NavbarProps> = ({ navItems, onOpenAuth, onStartBoo
           </div>
 
           <div className="mt-auto pt-8 border-t border-gray-200 flex flex-col gap-4">
-            <button
-              onClick={(e) => handleAuthClick(e, 'signin')}
-              className="w-full py-4 rounded-xl bg-gray-100 border border-gray-200 text-gray-900 font-bold active:scale-95 transition-transform shadow-sm"
-            >
-              Sign In
-            </button>
-            <button
-              onClick={(e) => handleAuthClick(e, 'signup')}
-              className="w-full py-4 rounded-xl bg-bird-blue text-white font-bold shadow-lg shadow-bird-blue/20 active:scale-95 transition-transform"
-            >
-              Create Account
-            </button>
+            {!user ? (
+              <>
+                <button
+                  onClick={(e) => handleAuthClick(e, 'signin')}
+                  className="w-full py-4 rounded-xl bg-gray-100 border border-gray-200 text-gray-900 font-bold active:scale-95 transition-transform shadow-sm"
+                >
+                  Sign In
+                </button>
+                <button
+                  onClick={(e) => handleAuthClick(e, 'signup')}
+                  className="w-full py-4 rounded-xl bg-bird-blue text-white font-bold shadow-lg shadow-bird-blue/20 active:scale-95 transition-transform"
+                >
+                  Create Account
+                </button>
+              </>
+            ) : (
+              <>
+                <button
+                  onClick={handleOpenProfile}
+                  className="w-full py-4 rounded-xl bg-gray-100 border border-gray-200 text-gray-900 font-bold active:scale-95 transition-transform shadow-sm"
+                >
+                  My Profile
+                </button>
+                <button
+                  onClick={logout}
+                  className="w-full py-4 rounded-xl bg-red-50 text-red-600 border border-red-200 font-bold active:scale-95 transition-transform"
+                >
+                  Log Out
+                </button>
+              </>
+            )}
           </div>
         </div>
       </div>

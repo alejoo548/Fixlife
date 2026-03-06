@@ -17,6 +17,7 @@ import { TestimonialsCarousel } from './components/sections/TestimonialsCarousel
 import { FAQSection } from './components/sections/FAQSection';
 import { SafetySection } from './components/sections/SafetySection';
 import { Button } from './components/common/Button';
+import UserProfile from './pages/UserProfile';
 
 const navItems: NavItemType[] = [
   { name: "Services" },
@@ -36,7 +37,7 @@ const App: React.FC = () => {
   const [authMode, setAuthMode] = useState<AuthMode>('signin');
   const [isWorkerAuthOpen, setIsWorkerAuthOpen] = useState(false);
   const [workerAuthMode, setWorkerAuthMode] = useState<'signin' | 'signup'>('signup');
-  const [currentView, setCurrentView] = useState<'landing' | 'app' | 'pro-dashboard'>('landing');
+  const [currentView, setCurrentView] = useState<'landing' | 'app' | 'pro-dashboard' | 'profile'>('landing');
 
   useEffect(() => {
     const path = window.location.pathname;
@@ -44,6 +45,9 @@ const App: React.FC = () => {
 
     if (path === '/pro-dashboard') {
       setCurrentView('pro-dashboard');
+    }
+    else if (path === '/profile') {
+      setCurrentView('profile');
     }
     else if (path === '/app') {
       setCurrentView('app');
@@ -73,6 +77,12 @@ const App: React.FC = () => {
     setCurrentView('pro-dashboard');
     window.scrollTo(0, 0);
   }
+
+  const handleOpenProfile = () => {
+    window.history.pushState({}, '', '/profile');
+    setCurrentView('profile');
+    window.scrollTo(0, 0);
+  };
 
   const handleOpenWorkerAuth = (mode: 'signin' | 'signup') => {
     setWorkerAuthMode(mode);
@@ -156,6 +166,8 @@ const App: React.FC = () => {
           isOpen={true}
           onClose={handleBackToLanding}
         />
+      ) : currentView === 'profile' ? (
+        <UserProfile onBack={handleBackToLanding} />
       ) : (
         <>
 
@@ -163,6 +175,7 @@ const App: React.FC = () => {
             navItems={navItems}
             onOpenAuth={handleOpenAuth}
             onStartBooking={handleStartBooking}
+            onOpenProfile={handleOpenProfile}
           />
 
 

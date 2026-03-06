@@ -26,3 +26,14 @@ export const verifyResetToken = (
     token
   });
 };
+
+export const uploadProfileImage = (file: File, token: string) => {
+  const formData = new FormData();
+  formData.append('profile_image', file);
+
+  return axios.post(API_ENDPOINTS.auth.uploadProfileImage, formData, {
+    headers: {
+      Authorization: `Bearer ${token}`
+    }
+  });
+};

@@ -8,5 +8,6 @@ export const API_ENDPOINTS = {
     forgotPassword: `${API_URL}/api/auth/forgot-password`,
     verifyResetToken: `${API_URL}/api/auth/verify-reset-token`,
     resetPassword: `${API_URL}/api/auth/reset-password`,
+    uploadProfileImage: `${API_URL}/api/auth/profile-image`,
   },
 };

@@ -29,8 +29,12 @@ const ForgotPassword: React.FC<ForgotPasswordProps> = ({ onBack }) => {
       await forgotPassword(email);
       alert("Verification code sent to your email");
       setStep(2);
-    } catch {
-      alert("Error sending email");
+    } catch (error: any) {
+      const message =
+        error?.response?.data?.error ||
+        error?.response?.data?.message ||
+        "Error sending email";
+      alert(message);
     } finally {
       setLoading(false);
     }
@@ -41,11 +45,16 @@ const ForgotPassword: React.FC<ForgotPasswordProps> = ({ onBack }) => {
     setLoading(true);
 
     try {
-      await verifyResetToken(email, token);
+      const cleanToken = token.replace(/\D/g, "").slice(0, 6);
+      await verifyResetToken(email.trim(), cleanToken);
       alert("Token verified");
       setStep(3);
-    } catch {
-      alert("Invalid or expired token");
+    } catch (error: any) {
+      const message =
+        error?.response?.data?.error ||
+        error?.response?.data?.message ||
+        "Invalid or expired token";
+      alert(message);
     } finally {
       setLoading(false);
     }
@@ -62,14 +71,19 @@ const ForgotPassword: React.FC<ForgotPasswordProps> = ({ onBack }) => {
     setLoading(true);
 
     try {
-      await resetPassword(email, token, password);
+      const cleanToken = token.replace(/\D/g, "").slice(0, 6);
+      await resetPassword(email.trim(), cleanToken, password);
 
       alert("Password successfully updated");
 
       if (onBack) onBack();
 
-    } catch {
-      alert("Error resetting password");
+    } catch (error: any) {
+      const message =
+        error?.response?.data?.error ||
+        error?.response?.data?.message ||
+        "Error resetting password";
+      alert(message);
     } finally {
       setLoading(false);
     }
@@ -116,7 +130,10 @@ const ForgotPassword: React.FC<ForgotPasswordProps> = ({ onBack }) => {
             type="text"
             placeholder="Enter verification code"
             value={token}
-            onChange={(e)=>setToken(e.target.value)}
+            onChange={(e)=>setToken(e.target.value.replace(/\D/g, "").slice(0, 6))}
+            inputMode="numeric"
+            maxLength={6}
+            pattern="\d{6}"
             required
             className="w-full px-4 py-3 border border-gray-300 rounded-xl outline-none focus:border-bird-blue"
           />

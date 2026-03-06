@@ -10,6 +10,7 @@ export interface NavbarProps {
   navItems: NavItemType[];
   onOpenAuth: (mode: AuthMode) => void;
   onStartBooking: () => void;
+  onOpenProfile: () => void;
 }
 
 export interface HeroSliderProps {
