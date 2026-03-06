@@ -23,3 +23,9 @@ export interface ServiceRequestData {
   price: string;
   images: string[];
 }
+
+export interface User {
+  id: number;
+  name: string;
+  email: string;
+}
