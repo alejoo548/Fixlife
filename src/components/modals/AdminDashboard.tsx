@@ -7,6 +7,7 @@ import {
 import { 
   LayoutDashboard, Users, Briefcase, Settings, LogOut, Search, Bell, TrendingUp, Activity, Clock, CheckCircle, Menu, X, ArrowUpRight, ArrowDownRight, ChevronLeft, ChevronRight
 } from 'lucide-react';
+import { useAuth } from '../../context/AuthContext';
 
 interface AdminDashboardProps {
   isOpen: boolean;
@@ -37,6 +38,13 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ isOpen, onClose 
   const [activeTab, setActiveTab] = useState('Overview');
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+  const { user, logout } = useAuth();
+
+  const handleLogout = () => {
+    logout();
+    onClose();
+    window.location.replace('/');
+  };
 
   if (!isOpen) return null;
 
@@ -169,7 +177,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ isOpen, onClose 
                 </div>
               </div>
               <div className="overflow-hidden">
-                <p className="font-bold text-gray-900 text-sm whitespace-nowrap truncate">Sarah Jenkins</p>
+                <p className="font-bold text-gray-900 text-sm whitespace-nowrap truncate">{user?.name || 'System'} {user?.lastname || 'Admin'}</p>
                 <p className="text-gray-500 text-xs truncate">Super Admin</p>
               </div>
             </div>
@@ -181,7 +189,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ isOpen, onClose 
              </div>
           )}
 
-          <button onClick={onClose} className={`w-full flex items-center justify-center ${isSidebarCollapsed ? 'p-3' : 'gap-2 px-4 py-3.5'} rounded-xl border border-gray-200 text-gray-600 hover:bg-red-50 hover:text-red-600 hover:border-red-200 transition-all font-bold shadow-sm group`}>
+          <button onClick={handleLogout} className={`w-full flex items-center justify-center ${isSidebarCollapsed ? 'p-3' : 'gap-2 px-4 py-3.5'} rounded-xl border border-gray-200 text-gray-600 hover:bg-red-50 hover:text-red-600 hover:border-red-200 transition-all font-bold shadow-sm group`}>
             <LogOut size={18} className="shrink-0 group-hover:-translate-x-1 transition-transform" />
             {!isSidebarCollapsed && <span className="whitespace-nowrap">Close Dashboard</span>}
           </button>
@@ -225,7 +233,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ isOpen, onClose 
 
             <div className="flex items-center gap-3 pl-4 md:pl-6 border-l border-gray-200">
               <div className="hidden md:block text-right">
-                <p className="font-bold text-gray-900 text-sm">System Admin</p>
+                <p className="font-bold text-gray-900 text-sm">{user?.name || 'System'} {user?.lastname || 'Admin'}</p>
                 <p className="text-bird-blue text-xs font-bold">Super User</p>
               </div>
               <div className="w-11 h-11 rounded-full bg-gradient-to-tr from-bird-orange via-bird-yellow to-bird-blue p-[2px] shadow-md cursor-pointer hover:scale-105 transition-transform">
