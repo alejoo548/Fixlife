@@ -70,7 +70,7 @@ const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
   e.preventDefault();
 
   if (formData.password !== formData.confirmPassword) {
-    alert('Passwords do not match');
+    notyf.error('Passwords do not match');
     return;
   }
 
@@ -91,16 +91,17 @@ const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const data = await res.json();
 
     if (!res.ok) {
-      alert(data.error || 'Registration failed');
+      notyf.error(data.error || 'Registration failed');
       return;
     }
 
     login(data.user, data.token);
+    notyf.success('Account created successfully!');
 
     onClose();
   } catch (err) {
     console.error(err);
-    alert('Connection error');
+    notyf.error('Connection error');
   }
 };
 
@@ -108,13 +109,13 @@ const handleSignin = async (e: React.FormEvent<HTMLFormElement>) => {
   e.preventDefault();
 
   if (!formData.email || !formData.password) {
-  alert('Email and password are required');
+  notyf.error('Email and password are required');
   return;
 }
 
 const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 if (!emailRegex.test(formData.email)) {
-  alert('Invalid email format');
+  notyf.error('Invalid email format');
   return;
 }
 
@@ -131,16 +132,21 @@ if (!emailRegex.test(formData.email)) {
     const data = await res.json();
 
     if (!res.ok) {
-      alert(data.error || 'Login failed');
+      notyf.error(data.error || 'Login failed');
       return;
     }
 
     login(data.user, data.token);
 
-    onClose();
+    if (data.user?.rol === 'admin' || data.user?.role === 'admin') {
+      window.location.href = '/admin-dashboard';
+    } else {
+      notyf.success('Welcome back!');
+      onClose();
+    }
   } catch (err) {
     console.error(err);
-    alert('Connection error');
+    notyf.error('Connection error');
   }
 };
 

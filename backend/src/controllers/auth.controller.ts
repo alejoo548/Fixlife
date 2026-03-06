@@ -508,7 +508,7 @@ export const resetPassword = async (req: Request, res: Response): Promise<void> 
       `SELECT id_user, token_expires_at
        FROM users
        WHERE email = ? AND verification_token = ?`,
-      [email, token]
+      [email.trim(), token.trim()]
     );
 
     if (users.length === 0) {
@@ -543,11 +543,15 @@ export const verifyResetToken = async (req: Request, res: Response) => {
 
     const { email, token } = req.body;
 
+    if (!email || !token) {
+      return res.status(400).json({ message: "Missing email or token" });
+    }
+
     const [rows]: any = await pool.query(
       `SELECT verification_token, token_expires_at
        FROM users
        WHERE email = ?`,
-      [email]
+      [email.trim()]
     );
 
     if (rows.length === 0) {
@@ -556,11 +560,11 @@ export const verifyResetToken = async (req: Request, res: Response) => {
 
     const user = rows[0];
 
-    if (String(user.verification_token) !== String(token)) {
+    if (!user.verification_token || String(user.verification_token).trim() !== String(token).trim()) {
       return res.status(400).json({ message: "Invalid code" });
     }
 
-    if (new Date(user.token_expires_at) < new Date()) {
+    if (!user.token_expires_at || new Date(user.token_expires_at) < new Date()) {
       return res.status(400).json({ message: "Code expired" });
     }
 
