@@ -11,4 +11,14 @@ export const API_ENDPOINTS = {
     verifyResetToken: `${API_URL}/api/auth/verify-reset-token`,
     resetPassword: `${API_URL}/api/auth/reset-password`,
   },
+  services: {
+    getActive: `${API_URL}/api/services`,
+  },
+  admin: {
+    services: `${API_URL}/api/admin/services`,
+    pendingWorkers: `${API_URL}/api/admin/pending-workers`,
+    approveWorker: (id: number) => `${API_URL}/api/admin/workers/${id}/approve`,
+    rejectWorker: (id: number) => `${API_URL}/api/admin/workers/${id}/reject`,
+    stats: `${API_URL}/api/admin/stats`,
+  },
 };

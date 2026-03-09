@@ -10,7 +10,7 @@ const JWT_SECRET = process.env.JWT_SECRET || 'super_secret_jwt_key_for_developme
 
 export const registerWorker = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { name, lastname, email, phone_number, password, username } = req.body;
+    const { name, lastname, email, phone_number, password, username, service_ids } = req.body;
 
     if (!name || !lastname || !email || !phone_number || !password) {
       res.status(400).json({ error: 'Missing required fields' });
@@ -97,11 +97,26 @@ export const registerWorker = async (req: Request, res: Response): Promise<void>
 
       const userId = insertUserResult.insertId;
 
-      await connection.execute<ResultSetHeader>(
+      const [profileResult] = await connection.execute<ResultSetHeader>(
         `INSERT INTO worker_profiles (id_user, is_verified)
          VALUES (?, 0)`,
         [userId]
       );
+
+      // Insert selected services
+      if (Array.isArray(service_ids) && service_ids.length > 0) {
+        const profileId = profileResult.insertId;
+        const validIds = service_ids
+          .map((id: any) => Number(id))
+          .filter((id: number) => !isNaN(id) && id > 0)
+          .slice(0, 10);
+        for (const svcId of validIds) {
+          await connection.execute(
+            `INSERT IGNORE INTO worker_services (id_worker_profile, id_service) VALUES (?, ?)`,
+            [profileId, svcId]
+          );
+        }
+      }
 
       // Send OTP Email before committing
       const emailSent = await sendVerificationEmail(trimmedEmail, otp, trimmedName);

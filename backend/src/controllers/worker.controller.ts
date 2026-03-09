@@ -536,17 +536,16 @@ export const uploadDocuments = async (req: AuthRequest, res: Response): Promise<
 
     await pool.execute(
       `UPDATE worker_profiles 
-       SET dui_document = ?, cert_document = ?, is_verified = 1
+       SET dui_document = ?, cert_document = ?
        WHERE id_user = ?`,
       [duiPath, certPath, userId]
     );
 
     res.json({
       success: true,
-      message: 'Documents uploaded successfully. Account verified.',
+      message: 'Documents uploaded successfully. Pending admin review.',
       dui_path: duiPath,
       cert_path: certPath,
-      is_verified: 1,
     });
   } catch (error: any) {
     console.error('Error uploading documents:', error);

@@ -4,6 +4,13 @@ import { Notyf } from 'notyf';
 import 'notyf/notyf.min.css';
 import { motion, AnimatePresence } from 'framer-motion';
 
+interface ServiceOption {
+  id_service: number;
+  name: string;
+  description: string | null;
+  icon: string | null;
+}
+
 interface WorkerAuthModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -12,9 +19,11 @@ interface WorkerAuthModalProps {
 }
 
 export const WorkerAuthModal: React.FC<WorkerAuthModalProps> = ({ isOpen, onClose, mode: initialMode, onSuccess }) => {
-  const [view, setView] = useState<'signin' | 'signup' | 'verify' | 'upload'>(initialMode);
+  const [view, setView] = useState<'signin' | 'signup' | 'specialties' | 'verify' | 'upload'>(initialMode);
   const [registeredEmail, setRegisteredEmail] = useState('');
   const [otp, setOtp] = useState('');
+  const [availableServices, setAvailableServices] = useState<ServiceOption[]>([]);
+  const [selectedServiceIds, setSelectedServiceIds] = useState<number[]>([]);
   
   const notyf = new Notyf({
     position: { x: 'right', y: 'bottom' },
@@ -43,6 +52,12 @@ export const WorkerAuthModal: React.FC<WorkerAuthModalProps> = ({ isOpen, onClos
       setError('');
       setOtp('');
       setRegisteredEmail('');
+      setSelectedServiceIds([]);
+      // Fetch available services
+      fetch(API_ENDPOINTS.services.getActive)
+        .then(r => r.json())
+        .then(data => { if (data.success) setAvailableServices(data.services); })
+        .catch(() => {});
     }
   }, [initialMode, isOpen]);
 
@@ -66,7 +81,7 @@ export const WorkerAuthModal: React.FC<WorkerAuthModalProps> = ({ isOpen, onClos
 
   if (!isOpen) return null;
 
-  const isSignup = view === 'signup' || view === 'verify' || view === 'upload';
+  const isSignup = view === 'signup' || view === 'specialties' || view === 'verify' || view === 'upload';
   const toggleView = () => {
     setView(isSignup ? 'signin' : 'signup');
     setError('');
@@ -124,6 +139,23 @@ export const WorkerAuthModal: React.FC<WorkerAuthModalProps> = ({ isOpen, onClos
     }
 
     try {
+      // Client-side validation passed — move to specialties selection
+      setRegisteredEmail(formData.email);
+      setLoading(false);
+      setView('specialties');
+    } catch (err) {
+      console.error('[WorkerAuthModal] Error:', err);
+      notyf.error('Connection error. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSpecialtiesSubmit = async () => {
+    setError('');
+    setLoading(true);
+
+    try {
       const response = await fetch(API_ENDPOINTS.auth.registerWorker, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -133,7 +165,8 @@ export const WorkerAuthModal: React.FC<WorkerAuthModalProps> = ({ isOpen, onClos
           email: formData.email,
           phone_number: formData.phone_number,
           password: formData.password,
-          username: formData.username || undefined
+          username: formData.username || undefined,
+          service_ids: selectedServiceIds,
         })
       });
 
@@ -319,7 +352,7 @@ export const WorkerAuthModal: React.FC<WorkerAuthModalProps> = ({ isOpen, onClos
       <div
         className="absolute inset-0 bg-black/70 backdrop-blur-md animate-fade-in-up"
         style={{ animationDuration: '0.4s' }}
-        onClick={view === 'verify' || view === 'upload' ? undefined : onClose}
+        onClick={view === 'verify' || view === 'upload' || view === 'specialties' ? undefined : onClose}
       />
 
       {/* DESKTOP VERSION */}
@@ -404,6 +437,65 @@ export const WorkerAuthModal: React.FC<WorkerAuthModalProps> = ({ isOpen, onClos
                     </button>
                   </form>
                 </div>
+              </motion.div>
+            )}
+
+            {view === 'specialties' && (
+              <motion.div
+                key="specialties-form"
+                initial={{ opacity: 0, x: 20 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -20 }}
+                className="w-full flex flex-col items-center text-center"
+              >
+                <div className="w-16 h-16 bg-bird-gold/10 rounded-full flex items-center justify-center mb-4">
+                  <svg className="w-8 h-8 text-bird-gold" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19.428 15.428a2 2 0 00-1.022-.547l-2.384-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" />
+                  </svg>
+                </div>
+                <h2 className="text-3xl font-bold mb-2 text-bird-orange">Your Specialties</h2>
+                <p className="text-sm text-gray-600 mb-5">Select the services you specialize in</p>
+
+                <div className="w-full grid grid-cols-2 gap-2 max-h-[220px] overflow-y-auto custom-scrollbar mb-4 px-1">
+                  {availableServices.length === 0 ? (
+                    <p className="col-span-2 text-sm text-gray-400 py-4">No services available yet.</p>
+                  ) : availableServices.map(svc => {
+                    const isSelected = selectedServiceIds.includes(svc.id_service);
+                    return (
+                      <button
+                        key={svc.id_service}
+                        type="button"
+                        onClick={() => setSelectedServiceIds(prev =>
+                          isSelected ? prev.filter(id => id !== svc.id_service) : [...prev, svc.id_service]
+                        )}
+                        className={`flex items-center gap-2 px-3 py-2.5 rounded-xl border text-sm font-semibold transition-all duration-200 ${
+                          isSelected
+                            ? 'bg-bird-orange/10 border-bird-orange text-bird-orange shadow-sm'
+                            : 'bg-gray-50 border-gray-200 text-gray-600 hover:border-gray-300'
+                        }`}
+                      >
+                        <span className="text-base">{svc.icon && svc.icon.length <= 2 ? svc.icon : '⚙️'}</span>
+                        <span className="truncate">{svc.name}</span>
+                        {isSelected && (
+                          <svg className="w-4 h-4 ml-auto text-bird-orange shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                            <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                          </svg>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+
+                <button
+                  disabled={loading}
+                  onClick={handleSpecialtiesSubmit}
+                  className="w-full py-4 rounded-full bg-gradient-to-r from-bird-orange to-bird-gold text-white font-bold text-sm tracking-wide shadow-lg shadow-bird-orange/20 hover:scale-[1.02] transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {loading ? 'CREATING ACCOUNT...' : 'CONTINUE'}
+                </button>
+                <button onClick={() => setView('signup')} className="mt-3 text-sm text-gray-500 hover:text-gray-700 font-semibold transition-colors">
+                  ← Go Back
+                </button>
               </motion.div>
             )}
 
@@ -639,6 +731,65 @@ export const WorkerAuthModal: React.FC<WorkerAuthModalProps> = ({ isOpen, onClos
                       {loading ? 'PROCESSING...' : "Create Pro Account"}
                     </button>
                   </form>
+                </motion.div>
+              )}
+
+              {view === 'specialties' && (
+                <motion.div
+                  key="mobile-specialties"
+                  initial={{ opacity: 0, scale: 0.95 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 1.05 }}
+                  className="flex flex-col items-center justify-center text-center h-full"
+                >
+                  <div className="w-16 h-16 bg-bird-gold/10 rounded-full flex items-center justify-center mb-4">
+                    <svg className="w-8 h-8 text-bird-gold" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19.428 15.428a2 2 0 00-1.022-.547l-2.384-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" />
+                    </svg>
+                  </div>
+                  <h2 className="text-2xl font-bold text-gray-900 mb-1">Your Specialties</h2>
+                  <p className="text-sm text-gray-600 mb-5 px-2">Select the services you specialize in</p>
+
+                  <div className="w-full grid grid-cols-2 gap-2 max-h-[200px] overflow-y-auto custom-scrollbar mb-4">
+                    {availableServices.length === 0 ? (
+                      <p className="col-span-2 text-sm text-gray-400 py-4">No services available yet.</p>
+                    ) : availableServices.map(svc => {
+                      const isSelected = selectedServiceIds.includes(svc.id_service);
+                      return (
+                        <button
+                          key={svc.id_service}
+                          type="button"
+                          onClick={() => setSelectedServiceIds(prev =>
+                            isSelected ? prev.filter(id => id !== svc.id_service) : [...prev, svc.id_service]
+                          )}
+                          className={`flex items-center gap-2 px-3 py-2.5 rounded-xl border text-sm font-semibold transition-all duration-200 ${
+                            isSelected
+                              ? 'bg-bird-orange/10 border-bird-orange text-bird-orange shadow-sm'
+                              : 'bg-gray-50 border-gray-200 text-gray-600 hover:border-gray-300'
+                          }`}
+                        >
+                          <span className="text-base">{svc.icon && svc.icon.length <= 2 ? svc.icon : '⚙️'}</span>
+                          <span className="truncate">{svc.name}</span>
+                          {isSelected && (
+                            <svg className="w-4 h-4 ml-auto text-bird-orange shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                              <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                            </svg>
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  <button
+                    disabled={loading}
+                    onClick={handleSpecialtiesSubmit}
+                    className="w-full py-4 rounded-xl font-bold text-sm tracking-wide shadow-lg active:scale-[0.98] transition-all duration-300 bg-gradient-to-r from-bird-orange to-bird-gold text-white shadow-bird-orange/20 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {loading ? 'CREATING ACCOUNT...' : 'Continue'}
+                  </button>
+                  <button onClick={() => setView('signup')} className="mt-3 text-sm text-gray-500 hover:text-gray-700 font-semibold transition-colors">
+                    ← Go Back
+                  </button>
                 </motion.div>
               )}
 
