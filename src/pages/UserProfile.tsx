@@ -1,15 +1,63 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { API_URL } from '../config/api';
-import { uploadProfileImage } from '../services/authService';
+import { removeProfileImage, updateProfile, uploadProfileImage } from '../services/authService';
 
 interface UserProfileProps {
   onBack: () => void;
 }
 
+const NAME_REGEX = /^[\p{L}]+(?:[\p{L} .'-]*[\p{L}])?$/u;
+const PHONE_REGEX = /^\+?[0-9]{8,15}$/;
+const USERNAME_REGEX = /^[a-zA-Z0-9._-]{3,30}$/;
+
+const ALLOWED_IMAGE_TYPES = new Set([
+  'image/jpeg',
+  'image/png',
+  'image/webp',
+  'image/gif',
+  'image/avif'
+]);
+
+const ALLOWED_IMAGE_EXTENSIONS = new Set(['jpg', 'jpeg', 'png', 'webp', 'gif', 'avif']);
+
+const sanitizeNameInput = (value: string): string => {
+  return value.replace(/[^\p{L} .'-]/gu, '').slice(0, 60);
+};
+
+const sanitizePhoneInput = (value: string): string => {
+  const normalized = value.replace(/[^\d+]/g, '');
+  const noExtraPlus = normalized.startsWith('+')
+    ? `+${normalized.slice(1).replace(/\+/g, '')}`
+    : normalized.replace(/\+/g, '');
+  return noExtraPlus.slice(0, 16);
+};
+
+const sanitizeUsernameInput = (value: string): string => {
+  return value.replace(/[^a-zA-Z0-9._-]/g, '').slice(0, 30);
+};
+
 const UserProfile: React.FC<UserProfileProps> = ({ onBack }) => {
   const { user, logout, updateUser } = useAuth();
+
+  const [formData, setFormData] = useState({
+    name: '',
+    lastname: '',
+    phone_number: '',
+    username: ''
+  });
+  const [isSaving, setIsSaving] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
+  const [isRemovingPhoto, setIsRemovingPhoto] = useState(false);
+
+  useEffect(() => {
+    setFormData({
+      name: user?.name || '',
+      lastname: user?.lastname || '',
+      phone_number: user?.phone_number || '',
+      username: user?.username || ''
+    });
+  }, [user]);
 
   const fullName = [user?.name, user?.lastname].filter(Boolean).join(' ');
   const initials = fullName
@@ -22,25 +70,103 @@ const UserProfile: React.FC<UserProfileProps> = ({ onBack }) => {
   const profileImageUrl = useMemo(() => {
     const raw = user?.profile_image;
     if (!raw) return '';
-    if (String(raw).startsWith('http://') || String(raw).startsWith('https://')) {
-      return raw;
+    const rawString = String(raw);
+    if (rawString.startsWith('http://') || rawString.startsWith('https://')) {
+      return rawString;
     }
-    return `${API_URL}/uploads/${raw}`;
+    const apiPublicUrl = API_URL.replace(/\/api\/?$/, '');
+    const cleanPath = rawString.replace(/^\/+/, '');
+    if (cleanPath.startsWith('uploads/')) {
+      return `${apiPublicUrl}/${cleanPath}`;
+    }
+    return `${apiPublicUrl}/uploads/${cleanPath}`;
   }, [user?.profile_image]);
+
+  const validateProfileForm = (): string | null => {
+    const name = formData.name.trim();
+    const lastname = formData.lastname.trim();
+    const phone = formData.phone_number.trim();
+    const username = formData.username.trim();
+
+    if (!name || !lastname) return 'Name and lastname are required.';
+    if (name.length < 2 || name.length > 60 || !NAME_REGEX.test(name)) return 'Invalid name format.';
+    if (lastname.length < 2 || lastname.length > 60 || !NAME_REGEX.test(lastname)) return 'Invalid lastname format.';
+    if (phone && !PHONE_REGEX.test(phone)) return 'Invalid phone format. Use 8 to 15 digits.';
+    if (username && !USERNAME_REGEX.test(username)) return 'Invalid username format. Use 3-30 letters, numbers, . _ or -.';
+
+    return null;
+  };
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value } = e.target;
+
+    if (name === 'name' || name === 'lastname') {
+      setFormData((prev) => ({ ...prev, [name]: sanitizeNameInput(value) }));
+      return;
+    }
+
+    if (name === 'phone_number') {
+      setFormData((prev) => ({ ...prev, phone_number: sanitizePhoneInput(value) }));
+      return;
+    }
+
+    if (name === 'username') {
+      setFormData((prev) => ({ ...prev, username: sanitizeUsernameInput(value) }));
+      return;
+    }
+
+    setFormData((prev) => ({ ...prev, [name]: value }));
+  };
+
+  const handleSaveProfile = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+
+    const validationError = validateProfileForm();
+    if (validationError) {
+      alert(validationError);
+      return;
+    }
+
+    const token = localStorage.getItem('token');
+    if (!token) {
+      alert('Session expired. Please sign in again.');
+      return;
+    }
+
+    setIsSaving(true);
+    try {
+      const payload = {
+        name: formData.name.trim(),
+        lastname: formData.lastname.trim(),
+        phone_number: formData.phone_number.trim(),
+        username: formData.username.trim()
+      };
+
+      const { data } = await updateProfile(payload, token);
+      updateUser({ ...user, ...data.user });
+      alert('Profile updated successfully.');
+    } catch (error: any) {
+      alert(error?.response?.data?.error || 'Error updating profile.');
+    } finally {
+      setIsSaving(false);
+    }
+  };
 
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-
     if (!file) return;
 
-    if (!file.type.startsWith('image/')) {
-      alert('Only image files are allowed');
+    const extension = file.name.split('.').pop()?.toLowerCase() || '';
+    const hasValidFormat = ALLOWED_IMAGE_TYPES.has(file.type) && ALLOWED_IMAGE_EXTENSIONS.has(extension);
+
+    if (!hasValidFormat) {
+      alert('Only JPG, PNG, WEBP, GIF or AVIF images are allowed.');
       e.target.value = '';
       return;
     }
 
     if (file.size > 5 * 1024 * 1024) {
-      alert('Image size must be 5MB or less');
+      alert('Image size must be 5MB or less.');
       e.target.value = '';
       return;
     }
@@ -54,17 +180,34 @@ const UserProfile: React.FC<UserProfileProps> = ({ onBack }) => {
     setIsUploading(true);
     try {
       const { data } = await uploadProfileImage(file, token);
-      const nextUser = {
-        ...user,
-        profile_image: data.profile_image
-      };
-      updateUser(nextUser);
-      alert('Profile image updated successfully');
+      updateUser({ ...user, profile_image: data.profile_image });
+      alert('Profile image updated successfully.');
     } catch (error: any) {
-      alert(error?.response?.data?.error || 'Error uploading image');
+      alert(error?.response?.data?.error || 'Error uploading image.');
     } finally {
       setIsUploading(false);
       e.target.value = '';
+    }
+  };
+
+  const handleRemovePhoto = async () => {
+    if (!user?.profile_image) return;
+
+    const token = localStorage.getItem('token');
+    if (!token) {
+      alert('Session expired. Please sign in again.');
+      return;
+    }
+
+    setIsRemovingPhoto(true);
+    try {
+      await removeProfileImage(token);
+      updateUser({ ...user, profile_image: null });
+      alert('Profile image removed successfully.');
+    } catch (error: any) {
+      alert(error?.response?.data?.error || 'Error removing image.');
+    } finally {
+      setIsRemovingPhoto(false);
     }
   };
 
@@ -99,49 +242,114 @@ const UserProfile: React.FC<UserProfileProps> = ({ onBack }) => {
 
         <div className="mb-8 rounded-2xl border border-gray-200 bg-gray-50/70 p-4">
           <p className="text-xs uppercase tracking-wider text-gray-500 font-bold mb-3">Profile photo</p>
-          <label className="inline-flex items-center gap-3 px-4 py-2 rounded-xl bg-bird-blue text-white font-bold cursor-pointer hover:bg-bird-darkBlue transition-colors">
+          <div className="flex flex-wrap items-center gap-3">
+            <label className="inline-flex items-center gap-3 px-4 py-2 rounded-xl bg-bird-blue text-white font-bold cursor-pointer hover:bg-bird-darkBlue transition-colors">
+              <input
+                type="file"
+                accept=".jpg,.jpeg,.png,.webp,.gif,.avif,image/jpeg,image/png,image/webp,image/gif,image/avif"
+                onChange={handleImageUpload}
+                className="hidden"
+                disabled={isUploading || isRemovingPhoto}
+              />
+              {isUploading ? 'Uploading...' : 'Change photo'}
+            </label>
+
+            <button
+              type="button"
+              onClick={handleRemovePhoto}
+              disabled={!user?.profile_image || isUploading || isRemovingPhoto}
+              className="px-4 py-2 rounded-xl border border-red-200 text-red-600 font-bold hover:bg-red-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {isRemovingPhoto ? 'Removing...' : 'Remove photo'}
+            </button>
+          </div>
+          <p className="text-xs text-gray-500 mt-2">Allowed: JPG, PNG, WEBP, GIF, AVIF. Max 5MB.</p>
+        </div>
+
+        <form onSubmit={handleSaveProfile} className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <label className="rounded-2xl border border-gray-200 bg-gray-50/70 p-4 block">
+            <p className="text-xs uppercase tracking-wider text-gray-500 font-bold mb-2">Name</p>
             <input
-              type="file"
-              accept="image/*"
-              onChange={handleImageUpload}
-              className="hidden"
-              disabled={isUploading}
+              type="text"
+              name="name"
+              value={formData.name}
+              onChange={handleInputChange}
+              maxLength={60}
+              autoComplete="given-name"
+              className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-gray-900 font-semibold outline-none focus:ring-2 focus:ring-bird-blue/40"
             />
-            {isUploading ? 'Uploading...' : 'Upload photo'}
           </label>
-          <p className="text-xs text-gray-500 mt-2">Allowed: images only, max 5MB.</p>
-        </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <label className="rounded-2xl border border-gray-200 bg-gray-50/70 p-4 block">
+            <p className="text-xs uppercase tracking-wider text-gray-500 font-bold mb-2">Lastname</p>
+            <input
+              type="text"
+              name="lastname"
+              value={formData.lastname}
+              onChange={handleInputChange}
+              maxLength={60}
+              autoComplete="family-name"
+              className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-gray-900 font-semibold outline-none focus:ring-2 focus:ring-bird-blue/40"
+            />
+          </label>
+
+          <label className="rounded-2xl border border-gray-200 bg-gray-50/70 p-4 block">
+            <p className="text-xs uppercase tracking-wider text-gray-500 font-bold mb-2">Phone</p>
+            <input
+              type="tel"
+              name="phone_number"
+              value={formData.phone_number}
+              onChange={handleInputChange}
+              inputMode="numeric"
+              maxLength={16}
+              autoComplete="tel"
+              placeholder="Optional"
+              className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-gray-900 font-semibold outline-none focus:ring-2 focus:ring-bird-blue/40"
+            />
+          </label>
+
+          <label className="rounded-2xl border border-gray-200 bg-gray-50/70 p-4 block">
+            <p className="text-xs uppercase tracking-wider text-gray-500 font-bold mb-2">Username</p>
+            <input
+              type="text"
+              name="username"
+              value={formData.username}
+              onChange={handleInputChange}
+              maxLength={30}
+              autoComplete="username"
+              placeholder="Optional"
+              className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-gray-900 font-semibold outline-none focus:ring-2 focus:ring-bird-blue/40"
+            />
+          </label>
+
           <div className="rounded-2xl border border-gray-200 bg-gray-50/70 p-4">
-            <p className="text-xs uppercase tracking-wider text-gray-500 font-bold">Name</p>
-            <p className="text-gray-900 font-semibold mt-1">{user?.name || '-'}</p>
+            <p className="text-xs uppercase tracking-wider text-gray-500 font-bold">Email (not editable)</p>
+            <p className="text-gray-900 font-semibold mt-2 break-words">{user?.email || '-'}</p>
           </div>
 
           <div className="rounded-2xl border border-gray-200 bg-gray-50/70 p-4">
-            <p className="text-xs uppercase tracking-wider text-gray-500 font-bold">Lastname</p>
-            <p className="text-gray-900 font-semibold mt-1">{user?.lastname || '-'}</p>
+            <p className="text-xs uppercase tracking-wider text-gray-500 font-bold">Role (not editable)</p>
+            <p className="text-gray-900 font-semibold mt-2 capitalize">{user?.rol || '-'}</p>
           </div>
 
-          <div className="rounded-2xl border border-gray-200 bg-gray-50/70 p-4">
-            <p className="text-xs uppercase tracking-wider text-gray-500 font-bold">Email</p>
-            <p className="text-gray-900 font-semibold mt-1 break-words">{user?.email || '-'}</p>
-          </div>
+          <div className="md:col-span-2 mt-2 flex flex-wrap gap-3">
+            <button
+              type="submit"
+              disabled={isSaving || isUploading || isRemovingPhoto}
+              className="px-5 py-3 rounded-xl bg-bird-blue text-white font-bold hover:bg-bird-darkBlue transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {isSaving ? 'Saving...' : 'Save changes'}
+            </button>
 
-          <div className="rounded-2xl border border-gray-200 bg-gray-50/70 p-4">
-            <p className="text-xs uppercase tracking-wider text-gray-500 font-bold">Role</p>
-            <p className="text-gray-900 font-semibold mt-1 capitalize">{user?.rol || '-'}</p>
+            <button
+              type="button"
+              onClick={logout}
+              className="px-5 py-3 rounded-xl bg-red-50 text-red-600 font-bold border border-red-200 hover:bg-red-100 transition-colors"
+            >
+              Log Out
+            </button>
           </div>
-        </div>
-
-        <div className="mt-8">
-          <button
-            onClick={logout}
-            className="px-5 py-3 rounded-xl bg-red-50 text-red-600 font-bold border border-red-200 hover:bg-red-100 transition-colors"
-          >
-            Log Out
-          </button>
-        </div>
+        </form>
       </div>
     </div>
   );

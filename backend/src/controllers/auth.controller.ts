@@ -1,6 +1,8 @@
 import { Request, Response } from 'express';
 import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
+import fs from 'fs';
+import path from 'path';
 import pool from '../config/db';
 import { ResultSetHeader, RowDataPacket } from 'mysql2';
 import { sendResetEmail } from '../config/mail';
@@ -36,6 +38,16 @@ const isValidPassword = (value: string): boolean => {
 };
 
 const isValidResetCode = (value: string): boolean => /^\d{6}$/.test(value);
+
+const uploadsDir = path.join(__dirname, '../../uploads');
+
+const deleteLocalUploadIfExists = (filename: string | null | undefined): void => {
+  if (!filename) return;
+  const filePath = path.join(uploadsDir, filename);
+  if (fs.existsSync(filePath)) {
+    fs.unlinkSync(filePath);
+  }
+};
 
 export const registerWorker = async (req: Request, res: Response): Promise<void> => {
   try {
@@ -499,12 +511,17 @@ export const uploadProfileImage = async (req: AuthRequest, res: Response): Promi
       return;
     }
 
-    if (!req.file.mimetype.startsWith('image/')) {
-      res.status(400).json({ error: 'Only image files are allowed' });
+    const imageFilename = req.file.filename;
+
+    const [existing] = await pool.execute<RowDataPacket[]>(
+      'SELECT profile_image FROM users WHERE id_user = ?',
+      [userId]
+    );
+
+    if (existing.length === 0) {
+      res.status(404).json({ error: 'User not found' });
       return;
     }
-
-    const imageFilename = req.file.filename;
 
     await pool.execute(
       `UPDATE users
@@ -513,12 +530,127 @@ export const uploadProfileImage = async (req: AuthRequest, res: Response): Promi
       [imageFilename, userId]
     );
 
+    deleteLocalUploadIfExists(existing[0].profile_image);
+
     res.json({
       success: true,
       profile_image: imageFilename
     });
   } catch (error) {
     console.error('uploadProfileImage error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
+export const removeProfileImage = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const userId = req.user?.user_id;
+
+    if (!userId) {
+      res.status(401).json({ error: 'Unauthorized' });
+      return;
+    }
+
+    const [existing] = await pool.execute<RowDataPacket[]>(
+      'SELECT profile_image FROM users WHERE id_user = ?',
+      [userId]
+    );
+
+    if (existing.length === 0) {
+      res.status(404).json({ error: 'User not found' });
+      return;
+    }
+
+    await pool.execute(
+      `UPDATE users
+       SET profile_image = NULL
+       WHERE id_user = ?`,
+      [userId]
+    );
+
+    deleteLocalUploadIfExists(existing[0].profile_image);
+
+    res.json({
+      success: true,
+      profile_image: null
+    });
+  } catch (error) {
+    console.error('removeProfileImage error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
+export const updateProfile = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const userId = req.user?.user_id;
+
+    if (!userId) {
+      res.status(401).json({ error: 'Unauthorized' });
+      return;
+    }
+
+    const name = sanitizeText(req.body.name);
+    const lastname = sanitizeText(req.body.lastname);
+    const phone_number = sanitizeText(req.body.phone_number);
+    const username = sanitizeText(req.body.username);
+
+    if (!name || !lastname) {
+      res.status(400).json({ error: 'Name and lastname are required' });
+      return;
+    }
+
+    if (!isValidName(name) || !isValidName(lastname)) {
+      res.status(400).json({ error: 'Invalid name or lastname format' });
+      return;
+    }
+
+    if (!isValidPhone(phone_number)) {
+      res.status(400).json({ error: 'Invalid phone number format' });
+      return;
+    }
+
+    if (!isValidUsername(username)) {
+      res.status(400).json({ error: 'Invalid username format' });
+      return;
+    }
+
+    if (username) {
+      const [duplicateUsernames] = await pool.execute<RowDataPacket[]>(
+        'SELECT id_user FROM users WHERE username = ? AND id_user <> ? LIMIT 1',
+        [username, userId]
+      );
+
+      if (duplicateUsernames.length > 0) {
+        res.status(409).json({ error: 'Username already in use' });
+        return;
+      }
+    }
+
+    await pool.execute(
+      `UPDATE users
+       SET name = ?, lastname = ?, phone_number = ?, username = ?
+       WHERE id_user = ?`,
+      [name, lastname, phone_number || null, username || null, userId]
+    );
+
+    const [users] = await pool.execute<RowDataPacket[]>(
+      `SELECT id_user, name, lastname, email, phone_number, rol, username, profile_image
+       FROM users
+       WHERE id_user = ?`,
+      [userId]
+    );
+
+    if (users.length === 0) {
+      res.status(404).json({ error: 'User not found' });
+      return;
+    }
+
+    res.json({
+      success: true,
+      user: users[0]
+    });
+  } catch (error) {
+    console.error('updateProfile error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 };

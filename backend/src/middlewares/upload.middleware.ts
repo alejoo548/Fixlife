@@ -2,7 +2,7 @@ import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
 
-// Asegurarse de que la carpeta "uploads" exista
+// Ensure uploads folder exists
 const uploadDir = path.join(__dirname, '../../uploads');
 if (!fs.existsSync(uploadDir)) {
   fs.mkdirSync(uploadDir, { recursive: true });
@@ -13,23 +13,50 @@ const storage = multer.diskStorage({
     cb(null, uploadDir);
   },
   filename: (req, file, cb) => {
-    // Nombre único: timestamp + user_id (si existe) + extensión original
-    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
     cb(null, file.fieldname + '-' + uniqueSuffix + path.extname(file.originalname));
   }
 });
 
-const fileFilter = (req: any, file: Express.Multer.File, cb: multer.FileFilterCallback) => {
-  // Aceptar solo imágenes o PDFs
-  if (file.mimetype.startsWith('image/') || file.mimetype === 'application/pdf') {
+const IMAGE_MIME_TYPES = new Set([
+  'image/jpeg',
+  'image/png',
+  'image/webp',
+  'image/gif',
+  'image/avif'
+]);
+
+const IMAGE_EXTENSIONS = new Set(['.jpg', '.jpeg', '.png', '.webp', '.gif', '.avif']);
+
+const hasValidImageFormat = (file: Express.Multer.File): boolean => {
+  const extension = path.extname(file.originalname).toLowerCase();
+  return IMAGE_MIME_TYPES.has(file.mimetype) && IMAGE_EXTENSIONS.has(extension);
+};
+
+const docsAndImageFilter = (req: any, file: Express.Multer.File, cb: multer.FileFilterCallback) => {
+  if (file.mimetype === 'application/pdf' || hasValidImageFormat(file)) {
     cb(null, true);
   } else {
-    cb(new Error('Formato no soportado. Sube una imagen o un PDF.'));
+    cb(new Error('Unsupported format. Upload a valid image or a PDF.'));
   }
 };
 
-export const upload = multer({ 
-  storage, 
-  fileFilter,
-  limits: { fileSize: 10 * 1024 * 1024 } // Límite de 10MB por archivo
+const imageOnlyFilter = (req: any, file: Express.Multer.File, cb: multer.FileFilterCallback) => {
+  if (hasValidImageFormat(file)) {
+    cb(null, true);
+  } else {
+    cb(new Error('Only JPG, PNG, WEBP, GIF or AVIF images are allowed.'));
+  }
+};
+
+export const upload = multer({
+  storage,
+  fileFilter: docsAndImageFilter,
+  limits: { fileSize: 10 * 1024 * 1024 }
+});
+
+export const uploadImageOnly = multer({
+  storage,
+  fileFilter: imageOnlyFilter,
+  limits: { fileSize: 5 * 1024 * 1024 }
 });
