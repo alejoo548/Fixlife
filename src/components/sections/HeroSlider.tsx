@@ -1,44 +1,25 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { HeroSliderProps } from '../../types';
-
-const SLIDES = [
-  {
-    id: 1,
-    image: "https://images.unsplash.com/photo-1504328345606-18bbc8c9d7d1?q=80&w=2070&auto=format&fit=crop",
-    tag: "PREMIUM",
-    title: "Home Experts",
-    description: "Find certified electricians, plumbers, and technicians ready to solve any problem.",
-    cta: "Find Technician"
-  },
-  {
-    id: 2,
-    image: "https://images.unsplash.com/photo-1581578731117-10d52b43cc0a?q=80&w=2070&auto=format&fit=crop",
-    tag: "RENOVATION",
-    title: "Transform Your Space",
-    description: "From a fresh coat of paint to complete remodels. Make your dream home a reality.",
-    cta: "Get a Quote"
-  },
-  {
-    id: 3,
-    image: "https://images.unsplash.com/photo-1556911220-bff31c812dba?q=80&w=2668&auto=format&fit=crop",
-    tag: "CLEANING",
-    title: "Spotless Homes",
-    description: "Deep cleaning and regular maintenance services so you can enjoy your free time.",
-    cta: "Book Cleaning"
-  }
-];
+import {
+  DEFAULT_HERO_SLIDES,
+  fetchHeroSlides,
+  getHeroSlides,
+  HERO_SLIDES_STORAGE_KEY,
+  HERO_SLIDES_UPDATED_EVENT,
+} from '../../utils/heroSlides';
 
 export const HeroSlider: React.FC<HeroSliderProps> = ({ onStartBooking }) => {
+  const [slides, setSlides] = useState(() => getHeroSlides());
   const [current, setCurrent] = useState(0);
   const [isPaused, setIsPaused] = useState(false);
 
   const nextSlide = useCallback(() => {
-    setCurrent((prev) => (prev === SLIDES.length - 1 ? 0 : prev + 1));
-  }, []);
+    setCurrent((prev) => (prev === slides.length - 1 ? 0 : prev + 1));
+  }, [slides.length]);
 
   const prevSlide = () => {
-    setCurrent((prev) => (prev === 0 ? SLIDES.length - 1 : prev - 1));
+    setCurrent((prev) => (prev === 0 ? slides.length - 1 : prev - 1));
   };
 
   useEffect(() => {
@@ -46,6 +27,35 @@ export const HeroSlider: React.FC<HeroSliderProps> = ({ onStartBooking }) => {
     const timer = setInterval(nextSlide, 5000);
     return () => clearInterval(timer);
   }, [isPaused, nextSlide]);
+
+  useEffect(() => {
+    fetchHeroSlides().then((fetched) => {
+      if (Array.isArray(fetched) && fetched.length > 0) {
+        setSlides(fetched);
+      }
+    });
+
+    const syncSlides = () => {
+      const nextSlides = getHeroSlides();
+      setSlides(nextSlides.length > 0 ? nextSlides : DEFAULT_HERO_SLIDES);
+    };
+
+    const onStorage = (event: StorageEvent) => {
+      if (event.key === HERO_SLIDES_STORAGE_KEY) syncSlides();
+    };
+
+    window.addEventListener('storage', onStorage);
+    window.addEventListener(HERO_SLIDES_UPDATED_EVENT, syncSlides);
+
+    return () => {
+      window.removeEventListener('storage', onStorage);
+      window.removeEventListener(HERO_SLIDES_UPDATED_EVENT, syncSlides);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (current > slides.length - 1) setCurrent(0);
+  }, [current, slides.length]);
 
   return (
     <motion.div
@@ -57,7 +67,7 @@ export const HeroSlider: React.FC<HeroSliderProps> = ({ onStartBooking }) => {
       onMouseLeave={() => setIsPaused(false)}
     >
       <AnimatePresence mode="wait">
-        {SLIDES.map((slide, index) => {
+        {slides.map((slide, index) => {
           const isActive = index === current;
           if (!isActive) return null;
           
@@ -163,7 +173,7 @@ export const HeroSlider: React.FC<HeroSliderProps> = ({ onStartBooking }) => {
       </motion.button>
 
       <div className="absolute bottom-6 right-6 z-20 flex gap-2">
-        {SLIDES.map((_, idx) => (
+        {slides.map((_, idx) => (
           <motion.button
             key={idx}
             whileHover={{ scale: 1.2 }}

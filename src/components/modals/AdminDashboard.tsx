@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
@@ -12,6 +12,16 @@ import { useAuth } from '../../context/AuthContext';
 import { API_ENDPOINTS } from '../../config/api';
 import { Notyf } from 'notyf';
 import 'notyf/notyf.min.css';
+import {
+  DEFAULT_HERO_SLIDES,
+  fetchHeroSlides,
+  getHeroSlides,
+  HeroSlideContent,
+  resetHeroSlides,
+  saveHeroSlides,
+  uploadHeroImageAsset,
+  uploadHeroSlideImage,
+} from '../../utils/heroSlides';
 
 interface AdminDashboardProps {
   isOpen: boolean;
@@ -76,6 +86,13 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ isOpen, onClose 
   // Stats & Preview state
   const [dashboardStats, setDashboardStats] = useState<any>(null);
   const [previewDoc, setPreviewDoc] = useState<{ url: string, name: string } | null>(null);
+
+  // Hero Slides state
+  const [heroSlidesDraft, setHeroSlidesDraft] = useState<HeroSlideContent[]>([]);
+  const [unsavedSlideIds, setUnsavedSlideIds] = useState<number[]>([]);
+  const [isSavingHeroSlides, setIsSavingHeroSlides] = useState(false);
+  const [settingsNotice, setSettingsNotice] = useState<string | null>(null);
+  const [uploadingSlideId, setUploadingSlideId] = useState<number | null>(null);
 
   const getToken = () => localStorage.getItem('token') || '';
 
@@ -199,7 +216,243 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ isOpen, onClose 
     fetchStats();
     if (activeTab === 'Services') fetchServices();
     if (activeTab === 'Users & Pros') fetchPendingWorkers();
+    
+    // Fetch Hero Slides if in Platform Settings
+    if (activeTab === 'Platform Settings') {
+      fetchHeroSlides().then((slides) => {
+        if (Array.isArray(slides) && slides.length > 0) {
+          setHeroSlidesDraft(slides);
+          setUnsavedSlideIds([]);
+        }
+      });
+    }
   }, [activeTab]);
+
+  const updateSlideField = (
+    index: number,
+    field: keyof Omit<HeroSlideContent, 'id'>,
+    value: string
+  ) => {
+    const slideId = heroSlidesDraft[index]?.id;
+    if (slideId && !unsavedSlideIds.includes(slideId)) {
+      setUnsavedSlideIds((prev) => [...prev, slideId]);
+    }
+    setHeroSlidesDraft((prev) =>
+      prev.map((slide, idx) => (idx === index ? { ...slide, [field]: value } : slide))
+    );
+  };
+
+  const fileToDataUrl = (file: File) =>
+    new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result));
+      reader.onerror = () => reject(new Error('Could not read image file.'));
+      reader.readAsDataURL(file);
+    });
+
+  const loadImage = (src: string) =>
+    new Promise<HTMLImageElement>((resolve, reject) => {
+      const img = new Image();
+      img.onload = () => resolve(img);
+      img.onerror = () => reject(new Error('Could not load selected image.'));
+      img.src = src;
+    });
+
+  const cropTo16x9File = async (file: File): Promise<File> => {
+    const src = await fileToDataUrl(file);
+    const image = await loadImage(src);
+
+    const targetAspect = 16 / 9;
+    const sourceAspect = image.width / image.height;
+
+    let sx = 0;
+    let sy = 0;
+    let sw = image.width;
+    let sh = image.height;
+
+    if (sourceAspect > targetAspect) {
+      sw = Math.round(image.height * targetAspect);
+      sx = Math.round((image.width - sw) / 2);
+    } else if (sourceAspect < targetAspect) {
+      sh = Math.round(image.width / targetAspect);
+      sy = Math.round((image.height - sh) / 2);
+    }
+
+    const canvas = document.createElement('canvas');
+    canvas.width = 1600;
+    canvas.height = 900;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) throw new Error('Canvas not supported by browser.');
+
+    ctx.drawImage(image, sx, sy, sw, sh, 0, 0, canvas.width, canvas.height);
+
+    const blob: Blob = await new Promise((resolve, reject) => {
+      canvas.toBlob(
+        (result) => {
+          if (!result) {
+            reject(new Error('Could not process image.'));
+            return;
+          }
+          resolve(result);
+        },
+        'image/jpeg',
+        0.92
+      );
+    });
+
+    const baseName = file.name.replace(/\.[^.]+$/, '');
+    return new File([blob], `${baseName}-16x9.jpg`, { type: 'image/jpeg' });
+  };
+
+  const handleImageUpload = async (index: number, event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    if (!['image/png', 'image/jpeg', 'image/jpg', 'image/webp'].includes(file.type)) {
+      setSettingsNotice('Only PNG/JPG/WEBP images are allowed.');
+      notyf.error('Only PNG/JPG/WEBP images are allowed.');
+      return;
+    }
+
+    if (file.size > 8 * 1024 * 1024) {
+      setSettingsNotice('Image too large. Max 8MB per slide.');
+      notyf.error('Image too large. Max 8MB per slide.');
+      return;
+    }
+
+    const token = getToken();
+    if (!token) {
+      setSettingsNotice('Session expired. Please sign in again.');
+      notyf.error('Session expired. Please sign in again.');
+      return;
+    }
+
+    try {
+      const slideId = heroSlidesDraft[index]?.id ?? null;
+      setUploadingSlideId(slideId || -1);
+      const cropped = await cropTo16x9File(file);
+
+      if (slideId && slideId > 0) {
+        const updatedSlides = await uploadHeroSlideImage(slideId, cropped, token);
+        setHeroSlidesDraft(updatedSlides);
+        setSettingsNotice(`Slide ${index + 1} image updated (16:9 auto-crop applied).`);
+        setUnsavedSlideIds((prev) => (prev.includes(slideId) ? prev : [...prev, slideId]));
+      } else {
+        const imageUrlFromTemp = await uploadHeroImageAsset(cropped, token);
+        setHeroSlidesDraft((prev) => {
+          const next = prev.map((slide, idx) => (idx === index ? { ...slide, image: imageUrlFromTemp } : slide));
+          return next;
+        });
+        const tempId = heroSlidesDraft[index]?.id;
+        if (tempId) {
+          setUnsavedSlideIds((prev) => (prev.includes(tempId) ? prev : [...prev, tempId]));
+        }
+        setSettingsNotice(`Slide ${index + 1} image uploaded. Save carousel to persist.`);
+      }
+      notyf.success(`Slide ${index + 1} image updated.`);
+    } catch (error: any) {
+      setSettingsNotice(error?.message || 'Error processing image.');
+      notyf.error(error?.message || 'Error processing image.');
+    } finally {
+      setUploadingSlideId(null);
+    }
+  };
+
+  const handleSaveHeroSlides = async () => {
+    const token = getToken();
+    if (!token) {
+      setSettingsNotice('Session expired. Please sign in again.');
+      notyf.error('Session expired. Please sign in again.');
+      return;
+    }
+
+    const invalidSlide = heroSlidesDraft.find(
+      (slide) =>
+        !slide.image?.trim() ||
+        !slide.tag?.trim() ||
+        !slide.title?.trim() ||
+        !slide.description?.trim() ||
+        !slide.cta?.trim()
+    );
+    if (invalidSlide) {
+      setSettingsNotice('All slides need image + text fields before saving.');
+      notyf.error('All slides need image + text fields before saving.');
+      return;
+    }
+
+    try {
+      setIsSavingHeroSlides(true);
+      const saved = await saveHeroSlides(heroSlidesDraft, token);
+      setHeroSlidesDraft(saved);
+      setUnsavedSlideIds([]);
+      setSettingsNotice('Homepage carousel updated successfully.');
+      notyf.success('Homepage carousel updated successfully.');
+    } catch (error: any) {
+      setSettingsNotice(error?.message || 'Could not save carousel.');
+      notyf.error(error?.message || 'Could not save carousel.');
+    } finally {
+      setIsSavingHeroSlides(false);
+    }
+  };
+
+  const handleResetHeroSlides = async () => {
+    const token = getToken();
+    if (!token) {
+      setSettingsNotice('Session expired. Please sign in again.');
+      notyf.error('Session expired. Please sign in again.');
+      return;
+    }
+
+    try {
+      setIsSavingHeroSlides(true);
+      const restored = await saveHeroSlides(DEFAULT_HERO_SLIDES, token);
+      resetHeroSlides();
+      setHeroSlidesDraft(restored);
+      setUnsavedSlideIds([]);
+      setSettingsNotice('Carousel restored to default content.');
+      notyf.success('Carousel restored to default content.');
+    } catch (error: any) {
+      setSettingsNotice(error?.message || 'Could not restore defaults.');
+      notyf.error(error?.message || 'Could not restore defaults.');
+    } finally {
+      setIsSavingHeroSlides(false);
+    }
+  };
+
+  const handleAddSlide = () => {
+    if (heroSlidesDraft.length >= 10) {
+      setSettingsNotice('Maximum 10 slides allowed.');
+      notyf.error('Maximum 10 slides allowed.');
+      return;
+    }
+
+    const tempId = Date.now() * -1;
+    const newSlide: HeroSlideContent = {
+      id: tempId,
+      image: '',
+      tag: 'NEW',
+      title: 'New Slide Title',
+      description: 'Write a short description for this new slide.',
+      cta: 'Explore',
+    };
+    setHeroSlidesDraft((prev) => [...prev, newSlide]);
+    setUnsavedSlideIds((prev) => [...prev, tempId]);
+    setSettingsNotice('Slide added. Save carousel to persist changes.');
+    notyf.success('Slide added.');
+  };
+
+  const handleDeleteSlide = (slideId: number) => {
+    if (heroSlidesDraft.length <= 1) {
+      setSettingsNotice('At least one slide is required.');
+      notyf.error('At least one slide is required.');
+      return;
+    }
+
+    setHeroSlidesDraft((prev) => prev.filter((slide) => slide.id !== slideId));
+    setUnsavedSlideIds((prev) => prev.filter((id) => id !== slideId));
+    setSettingsNotice('Slide removed. Save carousel to persist changes.');
+    notyf.success('Slide removed.');
+  };
 
   if (!isOpen) return null;
 
@@ -650,11 +903,156 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ isOpen, onClose 
     </div>
   );
 
+  // ─── RENDER: Platform Settings Tab ───────────────────────────────────────
+  const renderPlatformSettingsTab = () => (
+    <div className="max-w-[1600px] mx-auto space-y-6 pb-10">
+      <div className="bg-white/80 border border-gray-200 rounded-3xl p-6 md:p-8 shadow-lg">
+        <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
+          <div>
+            <h2 className="text-2xl font-black text-gray-900">Homepage Carousel Manager</h2>
+            <p className="text-gray-600 mt-1">
+              Update hero slides (text + image) from admin. Images are auto-cropped to 16:9.
+            </p>
+          </div>
+          <div className="flex gap-3">
+            <button
+              onClick={handleAddSlide}
+              disabled={isSavingHeroSlides}
+              className="px-4 py-2.5 rounded-xl border border-bird-blue bg-bird-blue/10 text-bird-darkBlue font-bold hover:bg-bird-blue/20 disabled:bg-gray-100 disabled:text-gray-400 disabled:border-gray-300"
+            >
+              + Add Slide
+            </button>
+            <button
+              onClick={handleResetHeroSlides}
+              disabled={isSavingHeroSlides}
+              className="px-4 py-2.5 rounded-xl border border-gray-300 bg-white text-gray-700 font-bold hover:bg-gray-50 disabled:bg-gray-100 disabled:text-gray-400"
+            >
+              Restore Default
+            </button>
+            <button
+              onClick={handleSaveHeroSlides}
+              disabled={isSavingHeroSlides}
+              className="px-4 py-2.5 rounded-xl bg-bird-blue text-white font-bold hover:bg-bird-darkBlue disabled:bg-gray-300"
+            >
+              {isSavingHeroSlides ? 'Saving...' : 'Save Carousel'}
+            </button>
+          </div>
+        </div>
+
+        {settingsNotice && (
+          <div className="mt-4 rounded-xl border border-bird-blue/20 bg-bird-blue/10 text-bird-darkBlue px-4 py-3 text-sm font-semibold">
+            {settingsNotice}
+          </div>
+        )}
+      </div>
+
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+        {heroSlidesDraft.map((slide, index) => (
+          <div
+            key={slide.id}
+            className="bg-white/80 border border-gray-200 rounded-3xl p-5 md:p-6 shadow-lg space-y-4 hover:shadow-xl transition-all"
+          >
+            <div className="flex items-center justify-between">
+              <h3 className="text-lg font-black text-gray-900">Slide {index + 1}</h3>
+              <div className="flex items-center gap-2">
+                {unsavedSlideIds.includes(slide.id) && (
+                  <span className="text-[11px] font-bold uppercase tracking-wide px-2.5 py-1 rounded-full bg-blue-100 text-blue-700 border border-blue-200">
+                    Unsaved
+                  </span>
+                )}
+                <span className="text-[11px] font-bold uppercase tracking-wide px-2.5 py-1 rounded-full bg-amber-100 text-amber-700 border border-amber-200">
+                  16:9
+                </span>
+                <button
+                  onClick={() => handleDeleteSlide(slide.id)}
+                  disabled={isSavingHeroSlides || heroSlidesDraft.length <= 1}
+                  className="text-xs font-bold px-2.5 py-1 rounded-full border border-red-200 bg-red-50 text-red-600 hover:bg-red-100 disabled:bg-gray-100 disabled:text-gray-400 disabled:border-gray-300"
+                >
+                  Delete
+                </button>
+              </div>
+            </div>
+
+            <div className="aspect-video rounded-2xl overflow-hidden border border-gray-200 bg-gray-100 shadow-inner">
+              {slide.image ? (
+                <img src={slide.image} alt={`Slide ${index + 1}`} className="w-full h-full object-cover" />
+              ) : (
+                <div className="w-full h-full bg-gradient-to-br from-gray-100 to-gray-200 flex flex-col items-center justify-center text-gray-500">
+                  <div className="text-3xl font-black text-bird-blue leading-none">+</div>
+                  <div className="text-sm font-bold mt-2">No image selected</div>
+                  <div className="text-xs">Upload below</div>
+                </div>
+              )}
+            </div>
+
+            <label className="block">
+              <span className="block text-xs font-bold text-gray-500 uppercase mb-1">Replace Image</span>
+              <div className="w-full rounded-2xl border-2 border-dashed border-gray-300 bg-gradient-to-br from-white to-sky-50 hover:from-sky-50 hover:to-blue-50 hover:border-bird-blue transition p-4 text-center cursor-pointer">
+                <div className="text-bird-blue text-2xl font-black leading-none">+</div>
+                <div className="text-gray-900 font-black mt-1">Image Upload Zone</div>
+                <div className="text-xs text-gray-500">PNG/JPG/WEBP, auto-center crop to 1600 x 900</div>
+                <span className="inline-block mt-3 bg-bird-blue text-white px-3 py-1.5 rounded-lg text-sm font-bold shadow">
+                  {uploadingSlideId === slide.id ? 'Uploading...' : 'Select Image'}
+                </span>
+              </div>
+              <input
+                type="file"
+                accept="image/png,image/jpeg,image/jpg,image/webp"
+                onChange={(e) => handleImageUpload(index, e)}
+                className="hidden"
+              />
+            </label>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <label className="block">
+                <span className="block text-xs font-bold text-gray-500 uppercase mb-1">Tag</span>
+                <input
+                  value={slide.tag}
+                  onChange={(e) => updateSlideField(index, 'tag', e.target.value)}
+                  className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2.5"
+                />
+              </label>
+
+              <label className="block">
+                <span className="block text-xs font-bold text-gray-500 uppercase mb-1">Button Text</span>
+                <input
+                  value={slide.cta}
+                  onChange={(e) => updateSlideField(index, 'cta', e.target.value)}
+                  className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2.5"
+                />
+              </label>
+            </div>
+
+            <label className="block">
+              <span className="block text-xs font-bold text-gray-500 uppercase mb-1">Title</span>
+              <input
+                value={slide.title}
+                onChange={(e) => updateSlideField(index, 'title', e.target.value)}
+                className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2.5"
+              />
+            </label>
+
+            <label className="block">
+              <span className="block text-xs font-bold text-gray-500 uppercase mb-1">Description</span>
+              <textarea
+                value={slide.description}
+                onChange={(e) => updateSlideField(index, 'description', e.target.value)}
+                rows={3}
+                className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2.5"
+              />
+            </label>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+
   // ─── TAB CONTENT ROUTER ───────────────────────────────────────────────
   const renderTabContent = () => {
     switch (activeTab) {
       case 'Services': return renderServicesTab();
       case 'Users & Pros': return renderUsersTab();
+      case 'Platform Settings': return renderPlatformSettingsTab();
       default: return renderOverviewTab();
     }
   };
