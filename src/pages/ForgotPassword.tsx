@@ -30,14 +30,21 @@ const ForgotPassword: React.FC<ForgotPasswordProps> = ({ onBack }) => {
 
   const handleSendEmail = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    if (!email.trim()) {
+      notyf.error("Please enter your email");
+      return;
+    }
+
     setLoading(true);
 
     try {
-      await forgotPassword(email.trim());
+      const response = await forgotPassword(email.trim());
       notyf.success("Verification code sent to your email");
       setStep(2);
     } catch (error: any) {
-      notyf.error(error.response?.data?.error || "Error sending email");
+      const errorMsg = error.response?.data?.error || "Error sending email. Please try again.";
+      notyf.error(errorMsg);
     } finally {
       setLoading(false);
     }
@@ -45,15 +52,21 @@ const ForgotPassword: React.FC<ForgotPasswordProps> = ({ onBack }) => {
 
   const handleVerifyToken = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    if (!token.trim()) {
+      notyf.error("Please enter the verification code");
+      return;
+    }
+
     setLoading(true);
 
     try {
       await verifyResetToken(email.trim(), token.trim());
-      notyf.success("Token verified");
+      notyf.success("Code verified successfully");
       setStep(3);
     } catch (error: any) {
-      const msg = error.response?.data?.message || error.response?.data?.error || "Invalid or expired token";
-      notyf.error(msg);
+      const errorMsg = error.response?.data?.error || error.response?.data?.message || "Invalid or expired code";
+      notyf.error(errorMsg);
     } finally {
       setLoading(false);
     }
@@ -61,6 +74,16 @@ const ForgotPassword: React.FC<ForgotPasswordProps> = ({ onBack }) => {
 
   const handleResetPassword = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    if (!password.trim() || !confirmPassword.trim()) {
+      notyf.error("Please fill in all fields");
+      return;
+    }
+
+    if (password.length < 8) {
+      notyf.error("Password must be at least 8 characters");
+      return;
+    }
 
     if (password !== confirmPassword) {
       notyf.error("Passwords do not match");
@@ -71,13 +94,16 @@ const ForgotPassword: React.FC<ForgotPasswordProps> = ({ onBack }) => {
 
     try {
       await resetPassword(email.trim(), token.trim(), password);
-
-      notyf.success("Password successfully updated");
-
-      if (onBack) onBack();
+      notyf.success("Password successfully updated! You can now log in.");
+      
+      // Esperar 1.5 segundos antes de volver al login
+      setTimeout(() => {
+        if (onBack) onBack();
+      }, 1500);
 
     } catch (error: any) {
-      notyf.error(error.response?.data?.error || "Error resetting password");
+      const errorMsg = error.response?.data?.error || "Error resetting password. Please try again.";
+      notyf.error(errorMsg);
     } finally {
       setLoading(false);
     }
