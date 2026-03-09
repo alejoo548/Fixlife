@@ -6,6 +6,8 @@ yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
+backend_logs.txt
+*_logs.txt
 
 node_modules
 dist
@@ -49,3 +51,14 @@ db.sqlite3-journal
 # Backend uploads: keep folder, ignore runtime files
 backend/uploads/*
 !backend/uploads/.gitkeep
+
+# Temporary merge files
+ours_*.ts
+theirs_*.ts
+theirs_*.tsx
+merge_resolver*.py
+
+# Build artifacts
+dist/
+dist-ssr/
+backend/dist/
