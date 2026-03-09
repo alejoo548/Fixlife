@@ -5,6 +5,8 @@ import path from 'path';
 import helmet from 'helmet';
 import authRoutes from './routes/auth.routes';
 import workerRoutes from './routes/worker.routes';
+import adminRoutes from './routes/admin.routes';
+import servicesRoutes from './routes/services.routes';
 import { globalLimiter } from './middlewares/security.middleware';
 
 dotenv.config();
@@ -26,7 +28,9 @@ app.use(express.urlencoded({ extended: true, limit: '1mb' }));
 app.use('/uploads', express.static(uploadsDir));
 
 app.use('/api/auth', authRoutes);
-app.use('/api/worker', workerRoutes); 
+app.use('/api/worker', workerRoutes);
+app.use('/api/admin', adminRoutes);
+app.use('/api/services', servicesRoutes);
 
 
 app.get('/api/health', (req: Request, res: Response) => {

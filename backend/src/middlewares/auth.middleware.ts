@@ -23,3 +23,11 @@ export const verifyToken = (req: AuthRequest, res: Response, next: NextFunction)
     res.status(401).json({ error: 'Unauthorized, invalid token' });
   }
 };
+
+export const requireAdmin = (req: AuthRequest, res: Response, next: NextFunction): void => {
+  if (!req.user || req.user.rol !== 'admin') {
+    res.status(403).json({ error: 'Access denied. Admin privileges required.' });
+    return;
+  }
+  next();
+};

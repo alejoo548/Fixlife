@@ -153,6 +153,46 @@ ADD CONSTRAINT `fk_portfolio_worker` FOREIGN KEY (`id_worker_profile`) REFERENCE
 ALTER TABLE `worker_profiles`
 ADD CONSTRAINT `fk_worker_user` FOREIGN KEY (`id_user`) REFERENCES `users` (`id_user`) ON DELETE CASCADE;
 
+-- --------------------------------------------------------
+
+--
+-- Estructura de tabla para la tabla `services`
+--
+
+DROP TABLE IF EXISTS `services`;
+
+CREATE TABLE `services` (
+    `id_service` int NOT NULL AUTO_INCREMENT,
+    `name` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
+    `description` text CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
+    `icon` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+    `is_active` tinyint(1) NOT NULL DEFAULT '1',
+    `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (`id_service`)
+) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Estructura de tabla para la tabla `worker_services`
+--
+
+DROP TABLE IF EXISTS `worker_services`;
+
+CREATE TABLE `worker_services` (
+    `id_worker_profile` int NOT NULL,
+    `id_service` int NOT NULL,
+    `years_experience` int DEFAULT NULL,
+    `base_price` decimal(10, 2) DEFAULT NULL,
+    PRIMARY KEY (
+        `id_worker_profile`,
+        `id_service`
+    ),
+    KEY `fk_ws_service` (`id_service`),
+    CONSTRAINT `fk_ws_worker` FOREIGN KEY (`id_worker_profile`) REFERENCES `worker_profiles` (`id_worker_profile`) ON DELETE CASCADE,
+    CONSTRAINT `fk_ws_service` FOREIGN KEY (`id_service`) REFERENCES `services` (`id_service`) ON DELETE CASCADE
+) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci;
+
 COMMIT;
 
 /*!40101 SET CHARACTER_SET_CLIENT=@OLD_CHARACTER_SET_CLIENT */
