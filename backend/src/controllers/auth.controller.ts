@@ -1,137 +1,154 @@
 import { Request, Response } from 'express';
 import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
+import fs from 'fs';
+import path from 'path';
 import pool from '../config/db';
 import { ResultSetHeader, RowDataPacket } from 'mysql2';
-import { sendVerificationEmail, sendPasswordResetEmail } from '../utils/email';
+import { sendResetEmail } from '../config/mail';
+import { AuthRequest } from '../middlewares/auth.middleware';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'super_secret_jwt_key_for_development';
 
+const sanitizeText = (value: unknown): string => String(value ?? '').trim();
+
+const isValidEmail = (email: string): boolean => {
+  if (email.length > 120) return false;
+  return /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[A-Za-z]{2,}$/.test(email);
+};
+
+const isValidName = (value: string): boolean => {
+  if (value.length < 2 || value.length > 60) return false;
+  return /^[\p{L}]+(?:[\p{L} .'-]*[\p{L}])?$/u.test(value);
+};
+
+const isValidPhone = (value: string): boolean => {
+  if (!value) return true;
+  return /^\+?[0-9]{8,15}$/.test(value);
+};
+
+const isValidUsername = (value: string): boolean => {
+  if (!value) return true;
+  return /^[a-zA-Z0-9._-]{3,30}$/.test(value);
+};
+
+const isValidPassword = (value: string): boolean => {
+  if (value.length < 8 || value.length > 72) return false;
+  return /[A-Z]/.test(value) && /[a-z]/.test(value) && /[0-9]/.test(value);
+};
+
+const isValidResetCode = (value: string): boolean => /^\d{6}$/.test(value);
+
+const uploadsDir = path.join(__dirname, '../../uploads');
+
+const deleteLocalUploadIfExists = (filename: string | null | undefined): void => {
+  if (!filename) return;
+  const filePath = path.join(uploadsDir, filename);
+  if (fs.existsSync(filePath)) {
+    fs.unlinkSync(filePath);
+  }
+};
+
 export const registerWorker = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { name, lastname, email, phone_number, password, username, service_ids } = req.body;
+    const name = sanitizeText(req.body.name);
+    const lastname = sanitizeText(req.body.lastname);
+    const email = sanitizeText(req.body.email).toLowerCase();
+    const phone_number = sanitizeText(req.body.phone_number);
+    const password = String(req.body.password ?? '');
+    const username = sanitizeText(req.body.username);
 
     if (!name || !lastname || !email || !phone_number || !password) {
       res.status(400).json({ error: 'Missing required fields' });
       return;
     }
 
-    const nameRegex = /^[a-zA-Z\s]+$/;
-    const phoneRegex = /^\d{8}$/;
-    const usernameRegex = /^[a-zA-Z0-9_]+$/;
-
-    const trimmedName = name.trim();
-    const trimmedLastname = lastname.trim();
-    const trimmedEmail = email.trim();
-    const trimmedPhoneNumber = phone_number.trim();
-    const trimmedUsername = username ? username.trim() : undefined;
-
-    if (!nameRegex.test(trimmedName) || trimmedName.length > 50) {
-      res.status(400).json({ error: 'First name is invalid or too long (max 50 chars, letters only)' });
+    if (!isValidName(name) || !isValidName(lastname)) {
+      res.status(400).json({ error: 'Invalid name or lastname format' });
       return;
     }
+
+    if (!isValidEmail(email)) {
+      res.status(400).json({ error: 'Invalid email format' });
+      return;
+    }
+
+    if (!isValidPhone(phone_number)) {
+      res.status(400).json({ error: 'Invalid phone number format' });
+      return;
+    }
+
+    if (!isValidUsername(username)) {
+      res.status(400).json({ error: 'Invalid username format' });
+      return;
+    }
+
+    if (!isValidPassword(password)) {
+      res.status(400).json({
+        error: 'Password must be 8-72 chars and include uppercase, lowercase, and number'
+      });
+      return;
+    }
+
     const connection = await pool.getConnection();
 
     try {
       await connection.beginTransaction();
 
       const [existingUsers] = await connection.execute<RowDataPacket[]>(
-        'SELECT id_user, verification_token FROM users WHERE email = ?',
-        [trimmedEmail]
+        'SELECT id_user FROM users WHERE email = ?',
+        [email]
       );
 
       if (existingUsers.length > 0) {
-        const existingUser = existingUsers[0];
-
-        if (existingUser.verification_token !== null) {
-          const password_hash = await bcrypt.hash(password, 12);
-          const otp = Math.floor(100000 + Math.random() * 900000).toString();
-          const expiresAt = new Date(Date.now() + 15 * 60 * 1000);
-
-          await connection.execute(
-            `UPDATE users SET name = ?, lastname = ?, phone_number = ?, password_hash = ?, username = ?, verification_token = ?, token_expires_at = ? WHERE id_user = ?`,
-            [trimmedName, trimmedLastname, trimmedPhoneNumber, password_hash, trimmedUsername || null, otp, expiresAt, existingUser.id_user]
-          );
-
-          const emailSent = await sendVerificationEmail(trimmedEmail, otp, trimmedName);
-          if (!emailSent) {
-            await connection.rollback();
-            res.status(500).json({ error: 'Could not deliver the verification email. Please try again.' });
-            return;
-          }
-
-          await connection.commit();
-          res.status(201).json({ success: true, message: 'New OTP sent to email. Please verify.', email: trimmedEmail });
-          return;
-        }
-
         await connection.rollback();
         res.status(400).json({ error: 'Email already registered' });
         return;
       }
 
-      if (trimmedUsername) {
-        const [existingUsernames] = await connection.execute<RowDataPacket[]>(
-          'SELECT id_user, email FROM users WHERE username = ? AND email != ?',
-          [trimmedUsername, trimmedEmail]
-        );
-
-        if (existingUsernames.length > 0) {
-          await connection.rollback();
-          res.status(400).json({ error: 'Username is already taken' });
-          return;
-        }
-      }
-
       const password_hash = await bcrypt.hash(password, 12);
 
-      const otp = Math.floor(100000 + Math.random() * 900000).toString();
-      const expiresAt = new Date(Date.now() + 15 * 60 * 1000); // 15 mins
-
       const [insertUserResult] = await connection.execute<ResultSetHeader>(
-        `INSERT INTO users (name, lastname, email, phone_number, password_hash, rol, username, created_at, verification_token, token_expires_at)
-         VALUES (?, ?, ?, ?, ?, 'worker', ?, NOW(), ?, ?)`,
-        [trimmedName, trimmedLastname, trimmedEmail, trimmedPhoneNumber, password_hash, trimmedUsername || null, otp, expiresAt]
+        `INSERT INTO users (name, lastname, email, phone_number, password_hash, rol, username, created_at)
+         VALUES (?, ?, ?, ?, ?, 'worker', ?, NOW())`,
+        [name, lastname, email, phone_number, password_hash, username || null]
       );
 
       const userId = insertUserResult.insertId;
 
-      const [profileResult] = await connection.execute<ResultSetHeader>(
+      const [insertWorkerResult] = await connection.execute<ResultSetHeader>(
         `INSERT INTO worker_profiles (id_user, is_verified)
          VALUES (?, 0)`,
         [userId]
       );
 
-      // Insert selected services
-      if (Array.isArray(service_ids) && service_ids.length > 0) {
-        const profileId = profileResult.insertId;
-        const validIds = service_ids
-          .map((id: any) => Number(id))
-          .filter((id: number) => !isNaN(id) && id > 0)
-          .slice(0, 10);
-        for (const svcId of validIds) {
-          await connection.execute(
-            `INSERT IGNORE INTO worker_services (id_worker_profile, id_service) VALUES (?, ?)`,
-            [profileId, svcId]
-          );
-        }
-      }
-
-      // Send OTP Email before committing
-      const emailSent = await sendVerificationEmail(trimmedEmail, otp, trimmedName);
-      
-      if (!emailSent) {
-        await connection.rollback();
-        res.status(500).json({ error: 'Could not deliver the verification email. Please try again or use another email.' });
-        return;
-      }
+      const workerProfileId = insertWorkerResult.insertId;
 
       await connection.commit();
 
+      const token = jwt.sign(
+        { user_id: userId, rol: 'worker' },
+        JWT_SECRET,
+        { expiresIn: '7d' }
+      );
+
       res.status(201).json({
         success: true,
-        message: 'OTP sent to email. Please verify.',
-        email: trimmedEmail
+        message: 'Worker account created successfully',
+        user: {
+          id_user: userId,
+          name,
+          lastname,
+          email,
+          rol: 'worker',
+          username: username || null,
+          worker_profile: {
+            id_worker_profile: workerProfileId,
+            dui_document: null,
+            is_verified: false
+          }
+        },
+        token
       });
     } catch (error) {
       await connection.rollback();
@@ -145,164 +162,44 @@ export const registerWorker = async (req: Request, res: Response): Promise<void>
   }
 };
 
-export const resendOtp = async (req: Request, res: Response): Promise<void> => {
-  try {
-    const { email } = req.body;
-
-    if (!email) {
-      res.status(400).json({ error: 'Email is required' });
-      return;
-    }
-
-    const [users] = await pool.execute<RowDataPacket[]>(
-      `SELECT id_user, name, verification_token FROM users WHERE email = ? AND rol = 'worker'`,
-      [email]
-    );
-
-    if (users.length === 0) {
-      res.status(404).json({ error: 'User not found' });
-      return;
-    }
-
-    const user = users[0];
-
-    if (user.verification_token === null) {
-      res.status(400).json({ error: 'This account is already verified' });
-      return;
-    }
-
-    const otp = Math.floor(100000 + Math.random() * 900000).toString();
-    const expiresAt = new Date(Date.now() + 15 * 60 * 1000);
-
-    await pool.execute(
-      `UPDATE users SET verification_token = ?, token_expires_at = ? WHERE id_user = ?`,
-      [otp, expiresAt, user.id_user]
-    );
-
-    const emailSent = await sendVerificationEmail(email, otp, user.name);
-
-    if (!emailSent) {
-      res.status(500).json({ error: 'Could not send verification email. Please try again.' });
-      return;
-    }
-
-    res.json({ success: true, message: 'New verification code sent to your email.' });
-  } catch (error: any) {
-    console.error('Error in resendOtp:', error);
-    res.status(500).json({ error: error.message || 'Internal server error' });
-  }
-};
-
-export const verifyWorkerEmail = async (req: Request, res: Response): Promise<void> => {
-  try {
-    const { email, otp } = req.body;
-
-    if (!email || !otp) {
-      res.status(400).json({ error: 'Email and OTP are required' });
-      return;
-    }
-
-    const [users] = await pool.execute<RowDataPacket[]>(
-      `SELECT id_user, name, lastname, email, phone_number, rol, username, profile_image, verification_token, token_expires_at 
-       FROM users WHERE email = ? AND rol = 'worker'`,
-      [email]
-    );
-
-    if (users.length === 0) {
-      res.status(404).json({ error: 'User not found' });
-      return;
-    }
-
-    const user = users[0];
-
-    if (user.verification_token !== otp) {
-      res.status(400).json({ error: 'Invalid verification token' });
-      return;
-    }
-
-    if (new Date(user.token_expires_at) < new Date()) {
-      res.status(400).json({ error: 'Verification token has expired' });
-      return;
-    }
-
-    const connection = await pool.getConnection();
-    
-    try {
-      await connection.beginTransaction();
-
-      await connection.execute(
-        `UPDATE users SET verification_token = NULL, token_expires_at = NULL WHERE id_user = ?`,
-        [user.id_user]
-      );
-
-      await connection.commit();
-      
-      const [workerProfiles] = await connection.execute<RowDataPacket[]>(
-        `SELECT id_worker_profile, bio, banner_image, dui_document, cert_document, is_verified
-         FROM worker_profiles WHERE id_user = ?`,
-        [user.id_user]
-      );
-      
-      const worker = workerProfiles[0];
-
-      const token = jwt.sign(
-        { user_id: user.id_user, rol: 'worker' },
-        JWT_SECRET,
-        { expiresIn: '7d' }
-      );
-
-      res.status(200).json({
-        success: true,
-        message: 'Email verified successfully',
-        user: {
-          id_user: user.id_user,
-          name: user.name,
-          lastname: user.lastname,
-          email: user.email,
-          phone_number: user.phone_number,
-          rol: user.rol,
-          username: user.username,
-          profile_image: user.profile_image,
-          worker_profile: {
-            id_worker_profile: worker.id_worker_profile,
-            bio: worker.bio,
-            banner_image: worker.banner_image,
-            dui_document: worker.dui_document,
-            cert_document: worker.cert_document,
-            is_verified: Boolean(worker.is_verified)
-          }
-        },
-        token
-      });
-
-    } catch (error) {
-      await connection.rollback();
-      throw error;
-    } finally {
-      connection.release();
-    }
-  } catch (error: any) {
-    console.error('Error in verifyWorkerEmail:', error);
-    res.status(500).json({ error: error.message || 'Internal server error' });
-  }
-};
-
 export const registerUser = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { name, lastname, email, phone_number, password, username } = req.body;
+    const name = sanitizeText(req.body.name);
+    const lastname = sanitizeText(req.body.lastname);
+    const email = sanitizeText(req.body.email).toLowerCase();
+    const phone_number = sanitizeText(req.body.phone_number);
+    const password = String(req.body.password ?? '');
+    const username = sanitizeText(req.body.username);
 
     if (!name || !lastname || !email || !password) {
       res.status(400).json({ error: 'Missing required fields' });
       return;
     }
 
-    if (!email.includes('@')) {
-      res.status(400).json({ error: 'Invalid email' });
+    if (!isValidName(name) || !isValidName(lastname)) {
+      res.status(400).json({ error: 'Invalid name or lastname format' });
       return;
     }
 
-    if (password.length < 8) {
-      res.status(400).json({ error: 'Password must be at least 8 characters' });
+    if (!isValidEmail(email)) {
+      res.status(400).json({ error: 'Invalid email format' });
+      return;
+    }
+
+    if (!isValidPhone(phone_number)) {
+      res.status(400).json({ error: 'Invalid phone number format' });
+      return;
+    }
+
+    if (!isValidUsername(username)) {
+      res.status(400).json({ error: 'Invalid username format' });
+      return;
+    }
+
+    if (!isValidPassword(password)) {
+      res.status(400).json({
+        error: 'Password must be 8-72 chars and include uppercase, lowercase, and number'
+      });
       return;
     }
 
@@ -369,10 +266,16 @@ export const registerUser = async (req: Request, res: Response): Promise<void> =
 
 export const login = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { email, password } = req.body;
+    const email = sanitizeText(req.body.email).toLowerCase();
+    const password = String(req.body.password ?? '');
 
     if (!email || !password) {
       res.status(400).json({ error: 'Email and password required' });
+      return;
+    }
+
+    if (!isValidEmail(email)) {
+      res.status(400).json({ error: 'Invalid email format' });
       return;
     }
 
@@ -413,7 +316,7 @@ export const login = async (req: Request, res: Response): Promise<void> => {
 
     if (user.rol === 'worker') {
       const [workerProfiles] = await pool.execute<RowDataPacket[]>(
-        `SELECT id_worker_profile, bio, banner_image, dui_document, cert_document, is_verified
+        `SELECT id_worker_profile, bio, banner_image, dui_document, is_verified
          FROM worker_profiles WHERE id_user = ?`,
         [user.id_user]
       );
@@ -425,7 +328,6 @@ export const login = async (req: Request, res: Response): Promise<void> => {
           bio: worker.bio,
           banner_image: worker.banner_image,
           dui_document: worker.dui_document, 
-          cert_document: worker.cert_document,
           is_verified: Boolean(worker.is_verified)
         };
       }
@@ -450,161 +352,305 @@ export const login = async (req: Request, res: Response): Promise<void> => {
 
 export const forgotPassword = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { email } = req.body;
+    const email = sanitizeText(req.body.email).toLowerCase();
 
-    if (!email || !email.trim()) {
-      res.status(400).json({ error: 'Email is required' });
+    if (!email || !isValidEmail(email)) {
+      res.status(400).json({ error: 'Invalid email format' });
       return;
     }
 
-    const trimmedEmail = email.trim();
-
-    // Buscar usuario
     const [users] = await pool.execute<RowDataPacket[]>(
-      'SELECT id_user, name FROM users WHERE email = ?',
-      [trimmedEmail]
+      'SELECT id_user FROM users WHERE email = ?',
+      [email]
     );
 
-    // Por seguridad, siempre respondemos success aunque el email no exista
     if (users.length === 0) {
-      res.json({ success: true, message: 'If the email exists, a reset code has been sent.' });
+      res.json({ success: true });
       return;
     }
 
-    const user = users[0];
+    const token = Math.floor(100000 + Math.random() * 900000).toString();
+    const expires = new Date(Date.now() + 15 * 60 * 1000);
 
-    // Generar OTP de 6 dígitos
-    const otp = Math.floor(100000 + Math.random() * 900000).toString();
-    const expiresAt = new Date(Date.now() + 15 * 60 * 1000); // 15 minutos
-
-    // Guardar el token en la BD
     await pool.execute(
       `UPDATE users 
        SET verification_token = ?, token_expires_at = ?
        WHERE email = ?`,
-      [otp, expiresAt, trimmedEmail]
+      [token, expires, email]
     );
 
-    // Enviar email con el OTP
-    const emailSent = await sendPasswordResetEmail(trimmedEmail, otp, user.name);
+    await sendResetEmail(email, token);
 
-    if (!emailSent) {
-      res.status(500).json({ error: 'Could not send reset email. Please try again.' });
-      return;
-    }
+    res.json({ success: true });
 
-    res.json({ 
-      success: true, 
-      message: 'Reset code sent to your email.',
-      email: trimmedEmail 
-    });
-
-  } catch (error: any) {
-    console.error('Error in forgotPassword:', error);
-    res.status(500).json({ error: 'Internal server error' });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: "Internal server error" });
   }
 };
 
 export const resetPassword = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { email, token, newPassword } = req.body;
+    const email = sanitizeText(req.body.email).toLowerCase();
+    const token = sanitizeText(req.body.token);
+    const newPassword = String(req.body.newPassword ?? '');
 
     if (!email || !token || !newPassword) {
-      res.status(400).json({ error: 'Email, token, and new password are required' });
+      res.status(400).json({ error: 'Missing fields' });
       return;
     }
 
-    const trimmedEmail = email.trim();
-    const trimmedToken = token.trim();
+    if (!isValidEmail(email)) {
+      res.status(400).json({ error: 'Invalid email format' });
+      return;
+    }
 
-    if (newPassword.length < 8) {
-      res.status(400).json({ error: 'Password must be at least 8 characters' });
+    if (!isValidResetCode(token)) {
+      res.status(400).json({ error: 'Invalid verification code format' });
+      return;
+    }
+
+    if (!isValidPassword(newPassword)) {
+      res.status(400).json({
+        error: 'Password must be 8-72 chars and include uppercase, lowercase, and number'
+      });
       return;
     }
 
     const [users] = await pool.execute<RowDataPacket[]>(
-      `SELECT id_user, verification_token, token_expires_at
+      `SELECT id_user, token_expires_at
        FROM users
-       WHERE email = ?`,
-      [trimmedEmail]
+       WHERE email = ? AND verification_token = ?`,
+      [email, token]
     );
 
     if (users.length === 0) {
-      res.status(400).json({ error: 'Invalid email' });
+      res.status(400).json({ error: 'Invalid token' });
       return;
     }
 
-    const user = users[0];
-
-    if (!user.verification_token || user.verification_token !== trimmedToken) {
-      res.status(400).json({ error: 'Invalid verification code' });
-      return;
-    }
-
-    const expiresAt = new Date(user.token_expires_at);
+    const expiresAt = new Date(users[0].token_expires_at);
     if (expiresAt < new Date()) {
-      res.status(400).json({ error: 'Verification code has expired' });
+      res.status(400).json({ error: 'Token expired' });
       return;
     }
 
-    // Hash de la nueva contraseña
     const passwordHash = await bcrypt.hash(newPassword, 12);
 
-    // Actualizar contraseña y limpiar token
     await pool.execute(
       `UPDATE users
        SET password_hash = ?, verification_token = NULL, token_expires_at = NULL
        WHERE email = ?`,
-      [passwordHash, trimmedEmail]
+      [passwordHash, email]
     );
 
-    res.json({ success: true, message: 'Password updated successfully' });
-  } catch (error: any) {
-    console.error('Error in resetPassword:', error);
+    res.json({ success: true, message: 'Password updated' });
+  } catch (error) {
+    console.error('resetPassword error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 };
 
-export const verifyResetToken = async (req: Request, res: Response): Promise<void> => {
+export const verifyResetToken = async (req: Request, res: Response) => {
   try {
-    const { email, token } = req.body;
+
+    const email = sanitizeText(req.body.email).toLowerCase();
+    const token = sanitizeText(req.body.token);
 
     if (!email || !token) {
-      res.status(400).json({ error: 'Email and token are required' });
+      return res.status(400).json({ message: "Missing fields" });
+    }
+
+    if (!isValidEmail(email)) {
+      return res.status(400).json({ message: "Invalid email format" });
+    }
+
+    if (!isValidResetCode(token)) {
+      return res.status(400).json({ message: "Invalid code format" });
+    }
+
+    const [rows]: any = await pool.query(
+      `SELECT verification_token, token_expires_at
+       FROM users
+       WHERE email = ?`,
+      [email]
+    );
+
+    if (rows.length === 0) {
+      return res.status(400).json({ message: "Invalid email" });
+    }
+
+    const user = rows[0];
+
+    if (String(user.verification_token) !== String(token)) {
+      return res.status(400).json({ message: "Invalid code" });
+    }
+
+    if (new Date(user.token_expires_at) < new Date()) {
+      return res.status(400).json({ message: "Code expired" });
+    }
+
+    res.json({ message: "Token valid" });
+
+  } catch (error) {
+    res.status(500).json({ message: "Server error" });
+  }
+};
+
+export const uploadProfileImage = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const userId = req.user?.user_id;
+
+    if (!userId) {
+      res.status(401).json({ error: 'Unauthorized' });
       return;
     }
 
-    const trimmedEmail = email.trim();
-    const trimmedToken = token.trim();
+    if (!req.file) {
+      res.status(400).json({ error: 'Profile image is required' });
+      return;
+    }
+
+    const imageFilename = req.file.filename;
+
+    const [existing] = await pool.execute<RowDataPacket[]>(
+      'SELECT profile_image FROM users WHERE id_user = ?',
+      [userId]
+    );
+
+    if (existing.length === 0) {
+      res.status(404).json({ error: 'User not found' });
+      return;
+    }
+
+    await pool.execute(
+      `UPDATE users
+       SET profile_image = ?
+       WHERE id_user = ?`,
+      [imageFilename, userId]
+    );
+
+    deleteLocalUploadIfExists(existing[0].profile_image);
+
+    res.json({
+      success: true,
+      profile_image: imageFilename
+    });
+  } catch (error) {
+    console.error('uploadProfileImage error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
+export const removeProfileImage = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const userId = req.user?.user_id;
+
+    if (!userId) {
+      res.status(401).json({ error: 'Unauthorized' });
+      return;
+    }
+
+    const [existing] = await pool.execute<RowDataPacket[]>(
+      'SELECT profile_image FROM users WHERE id_user = ?',
+      [userId]
+    );
+
+    if (existing.length === 0) {
+      res.status(404).json({ error: 'User not found' });
+      return;
+    }
+
+    await pool.execute(
+      `UPDATE users
+       SET profile_image = NULL
+       WHERE id_user = ?`,
+      [userId]
+    );
+
+    deleteLocalUploadIfExists(existing[0].profile_image);
+
+    res.json({
+      success: true,
+      profile_image: null
+    });
+  } catch (error) {
+    console.error('removeProfileImage error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
+export const updateProfile = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const userId = req.user?.user_id;
+
+    if (!userId) {
+      res.status(401).json({ error: 'Unauthorized' });
+      return;
+    }
+
+    const name = sanitizeText(req.body.name);
+    const lastname = sanitizeText(req.body.lastname);
+    const phone_number = sanitizeText(req.body.phone_number);
+    const username = sanitizeText(req.body.username);
+
+    if (!name || !lastname) {
+      res.status(400).json({ error: 'Name and lastname are required' });
+      return;
+    }
+
+    if (!isValidName(name) || !isValidName(lastname)) {
+      res.status(400).json({ error: 'Invalid name or lastname format' });
+      return;
+    }
+
+    if (!isValidPhone(phone_number)) {
+      res.status(400).json({ error: 'Invalid phone number format' });
+      return;
+    }
+
+    if (!isValidUsername(username)) {
+      res.status(400).json({ error: 'Invalid username format' });
+      return;
+    }
+
+    if (username) {
+      const [duplicateUsernames] = await pool.execute<RowDataPacket[]>(
+        'SELECT id_user FROM users WHERE username = ? AND id_user <> ? LIMIT 1',
+        [username, userId]
+      );
+
+      if (duplicateUsernames.length > 0) {
+        res.status(409).json({ error: 'Username already in use' });
+        return;
+      }
+    }
+
+    await pool.execute(
+      `UPDATE users
+       SET name = ?, lastname = ?, phone_number = ?, username = ?
+       WHERE id_user = ?`,
+      [name, lastname, phone_number || null, username || null, userId]
+    );
 
     const [users] = await pool.execute<RowDataPacket[]>(
-      `SELECT id_user, verification_token, token_expires_at
+      `SELECT id_user, name, lastname, email, phone_number, rol, username, profile_image
        FROM users
-       WHERE email = ?`,
-      [trimmedEmail]
+       WHERE id_user = ?`,
+      [userId]
     );
 
     if (users.length === 0) {
-      res.status(400).json({ error: 'Invalid email' });
+      res.status(404).json({ error: 'User not found' });
       return;
     }
 
-    const user = users[0];
-
-    if (!user.verification_token || user.verification_token !== trimmedToken) {
-      res.status(400).json({ error: 'Invalid verification code' });
-      return;
-    }
-
-    if (!user.token_expires_at || new Date(user.token_expires_at) < new Date()) {
-      res.status(400).json({ error: 'Verification code has expired' });
-      return;
-    }
-
-    res.json({ success: true, message: 'Token verified successfully' });
-
-  } catch (error: any) {
-    console.error('Error in verifyResetToken:', error);
+    res.json({
+      success: true,
+      user: users[0]
+    });
+  } catch (error) {
+    console.error('updateProfile error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 };
