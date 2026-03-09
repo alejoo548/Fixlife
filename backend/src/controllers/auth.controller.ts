@@ -3,8 +3,7 @@ import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
 import pool from '../config/db';
 import { ResultSetHeader, RowDataPacket } from 'mysql2';
-import { sendVerificationEmail } from '../utils/email';
-import { sendResetEmail } from '../config/mail';
+import { sendVerificationEmail, sendPasswordResetEmail } from '../utils/email';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'super_secret_jwt_key_for_development';
 
@@ -453,33 +452,56 @@ export const forgotPassword = async (req: Request, res: Response): Promise<void>
   try {
     const { email } = req.body;
 
-    const [users] = await pool.execute<RowDataPacket[]>(
-      'SELECT id_user FROM users WHERE email = ?',
-      [email]
-    );
-
-    if (users.length === 0) {
-      res.json({ success: true });
+    if (!email || !email.trim()) {
+      res.status(400).json({ error: 'Email is required' });
       return;
     }
 
-    const token = Math.floor(100000 + Math.random() * 900000).toString();
-    const expires = new Date(Date.now() + 15 * 60 * 1000);
+    const trimmedEmail = email.trim();
 
+    // Buscar usuario
+    const [users] = await pool.execute<RowDataPacket[]>(
+      'SELECT id_user, name FROM users WHERE email = ?',
+      [trimmedEmail]
+    );
+
+    // Por seguridad, siempre respondemos success aunque el email no exista
+    if (users.length === 0) {
+      res.json({ success: true, message: 'If the email exists, a reset code has been sent.' });
+      return;
+    }
+
+    const user = users[0];
+
+    // Generar OTP de 6 dígitos
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    const expiresAt = new Date(Date.now() + 15 * 60 * 1000); // 15 minutos
+
+    // Guardar el token en la BD
     await pool.execute(
       `UPDATE users 
        SET verification_token = ?, token_expires_at = ?
        WHERE email = ?`,
-      [token, expires, email]
+      [otp, expiresAt, trimmedEmail]
     );
 
-    await sendResetEmail(email, token);
+    // Enviar email con el OTP
+    const emailSent = await sendPasswordResetEmail(trimmedEmail, otp, user.name);
 
-    res.json({ success: true });
+    if (!emailSent) {
+      res.status(500).json({ error: 'Could not send reset email. Please try again.' });
+      return;
+    }
 
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: "Internal server error" });
+    res.json({ 
+      success: true, 
+      message: 'Reset code sent to your email.',
+      email: trimmedEmail 
+    });
+
+  } catch (error: any) {
+    console.error('Error in forgotPassword:', error);
+    res.status(500).json({ error: 'Internal server error' });
   }
 };
 
@@ -488,77 +510,101 @@ export const resetPassword = async (req: Request, res: Response): Promise<void> 
     const { email, token, newPassword } = req.body;
 
     if (!email || !token || !newPassword) {
-      res.status(400).json({ error: 'Missing fields' });
+      res.status(400).json({ error: 'Email, token, and new password are required' });
+      return;
+    }
+
+    const trimmedEmail = email.trim();
+    const trimmedToken = token.trim();
+
+    if (newPassword.length < 8) {
+      res.status(400).json({ error: 'Password must be at least 8 characters' });
       return;
     }
 
     const [users] = await pool.execute<RowDataPacket[]>(
-      `SELECT id_user, token_expires_at
+      `SELECT id_user, verification_token, token_expires_at
        FROM users
-       WHERE email = ? AND verification_token = ?`,
-      [email.trim(), token.trim()]
+       WHERE email = ?`,
+      [trimmedEmail]
     );
 
     if (users.length === 0) {
-      res.status(400).json({ error: 'Invalid token' });
+      res.status(400).json({ error: 'Invalid email' });
       return;
     }
 
-    const expiresAt = new Date(users[0].token_expires_at);
+    const user = users[0];
+
+    if (!user.verification_token || user.verification_token !== trimmedToken) {
+      res.status(400).json({ error: 'Invalid verification code' });
+      return;
+    }
+
+    const expiresAt = new Date(user.token_expires_at);
     if (expiresAt < new Date()) {
-      res.status(400).json({ error: 'Token expired' });
+      res.status(400).json({ error: 'Verification code has expired' });
       return;
     }
 
+    // Hash de la nueva contraseña
     const passwordHash = await bcrypt.hash(newPassword, 12);
 
+    // Actualizar contraseña y limpiar token
     await pool.execute(
       `UPDATE users
        SET password_hash = ?, verification_token = NULL, token_expires_at = NULL
        WHERE email = ?`,
-      [passwordHash, email]
+      [passwordHash, trimmedEmail]
     );
 
-    res.json({ success: true, message: 'Password updated' });
-  } catch (error) {
-    console.error('resetPassword error:', error);
+    res.json({ success: true, message: 'Password updated successfully' });
+  } catch (error: any) {
+    console.error('Error in resetPassword:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 };
 
-export const verifyResetToken = async (req: Request, res: Response) => {
+export const verifyResetToken = async (req: Request, res: Response): Promise<void> => {
   try {
-
     const { email, token } = req.body;
 
     if (!email || !token) {
-      return res.status(400).json({ message: "Missing email or token" });
+      res.status(400).json({ error: 'Email and token are required' });
+      return;
     }
 
-    const [rows]: any = await pool.query(
-      `SELECT verification_token, token_expires_at
+    const trimmedEmail = email.trim();
+    const trimmedToken = token.trim();
+
+    const [users] = await pool.execute<RowDataPacket[]>(
+      `SELECT id_user, verification_token, token_expires_at
        FROM users
        WHERE email = ?`,
-      [email.trim()]
+      [trimmedEmail]
     );
 
-    if (rows.length === 0) {
-      return res.status(400).json({ message: "Invalid email" });
+    if (users.length === 0) {
+      res.status(400).json({ error: 'Invalid email' });
+      return;
     }
 
-    const user = rows[0];
+    const user = users[0];
 
-    if (!user.verification_token || String(user.verification_token).trim() !== String(token).trim()) {
-      return res.status(400).json({ message: "Invalid code" });
+    if (!user.verification_token || user.verification_token !== trimmedToken) {
+      res.status(400).json({ error: 'Invalid verification code' });
+      return;
     }
 
     if (!user.token_expires_at || new Date(user.token_expires_at) < new Date()) {
-      return res.status(400).json({ message: "Code expired" });
+      res.status(400).json({ error: 'Verification code has expired' });
+      return;
     }
 
-    res.json({ message: "Token valid" });
+    res.json({ success: true, message: 'Token verified successfully' });
 
-  } catch (error) {
-    res.status(500).json({ message: "Server error" });
+  } catch (error: any) {
+    console.error('Error in verifyResetToken:', error);
+    res.status(500).json({ error: 'Internal server error' });
   }
 };
