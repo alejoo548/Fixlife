@@ -193,6 +193,32 @@ CREATE TABLE `worker_services` (
     CONSTRAINT `fk_ws_service` FOREIGN KEY (`id_service`) REFERENCES `services` (`id_service`) ON DELETE CASCADE
 ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci;
 
+-- --------------------------------------------------------
+
+--
+-- Estructura de tabla para la tabla `hero_slides`
+--
+
+DROP TABLE IF EXISTS `hero_slides`;
+
+CREATE TABLE `hero_slides` (
+  `id_slide` INT NOT NULL AUTO_INCREMENT,
+  `sort_order` INT NOT NULL,
+  `image_url` VARCHAR(255) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `tag` VARCHAR(50) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `title` VARCHAR(120) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `description` VARCHAR(255) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `cta` VARCHAR(80) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `updated_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id_slide`),
+  UNIQUE KEY `ux_hero_slides_sort` (`sort_order`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+INSERT INTO `hero_slides` (`id_slide`, `sort_order`, `image_url`, `tag`, `title`, `description`, `cta`, `updated_at`) VALUES
+(1, 1, 'https://images.unsplash.com/photo-1504328345606-18bbc8c9d7d1?q=80&w=2070&auto=format&fit=crop', 'PREMIUM', 'Home Experts', 'Find certified electricians, plumbers, and technicians ready to solve any problem.', 'Find Technician', '2026-03-08 18:00:00'),
+(2, 2, 'https://images.unsplash.com/photo-1581578731117-10d52b43cc0a?q=80&w=2070&auto=format&fit=crop', 'RENOVATION', 'Transform Your Space', 'From a fresh coat of paint to complete remodels. Make your dream home a reality.', 'Get a Quote', '2026-03-08 18:00:00'),
+(3, 3, 'https://images.unsplash.com/photo-1556911220-bff31c812dba?q=80&w=2668&auto=format&fit=crop', 'CLEANING', 'Spotless Homes', 'Deep cleaning and regular maintenance services so you can enjoy your free time.', 'Book Cleaning', '2026-03-08 18:00:00');
+
 COMMIT;
 
 /*!40101 SET CHARACTER_SET_CLIENT=@OLD_CHARACTER_SET_CLIENT */
