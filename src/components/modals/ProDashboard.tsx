@@ -43,7 +43,10 @@ export const ProDashboard: React.FC<ProDashboardProps> = ({ isOpen, onClose }) =
          const data = await response.json();
          const wp = data?.worker_profile || {};
          const verified = normalizeBool(wp.is_verified);
-         const uploaded = Boolean(wp.dui_document) || Boolean(wp.cert_document);
+         const uploaded =
+            Boolean(wp.dui_document) &&
+            Boolean(wp.cert_document) &&
+            Boolean(wp.selfie_image);
 
          setIsVerified(verified);
          setHasUploadedDocs(uploaded);
@@ -79,7 +82,11 @@ export const ProDashboard: React.FC<ProDashboardProps> = ({ isOpen, onClose }) =
 
       if (user) {
          setIsVerified(normalizeBool(user.worker_profile?.is_verified));
-         setHasUploadedDocs(!!user.worker_profile?.dui_document || !!user.worker_profile?.cert_document);
+         setHasUploadedDocs(
+            Boolean(user.worker_profile?.dui_document) &&
+            Boolean(user.worker_profile?.cert_document) &&
+            Boolean(user.worker_profile?.selfie_image)
+         );
          setUserName(typeof user.name === 'string' ? user.name : '');
       }
    }, [onClose]);
@@ -284,7 +291,6 @@ export const ProDashboard: React.FC<ProDashboardProps> = ({ isOpen, onClose }) =
                      token={token} 
                      onSuccess={() => {
                         setHasUploadedDocs(true);
-                        setIsVerified(true);
                         if (token) syncWorkerStatus(token);
                      }} 
                   />

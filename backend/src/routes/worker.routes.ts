@@ -36,7 +36,8 @@ router.post(
   verifyToken, 
   upload.fields([
     { name: 'dui_document', maxCount: 1 }, 
-    { name: 'cert_document', maxCount: 1 }
+    { name: 'cert_document', maxCount: 1 },
+    { name: 'selfie_image', maxCount: 1 }
   ]), 
   uploadDocuments
 );

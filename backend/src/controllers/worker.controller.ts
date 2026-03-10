@@ -14,6 +14,7 @@ const allowedImageMimeTypes = new Set([
 ]);
 
 let pendingEmailChecked = false;
+let workerVerificationColumnsChecked = false;
 
 const ensurePendingEmailColumn = async () => {
   if (pendingEmailChecked) return;
@@ -32,6 +33,37 @@ const ensurePendingEmailColumn = async () => {
   }
 
   pendingEmailChecked = true;
+};
+
+const ensureWorkerVerificationColumns = async () => {
+  if (workerVerificationColumnsChecked) return;
+
+  const requiredColumns = [
+    { name: 'selfie_image', sql: `ALTER TABLE worker_profiles ADD COLUMN selfie_image VARCHAR(255) NULL` },
+    { name: 'face_match_score', sql: `ALTER TABLE worker_profiles ADD COLUMN face_match_score DECIMAL(5,4) NULL` },
+    {
+      name: 'verification_status',
+      sql: `ALTER TABLE worker_profiles ADD COLUMN verification_status VARCHAR(20) NOT NULL DEFAULT 'pending'`,
+    },
+  ];
+
+  for (const column of requiredColumns) {
+    const [rows] = await pool.execute<RowDataPacket[]>(
+      `SELECT COUNT(*) AS total
+       FROM information_schema.columns
+       WHERE table_schema = DATABASE()
+         AND table_name = 'worker_profiles'
+         AND column_name = ?`,
+      [column.name]
+    );
+
+    const exists = Number(rows[0]?.total || 0) > 0;
+    if (!exists) {
+      await pool.execute(column.sql);
+    }
+  }
+
+  workerVerificationColumnsChecked = true;
 };
 
 const buildAssetUrl = (req: AuthRequest, fileName: string | null) => {
@@ -73,6 +105,8 @@ export const getWorkerMe = async (req: AuthRequest, res: Response): Promise<void
       return;
     }
 
+    await ensureWorkerVerificationColumns();
+
     const user = await getUserCore(userId);
     if (!user) {
       res.status(404).json({ error: 'User not found' });
@@ -81,7 +115,7 @@ export const getWorkerMe = async (req: AuthRequest, res: Response): Promise<void
 
     const profileId = await ensureWorkerProfile(userId);
     const [profiles] = await pool.execute<RowDataPacket[]>(
-      `SELECT id_worker_profile, id_user, bio, banner_image, dui_document, cert_document, is_verified
+      `SELECT id_worker_profile, id_user, bio, banner_image, dui_document, cert_document, selfie_image, face_match_score, verification_status, is_verified
        FROM worker_profiles
        WHERE id_worker_profile = ?
        LIMIT 1`,
@@ -516,6 +550,8 @@ export const uploadDocuments = async (req: AuthRequest, res: Response): Promise<
       return;
     }
 
+    await ensureWorkerVerificationColumns();
+
     const files = req.files as { [fieldname: string]: Express.Multer.File[] };
 
     if (!files || !files.dui_document) {
@@ -528,25 +564,54 @@ export const uploadDocuments = async (req: AuthRequest, res: Response): Promise<
       return;
     }
 
+    if (!files.selfie_image || files.selfie_image.length === 0) {
+      res.status(400).json({ error: 'Selfie image is required for facial verification' });
+      return;
+    }
+
     const duiPath = files.dui_document[0].filename;
     const certPath =
       files.cert_document && files.cert_document.length > 0
         ? files.cert_document[0].filename
         : null;
+    const selfiePath = files.selfie_image[0].filename;
+    const receivedScoreRaw = req.body?.face_match_score;
+    const rawSelfieSource = String(req.body?.selfie_source || 'upload')
+      .trim()
+      .toLowerCase();
+    const selfieSource = rawSelfieSource === 'camera' ? 'camera' : 'upload';
+    const parsedScore = receivedScoreRaw != null ? Number(receivedScoreRaw) : null;
+    const hasValidScore = parsedScore != null && Number.isFinite(parsedScore);
+    const normalizedScore = hasValidScore ? Math.max(0, Math.min(1, parsedScore as number)) : null;
+    const duiMime = String(files.dui_document[0]?.mimetype || '').toLowerCase();
+    const selfieMime = String(files.selfie_image[0]?.mimetype || '').toLowerCase();
+    const canAttemptAutoVerification =
+      selfieSource === 'camera' &&
+      duiMime.startsWith('image/') &&
+      selfieMime.startsWith('image/') &&
+      normalizedScore != null;
+    const autoVerified = canAttemptAutoVerification && normalizedScore >= 0.93;
+    const verificationStatus = autoVerified ? 'verified' : 'pending_review';
 
     await pool.execute(
       `UPDATE worker_profiles 
-       SET dui_document = ?, cert_document = ?, is_verified = 1
+       SET dui_document = ?, cert_document = ?, selfie_image = ?, face_match_score = ?, verification_status = ?, is_verified = ?
        WHERE id_user = ?`,
-      [duiPath, certPath, userId]
+      [duiPath, certPath, selfiePath, normalizedScore, verificationStatus, autoVerified ? 1 : 0, userId]
     );
 
     res.json({
       success: true,
-      message: 'Documents uploaded successfully. Account verified.',
+      message: autoVerified
+        ? 'Documents uploaded and camera facial verification passed. Account verified.'
+        : 'Documents uploaded. Profile sent to manual review.',
       dui_path: duiPath,
       cert_path: certPath,
-      is_verified: 1,
+      selfie_path: selfiePath,
+      selfie_source: selfieSource,
+      face_match_score: normalizedScore,
+      verification_status: verificationStatus,
+      is_verified: autoVerified ? 1 : 0,
     });
   } catch (error: any) {
     console.error('Error uploading documents:', error);

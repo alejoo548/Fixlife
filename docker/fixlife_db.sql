@@ -85,6 +85,9 @@ CREATE TABLE `worker_profiles` (
     `banner_image` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
     `dui_document` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
     `cert_document` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+    `selfie_image` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+    `face_match_score` decimal(5, 4) DEFAULT NULL,
+    `verification_status` varchar(20) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'pending',
     `is_verified` tinyint(1) NOT NULL DEFAULT '0'
 ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci;
 

@@ -34,6 +34,7 @@ export const WorkerAuthModal: React.FC<WorkerAuthModalProps> = ({ isOpen, onClos
   const [loading, setLoading] = useState(false);
   const [duiFile, setDuiFile] = useState<File | null>(null);
   const [certFile, setCertFile] = useState<File | null>(null);
+  const [selfieFile, setSelfieFile] = useState<File | null>(null);
   const [resendTimer, setResendTimer] = useState(60);
   const [canResend, setCanResend] = useState(false);
 
@@ -258,6 +259,11 @@ export const WorkerAuthModal: React.FC<WorkerAuthModalProps> = ({ isOpen, onClos
       return;
     }
 
+    if (!selfieFile) {
+      notyf.error('Please select your selfie image');
+      return;
+    }
+
     const MAX_SIZE = 10 * 1024 * 1024;
     if (duiFile.size > MAX_SIZE) {
       notyf.error('The ID file is too large. Max size is 10MB.');
@@ -267,6 +273,10 @@ export const WorkerAuthModal: React.FC<WorkerAuthModalProps> = ({ isOpen, onClos
       notyf.error('The certification file is too large. Max size is 10MB.');
       return;
     }
+    if (selfieFile && selfieFile.size > MAX_SIZE) {
+      notyf.error('The selfie file is too large. Max size is 10MB.');
+      return;
+    }
 
     setLoading(true);
     const token = localStorage.getItem('token');
@@ -274,6 +284,8 @@ export const WorkerAuthModal: React.FC<WorkerAuthModalProps> = ({ isOpen, onClos
     const formData = new FormData();
     formData.append('dui_document', duiFile);
     if (certFile) formData.append('cert_document', certFile);
+    if (selfieFile) formData.append('selfie_image', selfieFile);
+    formData.append('selfie_source', 'upload');
 
     try {
       const response = await fetch(`${API_URL}/api/worker/verify`, {
@@ -299,6 +311,9 @@ export const WorkerAuthModal: React.FC<WorkerAuthModalProps> = ({ isOpen, onClos
         if (!userObj.worker_profile) userObj.worker_profile = {};
         userObj.worker_profile.dui_document = data.dui_path;
         userObj.worker_profile.cert_document = data.cert_path;
+        userObj.worker_profile.selfie_image = data.selfie_path;
+        userObj.worker_profile.verification_status = data.verification_status;
+        userObj.worker_profile.is_verified = data.is_verified;
         localStorage.setItem('user', JSON.stringify(userObj));
       }
 
@@ -506,11 +521,17 @@ export const WorkerAuthModal: React.FC<WorkerAuthModalProps> = ({ isOpen, onClos
                   <input type="file" className="hidden" accept="image/*,.pdf" onChange={(e) => setCertFile(e.target.files?.[0] || null)} />
                 </label>
 
+                <label className="w-full border-2 border-dashed border-cyan-200 rounded-2xl p-4 mb-4 bg-cyan-50/40 flex flex-col items-center justify-center hover:bg-cyan-50 transition-colors cursor-pointer">
+                  <span className="text-sm font-semibold text-cyan-700">{selfieFile ? selfieFile.name : 'Selfie Image (Required)'}</span>
+                  <span className="text-xs text-cyan-600 mt-1">For instant unlock use camera verification inside dashboard.</span>
+                  <input type="file" className="hidden" accept="image/*" onChange={(e) => setSelfieFile(e.target.files?.[0] || null)} />
+                </label>
+
                 <div className="w-full flex gap-3">
                   <button onClick={handleFinishUpload} className="flex-1 py-3 rounded-full border border-gray-200 text-gray-600 font-bold text-sm tracking-wide hover:bg-gray-50 transition-all duration-300">
                     SKIP FOR NOW
                   </button>
-                  <button disabled={loading || !duiFile || !certFile} onClick={handleUploadDocuments} className="flex-1 py-3 rounded-full bg-gradient-to-r from-bird-orange to-bird-gold text-white font-bold text-sm tracking-wide shadow-lg shadow-bird-orange/20 hover:scale-[1.02] transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed">
+                  <button disabled={loading || !duiFile || !certFile || !selfieFile} onClick={handleUploadDocuments} className="flex-1 py-3 rounded-full bg-gradient-to-r from-bird-orange to-bird-gold text-white font-bold text-sm tracking-wide shadow-lg shadow-bird-orange/20 hover:scale-[1.02] transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed">
                     {loading ? 'UPLOADING...' : 'UPLOAD FILES'}
                   </button>
                 </div>
@@ -739,8 +760,14 @@ export const WorkerAuthModal: React.FC<WorkerAuthModalProps> = ({ isOpen, onClos
                     <input type="file" className="hidden" accept="image/*,.pdf" onChange={(e) => setCertFile(e.target.files?.[0] || null)} />
                   </label>
 
+                  <label className="w-full border-2 border-dashed border-cyan-200 rounded-2xl p-4 mb-6 bg-cyan-50/40 flex flex-col items-center justify-center hover:bg-cyan-50 transition-colors cursor-pointer">
+                    <span className="text-sm font-semibold text-cyan-700">{selfieFile ? selfieFile.name : 'Selfie Image (Required)'}</span>
+                    <span className="text-xs text-cyan-600 mt-1">For instant unlock use camera verification inside dashboard.</span>
+                    <input type="file" className="hidden" accept="image/*" onChange={(e) => setSelfieFile(e.target.files?.[0] || null)} />
+                  </label>
+
                   <div className="w-full flex flex-col gap-3">
-                    <button disabled={loading || !duiFile || !certFile} onClick={handleUploadDocuments} className="w-full py-4 rounded-xl font-bold text-sm tracking-wide shadow-lg active:scale-[0.98] transition-all duration-300 bg-gradient-to-r from-bird-orange to-bird-gold text-white shadow-bird-orange/20 disabled:opacity-50 disabled:cursor-not-allowed">
+                    <button disabled={loading || !duiFile || !certFile || !selfieFile} onClick={handleUploadDocuments} className="w-full py-4 rounded-xl font-bold text-sm tracking-wide shadow-lg active:scale-[0.98] transition-all duration-300 bg-gradient-to-r from-bird-orange to-bird-gold text-white shadow-bird-orange/20 disabled:opacity-50 disabled:cursor-not-allowed">
                       {loading ? 'UPLOADING...' : 'Upload Files'}
                     </button>
                     <button onClick={handleFinishUpload} className="w-full py-4 rounded-xl border border-gray-200 text-gray-600 font-bold text-sm tracking-wide hover:bg-gray-50 transition-all duration-300">
