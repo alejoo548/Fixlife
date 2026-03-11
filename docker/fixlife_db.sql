@@ -85,7 +85,10 @@ CREATE TABLE `worker_profiles` (
     `banner_image` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
     `dui_document` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
     `cert_document` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-    `is_verified` tinyint(1) NOT NULL DEFAULT '0'
+    `is_verified` tinyint(1) NOT NULL DEFAULT '0',
+    `latitude` decimal(10, 7) DEFAULT NULL,
+    `longitude` decimal(10, 7) DEFAULT NULL,
+    `coverage_km` decimal(6, 2) NOT NULL DEFAULT '8.00'
 ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci;
 
 --
@@ -196,6 +199,7 @@ CREATE TABLE `worker_services` (
 -- --------------------------------------------------------
 
 --
+--
 -- Estructura de tabla para la tabla `hero_slides`
 --
 
@@ -218,6 +222,110 @@ INSERT INTO `hero_slides` (`id_slide`, `sort_order`, `image_url`, `tag`, `title`
 (1, 1, 'https://images.unsplash.com/photo-1504328345606-18bbc8c9d7d1?q=80&w=2070&auto=format&fit=crop', 'PREMIUM', 'Home Experts', 'Find certified electricians, plumbers, and technicians ready to solve any problem.', 'Find Technician', '2026-03-08 18:00:00'),
 (2, 2, 'https://images.unsplash.com/photo-1581578731117-10d52b43cc0a?q=80&w=2070&auto=format&fit=crop', 'RENOVATION', 'Transform Your Space', 'From a fresh coat of paint to complete remodels. Make your dream home a reality.', 'Get a Quote', '2026-03-08 18:00:00'),
 (3, 3, 'https://images.unsplash.com/photo-1556911220-bff31c812dba?q=80&w=2668&auto=format&fit=crop', 'CLEANING', 'Spotless Homes', 'Deep cleaning and regular maintenance services so you can enjoy your free time.', 'Book Cleaning', '2026-03-08 18:00:00');
+
+-- --------------------------------------------------------
+
+--
+-- Estructura de tabla para la tabla `service_cards`
+--
+
+DROP TABLE IF EXISTS `service_cards`;
+
+CREATE TABLE `service_cards` (
+    `id_card` int NOT NULL AUTO_INCREMENT,
+    `id_service` int NOT NULL,
+    `image_url` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+    `badge` varchar(40) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT 'POPULAR',
+    `headline` varchar(120) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+    `summary` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+    `cta_label` varchar(60) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'Learn More',
+    `sort_order` int NOT NULL,
+    `is_active` tinyint(1) NOT NULL DEFAULT '1',
+    `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    `updated_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (`id_card`),
+    KEY `idx_service_cards_service` (`id_service`),
+    KEY `idx_service_cards_active_sort` (`is_active`, `sort_order`),
+    CONSTRAINT `fk_service_cards_service` FOREIGN KEY (`id_service`) REFERENCES `services` (`id_service`) ON DELETE CASCADE
+) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Estructura de tabla para la tabla `service_requests`
+--
+
+DROP TABLE IF EXISTS `service_requests`;
+
+CREATE TABLE `service_requests` (
+    `id_request` int NOT NULL AUTO_INCREMENT,
+    `id_user` int DEFAULT NULL,
+    `id_service` int NOT NULL,
+    `description` text CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
+    `location_text` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
+    `latitude` decimal(10, 7) DEFAULT NULL,
+    `longitude` decimal(10, 7) DEFAULT NULL,
+    `budget` decimal(10, 2) NOT NULL DEFAULT '0.00',
+    `radius_km` decimal(6, 2) NOT NULL DEFAULT '8.00',
+    `assigned_worker_profile` int DEFAULT NULL,
+    `status` enum(
+        'open',
+        'assigned',
+        'in_progress',
+        'done',
+        'cancelled'
+    ) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'open',
+    `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    `updated_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (`id_request`),
+    KEY `idx_service_requests_service` (`id_service`),
+    KEY `idx_service_requests_status_created` (`status`, `created_at`),
+    KEY `idx_service_requests_user` (`id_user`),
+    KEY `idx_service_requests_assigned_worker` (`assigned_worker_profile`),
+    CONSTRAINT `fk_service_requests_service` FOREIGN KEY (`id_service`) REFERENCES `services` (`id_service`) ON DELETE CASCADE,
+    CONSTRAINT `fk_service_requests_user` FOREIGN KEY (`id_user`) REFERENCES `users` (`id_user`) ON DELETE SET NULL,
+    CONSTRAINT `fk_service_requests_assigned_worker` FOREIGN KEY (`assigned_worker_profile`) REFERENCES `worker_profiles` (`id_worker_profile`) ON DELETE SET NULL
+) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Estructura de tabla para la tabla `service_request_images`
+--
+
+DROP TABLE IF EXISTS `service_request_images`;
+
+CREATE TABLE `service_request_images` (
+    `id_image` int NOT NULL AUTO_INCREMENT,
+    `id_request` int NOT NULL,
+    `image_url` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
+    `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (`id_image`),
+    KEY `idx_service_request_images_request` (`id_request`),
+    CONSTRAINT `fk_service_request_images_request` FOREIGN KEY (`id_request`) REFERENCES `service_requests` (`id_request`) ON DELETE CASCADE
+) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Estructura de tabla para la tabla `service_request_workers`
+--
+
+DROP TABLE IF EXISTS `service_request_workers`;
+
+CREATE TABLE `service_request_workers` (
+    `id_request` int NOT NULL,
+    `id_worker_profile` int NOT NULL,
+    `distance_km` decimal(8, 3) DEFAULT NULL,
+    `status` enum('new', 'accepted', 'rejected', 'expired') CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'new',
+    `notified_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    `updated_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (`id_request`, `id_worker_profile`),
+    KEY `idx_service_request_workers_worker_status` (`id_worker_profile`, `status`, `notified_at`),
+    KEY `idx_service_request_workers_request` (`id_request`),
+    CONSTRAINT `fk_service_request_workers_request` FOREIGN KEY (`id_request`) REFERENCES `service_requests` (`id_request`) ON DELETE CASCADE,
+    CONSTRAINT `fk_service_request_workers_worker` FOREIGN KEY (`id_worker_profile`) REFERENCES `worker_profiles` (`id_worker_profile`) ON DELETE CASCADE
+) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci;
 
 COMMIT;
 

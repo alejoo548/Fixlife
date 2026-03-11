@@ -8,14 +8,15 @@ import { ScheduleView } from '../dashboard/ScheduleView';
 import { SettingsView } from '../dashboard/SettingsView';
 import { UploadDocumentsView } from '../dashboard/UploadDocumentsView';
 import { API_URL } from '../../config/api';
-import { getAuthUser, getToken as getSessionToken, isAuthenticated } from '../../utils/session';
+import { clearAuthSession, getAuthUser, getToken as getSessionToken, isAuthenticated } from '../../utils/session';
 
 interface ProDashboardProps {
    isOpen: boolean;
    onClose: () => void;
+   onSignOut?: () => void;
 }
 
-export const ProDashboard: React.FC<ProDashboardProps> = ({ isOpen, onClose }) => {
+export const ProDashboard: React.FC<ProDashboardProps> = ({ isOpen, onClose, onSignOut }) => {
    const [isOnline, setIsOnline] = useState(false);
    const [activeTab, setActiveTab] = useState('requests');
    const [mobileView, setMobileView] = useState<'list' | 'map'>('list');
@@ -23,6 +24,15 @@ export const ProDashboard: React.FC<ProDashboardProps> = ({ isOpen, onClose }) =
    const [hasUploadedDocs, setHasUploadedDocs] = useState(false); // Por defecto falso
    const [userName, setUserName] = useState('');
    const [token, setToken] = useState<string | null>(null);
+
+   const handleSignOut = () => {
+      clearAuthSession();
+      if (onSignOut) {
+         onSignOut();
+         return;
+      }
+      onClose();
+   };
 
    const normalizeBool = (value: any) => {
       if (value === true || value === 1) return true;
@@ -141,6 +151,7 @@ export const ProDashboard: React.FC<ProDashboardProps> = ({ isOpen, onClose }) =
                activeItem={activeTab}
                setActiveItem={setActiveTab}
                onClose={onClose}
+               onSignOut={handleSignOut}
             />
          </motion.div>
 
@@ -190,7 +201,7 @@ export const ProDashboard: React.FC<ProDashboardProps> = ({ isOpen, onClose }) =
                   whileHover={{ scale: 1.05 }}
                   whileTap={{ scale: 0.95 }}
                   className="md:hidden flex items-center gap-2 ml-2 cursor-pointer"
-                  onClick={onClose}
+                  onClick={handleSignOut}
                >
                   <span className="font-bold text-gray-900 text-sm">Back</span>
                </motion.div>
@@ -320,7 +331,7 @@ export const ProDashboard: React.FC<ProDashboardProps> = ({ isOpen, onClose }) =
                            transition={{ duration: 0.3 }}
                            className="w-full h-full flex"
                         >
-                           <RequestsView isOnline={isOnline} mobileView={mobileView} />
+                           <RequestsView isOnline={isOnline} mobileView={mobileView} token={token} />
                         </motion.div>
                      )}
 

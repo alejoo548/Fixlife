@@ -6,6 +6,11 @@ import { ResultSetHeader, RowDataPacket } from 'mysql2';
 import pool from '../config/db';
 import { AuthRequest } from '../middlewares/auth.middleware';
 import { sendEmailChangeToken, sendProfileChangeNotice } from '../utils/email';
+import { autoReassignStaleAssignedRequests, ensureServiceRequestTables, ensureWorkerGeoColumns } from './services.controller';
+const toPublicRequestStatus = (status: string | null | undefined) => {
+  if (!status) return 'pending';
+  return status === 'open' ? 'pending' : status;
+};
 
 const allowedImageMimeTypes = new Set([
   'image/png',
@@ -111,6 +116,513 @@ export const getWorkerMe = async (req: AuthRequest, res: Response): Promise<void
     });
   } catch (error: any) {
     console.error('Error in getWorkerMe:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
+export const getWorkerRequests = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const userId = req.user?.user_id;
+    if (!userId) {
+      res.status(401).json({ error: 'Unauthorized' });
+      return;
+    }
+
+    await ensureServiceRequestTables();
+    await ensureWorkerGeoColumns();
+    await autoReassignStaleAssignedRequests();
+
+    const status = String(req.query.status || 'new').toLowerCase();
+    const allowed = new Set(['new', 'accepted', 'rejected', 'all']);
+    if (!allowed.has(status)) {
+      res.status(400).json({ error: 'Invalid status filter.' });
+      return;
+    }
+
+    const [profileRows] = await pool.execute<RowDataPacket[]>(
+      `SELECT id_worker_profile, latitude, longitude
+       FROM worker_profiles
+       WHERE id_user = ?
+       LIMIT 1`,
+      [userId]
+    );
+
+    if (profileRows.length === 0) {
+      res.status(404).json({ error: 'Worker profile not found.' });
+      return;
+    }
+
+    const profileId = Number(profileRows[0].id_worker_profile);
+    const workerLat = profileRows[0].latitude != null ? Number(profileRows[0].latitude) : null;
+    const workerLng = profileRows[0].longitude != null ? Number(profileRows[0].longitude) : null;
+
+    // Backfill discovery rows so older/open requests become visible for eligible workers.
+    // This covers requests created before the worker had geo/service data ready.
+    await pool.execute(
+      `INSERT INTO service_request_workers (id_request, id_worker_profile, distance_km, status)
+       SELECT
+         sr.id_request,
+         ? AS id_worker_profile,
+         (
+           6371 * ACOS(
+             COS(RADIANS(wp.latitude)) * COS(RADIANS(sr.latitude)) *
+             COS(RADIANS(sr.longitude) - RADIANS(wp.longitude)) +
+             SIN(RADIANS(wp.latitude)) * SIN(RADIANS(sr.latitude))
+           )
+         ) AS distance_km,
+         'new' AS status
+       FROM worker_profiles wp
+       INNER JOIN worker_services ws ON ws.id_worker_profile = wp.id_worker_profile
+       INNER JOIN service_requests sr ON sr.id_service = ws.id_service
+       LEFT JOIN service_request_workers srw
+         ON srw.id_request = sr.id_request
+        AND srw.id_worker_profile = wp.id_worker_profile
+       WHERE wp.id_worker_profile = ?
+         AND wp.is_verified = 1
+         AND wp.latitude IS NOT NULL
+         AND wp.longitude IS NOT NULL
+         AND sr.status IN ('open', 'pending')
+         AND sr.latitude IS NOT NULL
+         AND sr.longitude IS NOT NULL
+         AND (sr.id_user IS NULL OR sr.id_user <> wp.id_user)
+         AND (
+           6371 * ACOS(
+             COS(RADIANS(wp.latitude)) * COS(RADIANS(sr.latitude)) *
+             COS(RADIANS(sr.longitude) - RADIANS(wp.longitude)) +
+             SIN(RADIANS(wp.latitude)) * SIN(RADIANS(sr.latitude))
+           )
+         ) <= COALESCE(sr.radius_km, 8)
+         AND srw.id_request IS NULL`,
+      [profileId, profileId]
+    );
+
+    const whereParts: string[] = ['srw.id_worker_profile = ?'];
+    const params: any[] = [profileId];
+
+    if (status === 'new') {
+      whereParts.push(`srw.status = 'new'`);
+      whereParts.push(`sr.status IN ('open', 'pending')`);
+    } else if (status === 'accepted') {
+      whereParts.push(`srw.status = 'accepted'`);
+      whereParts.push(`sr.assigned_worker_profile = ?`);
+      params.push(profileId);
+    } else if (status === 'rejected') {
+      whereParts.push(`srw.status = 'rejected'`);
+    }
+
+    const [rows] = await pool.execute<RowDataPacket[]>(
+      `SELECT
+         sr.id_request,
+         sr.id_service,
+         sr.description,
+         sr.location_text,
+         sr.latitude,
+         sr.longitude,
+         sr.budget,
+         sr.radius_km,
+         sr.status AS request_status,
+         sr.created_at,
+         sr.assigned_worker_profile,
+         s.name AS service_name,
+         s.icon AS service_icon,
+         srw.distance_km,
+         srw.status AS worker_status,
+         srw.proposed_budget,
+         srw.counter_message,
+         u.id_user AS client_id,
+         u.name AS client_name,
+         u.lastname AS client_lastname,
+         u.profile_image AS client_profile_image,
+         GROUP_CONCAT(DISTINCT sri.image_url ORDER BY sri.id_image ASC SEPARATOR '||') AS image_urls
+       FROM service_request_workers srw
+       INNER JOIN service_requests sr ON sr.id_request = srw.id_request
+       INNER JOIN services s ON s.id_service = sr.id_service
+       LEFT JOIN users u ON u.id_user = sr.id_user
+       LEFT JOIN service_request_images sri ON sri.id_request = sr.id_request
+       WHERE ${whereParts.join(' AND ')}
+        GROUP BY
+          sr.id_request, sr.id_service, sr.description, sr.location_text, sr.latitude, sr.longitude,
+          sr.budget, sr.radius_km, sr.status, sr.created_at, sr.assigned_worker_profile,
+          s.name, s.icon, srw.distance_km, srw.status, srw.proposed_budget, srw.counter_message,
+          u.id_user, u.name, u.lastname, u.profile_image
+       ORDER BY
+         CASE WHEN srw.status = 'new' THEN 0 ELSE 1 END,
+         sr.created_at DESC
+       LIMIT 60`,
+      params
+    );
+
+    const requests = rows.map((row: any) => {
+      const lat = row.latitude != null ? Number(row.latitude) : null;
+      const lng = row.longitude != null ? Number(row.longitude) : null;
+      const routeUrl =
+        lat != null &&
+        lng != null &&
+        workerLat != null &&
+        workerLng != null
+          ? `https://www.google.com/maps/dir/?api=1&origin=${workerLat},${workerLng}&destination=${lat},${lng}&travelmode=driving`
+          : null;
+
+      const images =
+        typeof row.image_urls === 'string' && row.image_urls.length > 0
+          ? String(row.image_urls)
+              .split('||')
+              .filter(Boolean)
+              .map((name: string) => ({
+                file_name: name,
+                url: buildAssetUrl(req, name),
+              }))
+          : [];
+
+      return {
+        id_request: Number(row.id_request),
+        id_service: Number(row.id_service),
+        service_name: row.service_name,
+        service_icon: row.service_icon || null,
+        description: row.description,
+        location_text: row.location_text,
+        latitude: lat,
+        longitude: lng,
+        budget: Number(row.budget || 0),
+        radius_km: Number(row.radius_km || 8),
+        request_status: toPublicRequestStatus(row.request_status),
+        worker_status: row.worker_status,
+        proposed_budget: row.proposed_budget != null ? Number(row.proposed_budget) : null,
+        counter_message: row.counter_message || null,
+        distance_km: row.distance_km != null ? Number(row.distance_km) : null,
+        created_at: row.created_at,
+        assigned_worker_profile:
+          row.assigned_worker_profile != null ? Number(row.assigned_worker_profile) : null,
+        client: row.client_id
+          ? {
+              id_user: Number(row.client_id),
+              name: `${row.client_name || ''} ${row.client_lastname || ''}`.trim(),
+              profile_image_url: buildAssetUrl(req, row.client_profile_image || null),
+            }
+          : null,
+        images,
+        route_url: routeUrl,
+      };
+    });
+
+    res.json({
+      success: true,
+      status,
+      worker_profile: {
+        id_worker_profile: profileId,
+        latitude: workerLat,
+        longitude: workerLng,
+      },
+      requests,
+    });
+  } catch (error: any) {
+    console.error('Error in getWorkerRequests:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
+export const acceptWorkerRequest = async (req: AuthRequest, res: Response): Promise<void> => {
+  const connection = await pool.getConnection();
+  try {
+    const userId = req.user?.user_id;
+    if (!userId) {
+      res.status(401).json({ error: 'Unauthorized' });
+      return;
+    }
+
+    await ensureServiceRequestTables();
+
+    const idRequest = Number(req.params.idRequest);
+    if (!idRequest) {
+      res.status(400).json({ error: 'Invalid request id.' });
+      return;
+    }
+
+    const [profileRows] = await connection.execute<RowDataPacket[]>(
+      `SELECT id_worker_profile FROM worker_profiles WHERE id_user = ? LIMIT 1`,
+      [userId]
+    );
+    if (profileRows.length === 0) {
+      res.status(404).json({ error: 'Worker profile not found.' });
+      return;
+    }
+    const profileId = Number(profileRows[0].id_worker_profile);
+
+    await connection.beginTransaction();
+
+    const [requestRows] = await connection.execute<RowDataPacket[]>(
+      `SELECT id_request, status, assigned_worker_profile
+       FROM service_requests
+       WHERE id_request = ?
+       FOR UPDATE`,
+      [idRequest]
+    );
+    if (requestRows.length === 0) {
+      await connection.rollback();
+      res.status(404).json({ error: 'Request not found.' });
+      return;
+    }
+
+    const request = requestRows[0];
+    if (!['open', 'pending'].includes(String(request.status)) || request.assigned_worker_profile != null) {
+      await connection.rollback();
+      res.status(409).json({ error: 'Request already taken by another worker.' });
+      return;
+    }
+
+    const [myRow] = await connection.execute<RowDataPacket[]>(
+      `SELECT status FROM service_request_workers
+       WHERE id_request = ? AND id_worker_profile = ?
+       LIMIT 1
+       FOR UPDATE`,
+      [idRequest, profileId]
+    );
+    if (myRow.length === 0 || myRow[0].status !== 'new') {
+      await connection.rollback();
+      res.status(409).json({ error: 'This request is no longer available for acceptance.' });
+      return;
+    }
+
+    await connection.execute(
+      `UPDATE service_requests
+       SET status = 'assigned', assigned_worker_profile = ?, assigned_at = CURRENT_TIMESTAMP, final_budget = NULL, updated_at = CURRENT_TIMESTAMP
+       WHERE id_request = ?`,
+      [profileId, idRequest]
+    );
+
+    await connection.execute(
+      `UPDATE service_request_workers
+       SET status = 'accepted', updated_at = CURRENT_TIMESTAMP
+       WHERE id_request = ? AND id_worker_profile = ?`,
+      [idRequest, profileId]
+    );
+
+    await connection.execute(
+      `UPDATE service_request_workers
+       SET status = 'expired', updated_at = CURRENT_TIMESTAMP
+       WHERE id_request = ? AND id_worker_profile != ? AND status = 'new'`,
+      [idRequest, profileId]
+    );
+
+    await connection.commit();
+    res.json({ success: true, message: 'Request accepted successfully.', id_request: idRequest });
+  } catch (error: any) {
+    await connection.rollback();
+    console.error('Error in acceptWorkerRequest:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  } finally {
+    connection.release();
+  }
+};
+
+export const rejectWorkerRequest = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const userId = req.user?.user_id;
+    if (!userId) {
+      res.status(401).json({ error: 'Unauthorized' });
+      return;
+    }
+
+    await ensureServiceRequestTables();
+
+    const idRequest = Number(req.params.idRequest);
+    if (!idRequest) {
+      res.status(400).json({ error: 'Invalid request id.' });
+      return;
+    }
+
+    const [profileRows] = await pool.execute<RowDataPacket[]>(
+      `SELECT id_worker_profile FROM worker_profiles WHERE id_user = ? LIMIT 1`,
+      [userId]
+    );
+    if (profileRows.length === 0) {
+      res.status(404).json({ error: 'Worker profile not found.' });
+      return;
+    }
+    const profileId = Number(profileRows[0].id_worker_profile);
+
+    const [result] = await pool.execute<ResultSetHeader>(
+      `UPDATE service_request_workers
+       SET status = 'rejected', updated_at = CURRENT_TIMESTAMP
+       WHERE id_request = ? AND id_worker_profile = ? AND status = 'new'`,
+      [idRequest, profileId]
+    );
+
+    if (result.affectedRows === 0) {
+      res.status(409).json({ error: 'Request is not available to reject.' });
+      return;
+    }
+
+    res.json({ success: true, message: 'Request rejected.', id_request: idRequest });
+  } catch (error: any) {
+    console.error('Error in rejectWorkerRequest:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
+export const counterOfferWorkerRequest = async (req: AuthRequest, res: Response): Promise<void> => {
+  const connection = await pool.getConnection();
+  try {
+    const userId = req.user?.user_id;
+    if (!userId) {
+      res.status(401).json({ error: 'Unauthorized' });
+      return;
+    }
+
+    await ensureServiceRequestTables();
+
+    const idRequest = Number(req.params.idRequest);
+    const proposedBudget = Number(req.body?.proposed_budget);
+    const counterMessageRaw = req.body?.counter_message != null ? String(req.body.counter_message) : '';
+    const counterMessage = counterMessageRaw.trim().slice(0, 255) || null;
+
+    if (!idRequest) {
+      res.status(400).json({ error: 'Invalid request id.' });
+      return;
+    }
+    if (!Number.isFinite(proposedBudget) || proposedBudget <= 0 || proposedBudget > 100000) {
+      res.status(400).json({ error: 'proposed_budget must be greater than 0 and less than 100000.' });
+      return;
+    }
+
+    const [profileRows] = await connection.execute<RowDataPacket[]>(
+      `SELECT id_worker_profile FROM worker_profiles WHERE id_user = ? LIMIT 1`,
+      [userId]
+    );
+    if (profileRows.length === 0) {
+      res.status(404).json({ error: 'Worker profile not found.' });
+      return;
+    }
+    const profileId = Number(profileRows[0].id_worker_profile);
+
+    await connection.beginTransaction();
+
+    const [requestRows] = await connection.execute<RowDataPacket[]>(
+      `SELECT id_request, status, assigned_worker_profile
+       FROM service_requests
+       WHERE id_request = ?
+       FOR UPDATE`,
+      [idRequest]
+    );
+    if (requestRows.length === 0) {
+      await connection.rollback();
+      res.status(404).json({ error: 'Request not found.' });
+      return;
+    }
+
+    const request = requestRows[0];
+    if (!['open', 'pending'].includes(String(request.status)) || request.assigned_worker_profile != null) {
+      await connection.rollback();
+      res.status(409).json({ error: 'Request already taken by another worker.' });
+      return;
+    }
+
+    const [myRow] = await connection.execute<RowDataPacket[]>(
+      `SELECT status FROM service_request_workers
+       WHERE id_request = ? AND id_worker_profile = ?
+       LIMIT 1
+       FOR UPDATE`,
+      [idRequest, profileId]
+    );
+    if (myRow.length === 0 || myRow[0].status !== 'new') {
+      await connection.rollback();
+      res.status(409).json({ error: 'This request is no longer available for counter offer.' });
+      return;
+    }
+
+    await connection.execute(
+      `UPDATE service_requests
+       SET status = 'assigned', assigned_worker_profile = ?, assigned_at = CURRENT_TIMESTAMP, final_budget = NULL, updated_at = CURRENT_TIMESTAMP
+       WHERE id_request = ?`,
+      [profileId, idRequest]
+    );
+
+    await connection.execute(
+      `UPDATE service_request_workers
+       SET status = 'accepted', proposed_budget = ?, counter_message = ?, counter_status = 'pending', updated_at = CURRENT_TIMESTAMP
+       WHERE id_request = ? AND id_worker_profile = ?`,
+      [proposedBudget, counterMessage, idRequest, profileId]
+    );
+
+    await connection.execute(
+      `UPDATE service_request_workers
+       SET status = 'expired', updated_at = CURRENT_TIMESTAMP
+       WHERE id_request = ? AND id_worker_profile != ? AND status = 'new'`,
+      [idRequest, profileId]
+    );
+
+    await connection.commit();
+    res.json({
+      success: true,
+      message: 'Counter offer sent and request assigned.',
+      id_request: idRequest,
+      proposed_budget: proposedBudget,
+      counter_message: counterMessage,
+    });
+  } catch (error: any) {
+    await connection.rollback();
+    console.error('Error in counterOfferWorkerRequest:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  } finally {
+    connection.release();
+  }
+};
+
+export const updateWorkerPresence = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const userId = req.user?.user_id;
+    if (!userId) {
+      res.status(401).json({ error: 'Unauthorized' });
+      return;
+    }
+
+    await ensureWorkerGeoColumns();
+
+    const isOnline = req.body?.is_online === true || req.body?.is_online === 1 || req.body?.is_online === '1';
+    const latRaw = req.body?.lat;
+    const lngRaw = req.body?.lng;
+    const coverageRaw = req.body?.coverage_km;
+
+    const lat = latRaw != null && latRaw !== '' ? Number(latRaw) : null;
+    const lng = lngRaw != null && lngRaw !== '' ? Number(lngRaw) : null;
+    const coverage = coverageRaw != null && coverageRaw !== '' ? Number(coverageRaw) : null;
+
+    if (lat != null && (!Number.isFinite(lat) || lat < -90 || lat > 90)) {
+      res.status(400).json({ error: 'Invalid latitude.' });
+      return;
+    }
+    if (lng != null && (!Number.isFinite(lng) || lng < -180 || lng > 180)) {
+      res.status(400).json({ error: 'Invalid longitude.' });
+      return;
+    }
+    if (coverage != null && (!Number.isFinite(coverage) || coverage <= 0 || coverage > 100)) {
+      res.status(400).json({ error: 'Invalid coverage_km (1-100).' });
+      return;
+    }
+
+    const profileId = await ensureWorkerProfile(userId);
+    await pool.execute(
+      `UPDATE worker_profiles
+       SET is_online = ?,
+           latitude = COALESCE(?, latitude),
+           longitude = COALESCE(?, longitude),
+           coverage_km = COALESCE(?, coverage_km),
+           last_seen_at = CURRENT_TIMESTAMP
+       WHERE id_worker_profile = ?`,
+      [isOnline ? 1 : 0, lat, lng, coverage, profileId]
+    );
+
+    const [rows] = await pool.execute<RowDataPacket[]>(
+      `SELECT id_worker_profile, is_online, latitude, longitude, coverage_km, last_seen_at
+       FROM worker_profiles
+       WHERE id_worker_profile = ?
+       LIMIT 1`,
+      [profileId]
+    );
+
+    res.json({ success: true, presence: rows[0] || null });
+  } catch (error: any) {
+    console.error('Error in updateWorkerPresence:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 };
