@@ -5,7 +5,7 @@ import {
   BarChart, Bar, Legend
 } from 'recharts';
 import { 
-  LayoutDashboard, Users, Briefcase, Settings, LogOut, Search, Bell, TrendingUp, Activity, Clock, CheckCircle, Menu, X, ArrowUpRight, ArrowDownRight, ChevronLeft, ChevronRight, Image as ImageIcon,
+  LayoutDashboard, Users, Briefcase, Settings, LogOut, Search, Bell, TrendingUp, Activity, Clock, CheckCircle, Menu, X, ArrowUpRight, ArrowDownRight, ChevronLeft, ChevronRight, Image as ImageIcon, MapPin,
   Plus, Edit3, Trash2, Eye, XCircle, FileText, Shield, Download
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
@@ -845,71 +845,122 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ isOpen, onClose 
             <p className="text-gray-500 font-medium">No services yet. Create your first service above.</p>
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse">
-              <thead>
-                <tr className="bg-gray-50/50 text-xs uppercase tracking-wider text-gray-500 font-bold border-b border-gray-100">
-                  <th className="px-6 py-4">Service</th>
-                  <th className="px-6 py-4">Description</th>
-                  <th className="px-6 py-4">Status</th>
-                  <th className="px-6 py-4">Created</th>
-                  <th className="px-6 py-4 text-right">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-50">
-                {services.map((svc) => (
-                  <tr key={svc.id_service} className="hover:bg-gray-50/80 transition-colors group">
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-bird-blue/10 to-bird-blue/5 flex items-center justify-center text-bird-blue font-bold shrink-0">
-                          {svc.icon ? <span className="text-lg">{svc.icon.length <= 2 ? svc.icon : '⚙️'}</span> : <Briefcase size={18} />}
-                        </div>
-                        <span className="font-bold text-gray-900 text-sm">{svc.name}</span>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4">
-                      <span className="text-sm text-gray-500 line-clamp-1 max-w-[200px] block">{svc.description || '—'}</span>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <button
-                        onClick={() => handleToggleService(svc)}
-                        className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold border cursor-pointer transition-all hover:scale-105 ${
-                          svc.is_active
-                            ? 'bg-emerald-50 text-emerald-600 border-emerald-100'
-                            : 'bg-gray-50 text-gray-500 border-gray-200'
-                        }`}
-                      >
-                        {svc.is_active ? <><CheckCircle size={12} /> Active</> : <><XCircle size={12} /> Paused</>}
-                      </button>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 font-medium">
-                      {new Date(svc.created_at).toLocaleDateString()}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-right">
-                      <div className="flex items-center gap-2 justify-end">
-                        <button
-                          onClick={() => {
-                            setEditingService(svc);
-                            setServiceForm({ name: svc.name, description: svc.description || '', icon: svc.icon || '' });
-                            setShowServiceForm(true);
-                          }}
-                          className="p-2 text-gray-400 hover:text-bird-blue hover:bg-bird-blue/10 rounded-lg transition-all"
-                        >
-                          <Edit3 size={16} />
-                        </button>
-                        <button
-                          onClick={() => handleDeleteService(svc.id_service)}
-                          className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all"
-                        >
-                          <Trash2 size={16} />
-                        </button>
-                      </div>
-                    </td>
+          <>
+            {/* Desktop View */}
+            <div className="hidden md:block overflow-x-auto">
+              <table className="w-full text-left border-collapse">
+                <thead>
+                  <tr className="bg-gray-50/50 text-xs uppercase tracking-wider text-gray-500 font-bold border-b border-gray-100">
+                    <th className="px-6 py-4">Service</th>
+                    <th className="px-6 py-4">Description</th>
+                    <th className="px-6 py-4">Status</th>
+                    <th className="px-6 py-4">Created</th>
+                    <th className="px-6 py-4 text-right">Actions</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody className="divide-y divide-gray-50">
+                  {services.map((svc) => (
+                    <tr key={svc.id_service} className="hover:bg-gray-50/80 transition-colors group">
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-bird-blue/10 to-bird-blue/5 flex items-center justify-center text-bird-blue font-bold shrink-0">
+                            {svc.icon ? <span className="text-lg">{svc.icon.length <= 2 ? svc.icon : '⚙️'}</span> : <Briefcase size={18} />}
+                          </div>
+                          <span className="font-bold text-gray-900 text-sm">{svc.name}</span>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4">
+                        <span className="text-sm text-gray-500 line-clamp-1 max-w-[200px] block">{svc.description || '—'}</span>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <button
+                          onClick={() => handleToggleService(svc)}
+                          className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold border cursor-pointer transition-all hover:scale-105 ${
+                            svc.is_active
+                              ? 'bg-emerald-50 text-emerald-600 border-emerald-100'
+                              : 'bg-gray-50 text-gray-500 border-gray-200'
+                          }`}
+                        >
+                          {svc.is_active ? <><CheckCircle size={12} /> Active</> : <><XCircle size={12} /> Paused</>}
+                        </button>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 font-medium">
+                        {new Date(svc.created_at).toLocaleDateString()}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-right">
+                        <div className="flex items-center gap-2 justify-end">
+                          <button
+                            onClick={() => {
+                              setEditingService(svc);
+                              setServiceForm({ name: svc.name, description: svc.description || '', icon: svc.icon || '' });
+                              setShowServiceForm(true);
+                            }}
+                            className="p-2 text-gray-400 hover:text-bird-blue hover:bg-bird-blue/10 rounded-lg transition-all"
+                          >
+                            <Edit3 size={16} />
+                          </button>
+                          <button
+                            onClick={() => handleDeleteService(svc.id_service)}
+                            className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all"
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Mobile View */}
+            <div className="md:hidden divide-y divide-gray-50">
+              {services.map((svc) => (
+                <div key={svc.id_service} className="p-4 space-y-4">
+                  <div className="flex justify-between items-start">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-bird-blue/10 to-bird-blue/5 flex items-center justify-center text-bird-blue font-bold shrink-0">
+                        {svc.icon ? <span className="text-lg">{svc.icon.length <= 2 ? svc.icon : '⚙️'}</span> : <Briefcase size={18} />}
+                      </div>
+                      <div>
+                        <h4 className="font-bold text-gray-900">{svc.name}</h4>
+                        <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">{new Date(svc.created_at).toLocaleDateString()}</p>
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => handleToggleService(svc)}
+                      className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[10px] font-bold border transition-all ${
+                        svc.is_active
+                          ? 'bg-emerald-50 text-emerald-600 border-emerald-100'
+                          : 'bg-gray-50 text-gray-500 border-gray-200'
+                      }`}
+                    >
+                      {svc.is_active ? 'ACTIVE' : 'PAUSED'}
+                    </button>
+                  </div>
+                  <p className="text-sm text-gray-500 line-clamp-2">{svc.description || 'No description provided.'}</p>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => {
+                        setEditingService(svc);
+                        setServiceForm({ name: svc.name, description: svc.description || '', icon: svc.icon || '' });
+                        setShowServiceForm(true);
+                      }}
+                      className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl bg-gray-50 text-gray-600 font-bold text-xs hover:bg-bird-blue/10 hover:text-bird-blue transition-colors border border-gray-100"
+                    >
+                      <Edit3 size={14} /> Edit
+                    </button>
+                    <button
+                      onClick={() => handleDeleteService(svc.id_service)}
+                      className="px-4 py-2.5 rounded-xl bg-red-50 text-red-500 font-bold text-xs hover:bg-red-100 transition-colors border border-red-100"
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </>
         )}
       </div>
       )}
@@ -1117,69 +1168,119 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ isOpen, onClose 
         ) : serviceCards.length === 0 ? (
           <div className="p-10 text-center text-gray-500 font-medium">No homepage cards yet. Add one above.</div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse">
-              <thead>
-                <tr className="bg-gray-50/50 text-xs uppercase tracking-wider text-gray-500 font-bold border-b border-gray-100">
-                  <th className="px-6 py-4">Card</th>
-                  <th className="px-6 py-4">Service</th>
-                  <th className="px-6 py-4">Order</th>
-                  <th className="px-6 py-4">Status</th>
-                  <th className="px-6 py-4 text-right">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-50">
-                {serviceCards.map((card) => (
-                  <tr key={card.id_card} className="hover:bg-gray-50/80 transition-colors">
-                    <td className="px-6 py-4">
-                      <div className="flex items-center gap-3 min-w-[260px]">
-                        <div className="w-16 h-10 rounded-lg overflow-hidden bg-gray-100 border border-gray-200 shrink-0">
-                          {card.image_url ? (
-                            <img src={card.image_url} alt={card.headline || card.service_name} className="w-full h-full object-cover" />
-                          ) : (
-                            <div className="w-full h-full flex items-center justify-center text-xs text-gray-500">No image</div>
-                          )}
+          <>
+            {/* Desktop Table */}
+            <div className="hidden md:block overflow-x-auto">
+              <table className="w-full text-left border-collapse">
+                <thead>
+                  <tr className="bg-gray-50/50 text-xs uppercase tracking-wider text-gray-500 font-bold border-b border-gray-100">
+                    <th className="px-6 py-4">Card</th>
+                    <th className="px-6 py-4">Service</th>
+                    <th className="px-6 py-4">Order</th>
+                    <th className="px-6 py-4">Status</th>
+                    <th className="px-6 py-4 text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-50">
+                  {serviceCards.map((card) => (
+                    <tr key={card.id_card} className="hover:bg-gray-50/80 transition-colors">
+                      <td className="px-6 py-4">
+                        <div className="flex items-center gap-3 min-w-[260px]">
+                          <div className="w-16 h-10 rounded-lg overflow-hidden bg-gray-100 border border-gray-200 shrink-0">
+                            {card.image_url ? (
+                              <img src={card.image_url} alt={card.headline || card.service_name} className="w-full h-full object-cover" />
+                            ) : (
+                              <div className="w-full h-full flex items-center justify-center text-xs text-gray-500">No image</div>
+                            )}
+                          </div>
+                          <div>
+                            <p className="text-sm font-bold text-gray-900 line-clamp-1">{card.headline || card.service_name}</p>
+                            <p className="text-xs text-gray-500 line-clamp-1">{card.cta_label || 'Learn More'}</p>
+                          </div>
                         </div>
-                        <div>
-                          <p className="text-sm font-bold text-gray-900 line-clamp-1">{card.headline || card.service_name}</p>
-                          <p className="text-xs text-gray-500 line-clamp-1">{card.cta_label || 'Learn More'}</p>
+                      </td>
+                      <td className="px-6 py-4 text-sm font-semibold text-gray-700">{card.service_name}</td>
+                      <td className="px-6 py-4 text-sm text-gray-600 font-bold">{card.sort_order}</td>
+                      <td className="px-6 py-4">
+                        <span
+                          className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold border ${
+                            card.is_active
+                              ? 'bg-emerald-50 text-emerald-600 border-emerald-100'
+                              : 'bg-gray-50 text-gray-500 border-gray-200'
+                          }`}
+                        >
+                          {card.is_active ? <><CheckCircle size={12} /> Active</> : <><XCircle size={12} /> Paused</>}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 text-right">
+                        <div className="flex items-center gap-2 justify-end">
+                          <button
+                            onClick={() => openEditCardForm(card)}
+                            className="p-2 text-gray-400 hover:text-bird-blue hover:bg-bird-blue/10 rounded-lg transition-all"
+                          >
+                            <Edit3 size={16} />
+                          </button>
+                          <button
+                            onClick={() => handleDeleteCard(card.id_card)}
+                            className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all"
+                          >
+                            <Trash2 size={16} />
+                          </button>
                         </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Mobile Cards View */}
+            <div className="md:hidden divide-y divide-gray-50">
+              {serviceCards.map((card) => (
+                <div key={card.id_card} className="p-4 space-y-4">
+                  <div className="flex gap-4">
+                    <div className="w-24 h-16 rounded-xl overflow-hidden bg-gray-100 border border-gray-200 shrink-0 shadow-sm">
+                      {card.image_url ? (
+                        <img src={card.image_url} alt={card.headline || card.service_name} className="w-full h-full object-cover" />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center text-[10px] text-gray-400 font-bold">NO IMAGE</div>
+                      )}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex justify-between items-start gap-2">
+                        <h4 className="font-bold text-gray-900 text-sm line-clamp-1">{card.headline || card.service_name}</h4>
+                        <span className="shrink-0 text-[10px] font-black bg-gray-100 text-gray-500 px-2 py-0.5 rounded-md">Order #{card.sort_order}</span>
                       </div>
-                    </td>
-                    <td className="px-6 py-4 text-sm font-semibold text-gray-700">{card.service_name}</td>
-                    <td className="px-6 py-4 text-sm text-gray-600">{card.sort_order}</td>
-                    <td className="px-6 py-4">
-                      <span
-                        className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold border ${
+                      <p className="text-[10px] text-bird-blue font-bold mt-1 uppercase tracking-tight">{card.service_name}</p>
+                      <div className="mt-2 text-right">
+                        <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold border transition-all ${
                           card.is_active
                             ? 'bg-emerald-50 text-emerald-600 border-emerald-100'
                             : 'bg-gray-50 text-gray-500 border-gray-200'
-                        }`}
-                      >
-                        {card.is_active ? <><CheckCircle size={12} /> Active</> : <><XCircle size={12} /> Paused</>}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 text-right">
-                      <div className="flex items-center gap-2 justify-end">
-                        <button
-                          onClick={() => openEditCardForm(card)}
-                          className="p-2 text-gray-400 hover:text-bird-blue hover:bg-bird-blue/10 rounded-lg transition-all"
-                        >
-                          <Edit3 size={16} />
-                        </button>
-                        <button
-                          onClick={() => handleDeleteCard(card.id_card)}
-                          className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all"
-                        >
-                          <Trash2 size={16} />
-                        </button>
+                        }`}>
+                          {card.is_active ? 'ACTIVE' : 'PAUSED'}
+                        </span>
                       </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                    </div>
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => openEditCardForm(card)}
+                      className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl bg-white border border-gray-200 text-gray-600 font-bold text-xs hover:bg-bird-blue/10 hover:text-bird-blue transition-colors shadow-sm"
+                    >
+                      <Edit3 size={14} /> Edit
+                    </button>
+                    <button
+                      onClick={() => handleDeleteCard(card.id_card)}
+                      className="px-4 py-2.5 rounded-xl bg-red-50 text-red-500 font-bold text-xs hover:bg-red-100 transition-colors border border-red-50"
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </>
         )}
       </div>
     </div>
@@ -1344,46 +1445,94 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ isOpen, onClose 
             No requests found for this filter.
           </div>
         ) : (
-          <div className="overflow-x-auto rounded-2xl border border-gray-200 bg-white">
-            <table className="w-full text-left border-collapse min-w-[980px]">
-              <thead>
-                <tr className="bg-gray-50 text-xs uppercase tracking-wider text-gray-500 font-bold border-b border-gray-100">
-                  <th className="px-4 py-3">Request</th>
-                  <th className="px-4 py-3">Service</th>
-                  <th className="px-4 py-3">Client</th>
-                  <th className="px-4 py-3">Worker</th>
-                  <th className="px-4 py-3">Budget</th>
-                  <th className="px-4 py-3">Images</th>
-                  <th className="px-4 py-3">Status</th>
-                  <th className="px-4 py-3">Created</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100">
-                {requestHistory.map((request) => (
-                  <tr key={request.id_request} className="hover:bg-gray-50/80">
-                    <td className="px-4 py-3">
-                      <p className="font-bold text-gray-900">#{request.id_request}</p>
-                      <p className="text-xs text-gray-500 line-clamp-1">{request.location_text}</p>
-                    </td>
-                    <td className="px-4 py-3 text-sm font-semibold text-gray-800">{request.service_name}</td>
-                    <td className="px-4 py-3">
-                      <p className="text-sm font-semibold text-gray-800">{request.client?.name || 'Guest'}</p>
-                      <p className="text-xs text-gray-500">{request.client?.email || 'No email'}</p>
-                    </td>
-                    <td className="px-4 py-3 text-sm text-gray-700">{request.assigned_worker?.name || 'Unassigned'}</td>
-                    <td className="px-4 py-3 text-sm font-bold text-gray-800">${Number(request.budget || 0).toFixed(2)}</td>
-                    <td className="px-4 py-3 text-sm text-gray-700">{request.images_count}</td>
-                    <td className="px-4 py-3">
-                      <span className={`inline-flex px-2.5 py-1 rounded-full text-xs font-bold border ${badgeClass(request.status)}`}>
-                        {label(request.status)}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 text-sm text-gray-600">{new Date(request.created_at).toLocaleString()}</td>
+          <>
+            {/* Desktop View */}
+            <div className="hidden md:block overflow-x-auto rounded-2xl border border-gray-200 bg-white">
+              <table className="w-full text-left border-collapse min-w-[980px]">
+                <thead>
+                  <tr className="bg-gray-50 text-xs uppercase tracking-wider text-gray-500 font-bold border-b border-gray-100">
+                    <th className="px-4 py-3">Request</th>
+                    <th className="px-4 py-3">Service</th>
+                    <th className="px-4 py-3">Client</th>
+                    <th className="px-4 py-3">Worker</th>
+                    <th className="px-4 py-3">Budget</th>
+                    <th className="px-4 py-3">Images</th>
+                    <th className="px-4 py-3">Status</th>
+                    <th className="px-4 py-3">Created</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {requestHistory.map((request) => (
+                    <tr key={request.id_request} className="hover:bg-gray-50/80">
+                      <td className="px-4 py-3">
+                        <p className="font-bold text-gray-900">#{request.id_request}</p>
+                        <p className="text-xs text-gray-500 line-clamp-1">{request.location_text}</p>
+                      </td>
+                      <td className="px-4 py-3 text-sm font-semibold text-gray-800">{request.service_name}</td>
+                      <td className="px-4 py-3">
+                        <p className="text-sm font-semibold text-gray-800">{request.client?.name || 'Guest'}</p>
+                        <p className="text-xs text-gray-500">{request.client?.email || 'No email'}</p>
+                      </td>
+                      <td className="px-4 py-3 text-sm text-gray-700">{request.assigned_worker?.name || 'Unassigned'}</td>
+                      <td className="px-4 py-3 text-sm font-bold text-gray-800">${Number(request.budget || 0).toFixed(2)}</td>
+                      <td className="px-4 py-3 text-sm text-gray-700">{request.images_count}</td>
+                      <td className="px-4 py-3">
+                        <span className={`inline-flex px-2.5 py-1 rounded-full text-xs font-bold border ${badgeClass(request.status)}`}>
+                          {label(request.status)}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-sm text-gray-600">{new Date(request.created_at).toLocaleString()}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Mobile View */}
+            <div className="md:hidden space-y-4">
+              {requestHistory.map((request) => (
+                <div key={request.id_request} className="bg-white/70 backdrop-blur-xl rounded-2xl border border-white shadow-lg p-5 space-y-4">
+                  <div className="flex justify-between items-start">
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-black text-bird-blue bg-bird-blue/10 px-2 py-0.5 rounded-md">#{request.id_request}</span>
+                        <h4 className="font-bold text-gray-900">{request.service_name}</h4>
+                      </div>
+                      <p className="text-xs text-gray-500 line-clamp-1"><MapPin size={10} className="inline mr-1" />{request.location_text}</p>
+                    </div>
+                    <span className={`inline-flex px-2.5 py-1 rounded-full text-[10px] font-black border uppercase tracking-tight ${badgeClass(request.status)}`}>
+                      {label(request.status)}
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4 py-3 border-y border-gray-50">
+                    <div className="space-y-1">
+                      <p className="text-[10px] font-bold text-gray-400 uppercase">Client</p>
+                      <p className="text-xs font-bold text-gray-700 truncate">{request.client?.name || 'Guest'}</p>
+                    </div>
+                    <div className="space-y-1">
+                      <p className="text-[10px] font-bold text-gray-400 uppercase">Worker</p>
+                      <p className="text-xs font-bold text-gray-700 truncate">{request.assigned_worker?.name || 'Unassigned'}</p>
+                    </div>
+                    <div className="space-y-1">
+                      <p className="text-[10px] font-bold text-gray-400 uppercase">Budget</p>
+                      <p className="text-sm font-black text-gray-900">${Number(request.budget || 0).toFixed(2)}</p>
+                    </div>
+                    <div className="space-y-1">
+                      <p className="text-[10px] font-bold text-gray-400 uppercase">Registered</p>
+                      <p className="text-xs font-bold text-gray-600">{new Date(request.created_at).toLocaleDateString()}</p>
+                    </div>
+                  </div>
+
+                  {request.images_count > 0 && (
+                     <div className="flex items-center gap-1.5 text-xs font-bold text-bird-blue bg-bird-blue/5 w-fit px-3 py-1.5 rounded-lg border border-bird-blue/10">
+                        <ImageIcon size={14} /> {request.images_count} Evidence Photos
+                     </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </>
         )}
       </div>
     );
@@ -1429,7 +1578,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ isOpen, onClose 
           initial={{ opacity: 0, scale: 0.98 }}
           animate={{ opacity: 1, scale: 1 }}
           transition={{ delay: 0.3, duration: 0.5 }}
-          className="lg:col-span-2 bg-white/70 backdrop-blur-xl rounded-3xl border border-white shadow-xl shadow-gray-200/20 p-6 flex flex-col h-[420px]"
+          className="lg:col-span-2 bg-white/70 backdrop-blur-xl rounded-3xl border border-white shadow-xl shadow-gray-200/20 p-6 flex flex-col h-[350px] md:h-[420px]"
         >
           <div className="flex justify-between items-end mb-6">
             <div>
@@ -1474,7 +1623,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ isOpen, onClose 
           initial={{ opacity: 0, x: 20 }}
           animate={{ opacity: 1, x: 0 }}
           transition={{ delay: 0.4, duration: 0.5 }}
-          className="bg-white/70 backdrop-blur-xl rounded-3xl border border-white shadow-xl shadow-gray-200/20 p-6 flex flex-col h-[420px]"
+          className="bg-white/70 backdrop-blur-xl rounded-3xl border border-white shadow-xl shadow-gray-200/20 p-6 flex flex-col h-[350px] md:h-[420px]"
         >
           <div className="mb-6">
             <h3 className="text-xl font-bold text-gray-900">User Growth</h3>
@@ -1558,25 +1707,25 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ isOpen, onClose 
               Update hero slides (text + image) from admin. Images are auto-cropped to 16:9.
             </p>
           </div>
-          <div className="flex gap-3">
+          <div className="flex flex-wrap md:flex-nowrap gap-2 md:gap-3">
             <button
               onClick={handleAddSlide}
               disabled={isSavingHeroSlides}
-              className="px-4 py-2.5 rounded-xl border border-bird-blue bg-bird-blue/10 text-bird-darkBlue font-bold hover:bg-bird-blue/20 disabled:bg-gray-100 disabled:text-gray-400 disabled:border-gray-300"
+              className="flex-1 md:flex-none px-4 py-2.5 rounded-xl border border-bird-blue bg-bird-blue/10 text-bird-darkBlue font-bold text-xs md:text-sm hover:bg-bird-blue/20 disabled:bg-gray-100 disabled:text-gray-400 disabled:border-gray-300 transition-all"
             >
               + Add Slide
             </button>
             <button
               onClick={handleResetHeroSlides}
               disabled={isSavingHeroSlides}
-              className="px-4 py-2.5 rounded-xl border border-gray-300 bg-white text-gray-700 font-bold hover:bg-gray-50 disabled:bg-gray-100 disabled:text-gray-400"
+              className="flex-1 md:flex-none px-4 py-2.5 rounded-xl border border-gray-300 bg-white text-gray-700 font-bold text-xs md:text-sm hover:bg-gray-50 disabled:bg-gray-100 disabled:text-gray-400 transition-all"
             >
               Restore Default
             </button>
             <button
               onClick={handleSaveHeroSlides}
               disabled={isSavingHeroSlides}
-              className="px-4 py-2.5 rounded-xl bg-bird-blue text-white font-bold hover:bg-bird-darkBlue disabled:bg-gray-300"
+              className="w-full md:w-auto px-6 py-2.5 rounded-xl bg-bird-blue text-white font-bold text-xs md:text-sm hover:bg-bird-darkBlue disabled:bg-gray-300 shadow-lg shadow-bird-blue/20 transition-all"
             >
               {isSavingHeroSlides ? 'Saving...' : 'Save Carousel'}
             </button>
@@ -1777,11 +1926,13 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ isOpen, onClose 
 
       {/* Sidebar Overlay - Mobile */}
       <AnimatePresence>
-        {!isSidebarOpen && (
+        {isSidebarOpen && (
           <motion.div 
-            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-            onClick={() => setIsSidebarOpen(true)}
-            className="fixed inset-0 bg-black/40 z-40 lg:hidden backdrop-blur-sm"
+            initial={{ opacity: 0 }} 
+            animate={{ opacity: 1 }} 
+            exit={{ opacity: 0 }}
+            onClick={() => setIsSidebarOpen(false)}
+            className="fixed inset-0 bg-black/60 z-40 lg:hidden backdrop-blur-sm"
           />
         )}
       </AnimatePresence>
@@ -1799,14 +1950,14 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ isOpen, onClose 
               <div className="absolute inset-0 bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform duration-300" />
               <span className="text-white font-black text-xl relative z-10">F</span>
             </div>
-            {!isSidebarCollapsed && (
+            {(!isSidebarCollapsed || (typeof window !== 'undefined' && window.innerWidth < 1024)) && (
               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="flex flex-col overflow-hidden whitespace-nowrap">
                 <span className="text-xl font-black bg-clip-text text-transparent bg-gradient-to-r from-gray-900 to-gray-700 block leading-none">Fixlife</span>
                 <span className="text-[10px] font-bold text-bird-blue tracking-widest uppercase">Admin Panel</span>
               </motion.div>
             )}
           </div>
-          <button onClick={() => setIsSidebarOpen(false)} className="lg:hidden p-2 rounded-lg hover:bg-gray-100 text-gray-500">
+          <button onClick={() => setIsSidebarOpen(false)} className="lg:hidden p-2.5 rounded-xl bg-gray-50 text-gray-500 hover:bg-gray-100 transition-colors">
             <X size={20} />
           </button>
         </div>
@@ -1885,14 +2036,14 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ isOpen, onClose 
         <header className="h-24 bg-white/40 backdrop-blur-xl border-b border-gray-200/50 flex items-center justify-between px-6 md:px-10 z-20 sticky top-0 shadow-[0_4px_30px_rgba(0,0,0,0.01)]">
           <div className="flex items-center gap-4">
             <button 
-              onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+              onClick={() => setIsSidebarOpen(true)}
               className="lg:hidden p-2.5 rounded-xl bg-white border border-gray-200 text-gray-600 hover:text-bird-blue hover:border-bird-blue/50 transition-colors shadow-sm"
             >
               <Menu size={20} />
             </button>
-            <div>
-              <h1 className="text-2xl font-black text-gray-900 hidden sm:block tracking-tight">{activeTab}</h1>
-              <p className="text-sm text-gray-500 hidden sm:block font-medium">Welcome back, here's what's happening today.</p>
+            <div className="flex flex-col">
+              <h1 className="text-lg md:text-2xl font-black text-gray-900 tracking-tight leading-none group-hover:translate-x-1 transition-transform">{activeTab}</h1>
+              <p className="text-[10px] md:text-sm text-gray-500 hidden xs:block font-medium mt-0.5">Admin Overview</p>
             </div>
           </div>
 
