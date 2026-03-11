@@ -1,13 +1,18 @@
 import { Router } from 'express';
 import {
+  acceptWorkerRequest,
+  counterOfferWorkerRequest,
   changeWorkerPassword,
   deletePortfolioImage,
   getWorkerMe,
+  getWorkerRequests,
+  rejectWorkerRequest,
   requestWorkerEmailChangeToken,
   updateWorkerSettings,
   uploadDocuments,
   uploadPortfolioImages,
   uploadProfileImage,
+  updateWorkerPresence,
   verifyWorkerEmailChangeToken,
 } from '../controllers/worker.controller';
 import { verifyToken } from '../middlewares/auth.middleware';
@@ -23,6 +28,11 @@ import {
 const router = Router();
 
 router.get('/me', verifyToken, getWorkerMe);
+router.get('/requests', verifyToken, getWorkerRequests);
+router.post('/requests/:idRequest/accept', verifyToken, sensitiveLimiter, acceptWorkerRequest);
+router.post('/requests/:idRequest/reject', verifyToken, sensitiveLimiter, rejectWorkerRequest);
+router.post('/requests/:idRequest/counter-offer', verifyToken, sensitiveLimiter, counterOfferWorkerRequest);
+router.put('/presence', verifyToken, updateWorkerPresence);
 router.put('/settings', verifyToken, sensitiveLimiter, validateWorkerSettings, updateWorkerSettings);
 router.put('/change-password', verifyToken, sensitiveLimiter, validateChangePassword, changeWorkerPassword);
 router.post('/email-change/request', verifyToken, sensitiveLimiter, validateEmailChangeRequest, requestWorkerEmailChangeToken);

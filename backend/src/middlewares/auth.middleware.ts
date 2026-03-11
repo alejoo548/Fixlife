@@ -31,3 +31,19 @@ export const requireAdmin = (req: AuthRequest, res: Response, next: NextFunction
   }
   next();
 };
+
+export const verifyTokenOptional = (req: AuthRequest, res: Response, next: NextFunction): void => {
+  const token = req.headers['authorization']?.split(' ')[1];
+  if (!token) {
+    next();
+    return;
+  }
+
+  try {
+    const decoded = jwt.verify(token, JWT_SECRET) as { user_id: number; rol: string };
+    req.user = decoded;
+    next();
+  } catch (error) {
+    res.status(401).json({ error: 'Unauthorized, invalid token' });
+  }
+};
