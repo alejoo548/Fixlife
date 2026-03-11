@@ -1,10 +1,41 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
+import { API_URL } from '../../config/api';
 import { NavbarProps, AuthMode } from '../../types';
 import { Logo } from '../common/Logo';
 import { useAuth } from '../../context/AuthContext';
 
 export const Navbar: React.FC<NavbarProps> = ({ navItems, onOpenAuth, onStartBooking }) => {
   const { user, logout } = useAuth();
+
+  const fullName = [user?.name, user?.lastname].filter(Boolean).join(' ');
+
+  const initials = fullName
+    .split(' ')
+    .filter(Boolean)
+    .map((part: string) => part[0]?.toUpperCase())
+    .join('')
+    .slice(0, 2);
+
+  const profileImageUrl = useMemo(() => {
+    const raw = user?.profile_image;
+    if (!raw) return '';
+
+    const rawString = String(raw);
+
+    if (rawString.startsWith('http://') || rawString.startsWith('https://')) {
+      return rawString;
+    }
+
+    const apiPublicUrl = API_URL.replace(/\/api\/?$/, '');
+    const cleanPath = rawString.replace(/^\/+/, '');
+
+    if (cleanPath.startsWith('uploads/')) {
+      return `${apiPublicUrl}/${cleanPath}`;
+    }
+
+    return `${apiPublicUrl}/uploads/${cleanPath}`;
+  }, [user?.profile_image]);
+
   const [activeItem, setActiveItem] = useState<number | null>(null);
   const [isAccountOpen, setIsAccountOpen] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -89,7 +120,24 @@ export const Navbar: React.FC<NavbarProps> = ({ navItems, onOpenAuth, onStartBoo
               onClick={() => setIsAccountOpen(!isAccountOpen)}
             >
               <div className="flex items-center gap-2 z-20 transform group-hover:scale-105 transition-transform duration-200">
-                <span className="font-bold text-sm tracking-wide">{user ? user.name : 'Account'}</span>
+
+                {user && (
+                  profileImageUrl ? (
+                    <img
+                      src={profileImageUrl}
+                      alt="Profile"
+                      className="w-8 h-8 rounded-full object-cover border border-gray-200"
+                    />
+                  ) : (
+                    <div className="w-8 h-8 rounded-full bg-bird-blue text-white flex items-center justify-center text-xs font-bold">
+                      {initials || 'U'}
+                    </div>
+                  )
+                )}
+
+                <span className="font-bold text-sm tracking-wide">
+                  {user ? user.name : 'Account'}
+                </span>
                 <svg
                   className={`w-4 h-4 transition-transform duration-300 ${isAccountOpen ? 'rotate-180 text-bird-blue' : 'group-hover:text-bird-blue'}`}
                   fill="none" stroke="currentColor" viewBox="0 0 24 24"
