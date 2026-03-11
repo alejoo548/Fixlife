@@ -4,10 +4,15 @@ import {
   getAllServices,
   updateService,
   deleteService,
+  getServiceCardsAdmin,
+  createServiceCard,
+  updateServiceCard,
+  deleteServiceCard,
   getPendingWorkers,
   approveWorker,
   rejectWorker,
   getDashboardStats,
+  getRequestsHistory,
   getHeroSlidesPublic,
   updateHeroSlides,
   uploadHeroImageAsset,
@@ -29,6 +34,10 @@ router.post('/services', sensitiveLimiter, createService);
 router.get('/services', getAllServices);
 router.put('/services/:id', sensitiveLimiter, updateService);
 router.delete('/services/:id', sensitiveLimiter, deleteService);
+router.get('/service-cards', getServiceCardsAdmin);
+router.post('/service-cards', sensitiveLimiter, createServiceCard);
+router.put('/service-cards/:idCard', sensitiveLimiter, updateServiceCard);
+router.delete('/service-cards/:idCard', sensitiveLimiter, deleteServiceCard);
 
 // Worker approval
 router.get('/pending-workers', getPendingWorkers);
@@ -37,6 +46,7 @@ router.put('/workers/:id/reject', sensitiveLimiter, rejectWorker);
 
 // Dashboard Stats
 router.get('/stats', getDashboardStats);
+router.get('/requests-history', getRequestsHistory);
 
 // Hero Slides Editor
 router.put('/hero-slides', sensitiveLimiter, updateHeroSlides);

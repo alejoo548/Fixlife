@@ -5,7 +5,7 @@ import {
   BarChart, Bar, Legend
 } from 'recharts';
 import { 
-  LayoutDashboard, Users, Briefcase, Settings, LogOut, Search, Bell, TrendingUp, Activity, Clock, CheckCircle, Menu, X, ArrowUpRight, ArrowDownRight, ChevronLeft, ChevronRight,
+  LayoutDashboard, Users, Briefcase, Settings, LogOut, Search, Bell, TrendingUp, Activity, Clock, CheckCircle, Menu, X, ArrowUpRight, ArrowDownRight, ChevronLeft, ChevronRight, Image,
   Plus, Edit3, Trash2, Eye, XCircle, FileText, Shield, Download
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
@@ -37,6 +37,21 @@ interface Service {
   created_at: string;
 }
 
+interface ServiceCard {
+  id_card: number;
+  id_service: number;
+  image_url: string | null;
+  badge: string | null;
+  headline: string | null;
+  summary: string | null;
+  cta_label: string | null;
+  sort_order: number;
+  is_active: boolean | number;
+  created_at: string;
+  service_name: string;
+  service_icon: string | null;
+}
+
 interface PendingWorker {
   id_user: number;
   name: string;
@@ -53,6 +68,22 @@ interface PendingWorker {
   cert_document_url: string | null;
   is_verified: number;
   services: { id_service: number; name: string }[];
+}
+
+interface AdminRequestHistoryItem {
+  id_request: number;
+  id_user: number | null;
+  id_service: number;
+  service_name: string;
+  description: string;
+  location_text: string;
+  budget: number;
+  radius_km: number;
+  status: 'pending' | 'assigned' | 'in_progress' | 'done' | 'cancelled' | string;
+  created_at: string;
+  images_count: number;
+  client: { id_user: number; name: string; email: string | null } | null;
+  assigned_worker: { id_worker_profile: number; name: string } | null;
 }
 
 const notyf = new Notyf({ position: { x: 'right', y: 'bottom' }, ripple: true });
@@ -77,6 +108,21 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ isOpen, onClose 
   const [showServiceForm, setShowServiceForm] = useState(false);
   const [editingService, setEditingService] = useState<Service | null>(null);
   const [serviceForm, setServiceForm] = useState({ name: '', description: '', icon: '' });
+  const [serviceCards, setServiceCards] = useState<ServiceCard[]>([]);
+  const [cardsLoading, setCardsLoading] = useState(false);
+  const [showCardForm, setShowCardForm] = useState(false);
+  const [editingCard, setEditingCard] = useState<ServiceCard | null>(null);
+  const [serviceCardForm, setServiceCardForm] = useState({
+    id_service: '',
+    image_url: '',
+    badge: 'POPULAR',
+    headline: '',
+    summary: '',
+    cta_label: 'Learn More',
+    sort_order: '1',
+    is_active: true,
+  });
+  const [uploadingCardImage, setUploadingCardImage] = useState(false);
 
   // Pending Workers state
   const [pendingWorkers, setPendingWorkers] = useState<PendingWorker[]>([]);
@@ -93,6 +139,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ isOpen, onClose 
   const [isSavingHeroSlides, setIsSavingHeroSlides] = useState(false);
   const [settingsNotice, setSettingsNotice] = useState<string | null>(null);
   const [uploadingSlideId, setUploadingSlideId] = useState<number | null>(null);
+  const [requestHistory, setRequestHistory] = useState<AdminRequestHistoryItem[]>([]);
+  const [requestHistoryLoading, setRequestHistoryLoading] = useState(false);
+  const [requestHistoryStatus, setRequestHistoryStatus] = useState<'all' | 'pending' | 'assigned' | 'in_progress' | 'done' | 'cancelled'>('all');
 
   const getToken = () => localStorage.getItem('token') || '';
 
@@ -118,6 +167,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ isOpen, onClose 
     const name = serviceForm.name.trim();
     if (!name) { notyf.error('Service name is required.'); return; }
     if (name.length > 100) { notyf.error('Name max 100 characters.'); return; }
+    if (/<\s*script|javascript:|on\w+\s*=/i.test(`${serviceForm.name} ${serviceForm.description} ${serviceForm.icon}`)) {
+      notyf.error('Scripts or unsafe HTML are not allowed.');
+      return;
+    }
 
     try {
       const url = editingService
@@ -171,6 +224,196 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ isOpen, onClose 
     } catch { notyf.error('Connection error'); }
   };
 
+  const fetchServiceCards = async () => {
+    setCardsLoading(true);
+    try {
+      const res = await fetch(API_ENDPOINTS.admin.serviceCards, {
+        headers: { Authorization: `Bearer ${getToken()}` },
+      });
+      const data = await res.json();
+      if (data.success) setServiceCards(data.cards);
+    } catch {
+      /* silent */
+    } finally {
+      setCardsLoading(false);
+    }
+  };
+
+  const openCreateCardForm = () => {
+    if (availableCardServices.length === 0) {
+      notyf.error('No available active services to create a new homepage card.');
+      return;
+    }
+    const firstServiceId = String(availableCardServices[0].id_service);
+    setEditingCard(null);
+    setServiceCardForm({
+      id_service: firstServiceId,
+      image_url: '',
+      badge: 'POPULAR',
+      headline: '',
+      summary: '',
+      cta_label: 'Learn More',
+      sort_order: String(serviceCards.length + 1),
+      is_active: true,
+    });
+    setShowCardForm(true);
+  };
+
+  const openEditCardForm = (card: ServiceCard) => {
+    setEditingCard(card);
+    setServiceCardForm({
+      id_service: String(card.id_service),
+      image_url: card.image_url || '',
+      badge: card.badge || 'POPULAR',
+      headline: card.headline || '',
+      summary: card.summary || '',
+      cta_label: card.cta_label || 'Learn More',
+      sort_order: String(card.sort_order || 1),
+      is_active: !!card.is_active,
+    });
+    setShowCardForm(true);
+  };
+
+  const handleCreateOrUpdateCard = async () => {
+    const idService = Number(serviceCardForm.id_service);
+    if (!idService) {
+      notyf.error('Select a service for the card.');
+      return;
+    }
+
+    const unsafePattern = /<\s*script|javascript:|on\w+\s*=|data:text\/html/i;
+    const valuesToCheck = [
+      serviceCardForm.badge,
+      serviceCardForm.headline,
+      serviceCardForm.summary,
+      serviceCardForm.cta_label,
+      serviceCardForm.image_url,
+    ];
+    if (valuesToCheck.some((v) => unsafePattern.test(String(v || '')))) {
+      notyf.error('Scripts or unsafe HTML are not allowed.');
+      return;
+    }
+
+    if (!editingCard && serviceCards.some((card) => card.id_service === idService)) {
+      notyf.error('That service already has a homepage card.');
+      return;
+    }
+
+    const payload = {
+      id_service: idService,
+      image_url: serviceCardForm.image_url.trim() || null,
+      badge: serviceCardForm.badge.trim() || 'POPULAR',
+      headline: serviceCardForm.headline.trim() || null,
+      summary: serviceCardForm.summary.trim() || null,
+      cta_label: serviceCardForm.cta_label.trim() || 'Learn More',
+      sort_order: Number(serviceCardForm.sort_order) || 1,
+      is_active: serviceCardForm.is_active,
+    };
+
+    try {
+      const url = editingCard
+        ? `${API_ENDPOINTS.admin.serviceCards}/${editingCard.id_card}`
+        : API_ENDPOINTS.admin.serviceCards;
+
+      const res = await fetch(url, {
+        method: editingCard ? 'PUT' : 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken()}` },
+        body: JSON.stringify(payload),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        notyf.error(data.error || 'Card operation failed.');
+        return;
+      }
+      notyf.success(editingCard ? 'Card updated.' : 'Card created.');
+      setShowCardForm(false);
+      setEditingCard(null);
+      fetchServiceCards();
+    } catch {
+      notyf.error('Connection error');
+    }
+  };
+
+  const handleDeleteCard = async (idCard: number) => {
+    if (!confirm('Delete this homepage card?')) return;
+    try {
+      const res = await fetch(`${API_ENDPOINTS.admin.serviceCards}/${idCard}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${getToken()}` },
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        notyf.error(data.error || 'Delete failed.');
+        return;
+      }
+      notyf.success('Card deleted.');
+      fetchServiceCards();
+    } catch {
+      notyf.error('Connection error');
+    }
+  };
+
+  const handleServiceCardImageUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    if (!['image/png', 'image/jpeg', 'image/jpg', 'image/webp'].includes(file.type)) {
+      notyf.error('Only PNG/JPG/WEBP files are allowed.');
+      return;
+    }
+
+    if (file.size > 8 * 1024 * 1024) {
+      notyf.error('Image too large. Max 8MB.');
+      return;
+    }
+
+    const token = getToken();
+    if (!token) {
+      notyf.error('Session expired. Please sign in again.');
+      return;
+    }
+
+    try {
+      setUploadingCardImage(true);
+      let processed: File = file;
+      try {
+        processed = await cropTo16x9File(file);
+      } catch {
+        // Fallback: if browser cannot process canvas crop, upload original file.
+        processed = file;
+      }
+      const formData = new FormData();
+      formData.append('image', processed);
+
+      const res = await fetch(API_ENDPOINTS.admin.uploadImageAsset, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+        body: formData,
+      });
+
+      const rawText = await res.text();
+      let data: any = null;
+      try {
+        data = rawText ? JSON.parse(rawText) : null;
+      } catch {
+        data = null;
+      }
+
+      if (!res.ok || !data?.success || !data?.image) {
+        notyf.error(data?.error || `Could not upload image (HTTP ${res.status}).`);
+        return;
+      }
+
+      setServiceCardForm((prev) => ({ ...prev, image_url: data.image }));
+      notyf.success('Image uploaded.');
+    } catch (error: any) {
+      notyf.error(error?.message || 'Connection error uploading image.');
+    } finally {
+      setUploadingCardImage(false);
+      event.target.value = '';
+    }
+  };
+
   // ─── Workers API ───────────────────────────────────────────────────────
   const fetchPendingWorkers = async () => {
     setWorkersLoading(true);
@@ -214,8 +457,12 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ isOpen, onClose 
   // Fetch data when tabs change
   useEffect(() => {
     fetchStats();
-    if (activeTab === 'Services') fetchServices();
+    if (activeTab === 'Services' || activeTab === 'Homepage Cards') {
+      fetchServices();
+      fetchServiceCards();
+    }
     if (activeTab === 'Users & Pros') fetchPendingWorkers();
+    if (activeTab === 'Requests History') fetchRequestsHistory(requestHistoryStatus);
     
     // Fetch Hero Slides if in Platform Settings
     if (activeTab === 'Platform Settings') {
@@ -227,6 +474,12 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ isOpen, onClose 
       });
     }
   }, [activeTab]);
+
+  useEffect(() => {
+    if (activeTab === 'Requests History') {
+      fetchRequestsHistory(requestHistoryStatus);
+    }
+  }, [requestHistoryStatus]);
 
   const updateSlideField = (
     index: number,
@@ -467,29 +720,58 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ isOpen, onClose 
     { name: "Overview", icon: LayoutDashboard },
     { name: "Users & Pros", icon: Users },
     { name: "Services", icon: Briefcase },
+    { name: "Homepage Cards", icon: Image },
+    { name: "Requests History", icon: FileText },
     { name: "Finance Analytics", icon: Activity },
     { name: "Platform Settings", icon: Settings },
   ];
 
+  const availableCardServices = useMemo(() => {
+    const blocked = new Set(
+      serviceCards
+        .filter((c) => !editingCard || c.id_card !== editingCard.id_card)
+        .map((c) => c.id_service)
+    );
+    return services.filter((svc) => !blocked.has(svc.id_service) && !!svc.is_active);
+  }, [services, serviceCards, editingCard]);
+
   // ─── RENDER: Services Tab ──────────────────────────────────────────────
   const renderServicesTab = () => (
     <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <div>
-          <h2 className="text-2xl font-black text-gray-900">Services Management</h2>
-          <p className="text-sm text-gray-500 font-medium">Create and manage service categories for workers</p>
+      {activeTab !== 'Homepage Cards' && (
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+          <div>
+            <h2 className="text-2xl font-black text-gray-900">Services Management</h2>
+            <p className="text-sm text-gray-500 font-medium">Create and manage service categories for workers</p>
+          </div>
+          <button
+            onClick={() => { setShowServiceForm(true); setEditingService(null); setServiceForm({ name: '', description: '', icon: '' }); }}
+            className="flex items-center gap-2 px-6 py-3 rounded-2xl bg-gradient-to-r from-bird-blue to-bird-darkBlue text-white font-bold text-sm shadow-lg shadow-bird-blue/20 hover:scale-[1.02] transition-transform"
+          >
+            <Plus size={18} /> New Service
+          </button>
         </div>
-        <button
-          onClick={() => { setShowServiceForm(true); setEditingService(null); setServiceForm({ name: '', description: '', icon: '' }); }}
-          className="flex items-center gap-2 px-6 py-3 rounded-2xl bg-gradient-to-r from-bird-blue to-bird-darkBlue text-white font-bold text-sm shadow-lg shadow-bird-blue/20 hover:scale-[1.02] transition-transform"
-        >
-          <Plus size={18} /> New Service
-        </button>
-      </div>
+      )}
+
+      {activeTab === 'Homepage Cards' && (
+        <div className="rounded-3xl border border-bird-blue/20 bg-gradient-to-r from-bird-blue/10 via-white to-bird-yellow/10 p-6 shadow-sm">
+          <div className="flex items-start gap-4">
+            <div className="w-12 h-12 rounded-2xl bg-white border border-bird-blue/20 flex items-center justify-center text-bird-blue shadow-sm">
+              <Image size={22} />
+            </div>
+            <div>
+              <h2 className="text-2xl font-black text-gray-900">Homepage Cards Manager</h2>
+              <p className="text-sm text-gray-600 font-medium mt-1">
+                Secure section: only active services from DB, no duplicated service cards, script-safe text fields.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Service Form Modal */}
       <AnimatePresence>
-        {showServiceForm && (
+        {showServiceForm && activeTab !== 'Homepage Cards' && (
           <motion.div
             initial={{ opacity: 0, y: -10 }}
             animate={{ opacity: 1, y: 0 }}
@@ -553,6 +835,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ isOpen, onClose 
       </AnimatePresence>
 
       {/* Services Table */}
+      {activeTab !== 'Homepage Cards' && (
       <div className="bg-white/70 backdrop-blur-xl rounded-3xl border border-white shadow-xl overflow-hidden">
         {servicesLoading ? (
           <div className="p-12 text-center text-gray-400 font-medium">Loading services...</div>
@@ -616,6 +899,276 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ isOpen, onClose 
                         </button>
                         <button
                           onClick={() => handleDeleteService(svc.id_service)}
+                          className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all"
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+      )}
+
+      {/* Homepage Cards Controls */}
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 pt-2">
+        <div>
+          <h3 className="text-xl font-black text-gray-900">
+            {activeTab === 'Homepage Cards' ? 'Homepage Cards Manager' : 'Homepage Service Cards'}
+          </h3>
+          <p className="text-sm text-gray-500 font-medium">
+            Cards shown in the landing page "Professional Services" section
+          </p>
+        </div>
+        <button
+          onClick={openCreateCardForm}
+          className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-bird-blue to-bird-darkBlue text-white font-bold text-sm shadow-lg shadow-bird-blue/20 hover:scale-[1.02] transition-transform"
+        >
+          <Plus size={16} /> New Homepage Card
+        </button>
+      </div>
+
+      {/* Card Form */}
+      <AnimatePresence>
+        {showCardForm && (
+          <motion.div
+            initial={{ opacity: 0, y: -8 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -8 }}
+            className="bg-white/70 backdrop-blur-xl rounded-3xl border border-white shadow-xl p-6 space-y-4"
+          >
+            <h3 className="text-lg font-bold text-gray-900">
+              {editingCard ? 'Edit Homepage Card' : 'Create Homepage Card'}
+            </h3>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              <div>
+                <label className="block text-xs font-bold text-gray-500 mb-1.5 uppercase tracking-wider">Service *</label>
+                <select
+                  value={serviceCardForm.id_service}
+                  onChange={(e) => setServiceCardForm({ ...serviceCardForm, id_service: e.target.value })}
+                  className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl text-sm outline-none focus:border-bird-blue focus:ring-4 focus:ring-bird-blue/10 transition-all"
+                >
+                  <option value="">Select service</option>
+                  {Array.from(
+                    new Map(
+                      [
+                        ...availableCardServices,
+                        ...(editingCard ? services.filter((s) => s.id_service === editingCard.id_service) : []),
+                      ].map((s) => [s.id_service, s])
+                    ).values()
+                  ).map((svc) => (
+                    <option key={svc.id_service} value={svc.id_service}>
+                      {svc.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-gray-500 mb-1.5 uppercase tracking-wider">Badge</label>
+                <input
+                  type="text"
+                  maxLength={40}
+                  value={serviceCardForm.badge}
+                  onChange={(e) => setServiceCardForm({ ...serviceCardForm, badge: e.target.value })}
+                  placeholder="POPULAR"
+                  className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl text-sm outline-none focus:border-bird-blue focus:ring-4 focus:ring-bird-blue/10 transition-all"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-gray-500 mb-1.5 uppercase tracking-wider">Sort Order</label>
+                <input
+                  type="number"
+                  min={1}
+                  value={serviceCardForm.sort_order}
+                  onChange={(e) => setServiceCardForm({ ...serviceCardForm, sort_order: e.target.value })}
+                  className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl text-sm outline-none focus:border-bird-blue focus:ring-4 focus:ring-bird-blue/10 transition-all"
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-bold text-gray-500 mb-1.5 uppercase tracking-wider">Headline</label>
+                <input
+                  type="text"
+                  maxLength={120}
+                  value={serviceCardForm.headline}
+                  onChange={(e) => setServiceCardForm({ ...serviceCardForm, headline: e.target.value })}
+                  placeholder="Card title in homepage"
+                  className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl text-sm outline-none focus:border-bird-blue focus:ring-4 focus:ring-bird-blue/10 transition-all"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-gray-500 mb-1.5 uppercase tracking-wider">Button Label</label>
+                <input
+                  type="text"
+                  maxLength={60}
+                  value={serviceCardForm.cta_label}
+                  onChange={(e) => setServiceCardForm({ ...serviceCardForm, cta_label: e.target.value })}
+                  placeholder="Learn More"
+                  className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl text-sm outline-none focus:border-bird-blue focus:ring-4 focus:ring-bird-blue/10 transition-all"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-gray-500 mb-1.5 uppercase tracking-wider">Summary</label>
+              <textarea
+                maxLength={255}
+                rows={2}
+                value={serviceCardForm.summary}
+                onChange={(e) => setServiceCardForm({ ...serviceCardForm, summary: e.target.value })}
+                placeholder="Short text below the title"
+                className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl text-sm outline-none focus:border-bird-blue focus:ring-4 focus:ring-bird-blue/10 transition-all resize-none"
+              />
+            </div>
+
+            <div className="space-y-3">
+              <label className="block text-xs font-bold text-gray-500 mb-1.5 uppercase tracking-wider">
+                Card Image (Dropify Upload)
+              </label>
+              <label className="block cursor-pointer">
+                <div className="w-full rounded-2xl border-2 border-dashed border-gray-300 bg-gradient-to-br from-white to-sky-50 hover:from-sky-50 hover:to-blue-50 hover:border-bird-blue transition p-6 text-center">
+                  <div className="text-bird-blue text-3xl font-black leading-none">+</div>
+                  <div className="text-gray-900 font-black mt-1">Dropify Upload Zone</div>
+                  <div className="text-xs text-gray-500">PNG/JPG/WEBP, auto-center crop to 16:9 (1600x900)</div>
+                  <span className="inline-block mt-3 bg-bird-blue text-white px-3 py-1.5 rounded-lg text-sm font-bold shadow">
+                    {uploadingCardImage ? 'Uploading...' : 'Dropify Select Image'}
+                  </span>
+                </div>
+                <input
+                  type="file"
+                  accept="image/png,image/jpeg,image/jpg,image/webp"
+                  onChange={handleServiceCardImageUpload}
+                  className="hidden"
+                />
+              </label>
+
+              <div>
+                <label className="block text-xs font-bold text-gray-500 mb-1.5 uppercase tracking-wider">Or paste Image URL</label>
+                <input
+                  type="text"
+                  maxLength={255}
+                  value={serviceCardForm.image_url}
+                  onChange={(e) => setServiceCardForm({ ...serviceCardForm, image_url: e.target.value })}
+                  placeholder="https://... (16:9 recommended)"
+                  className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl text-sm outline-none focus:border-bird-blue focus:ring-4 focus:ring-bird-blue/10 transition-all"
+                />
+              </div>
+
+              <label className="inline-flex items-center gap-2 text-sm font-semibold text-gray-700">
+                <input
+                  type="checkbox"
+                  checked={serviceCardForm.is_active}
+                  onChange={(e) => setServiceCardForm({ ...serviceCardForm, is_active: e.target.checked })}
+                  className="rounded border-gray-300"
+                />
+                Card active
+              </label>
+            </div>
+
+            {serviceCardForm.image_url && (
+              <div className="rounded-2xl border border-gray-200 overflow-hidden max-w-md">
+                <img
+                  src={serviceCardForm.image_url}
+                  alt="Card preview"
+                  className="w-full aspect-[16/9] object-cover"
+                  onError={(e) => {
+                    (e.currentTarget as HTMLImageElement).style.display = 'none';
+                  }}
+                />
+              </div>
+            )}
+
+            <div className="flex gap-3 justify-end pt-1">
+              <button
+                onClick={() => {
+                  setShowCardForm(false);
+                  setEditingCard(null);
+                }}
+                className="px-6 py-2.5 rounded-xl border border-gray-200 text-gray-600 font-bold text-sm hover:bg-gray-50 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleCreateOrUpdateCard}
+                disabled={uploadingCardImage}
+                className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-bird-blue to-bird-darkBlue text-white font-bold text-sm shadow-lg shadow-bird-blue/20 hover:scale-[1.02] transition-transform"
+              >
+                {uploadingCardImage ? 'Uploading image...' : editingCard ? 'Save Card' : 'Create Card'}
+              </button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Homepage Cards List */}
+      <div className="bg-white/70 backdrop-blur-xl rounded-3xl border border-white shadow-xl overflow-hidden">
+        {cardsLoading ? (
+          <div className="p-10 text-center text-gray-400 font-medium">Loading homepage cards...</div>
+        ) : serviceCards.length === 0 ? (
+          <div className="p-10 text-center text-gray-500 font-medium">No homepage cards yet. Add one above.</div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse">
+              <thead>
+                <tr className="bg-gray-50/50 text-xs uppercase tracking-wider text-gray-500 font-bold border-b border-gray-100">
+                  <th className="px-6 py-4">Card</th>
+                  <th className="px-6 py-4">Service</th>
+                  <th className="px-6 py-4">Order</th>
+                  <th className="px-6 py-4">Status</th>
+                  <th className="px-6 py-4 text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-50">
+                {serviceCards.map((card) => (
+                  <tr key={card.id_card} className="hover:bg-gray-50/80 transition-colors">
+                    <td className="px-6 py-4">
+                      <div className="flex items-center gap-3 min-w-[260px]">
+                        <div className="w-16 h-10 rounded-lg overflow-hidden bg-gray-100 border border-gray-200 shrink-0">
+                          {card.image_url ? (
+                            <img src={card.image_url} alt={card.headline || card.service_name} className="w-full h-full object-cover" />
+                          ) : (
+                            <div className="w-full h-full flex items-center justify-center text-xs text-gray-500">No image</div>
+                          )}
+                        </div>
+                        <div>
+                          <p className="text-sm font-bold text-gray-900 line-clamp-1">{card.headline || card.service_name}</p>
+                          <p className="text-xs text-gray-500 line-clamp-1">{card.cta_label || 'Learn More'}</p>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 text-sm font-semibold text-gray-700">{card.service_name}</td>
+                    <td className="px-6 py-4 text-sm text-gray-600">{card.sort_order}</td>
+                    <td className="px-6 py-4">
+                      <span
+                        className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold border ${
+                          card.is_active
+                            ? 'bg-emerald-50 text-emerald-600 border-emerald-100'
+                            : 'bg-gray-50 text-gray-500 border-gray-200'
+                        }`}
+                      >
+                        {card.is_active ? <><CheckCircle size={12} /> Active</> : <><XCircle size={12} /> Paused</>}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 text-right">
+                      <div className="flex items-center gap-2 justify-end">
+                        <button
+                          onClick={() => openEditCardForm(card)}
+                          className="p-2 text-gray-400 hover:text-bird-blue hover:bg-bird-blue/10 rounded-lg transition-all"
+                        >
+                          <Edit3 size={16} />
+                        </button>
+                        <button
+                          onClick={() => handleDeleteCard(card.id_card)}
                           className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all"
                         >
                           <Trash2 size={16} />
@@ -745,6 +1298,97 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ isOpen, onClose 
   );
 
   // ─── RENDER: Overview Tab ────────────────────────────────────────────
+  const renderRequestsHistoryTab = () => {
+    const badgeClass = (statusRaw: string) => {
+      const status = String(statusRaw || 'pending').toLowerCase();
+      if (status === 'done') return 'bg-emerald-50 text-emerald-700 border-emerald-200';
+      if (status === 'assigned') return 'bg-blue-50 text-blue-700 border-blue-200';
+      if (status === 'in_progress') return 'bg-indigo-50 text-indigo-700 border-indigo-200';
+      if (status === 'cancelled') return 'bg-red-50 text-red-700 border-red-200';
+      return 'bg-amber-50 text-amber-700 border-amber-200';
+    };
+
+    const label = (statusRaw: string) => {
+      const status = String(statusRaw || 'pending').toLowerCase();
+      if (status === 'in_progress') return 'In Progress';
+      return status.charAt(0).toUpperCase() + status.slice(1);
+    };
+
+    return (
+      <div className="space-y-6">
+        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+          <div>
+            <h2 className="text-2xl font-black text-gray-900">Requests History</h2>
+            <p className="text-sm text-gray-500 font-medium">Client/Admin timeline by status</p>
+          </div>
+          <select
+            value={requestHistoryStatus}
+            onChange={(e) => setRequestHistoryStatus(e.target.value as any)}
+            className="rounded-xl border border-gray-200 bg-white px-4 py-2 text-sm font-semibold"
+          >
+            <option value="all">All</option>
+            <option value="pending">Pending</option>
+            <option value="assigned">Assigned</option>
+            <option value="in_progress">In Progress</option>
+            <option value="done">Done</option>
+            <option value="cancelled">Cancelled</option>
+          </select>
+        </div>
+
+        {requestHistoryLoading ? (
+          <div className="p-10 rounded-2xl border border-gray-200 bg-white text-gray-500 font-semibold">
+            Loading request history...
+          </div>
+        ) : requestHistory.length === 0 ? (
+          <div className="p-10 rounded-2xl border border-gray-200 bg-white text-gray-500 font-semibold">
+            No requests found for this filter.
+          </div>
+        ) : (
+          <div className="overflow-x-auto rounded-2xl border border-gray-200 bg-white">
+            <table className="w-full text-left border-collapse min-w-[980px]">
+              <thead>
+                <tr className="bg-gray-50 text-xs uppercase tracking-wider text-gray-500 font-bold border-b border-gray-100">
+                  <th className="px-4 py-3">Request</th>
+                  <th className="px-4 py-3">Service</th>
+                  <th className="px-4 py-3">Client</th>
+                  <th className="px-4 py-3">Worker</th>
+                  <th className="px-4 py-3">Budget</th>
+                  <th className="px-4 py-3">Images</th>
+                  <th className="px-4 py-3">Status</th>
+                  <th className="px-4 py-3">Created</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {requestHistory.map((request) => (
+                  <tr key={request.id_request} className="hover:bg-gray-50/80">
+                    <td className="px-4 py-3">
+                      <p className="font-bold text-gray-900">#{request.id_request}</p>
+                      <p className="text-xs text-gray-500 line-clamp-1">{request.location_text}</p>
+                    </td>
+                    <td className="px-4 py-3 text-sm font-semibold text-gray-800">{request.service_name}</td>
+                    <td className="px-4 py-3">
+                      <p className="text-sm font-semibold text-gray-800">{request.client?.name || 'Guest'}</p>
+                      <p className="text-xs text-gray-500">{request.client?.email || 'No email'}</p>
+                    </td>
+                    <td className="px-4 py-3 text-sm text-gray-700">{request.assigned_worker?.name || 'Unassigned'}</td>
+                    <td className="px-4 py-3 text-sm font-bold text-gray-800">${Number(request.budget || 0).toFixed(2)}</td>
+                    <td className="px-4 py-3 text-sm text-gray-700">{request.images_count}</td>
+                    <td className="px-4 py-3">
+                      <span className={`inline-flex px-2.5 py-1 rounded-full text-xs font-bold border ${badgeClass(request.status)}`}>
+                        {label(request.status)}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 text-sm text-gray-600">{new Date(request.created_at).toLocaleString()}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    );
+  };
+
   const renderOverviewTab = () => (
     <div className="space-y-8">
       {/* Stats Grid */}
@@ -1051,9 +1695,30 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ isOpen, onClose 
   const renderTabContent = () => {
     switch (activeTab) {
       case 'Services': return renderServicesTab();
+      case 'Homepage Cards': return renderServicesTab();
       case 'Users & Pros': return renderUsersTab();
+      case 'Requests History': return renderRequestsHistoryTab();
       case 'Platform Settings': return renderPlatformSettingsTab();
       default: return renderOverviewTab();
+    }
+  };
+
+  const fetchRequestsHistory = async (
+    status: 'all' | 'pending' | 'assigned' | 'in_progress' | 'done' | 'cancelled' = requestHistoryStatus
+  ) => {
+    setRequestHistoryLoading(true);
+    try {
+      const res = await fetch(`${API_ENDPOINTS.admin.requestsHistory}?status=${status}`, {
+        headers: { Authorization: `Bearer ${getToken()}` },
+      });
+      const data = await res.json();
+      if (data.success && Array.isArray(data.requests)) {
+        setRequestHistory(data.requests);
+      }
+    } catch {
+      // silent
+    } finally {
+      setRequestHistoryLoading(false);
     }
   };
 

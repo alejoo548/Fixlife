@@ -18,7 +18,8 @@ import { TestimonialsCarousel } from './components/sections/TestimonialsCarousel
 import { FAQSection } from './components/sections/FAQSection';
 import { SafetySection } from './components/sections/SafetySection';
 import { Button } from './components/common/Button';
-import { hasRole, isAuthenticated } from './utils/session';
+import { clearAuthSession, hasRole, isAuthenticated } from './utils/session';
+import { API_ENDPOINTS } from './config/api';
 
 const navItems: NavItemType[] = [
   { name: "Services" },
@@ -33,12 +34,26 @@ const navItems: NavItemType[] = [
   }
 ];
 
+interface HomeServiceCard {
+  id_card: number;
+  id_service: number;
+  image_url: string | null;
+  badge: string;
+  headline: string;
+  summary: string;
+  cta_label: string;
+  service_name: string;
+  service_icon: string | null;
+}
+
 const App: React.FC = () => {
   const [isAuthOpen, setIsAuthOpen] = useState(false);
   const [authMode, setAuthMode] = useState<AuthMode>('signin');
   const [isWorkerAuthOpen, setIsWorkerAuthOpen] = useState(false);
   const [workerAuthMode, setWorkerAuthMode] = useState<'signin' | 'signup'>('signup');
   const [currentView, setCurrentView] = useState<'landing' | 'app' | 'pro-dashboard' | 'admin-dashboard'>('landing');
+  const [serviceCards, setServiceCards] = useState<HomeServiceCard[]>([]);
+  const [selectedService, setSelectedService] = useState<{ id: number; name: string } | null>(null);
 
   const goLandingWithReplace = () => {
     window.history.replaceState({}, '', '/');
@@ -99,13 +114,30 @@ const App: React.FC = () => {
     console.log('[App] Current view changed to:', currentView);
   }, [currentView]);
 
+  useEffect(() => {
+    const fetchServiceCards = async () => {
+      try {
+        const res = await fetch(API_ENDPOINTS.services.cards);
+        const data = await res.json();
+        if (data?.success && Array.isArray(data.cards)) {
+          setServiceCards(data.cards);
+        }
+      } catch (error) {
+        console.error('Could not fetch service cards:', error);
+      }
+    };
+
+    fetchServiceCards();
+  }, []);
+
   const handleOpenAuth = (mode: AuthMode) => {
     setAuthMode(mode);
     setIsAuthOpen(true);
   };
 
-  const handleStartBooking = () => {
+  const handleStartBooking = (service?: { id: number; name: string } | null) => {
     console.log('[App] handleStartBooking called');
+    setSelectedService(service || null);
     window.history.pushState({}, '', '/app');
     setCurrentView('app');
     window.scrollTo(0, 0);
@@ -145,32 +177,60 @@ const App: React.FC = () => {
     window.scrollTo(0, 0);
   }
 
-  const services = [
+  const handleWorkerSignOut = () => {
+    clearAuthSession();
+    window.history.replaceState({}, '', '/');
+    window.location.reload();
+  };
+
+  const fallbackCards: HomeServiceCard[] = [
     {
-      title: "Expert Plumbing",
-      desc: "Leak repairs, pipe installation, and sanitary maintenance.",
-      img: "1585704032915-c3400ca199e7",
-      icon: "M19.428 15.428a2 2 0 00-1.022-.547l-2.384-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z"
+      id_card: 0,
+      id_service: 0,
+      image_url: 'https://images.unsplash.com/photo-1585704032915-c3400ca199e7?q=80&w=800&auto=format&fit=crop',
+      badge: 'POPULAR',
+      headline: 'Expert Plumbing',
+      summary: 'Leak repairs, pipe installation, and sanitary maintenance.',
+      cta_label: 'Learn More',
+      service_name: 'Plumbing',
+      service_icon: '🚰',
     },
     {
-      title: "Electrical",
-      desc: "Safe installations, wiring, panels, and short circuit repairs.",
-      img: "1621905251189-08b45d6a269e",
-      icon: "M13 10V3L4 14h7v7l9-11h-7z"
+      id_card: 0,
+      id_service: 0,
+      image_url: 'https://images.unsplash.com/photo-1621905251189-08b45d6a269e?q=80&w=800&auto=format&fit=crop',
+      badge: 'POPULAR',
+      headline: 'Electrical',
+      summary: 'Safe installations, wiring, panels, and short circuit repairs.',
+      cta_label: 'Learn More',
+      service_name: 'Electrical Services',
+      service_icon: '⚡',
     },
     {
-      title: "Auto Mechanics",
-      desc: "Vehicle diagnostics, oil changes, and mobile repairs.",
-      img: "1530046339160-71153320c072",
-      icon: "M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z M15 12a3 3 0 11-6 0 3 3 0 016 0z"
+      id_card: 0,
+      id_service: 0,
+      image_url: 'https://images.unsplash.com/photo-1530046339160-71153320c072?q=80&w=800&auto=format&fit=crop',
+      badge: 'POPULAR',
+      headline: 'Auto Mechanics',
+      summary: 'Vehicle diagnostics, oil changes, and mobile repairs.',
+      cta_label: 'Learn More',
+      service_name: 'Auto Mechanic',
+      service_icon: '🔧',
     },
     {
-      title: "Carpentry",
-      desc: "Furniture design, door repair, and structure assembly.",
-      img: "1610557892470-55d9e80c0bce",
-      icon: "M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"
-    }
+      id_card: 0,
+      id_service: 0,
+      image_url: 'https://images.unsplash.com/photo-1610557892470-55d9e80c0bce?q=80&w=800&auto=format&fit=crop',
+      badge: 'POPULAR',
+      headline: 'Carpentry',
+      summary: 'Furniture design, door repair, and structure assembly.',
+      cta_label: 'Learn More',
+      service_name: 'Carpentry',
+      service_icon: '🪚',
+    },
   ];
+
+  const cardsToRender = serviceCards.length > 0 ? serviceCards.slice(0, 8) : fallbackCards;
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-sky-50 via-amber-50 to-orange-50 text-gray-900 selection:bg-bird-blue selection:text-white overflow-x-hidden font-sans flex flex-col relative transition-colors duration-500">
@@ -209,12 +269,15 @@ const App: React.FC = () => {
         <ServiceRequestWizard
           isOpen={true}
           onClose={handleBackToLanding}
+          initialServiceId={selectedService?.id}
+          initialServiceName={selectedService?.name}
         />
       ) : currentView === 'pro-dashboard' ? (
         isAuthenticated() && hasRole('worker') ? (
           <ProDashboard
             isOpen={true}
             onClose={handleBackToLanding}
+            onSignOut={handleWorkerSignOut}
           />
         ) : null
       ) : currentView === 'admin-dashboard' ? (
@@ -323,7 +386,7 @@ const App: React.FC = () => {
                       className="flex flex-col gap-3 md:gap-4 mb-6 md:mb-8"
                     >
                       <Button
-                        onClick={handleStartBooking}
+                        onClick={() => handleStartBooking()}
                         variant="primary"
                         size="lg"
                         fullWidth
@@ -413,7 +476,7 @@ const App: React.FC = () => {
                     </motion.p>
                   </div>
                   <Button
-                    onClick={handleStartBooking}
+                    onClick={() => handleStartBooking()}
                     variant="ghost"
                     size="md"
                     className="hidden sm:flex"
@@ -428,12 +491,12 @@ const App: React.FC = () => {
                 </div>
               </ScrollReveal>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                {services.map((item, i) => (
+                {cardsToRender.map((item, i) => (
                   <ScrollReveal key={i} delay={i * 100} className="h-full">
                     <motion.div
                       whileHover={{ y: -8, scale: 1.02 }}
                       transition={{ type: "spring", stiffness: 300 }}
-                      onClick={handleStartBooking}
+                      onClick={() => handleStartBooking({ id: item.id_service, name: item.service_name })}
                       className="group h-full cursor-pointer bg-white/80 border border-gray-200/50 rounded-3xl overflow-hidden hover:border-bird-blue/50 transition-all duration-500 hover:shadow-2xl hover:shadow-bird-blue/10 flex flex-col backdrop-blur-sm"
                     >
                       <div className="relative h-48 overflow-hidden">
@@ -441,30 +504,36 @@ const App: React.FC = () => {
                         <motion.img
                           whileHover={{ scale: 1.15 }}
                           transition={{ duration: 0.6 }}
-                          src={`https://images.unsplash.com/photo-${item.img}?q=80&w=800&auto=format&fit=crop`}
-                          alt={item.title}
+                          src={item.image_url || fallbackCards[0].image_url || ''}
+                          alt={item.headline}
                           className="w-full h-full object-cover grayscale-[30%] group-hover:grayscale-0 transition-all duration-700"
                         />
                         <motion.div
                           whileHover={{ scale: 1.1, rotate: 5 }}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleStartBooking({ id: item.id_service, name: item.service_name });
+                          }}
                           className="absolute top-4 right-4 z-20 w-12 h-12 bg-white/95 backdrop-blur-md rounded-xl border border-gray-200 flex items-center justify-center shadow-lg group-hover:bg-bird-blue group-hover:border-bird-blue group-hover:text-white transition-all duration-300 text-gray-700"
                         >
-                          <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d={item.icon} />
-                          </svg>
+                          <span className="text-xl">{item.service_icon && item.service_icon.length <= 2 ? item.service_icon : '⚙️'}</span>
                         </motion.div>
                       </div>
                       <div className="p-6 flex-1 flex flex-col relative z-20">
                         <div className="flex-1">
-                          <h4 className="text-xl font-bold text-gray-900 group-hover:text-bird-blue transition-colors mb-2">{item.title}</h4>
-                          <p className="text-gray-600 text-sm leading-relaxed mb-4 line-clamp-3 font-medium">{item.desc}</p>
+                          <h4 className="text-xl font-bold text-gray-900 group-hover:text-bird-blue transition-colors mb-2">{item.headline}</h4>
+                          <p className="text-gray-600 text-sm leading-relaxed mb-4 line-clamp-3 font-medium">{item.summary}</p>
                         </div>
                         <motion.div
                           initial={{ x: 0 }}
                           whileHover={{ x: 5 }}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleStartBooking({ id: item.id_service, name: item.service_name });
+                          }}
                           className="flex items-center gap-2 text-bird-blue font-bold text-sm mt-2 group-hover:gap-3 transition-all"
                         >
-                          <span>Learn More</span>
+                          <span>{item.cta_label || 'Learn More'}</span>
                           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" />
                           </svg>
