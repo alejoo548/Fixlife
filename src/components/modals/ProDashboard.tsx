@@ -23,7 +23,15 @@ export const ProDashboard: React.FC<ProDashboardProps> = ({ isOpen, onClose, onS
    const [isVerified, setIsVerified] = useState(false); // Por defecto falso
    const [hasUploadedDocs, setHasUploadedDocs] = useState(false); // Por defecto falso
    const [userName, setUserName] = useState('');
+   const [userAvatar, setUserAvatar] = useState<string | null>(null);
    const [token, setToken] = useState<string | null>(null);
+
+   const getInitials = (name: string) => {
+      if (!name) return 'U';
+      const parts = name.split(' ').filter(p => p.trim() !== '');
+      if (parts.length >= 2) return `${parts[0][0]}${parts[1][0]}`.toUpperCase();
+      return name.slice(0, 2).toUpperCase();
+   };
 
    const handleSignOut = () => {
       clearAuthSession();
@@ -91,6 +99,7 @@ export const ProDashboard: React.FC<ProDashboardProps> = ({ isOpen, onClose, onS
          setIsVerified(normalizeBool(user.worker_profile?.is_verified));
          setHasUploadedDocs(!!user.worker_profile?.dui_document || !!user.worker_profile?.cert_document);
          setUserName(typeof user.name === 'string' ? user.name : '');
+         setUserAvatar(typeof user.profile_image === 'string' ? user.profile_image : null);
       }
    }, [onClose]);
 
@@ -164,69 +173,88 @@ export const ProDashboard: React.FC<ProDashboardProps> = ({ isOpen, onClose, onS
                transition={{ delay: 0.2 }}
                className="h-16 md:h-20 flex items-center justify-between px-4 md:px-8 shrink-0 relative z-20"
             >
-               <div className="flex-1 min-w-0">
-                  <motion.h2
-                     key={activeTab}
-                     initial={{ opacity: 0, x: -20 }}
-                     animate={{ opacity: 1, x: 0 }}
-                     className="text-xl md:text-2xl font-bold text-gray-900 capitalize flex items-center gap-2 md:gap-3 truncate"
+               <div className="flex-1 min-w-0 flex items-center gap-3">
+                  <motion.div
+                     whileHover={{ scale: 1.05 }}
+                     whileTap={{ scale: 0.95 }}
+                     className="md:hidden flex items-center justify-center w-8 h-8 rounded-full bg-gray-100 cursor-pointer shrink-0"
+                     onClick={handleSignOut}
                   >
-                     <span className="truncate">{activeTab.replace('-', ' ')}</span>
-                     {activeTab === 'requests' && (
-                        <motion.span
-                           initial={{ scale: 0 }}
-                           animate={{ scale: 1 }}
-                           className="bg-bird-orange text-white text-xs px-2 py-0.5 rounded-md shrink-0 flex items-center gap-1"
-                        >
+                     <svg className="w-4 h-4 text-gray-700" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M15 19l-7-7 7-7" />
+                     </svg>
+                  </motion.div>
+                  <div className="min-w-0">
+                     <motion.h2
+                        key={activeTab}
+                        initial={{ opacity: 0, x: -20 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        className="text-lg md:text-2xl font-bold text-gray-900 capitalize flex items-center gap-2 md:gap-3 truncate"
+                     >
+                        <span className="truncate">{activeTab.replace('-', ' ')}</span>
+                        {activeTab === 'requests' && (
                            <motion.span
-                              animate={{ scale: [1, 1.3, 1] }}
-                              transition={{ duration: 2, repeat: Infinity }}
-                              className="w-1.5 h-1.5 rounded-full bg-white"
-                           />
-                           Live
-                        </motion.span>
-                     )}
-                  </motion.h2>
-                  <motion.p
-                     initial={{ opacity: 0 }}
-                     animate={{ opacity: 1 }}
-                     transition={{ delay: 0.3 }}
-                     className="text-gray-600 text-xs md:text-sm hidden sm:block"
-                  >
-                     {userName ? `Welcome back, ${userName}.` : 'Welcome back.'}
-                  </motion.p>
+                              initial={{ scale: 0 }}
+                              animate={{ scale: 1 }}
+                              className="bg-bird-orange text-white text-[10px] md:text-xs px-1.5 md:px-2 py-0.5 rounded-md shrink-0 flex items-center gap-1"
+                           >
+                              <motion.span
+                                 animate={{ scale: [1, 1.3, 1] }}
+                                 transition={{ duration: 2, repeat: Infinity }}
+                                 className="w-1.5 h-1.5 rounded-full bg-white"
+                              />
+                              Live
+                           </motion.span>
+                        )}
+                     </motion.h2>
+                     <motion.p
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        transition={{ delay: 0.3 }}
+                        className="text-gray-600 text-xs md:text-sm hidden sm:block truncate"
+                     >
+                        {userName ? `Welcome back, ${userName}.` : 'Welcome back.'}
+                     </motion.p>
+                  </div>
                </div>
 
-               <motion.div
-                  whileHover={{ scale: 1.05 }}
-                  whileTap={{ scale: 0.95 }}
-                  className="md:hidden flex items-center gap-2 ml-2 cursor-pointer"
-                  onClick={handleSignOut}
-               >
-                  <span className="font-bold text-gray-900 text-sm">Back</span>
-               </motion.div>
-
-               <motion.div
-                  initial={{ scale: 0, opacity: 0 }}
-                  animate={{ scale: 1, opacity: 1 }}
-                  transition={{ delay: 0.4, type: "spring" }}
-                  className="hidden md:flex items-center gap-4 bg-white border border-gray-200 p-2 rounded-2xl shadow-lg ml-4"
-               >
-                  <span className={`text-xs font-bold tracking-wider px-2 transition-colors ${isOnline ? 'text-green-500' : 'text-gray-500'}`}>
-                     {isOnline ? 'ONLINE' : 'OFFLINE'}
-                  </span>
-                  <motion.button
-                     whileTap={{ scale: 0.9 }}
+               <div className="flex items-center gap-3">
+                  <motion.div
+                     initial={{ scale: 0, opacity: 0 }}
+                     animate={{ scale: 1, opacity: 1 }}
+                     transition={{ delay: 0.4, type: "spring" }}
+                     className="flex items-center gap-2 cursor-pointer"
                      onClick={() => setIsOnline(!isOnline)}
-                     className={`w-12 h-7 rounded-full p-1 transition-colors duration-300 relative ${isOnline ? 'bg-green-500' : 'bg-gray-300'}`}
                   >
-                     <motion.div
-                        animate={{ x: isOnline ? 20 : 0 }}
-                        transition={{ type: "spring", stiffness: 500, damping: 30 }}
-                        className="w-5 h-5 rounded-full bg-white shadow-md"
-                     />
-                  </motion.button>
-               </motion.div>
+                     <span className={`text-[10px] md:text-sm font-bold tracking-wider transition-colors ${isOnline ? 'text-emerald-500' : 'text-gray-400'}`}>
+                        {isOnline ? 'ONLINE' : 'OFFLINE'}
+                     </span>
+                     <div className={`w-10 md:w-12 h-6 md:h-7 rounded-full p-1 transition-colors duration-300 relative ${isOnline ? 'bg-emerald-500' : 'bg-gray-300'}`}>
+                        <motion.div
+                           animate={{ x: isOnline ? (window.innerWidth < 768 ? 16 : 20) : 0 }}
+                           transition={{ type: "spring", stiffness: 500, damping: 30 }}
+                           className="w-4 h-4 md:w-5 md:h-5 rounded-full bg-white shadow-sm"
+                        />
+                     </div>
+                  </motion.div>
+
+                  <div className="flex items-center gap-2 md:gap-3 pl-2 md:pl-4 border-l border-gray-200">
+                     <span className="text-sm font-bold text-gray-700 hidden sm:block truncate max-w-[100px] md:max-w-none">
+                        {userName || 'User'}
+                     </span>
+                     {userAvatar ? (
+                        <img 
+                           src={userAvatar} 
+                           alt={userName}
+                           className="w-8 h-8 md:w-10 md:h-10 rounded-full object-cover border-2 border-white shadow-sm"
+                        />
+                     ) : (
+                        <div className="w-8 h-8 md:w-10 md:h-10 rounded-full bg-gradient-to-br from-bird-blue to-blue-600 border-2 border-white shadow-sm flex items-center justify-center text-white font-bold text-xs md:text-sm tracking-widest shrink-0">
+                           {getInitials(userName)}
+                        </div>
+                     )}
+                  </div>
+               </div>
             </motion.div>
 
             {/* Verification Banner */}
@@ -288,7 +316,7 @@ export const ProDashboard: React.FC<ProDashboardProps> = ({ isOpen, onClose, onS
                initial={{ opacity: 0, y: 20 }}
                animate={{ opacity: 1, y: 0 }}
                transition={{ delay: 0.3 }}
-               className="flex-1 flex flex-col md:flex-row overflow-hidden rounded-tl-3xl border-t border-l border-gray-200 bg-white/50 backdrop-blur-sm relative"
+               className="flex-1 flex flex-col md:flex-row overflow-hidden relative pb-16 md:pb-0"
             >
                {!isVerified && !hasUploadedDocs ? (
                   <UploadDocumentsView 

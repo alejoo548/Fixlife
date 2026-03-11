@@ -221,14 +221,16 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
 
         const L = window.L;
         const map = L.map(mapContainerRef.current, {
-            zoomControl: true,
+            zoomControl: false,
             attributionControl: true,
         }).setView([14.6349, -90.5069], 12);
 
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
             maxZoom: 19,
-            attribution: '&copy; OpenStreetMap contributors',
+            attribution: '&copy; OpenStreetMap &copy; CARTO',
         }).addTo(map);
+
+        L.control.zoom({ position: 'bottomright' }).addTo(map);
 
         mapInstanceRef.current = map;
     }, [isOpen, leafletReady]);
@@ -265,20 +267,20 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
 
         if (currentCoords) {
             const me = L.circleMarker([currentCoords.lat, currentCoords.lng], {
-                radius: 9,
-                color: '#1d4ed8',
+                radius: 10,
+                color: '#ffffff',
                 weight: 3,
-                fillColor: '#3b82f6',
-                fillOpacity: 0.9,
+                fillColor: '#38bdf8', /* sky-400 equivalent for bird-blue aesthetic */
+                fillOpacity: 1,
             }).addTo(map).bindPopup('You are here');
             mapMarkersRef.current.push(me);
 
             const radius = L.circle([currentCoords.lat, currentCoords.lng], {
                 radius: radiusKm * 1000,
-                color: '#2563eb',
+                color: '#3b82f6',
                 weight: 1,
-                fillColor: '#60a5fa',
-                fillOpacity: 0.08,
+                fillColor: '#3b82f6',
+                fillOpacity: 0.05,
             }).addTo(map);
             mapMarkersRef.current.push(radius);
         }
@@ -289,11 +291,11 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
             if (typeof lat !== 'number' || typeof lng !== 'number') return;
 
             const marker = L.circleMarker([lat, lng], {
-                radius: 7,
-                color: '#059669',
+                radius: 8,
+                color: '#ffffff',
                 weight: 2,
-                fillColor: '#10b981',
-                fillOpacity: 0.85,
+                fillColor: '#0284c7', /* sky-600 */
+                fillOpacity: 1,
             }).addTo(map).bindPopup(
                 `<b>${worker.name}</b><br/>${worker.distance_km != null ? `${worker.distance_km.toFixed(1)} km` : ''}`
             );
@@ -666,15 +668,43 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-40 bg-gradient-to-br from-sky-50 via-amber-50 to-orange-50 flex flex-col md:flex-row font-sans"
+            className="fixed inset-0 z-40 flex flex-col md:flex-row font-sans pointer-events-auto bg-black/5"
         >
-            {/* Sidebar */}
+            {/* Map View Background */}
+            <div className="absolute inset-0 z-0 bg-gray-100">
+                <div ref={mapContainerRef} className="absolute inset-0 z-0" />
+                {!leafletReady && (
+                    <div className="absolute inset-0 flex items-center justify-center bg-white/70 backdrop-blur-sm z-[500]">
+                        <div className="rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm font-semibold text-gray-700 shadow flex items-center gap-3">
+                            <motion.div animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 1, ease: 'linear' }} className="w-4 h-4 border-2 border-bird-blue border-r-transparent rounded-full" />
+                            Loading map...
+                        </div>
+                    </div>
+                )}
+                <div className="absolute top-4 right-4 md:left-[520px] md:top-4 z-[400] rounded-xl bg-white/95 border border-gray-200 shadow-xl px-4 py-3 pointer-events-auto hidden sm:block">
+                    <p className="text-[11px] uppercase tracking-wider font-bold text-gray-500">Live Map</p>
+                    <p className="text-sm font-bold text-gray-900">
+                        {currentCoords ? `Lat ${currentCoords.lat.toFixed(4)}, Lng ${currentCoords.lng.toFixed(4)}` : 'Detect location to center'}
+                    </p>
+                    <p className="text-xs text-bird-blue font-bold mt-1">
+                        {nearbyWorkers.length} nearby pro(s) in {radiusKm} km
+                    </p>
+                </div>
+            </div>
+
+            {/* Sidebar / Bottom Sheet */}
             <motion.div
-                initial={{ x: -100, opacity: 0 }}
-                animate={{ x: 0, opacity: 1 }}
-                transition={{ type: "spring", damping: 20 }}
-                className="w-full md:w-[450px] lg:w-[500px] h-full flex flex-col bg-white border-r border-gray-200 relative z-20 shadow-2xl overflow-hidden"
+                initial={{ y: "100%", opacity: 0 }}
+                animate={{ y: 0, opacity: 1 }}
+                exit={{ y: "100%", opacity: 0 }}
+                transition={{ type: "spring", damping: 25, stiffness: 200 }}
+                className="w-full h-[60vh] mt-auto md:mt-0 md:h-full md:w-[450px] lg:w-[500px] flex flex-col bg-white/95 backdrop-blur-lg relative z-20 shadow-[0_-10px_40px_rgba(0,0,0,0.15)] md:shadow-2xl overflow-hidden rounded-t-[2rem] md:rounded-none md:border-r border-gray-200"
             >
+                {/* Mobile Drag Handle */}
+                <div className="w-full flex justify-center pt-4 pb-0 md:hidden bg-white">
+                    <div className="w-12 h-1.5 bg-gray-300 rounded-full" />
+                </div>
+
                 {/* Header */}
                 <div className="h-16 md:h-20 flex items-center justify-between px-4 md:px-6 border-b border-gray-200 bg-white shrink-0">
                     <motion.button
@@ -1184,23 +1214,36 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
 
                                                             {openChatRequestId === request.id_request && (
                                                                 <div className="mt-2 space-y-2">
-                                                                    <div className="max-h-36 overflow-y-auto rounded-lg border border-gray-200 bg-gray-50 p-2 space-y-2">
+                                                                    <div className="max-h-48 overflow-y-auto rounded-xl border border-gray-200 bg-slate-50 p-3 space-y-3 flex flex-col">
                                                                         {(chatByRequest[request.id_request] || []).length === 0 ? (
-                                                                            <p className="text-xs text-gray-500">No messages yet.</p>
+                                                                            <p className="text-xs text-gray-500 font-medium text-center py-4">No messages yet. Say hi!</p>
                                                                         ) : (
-                                                                            (chatByRequest[request.id_request] || []).map((msg) => (
-                                                                                <div key={msg.id_message} className={`rounded-lg px-2.5 py-2 text-xs ${msg.sender_role === 'client' ? 'bg-bird-blue/10 text-slate-800' : 'bg-emerald-100 text-slate-800'}`}>
-                                                                                    <p className="font-bold text-[10px] uppercase tracking-wide mb-0.5">
-                                                                                        {msg.sender_role === 'client' ? 'You' : 'Worker'}
-                                                                                    </p>
-                                                                                    {msg.message && <p>{msg.message}</p>}
-                                                                                    {msg.image_url && (
-                                                                                        <a href={msg.image_url} target="_blank" rel="noreferrer" className="text-[10px] font-bold text-bird-blue underline">
-                                                                                            View image
-                                                                                        </a>
-                                                                                    )}
-                                                                                </div>
-                                                                            ))
+                                                                            <AnimatePresence>
+                                                                                {(chatByRequest[request.id_request] || []).map((msg) => {
+                                                                                    const isMe = msg.sender_role === 'client';
+                                                                                    return (
+                                                                                        <motion.div 
+                                                                                            initial={{ opacity: 0, scale: 0.9, y: 10 }}
+                                                                                            animate={{ opacity: 1, scale: 1, y: 0 }}
+                                                                                            key={msg.id_message} 
+                                                                                            className={`max-w-[85%] rounded-2xl px-3.5 py-2.5 text-xs shadow-sm flex flex-col ${isMe ? 'self-end bg-gradient-to-br from-bird-blue to-blue-600 text-white rounded-tr-sm' : 'self-start bg-white border border-gray-200 text-slate-800 rounded-tl-sm'}`}
+                                                                                        >
+                                                                                            <p className={`font-bold text-[9px] uppercase tracking-wider mb-1 ${isMe ? 'text-blue-100' : 'text-gray-500'}`}>
+                                                                                                {isMe ? 'You' : 'Pro'}
+                                                                                            </p>
+                                                                                            {msg.message && <p className="text-[13px] leading-relaxed">{msg.message}</p>}
+                                                                                            {msg.image_url && (
+                                                                                                <a href={msg.image_url} target="_blank" rel="noreferrer" className="mt-2 block rounded-lg overflow-hidden border border-black/10">
+                                                                                                    <img src={msg.image_url} alt="Chat attachment" className="max-h-32 object-cover hover:scale-105 transition-transform" />
+                                                                                                </a>
+                                                                                            )}
+                                                                                            <p className={`text-[9px] text-right mt-1 ${isMe ? 'text-blue-200' : 'text-gray-400'}`}>
+                                                                                                {new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                                                                            </p>
+                                                                                        </motion.div>
+                                                                                    );
+                                                                                })}
+                                                                            </AnimatePresence>
                                                                         )}
                                                                     </div>
 
@@ -1350,28 +1393,7 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                 </div>
             </motion.div>
 
-            {/* Map View */}
-            <div className="hidden md:block flex-1 relative bg-gray-100 overflow-hidden">
-                <div ref={mapContainerRef} className="absolute inset-0" />
 
-                {!leafletReady && (
-                    <div className="absolute inset-0 flex items-center justify-center bg-white/70 backdrop-blur-sm z-[500]">
-                        <div className="rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm font-semibold text-gray-700 shadow">
-                            Loading map...
-                        </div>
-                    </div>
-                )}
-
-                <div className="absolute top-4 left-4 z-[500] rounded-xl bg-white/95 border border-gray-200 shadow px-3 py-2">
-                    <p className="text-[11px] uppercase tracking-wider font-bold text-gray-500">Live Map</p>
-                    <p className="text-sm font-bold text-gray-900">
-                        {currentCoords ? `Lat ${currentCoords.lat}, Lng ${currentCoords.lng}` : 'Detect location to center map'}
-                    </p>
-                    <p className="text-xs text-gray-600 mt-1">
-                        {nearbyWorkers.length} nearby pro(s) in {radiusKm} km
-                    </p>
-                </div>
-            </div>
         </motion.div>
     );
 };

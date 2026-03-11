@@ -5,7 +5,7 @@ import {
   BarChart, Bar, Legend
 } from 'recharts';
 import { 
-  LayoutDashboard, Users, Briefcase, Settings, LogOut, Search, Bell, TrendingUp, Activity, Clock, CheckCircle, Menu, X, ArrowUpRight, ArrowDownRight, ChevronLeft, ChevronRight, Image,
+  LayoutDashboard, Users, Briefcase, Settings, LogOut, Search, Bell, TrendingUp, Activity, Clock, CheckCircle, Menu, X, ArrowUpRight, ArrowDownRight, ChevronLeft, ChevronRight, Image as ImageIcon,
   Plus, Edit3, Trash2, Eye, XCircle, FileText, Shield, Download
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
@@ -720,7 +720,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ isOpen, onClose 
     { name: "Overview", icon: LayoutDashboard },
     { name: "Users & Pros", icon: Users },
     { name: "Services", icon: Briefcase },
-    { name: "Homepage Cards", icon: Image },
+    { name: "Homepage Cards", icon: ImageIcon },
     { name: "Requests History", icon: FileText },
     { name: "Finance Analytics", icon: Activity },
     { name: "Platform Settings", icon: Settings },
@@ -757,7 +757,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ isOpen, onClose 
         <div className="rounded-3xl border border-bird-blue/20 bg-gradient-to-r from-bird-blue/10 via-white to-bird-yellow/10 p-6 shadow-sm">
           <div className="flex items-start gap-4">
             <div className="w-12 h-12 rounded-2xl bg-white border border-bird-blue/20 flex items-center justify-center text-bird-blue shadow-sm">
-              <Image size={22} />
+              <ImageIcon size={22} />
             </div>
             <div>
               <h2 className="text-2xl font-black text-gray-900">Homepage Cards Manager</h2>
@@ -1947,3 +1947,5 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ isOpen, onClose 
     </div>
   );
 };
+
+

@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { API_ENDPOINTS } from '../../config/api';
 import { Notyf } from 'notyf';
+import { motion, AnimatePresence } from 'framer-motion';
 import 'notyf/notyf.min.css';
 
 interface RequestsViewProps {
@@ -70,6 +71,12 @@ export const RequestsView: React.FC<RequestsViewProps> = ({ isOnline, mobileView
   const [chatImageByRequest, setChatImageByRequest] = useState<Record<number, File | null>>({});
   const [chatBusyId, setChatBusyId] = useState<number | null>(null);
 
+  // Custom Modal State
+  const [counterModalOpen, setCounterModalOpen] = useState(false);
+  const [counterTargetId, setCounterTargetId] = useState<number | null>(null);
+  const [counterAmount, setCounterAmount] = useState('');
+  const [counterNote, setCounterNote] = useState('');
+
   const mapContainerRef = useRef<HTMLDivElement | null>(null);
   const mapInstanceRef = useRef<any>(null);
   const mapLayersRef = useRef<any[]>([]);
@@ -127,14 +134,16 @@ export const RequestsView: React.FC<RequestsViewProps> = ({ isOnline, mobileView
 
     const L = window.L;
     const map = L.map(mapContainerRef.current, {
-      zoomControl: true,
+      zoomControl: false,
       attributionControl: true,
     }).setView([14.6349, -90.5069], 12);
 
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
       maxZoom: 19,
-      attribution: '&copy; OpenStreetMap contributors',
+      attribution: '&copy; OpenStreetMap &copy; CARTO',
     }).addTo(map);
+
+    L.control.zoom({ position: 'bottomright' }).addTo(map);
 
     mapInstanceRef.current = map;
   }, [leafletReady]);
@@ -155,11 +164,11 @@ export const RequestsView: React.FC<RequestsViewProps> = ({ isOnline, mobileView
 
     if (workerCoords) {
       const workerMarker = L.circleMarker([workerCoords.lat, workerCoords.lng], {
-        radius: 8,
-        color: '#1d4ed8',
+        radius: 10,
+        color: '#ffffff',
         weight: 3,
-        fillColor: '#3b82f6',
-        fillOpacity: 0.95,
+        fillColor: '#38bdf8', // bird-blue aesthetic
+        fillOpacity: 1,
       })
         .addTo(map)
         .bindPopup('Your position');
@@ -170,11 +179,11 @@ export const RequestsView: React.FC<RequestsViewProps> = ({ isOnline, mobileView
       if (request.latitude == null || request.longitude == null) return;
       const isSelected = request.id_request === selectedRequest?.id_request;
       const marker = L.circleMarker([request.latitude, request.longitude], {
-        radius: isSelected ? 9 : 7,
-        color: isSelected ? '#f97316' : '#059669',
+        radius: isSelected ? 10 : 8,
+        color: '#ffffff',
         weight: 2,
-        fillColor: isSelected ? '#fb923c' : '#10b981',
-        fillOpacity: 0.9,
+        fillColor: isSelected ? '#fb923c' : '#0284c7', // sky-600
+        fillOpacity: 1,
       })
         .addTo(map)
         .bindPopup(
@@ -289,38 +298,46 @@ export const RequestsView: React.FC<RequestsViewProps> = ({ isOnline, mobileView
     }
   };
 
-  const handleCounterOffer = async (idRequest: number, currentBudget: number) => {
-    if (!token) return;
-    const value = window.prompt('Enter your counter offer amount (USD):', String(Math.max(1, Math.round(currentBudget))));
-    if (value == null) return;
-    const amount = Number(value);
+  const openCounterModal = (idRequest: number, currentBudget: number) => {
+    setCounterTargetId(idRequest);
+    setCounterAmount(String(Math.max(1, Math.round(currentBudget))));
+    setCounterNote('');
+    setCounterModalOpen(true);
+  };
+
+  const confirmCounterOffer = async () => {
+    if (!token || !counterTargetId) return;
+    
+    const amount = Number(counterAmount);
     if (!Number.isFinite(amount) || amount <= 0) {
-      notyf.error('Invalid amount.');
+      notyf.error('Invalid amount. Must be greater than 0.');
       return;
     }
-    const note = window.prompt('Optional note for client (max 255 chars):', '') ?? '';
 
-    setBusyId(idRequest);
+    setBusyId(counterTargetId);
+    setCounterModalOpen(false); // Close modal while processing
+
     try {
-      const res = await fetch(API_ENDPOINTS.worker.counterOffer(idRequest), {
+      const res = await fetch(API_ENDPOINTS.worker.counterOffer(counterTargetId), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ proposed_budget: amount, counter_message: note }),
+        body: JSON.stringify({ proposed_budget: amount, counter_message: counterNote }),
       });
       const payload = await res.json();
       if (!res.ok || !payload?.success) {
         notyf.error(payload?.error || 'Could not send counter offer.');
         return;
       }
-      notyf.success('Counter offer sent.');
+      notyf.success('Counter offer sent successfully.');
       await fetchRequests(true);
     } catch {
       notyf.error('Network error sending counter offer.');
     } finally {
       setBusyId(null);
+      setCounterTargetId(null);
     }
   };
 
@@ -436,12 +453,33 @@ export const RequestsView: React.FC<RequestsViewProps> = ({ isOnline, mobileView
 
   return (
     <>
-      <div
-        className={`w-full md:w-[400px] lg:w-[450px] flex flex-col border-r border-gray-200 bg-white relative z-10 h-full ${
+      {/* Background Fullscreen Map */}
+      <div className={`absolute inset-0 z-0 bg-gray-100`}>
+        <div ref={mapContainerRef} className="absolute inset-0 z-0" />
+        {!leafletReady && (
+          <div className="absolute inset-0 flex items-center justify-center bg-white/70 backdrop-blur-sm z-[500]">
+            <div className="rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm font-semibold text-gray-700 shadow flex items-center gap-3">
+              <motion.div animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 1, ease: 'linear' }} className="w-4 h-4 border-2 border-bird-blue border-r-transparent rounded-full" />
+              Loading map...
+            </div>
+          </div>
+        )}
+      </div>
+
+      <motion.div
+        initial={mobileView === 'list' ? { y: 0 } : { y: "100%" }}
+        animate={{ y: 0 }}
+        transition={{ type: "spring", damping: 25, stiffness: 200 }}
+        className={`w-full h-[60vh] mt-auto md:mt-0 md:h-full md:w-[400px] lg:w-[450px] flex flex-col bg-white/95 backdrop-blur-lg relative z-20 shadow-[0_-10px_40px_rgba(0,0,0,0.15)] md:shadow-2xl overflow-hidden rounded-t-[2rem] md:rounded-none md:border-r border-gray-200 ${
           mobileView === 'map' ? 'hidden md:flex' : 'flex'
         }`}
       >
-        <div className="p-4 border-b border-gray-200 bg-gray-50/60">
+        {/* Mobile Drag Handle */}
+        <div className="w-full flex justify-center pt-4 pb-0 md:hidden bg-white/95">
+            <div className="w-12 h-1.5 bg-gray-300 rounded-full" />
+        </div>
+
+        <div className="p-4 border-b border-gray-200 bg-white/95">
           <div className="grid grid-cols-3 gap-2">
             {(['new', 'accepted', 'rejected'] as const).map((tab) => (
               <button
@@ -514,10 +552,10 @@ export const RequestsView: React.FC<RequestsViewProps> = ({ isOnline, mobileView
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
-                            handleCounterOffer(req.id_request, req.budget);
+                            openCounterModal(req.id_request, req.budget);
                           }}
                           disabled={busyId === req.id_request}
-                          className="py-2 rounded-lg bg-amber-500 text-white font-bold text-xs hover:bg-amber-600 disabled:opacity-50"
+                          className="py-2 rounded-lg bg-amber-500 text-white font-bold text-xs hover:bg-amber-600 disabled:opacity-50 transition-colors"
                         >
                           Counter
                         </button>
@@ -555,17 +593,9 @@ export const RequestsView: React.FC<RequestsViewProps> = ({ isOnline, mobileView
             })
           )}
         </div>
-      </div>
+      </motion.div>
 
-      <div className={`flex-1 relative bg-gray-100 overflow-hidden ${mobileView === 'map' ? 'block' : 'hidden md:block'}`}>
-        <div ref={mapContainerRef} className="absolute inset-0" />
-        {!leafletReady && (
-          <div className="absolute inset-0 flex items-center justify-center bg-white/70 backdrop-blur-sm">
-            <div className="rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm font-semibold text-gray-700 shadow">
-              Loading map...
-            </div>
-          </div>
-        )}
+      <div className={`flex-1 relative overflow-hidden pointer-events-none ${mobileView === 'map' ? 'block' : 'hidden md:block'}`}>
 
         {selectedRequest && (
           <div className="absolute top-4 left-4 z-[500] rounded-xl bg-white/95 border border-gray-200 shadow p-3 w-[320px] max-w-[90%]">
@@ -636,6 +666,67 @@ export const RequestsView: React.FC<RequestsViewProps> = ({ isOnline, mobileView
           </div>
         )}
       </div>
+
+      {/* Custom Counter Offer Modal */}
+      <AnimatePresence>
+        {counterModalOpen && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[999] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4"
+          >
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className="bg-white rounded-3xl p-6 w-full max-w-sm shadow-2xl border border-gray-200"
+            >
+              <h3 className="text-xl font-black text-gray-900 mb-2">Counter Offer</h3>
+              <p className="text-sm text-gray-500 mb-6">Propose a new price for this job. The client will review it.</p>
+              
+              <label className="block text-xs uppercase tracking-wider font-bold text-gray-500 mb-2">New Budget (USD)</label>
+              <div className="relative mb-4">
+                <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-900 font-bold text-lg">$</span>
+                <input
+                  type="number"
+                  min="1"
+                  step="1"
+                  value={counterAmount}
+                  onChange={(e) => setCounterAmount(e.target.value)}
+                  className="w-full bg-gray-50 border-2 border-gray-200 rounded-xl py-3 pl-10 pr-4 text-gray-900 font-bold focus:outline-none focus:border-amber-500 transition-colors"
+                />
+              </div>
+
+              <label className="block text-xs uppercase tracking-wider font-bold text-gray-500 mb-2">Note (Optional)</label>
+              <textarea
+                value={counterNote}
+                onChange={(e) => setCounterNote(e.target.value)}
+                maxLength={255}
+                placeholder="Explain why the price changed..."
+                className="w-full bg-gray-50 border-2 border-gray-200 rounded-xl py-3 px-4 resize-none h-24 text-sm focus:outline-none focus:border-amber-500 transition-colors mb-6"
+              />
+
+              <div className="grid grid-cols-2 gap-3">
+                <button
+                  type="button"
+                  onClick={() => setCounterModalOpen(false)}
+                  className="py-3 rounded-xl border-2 border-gray-200 font-bold text-gray-600 hover:bg-gray-50 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={confirmCounterOffer}
+                  className="py-3 rounded-xl bg-gradient-to-r from-amber-400 to-orange-500 text-white font-bold shadow-lg shadow-amber-500/30 hover:shadow-xl transition-all"
+                >
+                  Send Offer
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </>
   );
 };
