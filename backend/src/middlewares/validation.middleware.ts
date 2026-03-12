@@ -1,8 +1,11 @@
 import { NextFunction, Request, Response } from 'express';
 
 const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-const phoneRegex = /^\d{8}$/;
+const phoneRegex = /^\+?[0-9]{8,15}$/;
 const otpRegex = /^\d{6}$/;
+const nameRegex = /^[\p{L}]+(?:[\p{L} .'-]*[\p{L}])?$/u;
+const usernameRegex = /^[a-zA-Z0-9._-]{3,30}$/;
+const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{8,128}$/;
 const safeTextRegex = /^[\p{L}\p{N}\s.,\-_'":;!?()]{0,500}$/u;
 
 const clean = (value: unknown) => (typeof value === 'string' ? value.trim() : '');
@@ -41,12 +44,24 @@ export const validateRegisterWorker = (req: Request, res: Response, next: NextFu
     res.status(400).json({ error: 'Invalid email format.' });
     return;
   }
+  if (!nameRegex.test(name) || name.length < 2 || name.length > 60) {
+    res.status(400).json({ error: 'Invalid name format.' });
+    return;
+  }
+  if (!nameRegex.test(lastname) || lastname.length < 2 || lastname.length > 60) {
+    res.status(400).json({ error: 'Invalid lastname format.' });
+    return;
+  }
   if (!phoneRegex.test(phone_number)) {
     res.status(400).json({ error: 'Invalid phone format.' });
     return;
   }
-  if (password.length < 8 || password.length > 128) {
-    res.status(400).json({ error: 'Invalid password length.' });
+  if (!passwordRegex.test(password)) {
+    res.status(400).json({ error: 'Password must be 8-128 chars and include at least 1 letter and 1 number.' });
+    return;
+  }
+  if (username && !usernameRegex.test(username)) {
+    res.status(400).json({ error: 'Invalid username format.' });
     return;
   }
 
@@ -54,6 +69,52 @@ export const validateRegisterWorker = (req: Request, res: Response, next: NextFu
   req.body.lastname = lastname;
   req.body.email = email;
   req.body.phone_number = phone_number;
+  req.body.password = password;
+  req.body.username = username || undefined;
+  next();
+};
+
+export const validateRegisterUser = (req: Request, res: Response, next: NextFunction) => {
+  const name = clean(req.body?.name);
+  const lastname = clean(req.body?.lastname);
+  const email = clean(req.body?.email).toLowerCase();
+  const phone_number = clean(req.body?.phone_number);
+  const password = clean(req.body?.password);
+  const username = clean(req.body?.username);
+
+  if (!name || !lastname || !email || !password) {
+    res.status(400).json({ error: 'Missing required fields.' });
+    return;
+  }
+  if (!emailRegex.test(email) || email.length > 100) {
+    res.status(400).json({ error: 'Invalid email format.' });
+    return;
+  }
+  if (!nameRegex.test(name) || name.length < 2 || name.length > 60) {
+    res.status(400).json({ error: 'Invalid name format.' });
+    return;
+  }
+  if (!nameRegex.test(lastname) || lastname.length < 2 || lastname.length > 60) {
+    res.status(400).json({ error: 'Invalid lastname format.' });
+    return;
+  }
+  if (phone_number && !phoneRegex.test(phone_number)) {
+    res.status(400).json({ error: 'Invalid phone format.' });
+    return;
+  }
+  if (!passwordRegex.test(password)) {
+    res.status(400).json({ error: 'Password must be 8-128 chars and include at least 1 letter and 1 number.' });
+    return;
+  }
+  if (username && !usernameRegex.test(username)) {
+    res.status(400).json({ error: 'Invalid username format.' });
+    return;
+  }
+
+  req.body.name = name;
+  req.body.lastname = lastname;
+  req.body.email = email;
+  req.body.phone_number = phone_number || undefined;
   req.body.password = password;
   req.body.username = username || undefined;
   next();
@@ -84,6 +145,48 @@ export const validateEmailOnly = (req: Request, res: Response, next: NextFunctio
     return;
   }
   req.body.email = email;
+  next();
+};
+
+export const validateResetPassword = (req: Request, res: Response, next: NextFunction) => {
+  const email = clean(req.body?.email).toLowerCase();
+  const token = clean(req.body?.token);
+  const newPassword = clean(req.body?.newPassword);
+
+  if (!emailRegex.test(email) || email.length > 100) {
+    res.status(400).json({ error: 'Invalid email format.' });
+    return;
+  }
+  if (!otpRegex.test(token)) {
+    res.status(400).json({ error: 'Invalid token format.' });
+    return;
+  }
+  if (!passwordRegex.test(newPassword)) {
+    res.status(400).json({ error: 'Password must be 8-128 chars and include at least 1 letter and 1 number.' });
+    return;
+  }
+
+  req.body.email = email;
+  req.body.token = token;
+  req.body.newPassword = newPassword;
+  next();
+};
+
+export const validateVerifyResetToken = (req: Request, res: Response, next: NextFunction) => {
+  const email = clean(req.body?.email).toLowerCase();
+  const token = clean(req.body?.token);
+
+  if (!emailRegex.test(email) || email.length > 100) {
+    res.status(400).json({ error: 'Invalid email format.' });
+    return;
+  }
+  if (!otpRegex.test(token)) {
+    res.status(400).json({ error: 'Invalid token format.' });
+    return;
+  }
+
+  req.body.email = email;
+  req.body.token = token;
   next();
 };
 
