@@ -1,4 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { Notyf } from 'notyf';
+import 'notyf/notyf.min.css';
 import { useAuth } from '../context/AuthContext';
 import { API_URL } from '../config/api';
 import { removeProfileImage, updateProfile, uploadProfileImage } from '../services/authService';
@@ -37,8 +39,26 @@ const sanitizeUsernameInput = (value: string): string => {
   return value.replace(/[^a-zA-Z0-9._-]/g, '').slice(0, 30);
 };
 
+const normalizeStoredUsername = (username: unknown, email: unknown): string => {
+  const value = String(username ?? '').trim();
+  const currentEmail = String(email ?? '').trim().toLowerCase();
+
+  if (!value) return '';
+  if (value.toLowerCase() === currentEmail) return '';
+  return USERNAME_REGEX.test(value) ? value : '';
+};
+
 const UserProfile: React.FC<UserProfileProps> = ({ onBack }) => {
   const { user, logout, updateUser } = useAuth();
+  const notyf = useMemo(
+    () =>
+      new Notyf({
+        position: { x: 'left', y: 'bottom' },
+        duration: 3200,
+        ripple: true,
+      }),
+    []
+  );
 
   const [formData, setFormData] = useState({
     name: '',
@@ -55,7 +75,7 @@ const UserProfile: React.FC<UserProfileProps> = ({ onBack }) => {
       name: user?.name || '',
       lastname: user?.lastname || '',
       phone_number: user?.phone_number || '',
-      username: user?.username || ''
+      username: normalizeStoredUsername(user?.username, user?.email)
     });
   }, [user]);
 
@@ -81,6 +101,9 @@ const UserProfile: React.FC<UserProfileProps> = ({ onBack }) => {
     }
     return `${apiPublicUrl}/uploads/${cleanPath}`;
   }, [user?.profile_image]);
+
+  const getErrorMessage = (error: any, fallback: string) =>
+    error?.response?.data?.error || error?.message || fallback;
 
   const validateProfileForm = (): string | null => {
     const name = formData.name.trim();
@@ -123,13 +146,13 @@ const UserProfile: React.FC<UserProfileProps> = ({ onBack }) => {
 
     const validationError = validateProfileForm();
     if (validationError) {
-      alert(validationError);
+      notyf.error(validationError);
       return;
     }
 
     const token = localStorage.getItem('token');
     if (!token) {
-      alert('Session expired. Please sign in again.');
+      notyf.error('Session expired. Please sign in again.');
       return;
     }
 
@@ -144,9 +167,10 @@ const UserProfile: React.FC<UserProfileProps> = ({ onBack }) => {
 
       const { data } = await updateProfile(payload, token);
       updateUser({ ...user, ...data.user });
-      alert('Profile updated successfully.');
+      notyf.success('Profile updated successfully. Redirecting to home...');
+      window.setTimeout(() => onBack(), 700);
     } catch (error: any) {
-      alert(error?.response?.data?.error || 'Error updating profile.');
+      notyf.error(getErrorMessage(error, 'Error updating profile.'));
     } finally {
       setIsSaving(false);
     }
@@ -160,20 +184,20 @@ const UserProfile: React.FC<UserProfileProps> = ({ onBack }) => {
     const hasValidFormat = ALLOWED_IMAGE_TYPES.has(file.type) && ALLOWED_IMAGE_EXTENSIONS.has(extension);
 
     if (!hasValidFormat) {
-      alert('Only JPG, PNG, WEBP, GIF or AVIF images are allowed.');
+      notyf.error('Only JPG, PNG, WEBP, GIF or AVIF images are allowed.');
       e.target.value = '';
       return;
     }
 
     if (file.size > 5 * 1024 * 1024) {
-      alert('Image size must be 5MB or less.');
+      notyf.error('Image size must be 5MB or less.');
       e.target.value = '';
       return;
     }
 
     const token = localStorage.getItem('token');
     if (!token) {
-      alert('Session expired. Please sign in again.');
+      notyf.error('Session expired. Please sign in again.');
       return;
     }
 
@@ -181,9 +205,9 @@ const UserProfile: React.FC<UserProfileProps> = ({ onBack }) => {
     try {
       const { data } = await uploadProfileImage(file, token);
       updateUser({ ...user, profile_image: data.profile_image });
-      alert('Profile image updated successfully.');
+      notyf.success('Profile image updated successfully.');
     } catch (error: any) {
-      alert(error?.response?.data?.error || 'Error uploading image.');
+      notyf.error(getErrorMessage(error, 'Error uploading image.'));
     } finally {
       setIsUploading(false);
       e.target.value = '';
@@ -195,7 +219,7 @@ const UserProfile: React.FC<UserProfileProps> = ({ onBack }) => {
 
     const token = localStorage.getItem('token');
     if (!token) {
-      alert('Session expired. Please sign in again.');
+      notyf.error('Session expired. Please sign in again.');
       return;
     }
 
@@ -203,9 +227,9 @@ const UserProfile: React.FC<UserProfileProps> = ({ onBack }) => {
     try {
       await removeProfileImage(token);
       updateUser({ ...user, profile_image: null });
-      alert('Profile image removed successfully.');
+      notyf.success('Profile image removed successfully.');
     } catch (error: any) {
-      alert(error?.response?.data?.error || 'Error removing image.');
+      notyf.error(getErrorMessage(error, 'Error removing image.'));
     } finally {
       setIsRemovingPhoto(false);
     }

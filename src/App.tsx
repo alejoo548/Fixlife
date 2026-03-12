@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import { useLocation } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Navbar } from './components/layout/Navbar';
 import { NavItemType, AuthMode } from './types';
@@ -47,6 +46,17 @@ interface HomeServiceCard {
   service_icon: string | null;
 }
 
+const LANDING_SECTION_IDS = {
+  services: 'services-section',
+  steps: 'steps-section',
+  testimonials: 'testimonials-section',
+  safety: 'safety-section',
+  faq: 'faq-section',
+  professionals: 'professionals-section',
+} as const;
+
+type LandingSectionTarget = keyof typeof LANDING_SECTION_IDS;
+
 const App: React.FC = () => {
   const [isAuthOpen, setIsAuthOpen] = useState(false);
   const [authMode, setAuthMode] = useState<AuthMode>('signin');
@@ -55,6 +65,7 @@ const App: React.FC = () => {
   const [currentView, setCurrentView] = useState<'landing' | 'app' | 'pro-dashboard' | 'admin-dashboard' | 'profile'>('landing');
   const [serviceCards, setServiceCards] = useState<HomeServiceCard[]>([]);
   const [selectedService, setSelectedService] = useState<{ id: number; name: string } | null>(null);
+  const [pendingSection, setPendingSection] = useState<LandingSectionTarget | null>(null);
 
   const goLandingWithReplace = () => {
     window.history.replaceState({}, '', '/');
@@ -64,6 +75,15 @@ const App: React.FC = () => {
   const resolveViewFromPath = (path: string) => {
     if (path === '/app') {
       setCurrentView('app');
+      return;
+    }
+
+    if (path === '/profile') {
+      if (isAuthenticated()) {
+        setCurrentView('profile');
+      } else {
+        goLandingWithReplace();
+      }
       return;
     }
 
@@ -107,6 +127,11 @@ const App: React.FC = () => {
 
     if (currentView === 'admin-dashboard' && (!isAuthenticated() || !hasRole('admin'))) {
       goLandingWithReplace();
+      return;
+    }
+
+    if (currentView === 'profile' && !isAuthenticated()) {
+      goLandingWithReplace();
     }
   }, [currentView]);
 
@@ -130,6 +155,29 @@ const App: React.FC = () => {
 
     fetchServiceCards();
   }, []);
+
+  const scrollToLandingSectionByTarget = (target: LandingSectionTarget) => {
+    const section = document.getElementById(LANDING_SECTION_IDS[target]);
+    if (!section) {
+      return false;
+    }
+
+    section.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    return true;
+  };
+
+  useEffect(() => {
+    if (currentView !== 'landing' || !pendingSection) {
+      return;
+    }
+
+    const timer = window.setTimeout(() => {
+      scrollToLandingSectionByTarget(pendingSection);
+      setPendingSection(null);
+    }, 120);
+
+    return () => window.clearTimeout(timer);
+  }, [currentView, pendingSection]);
 
   const handleOpenAuth = (mode: AuthMode) => {
     setAuthMode(mode);
@@ -183,10 +231,11 @@ const App: React.FC = () => {
 
   const handleBackToLanding = () => {
     console.log('[App] handleBackToLanding called');
+    setPendingSection(null);
     window.history.pushState({}, '', '/');
     setCurrentView('landing');
     window.scrollTo(0, 0);
-  }
+  };
 
   const handleWorkerSignOut = () => {
     clearAuthSession();
@@ -242,6 +291,61 @@ const App: React.FC = () => {
   ];
 
   const cardsToRender = serviceCards.length > 0 ? serviceCards.slice(0, 8) : fallbackCards;
+
+  const normalizeLabel = (value: string) => value.toLowerCase().replace(/[^a-z0-9]+/g, '');
+
+  const handleNavigateSection = (target: string) => {
+    if (!(target in LANDING_SECTION_IDS)) {
+      return;
+    }
+
+    const typedTarget = target as LandingSectionTarget;
+
+    if (currentView !== 'landing') {
+      setPendingSection(typedTarget);
+      window.history.pushState({}, '', '/');
+      setCurrentView('landing');
+      window.scrollTo(0, 0);
+      return;
+    }
+
+    setPendingSection(null);
+    scrollToLandingSectionByTarget(typedTarget);
+  };
+
+  const handleSelectCategory = (category: string) => {
+    const normalizedCategory = normalizeLabel(category);
+    const matchedCard = cardsToRender.find((card) => {
+      const fields = [card.service_name, card.headline, card.badge];
+
+      return fields.some((field) => {
+        const normalizedField = normalizeLabel(field);
+        return normalizedField.includes(normalizedCategory) || normalizedCategory.includes(normalizedField);
+      });
+    });
+
+    if (matchedCard?.id_service) {
+      handleStartBooking({ id: matchedCard.id_service, name: matchedCard.service_name });
+      return;
+    }
+
+    handleNavigateSection('services');
+  };
+
+  const heroHighlights = [
+    {
+      title: 'Nearby matches',
+      description: 'Find professionals close to your area before you book.',
+    },
+    {
+      title: 'Photo + chat',
+      description: 'Explain the issue with images and messages first.',
+    },
+    {
+      title: 'Clear budget',
+      description: 'Start with your range and compare offers with context.',
+    },
+  ];
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-sky-50 via-amber-50 to-orange-50 text-gray-900 selection:bg-bird-blue selection:text-white overflow-x-hidden font-sans flex flex-col relative transition-colors duration-500">
@@ -299,7 +403,18 @@ const App: React.FC = () => {
           />
         ) : null
       ) : currentView === 'profile' ? (
-        <UserProfile onBack={handleBackToLanding} />
+        <>
+          <Navbar
+            navItems={navItems}
+            onOpenAuth={handleOpenAuth}
+            onStartBooking={handleStartBooking}
+            onOpenProfile={handleOpenProfile}
+            onGoHome={handleBackToLanding}
+            onNavigateSection={handleNavigateSection}
+            onSelectCategory={handleSelectCategory}
+          />
+          <UserProfile onBack={handleBackToLanding} />
+        </>
       ) : (
         <>
 
@@ -308,6 +423,9 @@ const App: React.FC = () => {
             onOpenAuth={handleOpenAuth}
             onStartBooking={handleStartBooking}
             onOpenProfile={handleOpenProfile}
+            onGoHome={handleBackToLanding}
+            onNavigateSection={handleNavigateSection}
+            onSelectCategory={handleSelectCategory}
           />
 
 
@@ -356,7 +474,7 @@ const App: React.FC = () => {
                         transition={{ duration: 2, repeat: Infinity }}
                         className="w-2 h-2 rounded-full bg-green-500"
                       />
-                      <span className="text-xs font-bold text-green-700 tracking-wider uppercase">Available Now</span>
+                      <span className="text-xs font-bold text-green-700 tracking-wider uppercase">Verified local pros</span>
                     </motion.div>
 
                     <motion.h1
@@ -365,7 +483,7 @@ const App: React.FC = () => {
                       transition={{ delay: 0.5, duration: 0.6 }}
                       className="text-3xl md:text-4xl xl:text-5xl font-black mb-4 md:mb-6 leading-tight tracking-tight text-gray-900"
                     >
-                      Welcome to <br />
+                      Book trusted home help <br />
                       <motion.span
                         animate={{
                           backgroundPosition: ["0% 50%", "100% 50%", "0% 50%"],
@@ -378,7 +496,7 @@ const App: React.FC = () => {
                         className="text-transparent bg-clip-text bg-gradient-to-r from-bird-blue via-bird-yellow to-bird-orange"
                         style={{ backgroundSize: "200% 200%" }}
                       >
-                        Fixlife
+                        with Fixlife
                       </motion.span>
                     </motion.h1>
 
@@ -386,9 +504,9 @@ const App: React.FC = () => {
                       initial={{ opacity: 0, y: 20 }}
                       animate={{ opacity: 1, y: 0 }}
                       transition={{ delay: 0.6, duration: 0.6 }}
-                      className="text-gray-600 text-base md:text-lg leading-relaxed mb-6 md:mb-8 max-w-sm font-medium"
+                      className="text-gray-600 text-base md:text-lg leading-relaxed mb-6 md:mb-8 max-w-md font-medium"
                     >
-                      Connecting top-rated professionals with your repair and maintenance projects. <span className="text-gray-900 font-bold">Fast, safe, and guaranteed.</span>
+                      Describe the problem, review nearby professionals, and chat before accepting a quote. <span className="text-gray-900 font-bold">Cleaner booking, less guesswork.</span>
                     </motion.p>
                   </div>
 
@@ -410,15 +528,16 @@ const App: React.FC = () => {
                           </svg>
                         }
                       >
-                        Get Started
+                        Book a service
                       </Button>
 
                       <Button
+                        onClick={() => handleNavigateSection('steps')}
                         variant="outline"
                         size="lg"
                         fullWidth
                       >
-                        How it Works
+                        See how it works
                       </Button>
                     </motion.div>
 
@@ -426,33 +545,20 @@ const App: React.FC = () => {
                       initial={{ opacity: 0, y: 20 }}
                       animate={{ opacity: 1, y: 0 }}
                       transition={{ delay: 0.8, duration: 0.6 }}
-                      className="pt-4 md:pt-6 border-t border-gray-200 flex items-center gap-3 md:gap-4 text-xs md:text-sm text-gray-600"
+                      className="pt-4 md:pt-6 border-t border-gray-200 grid grid-cols-1 gap-3 text-xs md:text-sm text-gray-600"
                     >
-                      <div className="flex -space-x-3">
-                        {[1, 2, 3, 4].map(i => (
-                          <motion.div
-                            key={i}
-                            initial={{ opacity: 0, scale: 0 }}
-                            animate={{ opacity: 1, scale: 1 }}
-                            transition={{ delay: 0.9 + i * 0.1, type: "spring" }}
-                            whileHover={{ scale: 1.2, zIndex: 10 }}
-                            className="w-10 h-10 rounded-full border-2 border-white bg-gray-200 overflow-hidden shadow-sm cursor-pointer"
-                          >
-                            <img src={`https://randomuser.me/api/portraits/${i % 2 === 0 ? 'women' : 'men'}/${40 + i}.jpg`} alt="User" className="w-full h-full object-cover" />
-                          </motion.div>
-                        ))}
-                      </div>
-                      <div>
-                        <motion.p
-                          initial={{ opacity: 0 }}
-                          animate={{ opacity: 1 }}
-                          transition={{ delay: 1.3 }}
-                          className="text-gray-900 font-bold"
+                      {heroHighlights.map((item, index) => (
+                        <motion.div
+                          key={item.title}
+                          initial={{ opacity: 0, y: 16 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          transition={{ delay: 0.9 + index * 0.1, duration: 0.4 }}
+                          className="rounded-2xl border border-gray-200 bg-white/80 px-4 py-3"
                         >
-                          2.4k+
-                        </motion.p>
-                        <p className="text-xs">Active Experts</p>
-                      </div>
+                          <p className="text-sm font-bold text-gray-900">{item.title}</p>
+                          <p className="mt-1 text-xs leading-relaxed text-gray-600">{item.description}</p>
+                        </motion.div>
+                      ))}
                     </motion.div>
                   </div>
                 </div>
@@ -460,7 +566,7 @@ const App: React.FC = () => {
             </section>
 
 
-            <section className="mb-24">
+            <section id={LANDING_SECTION_IDS.services} className="mb-24">
               <ScrollReveal>
                 <div className="flex items-center justify-between mb-10 px-2">
                   <div>
@@ -560,32 +666,38 @@ const App: React.FC = () => {
             </section>
 
             <ScrollReveal>
-              <section className="mb-24"><StepsSection /></section>
+              <section id={LANDING_SECTION_IDS.steps} className="mb-24"><StepsSection onStartBooking={() => handleStartBooking()} /></section>
             </ScrollReveal>
 
             <ScrollReveal>
-              <section className="mb-24">
+              <section id={LANDING_SECTION_IDS.testimonials} className="mb-24">
                 <TestimonialsCarousel />
               </section>
             </ScrollReveal>
 
             <ScrollReveal>
-              <section className="mb-24">
+              <section id={LANDING_SECTION_IDS.safety} className="mb-24">
                 <SafetySection />
               </section>
             </ScrollReveal>
 
             <ScrollReveal>
-              <section className="mb-24">
+              <section id={LANDING_SECTION_IDS.faq} className="mb-24">
                 <FAQSection />
               </section>
             </ScrollReveal>
 
-            <section className="mb-24 md:mb-32">
+            <section id={LANDING_SECTION_IDS.professionals} className="mb-24 md:mb-32">
               <ScrollReveal><ProBento onOpenPro={handleOpenProDashboard} onOpenWorkerAuth={handleOpenWorkerAuth} /></ScrollReveal>
             </section>
           </main>
-          <Footer onOpenPro={handleOpenProDashboard} onOpenAdmin={handleOpenAdminDashboard} />
+          <Footer
+            onOpenPro={handleOpenProDashboard}
+            onOpenAdmin={handleOpenAdminDashboard}
+            onBookService={() => handleStartBooking()}
+            onGoHome={handleBackToLanding}
+            onNavigateSection={handleNavigateSection}
+          />
         </>
       )}
 

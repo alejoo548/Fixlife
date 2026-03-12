@@ -56,6 +56,7 @@ declare global {
 }
 
 const notyf = new Notyf({ position: { x: 'left', y: 'bottom' }, ripple: true });
+const CHAT_POLL_MS = 2000;
 
 export const RequestsView: React.FC<RequestsViewProps> = ({ isOnline, mobileView, token }) => {
   const [statusFilter, setStatusFilter] = useState<'new' | 'accepted' | 'rejected'>('new');
@@ -364,17 +365,31 @@ export const RequestsView: React.FC<RequestsViewProps> = ({ isOnline, mobileView
     }
   };
 
-  const fetchRequestChat = async (idRequest: number) => {
+  const fetchRequestChat = async (idRequest: number, silent = false) => {
     if (!token) return;
     try {
       const res = await fetch(API_ENDPOINTS.services.requestChat(idRequest), {
         headers: { Authorization: `Bearer ${token}` },
       });
       const payload = await res.json();
-      if (!res.ok || !payload?.success) return;
-      setChatByRequest((prev) => ({ ...prev, [idRequest]: Array.isArray(payload.chat) ? payload.chat : [] }));
+      if (!res.ok || !payload?.success) {
+        if (!silent) notyf.error(payload?.error || 'Could not load chat.');
+        return;
+      }
+      const nextChat = Array.isArray(payload.chat) ? payload.chat : [];
+      setChatByRequest((prev) => {
+        const currentChat = prev[idRequest] || [];
+        const currentLastId = currentChat[currentChat.length - 1]?.id_message ?? null;
+        const nextLastId = nextChat[nextChat.length - 1]?.id_message ?? null;
+
+        if (currentChat.length === nextChat.length && currentLastId === nextLastId) {
+          return prev;
+        }
+
+        return { ...prev, [idRequest]: nextChat };
+      });
     } catch {
-      // silent
+      if (!silent) notyf.error('Network error loading chat.');
     }
   };
 
@@ -402,7 +417,7 @@ export const RequestsView: React.FC<RequestsViewProps> = ({ isOnline, mobileView
       }
       setChatTextByRequest((prev) => ({ ...prev, [idRequest]: '' }));
       setChatImageByRequest((prev) => ({ ...prev, [idRequest]: null }));
-      await fetchRequestChat(idRequest);
+      await fetchRequestChat(idRequest, true);
     } catch {
       notyf.error('Network error sending chat message.');
     } finally {
@@ -448,6 +463,18 @@ export const RequestsView: React.FC<RequestsViewProps> = ({ isOnline, mobileView
     if (!selectedRequest?.id_request) return;
     if (!canUseChatWithClient) return;
     fetchRequestChat(selectedRequest.id_request);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedRequest?.id_request, token, canUseChatWithClient]);
+
+  useEffect(() => {
+    if (!selectedRequest?.id_request) return;
+    if (!canUseChatWithClient) return;
+
+    const interval = window.setInterval(() => {
+      void fetchRequestChat(selectedRequest.id_request, true);
+    }, CHAT_POLL_MS);
+
+    return () => window.clearInterval(interval);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedRequest?.id_request, token, canUseChatWithClient]);
 

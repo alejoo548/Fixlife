@@ -60,6 +60,7 @@ interface ChatMessage {
 }
 
 const notyf = new Notyf({ position: { x: 'left', y: 'bottom' }, ripple: true });
+const CHAT_POLL_MS = 2000;
 
 declare global {
     interface Window {
@@ -580,7 +581,7 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
         }
     };
 
-    const fetchRequestChat = async (idRequest: number) => {
+    const fetchRequestChat = async (idRequest: number, silent = false) => {
         const token = getToken();
         if (!token) return;
         try {
@@ -589,12 +590,27 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
             });
             const payload = await res.json();
             if (!res.ok || !payload?.success) {
-                showToast('error', payload?.error || 'Could not load chat.');
+                if (!silent) {
+                    showToast('error', payload?.error || 'Could not load chat.');
+                }
                 return;
             }
-            setChatByRequest((prev) => ({ ...prev, [idRequest]: Array.isArray(payload.chat) ? payload.chat : [] }));
+            const nextChat = Array.isArray(payload.chat) ? payload.chat : [];
+            setChatByRequest((prev) => {
+                const currentChat = prev[idRequest] || [];
+                const currentLastId = currentChat[currentChat.length - 1]?.id_message ?? null;
+                const nextLastId = nextChat[nextChat.length - 1]?.id_message ?? null;
+
+                if (currentChat.length === nextChat.length && currentLastId === nextLastId) {
+                    return prev;
+                }
+
+                return { ...prev, [idRequest]: nextChat };
+            });
         } catch {
-            showToast('error', 'Network error loading chat.');
+            if (!silent) {
+                showToast('error', 'Network error loading chat.');
+            }
         }
     };
 
@@ -627,13 +643,33 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
 
             setChatMessage((prev) => ({ ...prev, [idRequest]: '' }));
             setChatImage((prev) => ({ ...prev, [idRequest]: null }));
-            await fetchRequestChat(idRequest);
+            await fetchRequestChat(idRequest, true);
         } catch {
             showToast('error', 'Network error sending message.');
         } finally {
             setChatBusyId(null);
         }
     };
+
+    useEffect(() => {
+        if (!isOpen || !openChatRequestId) return;
+
+        const activeRequest = myRequests.find((request) => request.id_request === openChatRequestId);
+        if (!activeRequest) return;
+
+        const requestStatus = String(activeRequest.status || '').toLowerCase();
+        const canUseChat =
+            !!activeRequest.assigned_worker &&
+            ['assigned', 'in_progress', 'done'].includes(requestStatus);
+
+        if (!canUseChat) return;
+
+        const interval = window.setInterval(() => {
+            void fetchRequestChat(openChatRequestId, true);
+        }, CHAT_POLL_MS);
+
+        return () => window.clearInterval(interval);
+    }, [isOpen, openChatRequestId, myRequests]);
 
     const submitRating = async (request: MyServiceRequest) => {
         const token = getToken();
