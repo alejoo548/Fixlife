@@ -11,6 +11,9 @@ export interface NavbarProps {
   onOpenAuth: (mode: AuthMode) => void;
   onStartBooking: () => void;
   onOpenProfile: () => void;
+  onGoHome?: () => void;
+  onNavigateSection?: (target: string) => void;
+  onSelectCategory?: (category: string) => void;
 }
 
 export interface HeroSliderProps {

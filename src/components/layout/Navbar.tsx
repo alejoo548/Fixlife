@@ -4,7 +4,15 @@ import { NavbarProps, AuthMode } from '../../types';
 import { Logo } from '../common/Logo';
 import { useAuth } from '../../context/AuthContext';
 
-export const Navbar: React.FC<NavbarProps> = ({ navItems, onOpenAuth, onStartBooking, onOpenProfile }) => {
+export const Navbar: React.FC<NavbarProps> = ({
+  navItems,
+  onOpenAuth,
+  onStartBooking,
+  onOpenProfile,
+  onGoHome,
+  onNavigateSection,
+  onSelectCategory,
+}) => {
   const { user, logout } = useAuth();
 
   const fullName = [user?.name, user?.lastname].filter(Boolean).join(' ');
@@ -56,9 +64,77 @@ export const Navbar: React.FC<NavbarProps> = ({ navItems, onOpenAuth, onStartBoo
   };
 
   const handleBookingClick = () => {
+    setIsAccountOpen(false);
     setIsMobileMenuOpen(false);
     onStartBooking();
-  }
+  };
+
+  const handleProfileClick = () => {
+    setIsAccountOpen(false);
+    setIsMobileMenuOpen(false);
+    onOpenProfile();
+  };
+
+  const handleLogoutClick = () => {
+    setIsAccountOpen(false);
+    setIsMobileMenuOpen(false);
+    logout();
+  };
+
+  const handleNavItemClick = (itemName: string) => {
+    setIsAccountOpen(false);
+    setIsMobileMenuOpen(false);
+
+    switch (itemName) {
+      case 'Services':
+      case 'Categories':
+        onNavigateSection?.('services');
+        break;
+      case 'Professionals':
+        onNavigateSection?.('professionals');
+        break;
+      case 'Help':
+        onNavigateSection?.('faq');
+        break;
+      default:
+        break;
+    }
+  };
+
+  const handleSubItemClick = (parentName: string, subItem: string) => {
+    setIsAccountOpen(false);
+    setIsMobileMenuOpen(false);
+
+    if (parentName === 'Categories') {
+      onSelectCategory?.(subItem);
+      return;
+    }
+
+    switch (subItem) {
+      case 'Support':
+        onNavigateSection?.('faq');
+        break;
+      case 'How it works':
+        onNavigateSection?.('steps');
+        break;
+      case 'Safety':
+        onNavigateSection?.('safety');
+        break;
+      default:
+        break;
+    }
+  };
+
+  const handleGoHomeClick = () => {
+    setIsAccountOpen(false);
+    setIsMobileMenuOpen(false);
+    if (typeof onGoHome === 'function') {
+      onGoHome();
+      return;
+    }
+    window.history.pushState({}, '', '/');
+    window.location.reload();
+  };
 
   const ITEM_WIDTH = '140px';
 
@@ -69,7 +145,7 @@ export const Navbar: React.FC<NavbarProps> = ({ navItems, onOpenAuth, onStartBoo
     <>
       <header className="fixed top-4 lg:top-6 left-4 right-4 lg:left-0 lg:right-0 h-16 lg:h-20 flex items-center justify-between px-4 lg:px-8 bg-white/90 backdrop-blur-xl border border-gray-200/50 lg:mx-auto max-w-7xl rounded-2xl z-50 shadow-xl shadow-bird-blue/10 animate-slide-down group/header hover:shadow-2xl hover:shadow-bird-blue/15 transition-shadow duration-300">
         <div className="w-auto lg:w-32 flex-shrink-0 transform hover:scale-105 transition-transform duration-300">
-          <Logo />
+          <Logo onClick={handleGoHomeClick} />
         </div>
 
         <nav
@@ -83,6 +159,7 @@ export const Navbar: React.FC<NavbarProps> = ({ navItems, onOpenAuth, onStartBoo
                 className="group relative flex items-center justify-center h-16 cursor-pointer text-gray-700 hover:text-bird-blue transition-all duration-300"
                 style={{ width: ITEM_WIDTH }}
                 onMouseEnter={() => handleMouseEnter(index)}
+                onClick={() => handleNavItemClick(item.name)}
               >
                 <span className="font-bold text-sm tracking-wide z-20 transform group-hover:scale-105 transition-transform duration-200">{item.name}</span>
 
@@ -90,13 +167,17 @@ export const Navbar: React.FC<NavbarProps> = ({ navItems, onOpenAuth, onStartBoo
                   <div className="absolute top-14 left-0 w-full pt-4 opacity-0 translate-y-[-10px] pointer-events-none group-hover:opacity-100 group-hover:translate-y-0 group-hover:pointer-events-auto transition-all duration-300 ease-out z-30">
                     <div className="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-xl p-1 flex flex-col gap-1">
                       {item.items.map((subItem) => (
-                        <a
+                        <button
                           key={subItem}
-                          href="#"
-                          className="block px-4 py-2 text-sm text-gray-600 hover:bg-bird-blue/5 hover:text-bird-blue rounded-lg transition-colors font-medium"
+                          type="button"
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            handleSubItemClick(item.name, subItem);
+                          }}
+                          className="block w-full px-4 py-2 text-left text-sm text-gray-600 hover:bg-bird-blue/5 hover:text-bird-blue rounded-lg transition-colors font-medium"
                         >
                           {subItem}
-                        </a>
+                        </button>
                       ))}
                     </div>
                   </div>
@@ -197,14 +278,14 @@ export const Navbar: React.FC<NavbarProps> = ({ navItems, onOpenAuth, onStartBoo
                   ) : (
                     <>
                       <button
-                        onClick={onOpenProfile}
+                        onClick={handleProfileClick}
                         className="w-full px-4 py-3 text-sm text-gray-600 hover:bg-bird-blue/5 rounded-lg text-left font-medium"
                       >
                         My Profile
                       </button>
 
                       <button
-                        onClick={logout}
+                        onClick={handleLogoutClick}
                         className="w-full px-4 py-3 text-sm text-red-500 hover:bg-red-50 rounded-lg text-left font-medium"
                       >
                         Log Out
@@ -245,7 +326,7 @@ export const Navbar: React.FC<NavbarProps> = ({ navItems, onOpenAuth, onStartBoo
       >
         <div className="flex flex-col h-full p-6">
           <div className="flex justify-between items-center mb-8">
-            <Logo />
+            <Logo onClick={handleGoHomeClick} />
             <button
               onClick={() => setIsMobileMenuOpen(false)}
               className="p-2 text-gray-500 hover:text-gray-900"
@@ -259,13 +340,24 @@ export const Navbar: React.FC<NavbarProps> = ({ navItems, onOpenAuth, onStartBoo
           <div className="flex flex-col gap-6 overflow-y-auto">
             {navItems.map((item) => (
               <div key={item.name} className="flex flex-col gap-3">
-                <span className="text-xl font-bold text-gray-900">{item.name}</span>
+                <button
+                  type="button"
+                  onClick={() => handleNavItemClick(item.name)}
+                  className="text-xl font-bold text-left text-gray-900 hover:text-bird-blue transition-colors"
+                >
+                  {item.name}
+                </button>
                 {item.items && (
                   <div className="flex flex-col gap-2 pl-4 border-l-2 border-bird-blue/30">
                     {item.items.map((subItem) => (
-                      <a key={subItem} href="#" className="text-gray-600 hover:text-bird-blue text-sm py-1 font-medium">
+                      <button
+                        key={subItem}
+                        type="button"
+                        onClick={() => handleSubItemClick(item.name, subItem)}
+                        className="text-left text-gray-600 hover:text-bird-blue text-sm py-1 font-medium"
+                      >
                         {subItem}
-                      </a>
+                      </button>
                     ))}
                   </div>
                 )}
@@ -297,13 +389,13 @@ export const Navbar: React.FC<NavbarProps> = ({ navItems, onOpenAuth, onStartBoo
   ) : (
     <>
       <button
-        onClick={onOpenProfile}
+        onClick={handleProfileClick}
         className="w-full py-4 rounded-xl bg-gray-100 border border-gray-200 text-gray-900 font-bold active:scale-95 transition-transform shadow-sm"
       >
         My Profile
       </button>
       <button
-        onClick={logout}
+        onClick={handleLogoutClick}
         className="w-full py-4 rounded-xl bg-red-50 text-red-600 border border-red-200 font-bold active:scale-95 transition-transform"
       >
         Log Out

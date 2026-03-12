@@ -1,7 +1,11 @@
 import React from 'react';
 import { motion } from 'framer-motion';
 
-export const StepsSection: React.FC = () => {
+interface StepsSectionProps {
+  onStartBooking?: () => void;
+}
+
+export const StepsSection: React.FC<StepsSectionProps> = ({ onStartBooking }) => {
   const steps = [
     {
       id: "01",
@@ -155,6 +159,8 @@ export const StepsSection: React.FC = () => {
       >
         <p className="text-gray-600 text-sm md:text-base mb-4 font-medium">Ready to get started?</p>
         <motion.button
+          type="button"
+          onClick={onStartBooking}
           whileHover={{ scale: 1.05 }}
           whileTap={{ scale: 0.95 }}
           className="px-8 py-4 rounded-xl bg-gradient-to-r from-bird-blue to-bird-lightBlue text-white font-bold shadow-xl shadow-bird-blue/30 hover:shadow-2xl hover:shadow-bird-blue/40 transition-all"
