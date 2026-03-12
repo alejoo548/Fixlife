@@ -18,6 +18,7 @@ import { TestimonialsCarousel } from './components/sections/TestimonialsCarousel
 import { FAQSection } from './components/sections/FAQSection';
 import { SafetySection } from './components/sections/SafetySection';
 import { Button } from './components/common/Button';
+import UserProfile from './pages/UserProfile';
 import { clearAuthSession, hasRole, isAuthenticated } from './utils/session';
 import { API_ENDPOINTS } from './config/api';
 
@@ -51,7 +52,7 @@ const App: React.FC = () => {
   const [authMode, setAuthMode] = useState<AuthMode>('signin');
   const [isWorkerAuthOpen, setIsWorkerAuthOpen] = useState(false);
   const [workerAuthMode, setWorkerAuthMode] = useState<'signin' | 'signup'>('signup');
-  const [currentView, setCurrentView] = useState<'landing' | 'app' | 'pro-dashboard' | 'admin-dashboard'>('landing');
+  const [currentView, setCurrentView] = useState<'landing' | 'app' | 'pro-dashboard' | 'admin-dashboard' | 'profile'>('landing');
   const [serviceCards, setServiceCards] = useState<HomeServiceCard[]>([]);
   const [selectedService, setSelectedService] = useState<{ id: number; name: string } | null>(null);
 
@@ -170,6 +171,16 @@ const App: React.FC = () => {
     setIsWorkerAuthOpen(true);
   }
 
+  const handleOpenProfile = () => {
+    if (!isAuthenticated()) {
+      handleOpenAuth('signin');
+      return;
+    }
+    window.history.pushState({}, '', '/profile');
+    setCurrentView('profile');
+    window.scrollTo(0, 0);
+  }
+
   const handleBackToLanding = () => {
     console.log('[App] handleBackToLanding called');
     window.history.pushState({}, '', '/');
@@ -193,7 +204,7 @@ const App: React.FC = () => {
       summary: 'Leak repairs, pipe installation, and sanitary maintenance.',
       cta_label: 'Learn More',
       service_name: 'Plumbing',
-      service_icon: '🚰',
+      service_icon: '??',
     },
     {
       id_card: 0,
@@ -204,7 +215,7 @@ const App: React.FC = () => {
       summary: 'Safe installations, wiring, panels, and short circuit repairs.',
       cta_label: 'Learn More',
       service_name: 'Electrical Services',
-      service_icon: '⚡',
+      service_icon: '?',
     },
     {
       id_card: 0,
@@ -215,7 +226,7 @@ const App: React.FC = () => {
       summary: 'Vehicle diagnostics, oil changes, and mobile repairs.',
       cta_label: 'Learn More',
       service_name: 'Auto Mechanic',
-      service_icon: '🔧',
+      service_icon: '??',
     },
     {
       id_card: 0,
@@ -226,7 +237,7 @@ const App: React.FC = () => {
       summary: 'Furniture design, door repair, and structure assembly.',
       cta_label: 'Learn More',
       service_name: 'Carpentry',
-      service_icon: '🪚',
+      service_icon: '??',
     },
   ];
 
@@ -287,6 +298,8 @@ const App: React.FC = () => {
             onClose={handleBackToLanding}
           />
         ) : null
+      ) : currentView === 'profile' ? (
+        <UserProfile onBack={handleBackToLanding} />
       ) : (
         <>
 
@@ -294,6 +307,7 @@ const App: React.FC = () => {
             navItems={navItems}
             onOpenAuth={handleOpenAuth}
             onStartBooking={handleStartBooking}
+            onOpenProfile={handleOpenProfile}
           />
 
 
@@ -516,7 +530,7 @@ const App: React.FC = () => {
                           }}
                           className="absolute top-4 right-4 z-20 w-12 h-12 bg-white/95 backdrop-blur-md rounded-xl border border-gray-200 flex items-center justify-center shadow-lg group-hover:bg-bird-blue group-hover:border-bird-blue group-hover:text-white transition-all duration-300 text-gray-700"
                         >
-                          <span className="text-xl">{item.service_icon && item.service_icon.length <= 2 ? item.service_icon : '⚙️'}</span>
+                          <span className="text-xl">{item.service_icon && item.service_icon.length <= 2 ? item.service_icon : '??'}</span>
                         </motion.div>
                       </div>
                       <div className="p-6 flex-1 flex flex-col relative z-20">
@@ -580,3 +594,9 @@ const App: React.FC = () => {
 };
 
 export default App;
+
+
+
+
+
+
