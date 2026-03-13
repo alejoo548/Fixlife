@@ -93,16 +93,16 @@ export const Footer: React.FC<FooterProps> = ({
                 { name: 'instagram', icon: 'M16 11.37A4 4 0 1112.63 8 4 4 0 0116 11.37zm1.5-4.87h.01M7.5 2h9A5.5 5.5 0 0122 7.5v9a5.5 5.5 0 01-5.5 5.5h-9A5.5 5.5 0 012 16.5v-9A5.5 5.5 0 017.5 2z' },
                 { name: 'linkedin', icon: 'M16 8a6 6 0 016 6v7h-4v-7a2 2 0 00-2-2 2 2 0 00-2 2v7h-4v-7a6 6 0 016-6zM2 9h4v12H2z M4 6a2 2 0 100-4 2 2 0 000 4z' },
               ].map((social) => (
-                <a
+                <div
                   key={social.name}
-                  href="#"
-                  className="w-10 h-10 rounded-xl bg-white border border-gray-200 flex items-center justify-center text-gray-500 hover:text-white hover:bg-bird-blue hover:border-bird-blue hover:shadow-lg hover:shadow-bird-blue/30 hover:-translate-y-1 transition-all duration-300"
+                  className="w-10 h-10 rounded-xl bg-white border border-gray-200 flex items-center justify-center text-gray-500"
+                  aria-hidden="true"
                 >
                   <span className="sr-only">{social.name}</span>
                   <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                     <path strokeLinecap="round" strokeLinejoin="round" d={social.icon} />
                   </svg>
-                </a>
+                </div>
               ))}
             </div>
           </div>

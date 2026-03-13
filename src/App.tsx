@@ -133,11 +133,6 @@ const App: React.FC = () => {
     }
   }, [currentView]);
 
-  // Debug current view changes
-  useEffect(() => {
-    console.log('[App] Current view changed to:', currentView);
-  }, [currentView]);
-
   useEffect(() => {
     const fetchServiceCards = async () => {
       try {
@@ -183,7 +178,6 @@ const App: React.FC = () => {
   };
 
   const handleStartBooking = (service?: { id: number; name: string } | null) => {
-    console.log('[App] handleStartBooking called');
     setSelectedService(service || null);
     window.history.pushState({}, '', '/app');
     setCurrentView('app');
@@ -191,7 +185,6 @@ const App: React.FC = () => {
   };
 
   const handleOpenProDashboard = () => {
-    console.log('[App] handleOpenProDashboard called');
     if (!isAuthenticated() || !hasRole('worker')) {
       goLandingWithReplace();
       return;
@@ -202,7 +195,6 @@ const App: React.FC = () => {
   }
 
   const handleOpenAdminDashboard = () => {
-    console.log('[App] handleOpenAdminDashboard called');
     if (!isAuthenticated() || !hasRole('admin')) {
       goLandingWithReplace();
       return;
@@ -228,7 +220,6 @@ const App: React.FC = () => {
   }
 
   const handleBackToLanding = () => {
-    console.log('[App] handleBackToLanding called');
     setPendingSection(null);
     window.history.pushState({}, '', '/');
     setCurrentView('landing');
@@ -355,13 +346,6 @@ const App: React.FC = () => {
         mode={workerAuthMode}
         onSuccess={handleOpenProDashboard}
       />
-
-
-
-      {(() => {
-        console.log('[App] Rendering with currentView:', currentView);
-        return null;
-      })()}
 
       {currentView === 'app' ? (
         <ServiceRequestWizard
@@ -642,7 +626,10 @@ const App: React.FC = () => {
 
             <ScrollReveal>
               <section id={LANDING_SECTION_IDS.faq} className="mb-24">
-                <FAQSection />
+                <FAQSection
+                  onBookService={() => handleStartBooking()}
+                  onNavigateSection={(target) => handleNavigateSection(target)}
+                />
               </section>
             </ScrollReveal>
 
