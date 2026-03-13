@@ -19,8 +19,8 @@ export const Footer: React.FC<FooterProps> = ({
     { label: 'Explore Services', target: 'services' },
     { label: 'How it Works', target: 'steps' },
     { label: 'Pricing', target: 'services' },
-    { label: 'Fixlife Guarantee', target: 'safety' },
-    { label: 'Safety', target: 'safety' },
+    { label: 'Help Center', target: 'faq' },
+    { label: 'FAQ', target: 'faq' },
   ];
 
   return (

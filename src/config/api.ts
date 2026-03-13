@@ -20,6 +20,7 @@ export const API_ENDPOINTS = {
     nearbyWorkers: `${API_URL}/api/services/nearby-workers`,
     createRequest: `${API_URL}/api/services/requests`,
     myRequests: `${API_URL}/api/services/my-requests`,
+    cancelRequest: (idRequest: number) => `${API_URL}/api/services/requests/${idRequest}/cancel`,
     acceptCounter: (idRequest: number) => `${API_URL}/api/services/requests/${idRequest}/counter/accept`,
     declineCounter: (idRequest: number) => `${API_URL}/api/services/requests/${idRequest}/counter/decline`,
     requestChat: (idRequest: number) => `${API_URL}/api/services/requests/${idRequest}/chat`,

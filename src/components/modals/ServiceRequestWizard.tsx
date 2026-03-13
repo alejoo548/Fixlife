@@ -60,7 +60,7 @@ interface ChatMessage {
 }
 
 const notyf = new Notyf({ position: { x: 'left', y: 'bottom' }, ripple: true });
-const CHAT_POLL_MS = 2000;
+const CHAT_POLL_MS = 3000;
 
 declare global {
     interface Window {
@@ -98,6 +98,7 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
     const [historyStatus, setHistoryStatus] = useState<'all' | 'pending' | 'assigned' | 'in_progress' | 'done' | 'cancelled'>('all');
     const [historyLoading, setHistoryLoading] = useState(false);
     const [counterBusyId, setCounterBusyId] = useState<number | null>(null);
+    const [cancelBusyId, setCancelBusyId] = useState<number | null>(null);
     const [openChatRequestId, setOpenChatRequestId] = useState<number | null>(null);
     const [chatByRequest, setChatByRequest] = useState<Record<number, ChatMessage[]>>({});
     const [chatMessage, setChatMessage] = useState<Record<number, string>>({});
@@ -123,14 +124,17 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
         setRadiusKm(8);
     }, [isOpen, initialServiceId, initialServiceName]);
 
-    const fetchMyRequests = async (status: 'all' | 'pending' | 'assigned' | 'in_progress' | 'done' | 'cancelled' = historyStatus) => {
+    const fetchMyRequests = async (
+        status: 'all' | 'pending' | 'assigned' | 'in_progress' | 'done' | 'cancelled' = historyStatus,
+        silent = false
+    ) => {
         const token = getToken();
         if (!token) {
             setMyRequests([]);
             return;
         }
         try {
-            setHistoryLoading(true);
+            if (!silent) setHistoryLoading(true);
             const res = await fetch(`${API_ENDPOINTS.services.myRequests}?status=${status}`, {
                 headers: { Authorization: `Bearer ${token}` },
             });
@@ -142,7 +146,7 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
         } catch {
             // silent
         } finally {
-            setHistoryLoading(false);
+            if (!silent) setHistoryLoading(false);
         }
     };
 
@@ -150,6 +154,33 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
         if (!isOpen) return;
         fetchMyRequests(historyStatus);
     }, [isOpen, historyStatus]);
+
+    useEffect(() => {
+        if (!isOpen) return;
+        if (!isAuthenticated()) return;
+
+        const interval = window.setInterval(() => {
+            void fetchMyRequests(historyStatus, true);
+        }, 5000);
+
+        return () => window.clearInterval(interval);
+    }, [isOpen, historyStatus]);
+
+    useEffect(() => {
+        if (!openChatRequestId) return;
+
+        const activeRequest = myRequests.find((request) => request.id_request === openChatRequestId);
+        if (!activeRequest) {
+            setOpenChatRequestId(null);
+            return;
+        }
+
+        const requestStatus = String(activeRequest.status || '').toLowerCase();
+        const canUseChat = ['assigned', 'in_progress', 'done'].includes(requestStatus) && !!activeRequest.assigned_worker;
+        if (!canUseChat) {
+            setOpenChatRequestId(null);
+        }
+    }, [myRequests, openChatRequestId]);
 
     useEffect(() => {
         const urls = problemFiles.map((file) => URL.createObjectURL(file));
@@ -578,6 +609,49 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
             showToast('error', `Network error trying to ${decision} counter offer.`);
         } finally {
             setCounterBusyId(null);
+        }
+    };
+
+    const handleCancelRequest = async (request: MyServiceRequest) => {
+        const token = getToken();
+        if (!token) {
+            showToast('error', 'Please sign in again.');
+            return;
+        }
+
+        const requestStatus = String(request.status || '').toLowerCase();
+        if (!['pending', 'assigned'].includes(requestStatus)) {
+            showToast('error', 'This request can no longer be cancelled.');
+            return;
+        }
+
+        const confirmed = window.confirm('Are you sure you want to cancel this request?');
+        if (!confirmed) return;
+
+        setCancelBusyId(request.id_request);
+        try {
+            const res = await fetch(API_ENDPOINTS.services.cancelRequest(request.id_request), {
+                method: 'POST',
+                headers: {
+                    Authorization: `Bearer ${token}`,
+                },
+            });
+            const payload = await res.json();
+            if (!res.ok || !payload?.success) {
+                showToast('error', payload?.error || 'Could not cancel this request.');
+                return;
+            }
+
+            if (openChatRequestId === request.id_request) {
+                setOpenChatRequestId(null);
+            }
+
+            showToast('success', payload?.message || 'Request cancelled.');
+            await fetchMyRequests(historyStatus, true);
+        } catch {
+            showToast('error', 'Network error cancelling request.');
+        } finally {
+            setCancelBusyId(null);
         }
     };
 
@@ -1131,8 +1205,10 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                                 const progress = getTimelineProgress(request);
                                                 const timelineSteps = ['Pending', 'Worker matched', 'Counter offer', 'Accepted', 'On the way', 'In progress', 'Done'];
                                                 const pendingCounter = hasPendingCounter(request);
-                                                const canUseChat = ['assigned', 'in_progress', 'done'].includes(String(request.status || '').toLowerCase()) && !!request.assigned_worker;
-                                                const canRate = String(request.status || '').toLowerCase() === 'done';
+                                                const requestStatus = String(request.status || '').toLowerCase();
+                                                const canUseChat = ['assigned', 'in_progress', 'done'].includes(requestStatus) && !!request.assigned_worker;
+                                                const canRate = requestStatus === 'done';
+                                                const canCancel = ['pending', 'assigned'].includes(requestStatus);
 
                                                 return (
                                                     <div key={request.id_request} className="rounded-2xl border border-gray-200 bg-gradient-to-br from-white to-gray-50 p-3.5 shadow-sm">
@@ -1154,6 +1230,19 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                                             <span>{new Date(request.created_at).toLocaleString()}</span>
                                                             {request.assigned_worker?.name && <span>Worker: {request.assigned_worker.name}</span>}
                                                         </div>
+
+                                                        {canCancel && (
+                                                            <div className="mt-3 flex justify-end">
+                                                                <button
+                                                                    type="button"
+                                                                    disabled={cancelBusyId === request.id_request}
+                                                                    onClick={() => handleCancelRequest(request)}
+                                                                    className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-[11px] font-bold text-red-600 hover:bg-red-100 disabled:opacity-50"
+                                                                >
+                                                                    {cancelBusyId === request.id_request ? 'Cancelling...' : 'Cancel request'}
+                                                                </button>
+                                                            </div>
+                                                        )}
 
                                                         <div className="mt-2 grid grid-cols-3 gap-2 text-[11px]">
                                                             <div className="rounded-lg border border-slate-200 bg-slate-50 px-2 py-1.5">

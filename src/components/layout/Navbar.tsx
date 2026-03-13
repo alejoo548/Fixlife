@@ -117,9 +117,6 @@ export const Navbar: React.FC<NavbarProps> = ({
       case 'How it works':
         onNavigateSection?.('steps');
         break;
-      case 'Safety':
-        onNavigateSection?.('safety');
-        break;
       default:
         break;
     }

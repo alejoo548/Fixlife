@@ -750,6 +750,104 @@ export const getMyServiceRequests = async (req: AuthRequest, res: Response): Pro
   }
 };
 
+export const cancelServiceRequest = async (req: AuthRequest, res: Response): Promise<void> => {
+  const connection = await pool.getConnection();
+  try {
+    const userId = req.user?.user_id;
+    if (!userId) {
+      res.status(401).json({ error: 'Unauthorized' });
+      return;
+    }
+
+    await ensureServiceRequestTables();
+
+    const idRequest = Number(req.params.idRequest);
+    if (!idRequest || Number.isNaN(idRequest)) {
+      res.status(400).json({ error: 'Invalid request id.' });
+      return;
+    }
+
+    await connection.beginTransaction();
+
+    const [rows] = await connection.execute<RowDataPacket[]>(
+      `SELECT id_request, status
+       FROM service_requests
+       WHERE id_request = ? AND id_user = ?
+       LIMIT 1
+       FOR UPDATE`,
+      [idRequest, userId]
+    );
+
+    if (rows.length === 0) {
+      await connection.rollback();
+      res.status(404).json({ error: 'Request not found.' });
+      return;
+    }
+
+    const currentStatus = String(rows[0].status || '').toLowerCase();
+
+    if (currentStatus === 'cancelled') {
+      await connection.rollback();
+      res.status(409).json({ error: 'This request is already cancelled.' });
+      return;
+    }
+
+    if (currentStatus === 'done') {
+      await connection.rollback();
+      res.status(409).json({ error: 'Completed requests cannot be cancelled.' });
+      return;
+    }
+
+    if (currentStatus === 'in_progress') {
+      await connection.rollback();
+      res.status(409).json({ error: 'This request is already in progress and can no longer be cancelled.' });
+      return;
+    }
+
+    if (!['open', 'pending', 'assigned'].includes(currentStatus)) {
+      await connection.rollback();
+      res.status(409).json({ error: 'This request cannot be cancelled in its current state.' });
+      return;
+    }
+
+    await connection.execute(
+      `UPDATE service_requests
+       SET status = 'cancelled',
+           assigned_worker_profile = NULL,
+           updated_at = CURRENT_TIMESTAMP
+       WHERE id_request = ?`,
+      [idRequest]
+    );
+
+    await connection.execute(
+      `UPDATE service_request_workers
+       SET status = CASE WHEN status = 'rejected' THEN 'rejected' ELSE 'expired' END,
+           counter_status = CASE WHEN counter_status = 'pending' THEN 'declined' ELSE counter_status END,
+           updated_at = CURRENT_TIMESTAMP
+       WHERE id_request = ?`,
+      [idRequest]
+    );
+
+    await connection.commit();
+    res.json({
+      success: true,
+      message: 'Request cancelled successfully.',
+      id_request: idRequest,
+      status: 'cancelled',
+    });
+  } catch (error: any) {
+    try {
+      await connection.rollback();
+    } catch {
+      // ignore rollback errors
+    }
+    console.error('Error in cancelServiceRequest:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  } finally {
+    connection.release();
+  }
+};
+
 export const autoReassignStaleAssignedRequests = async () => {
   await ensureServiceRequestTables();
   await ensureWorkerGeoColumns();
