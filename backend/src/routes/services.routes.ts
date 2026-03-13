@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import {
   acceptCounterOffer,
+  cancelServiceRequest,
   createServiceRequest,
   declineCounterOffer,
   getRequestChat,
@@ -21,6 +22,7 @@ router.get('/cards', getPublicServiceCards);
 router.get('/nearby-workers', getNearbyWorkers);
 router.get('/my-requests', verifyToken, getMyServiceRequests);
 router.post('/requests', verifyToken, upload.array('problem_images', 5), createServiceRequest);
+router.post('/requests/:idRequest/cancel', verifyToken, cancelServiceRequest);
 router.post('/requests/:idRequest/counter/accept', verifyToken, acceptCounterOffer);
 router.post('/requests/:idRequest/counter/decline', verifyToken, declineCounterOffer);
 router.get('/requests/:idRequest/chat', verifyToken, getRequestChat);

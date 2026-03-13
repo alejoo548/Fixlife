@@ -260,7 +260,7 @@ const UserProfile: React.FC<UserProfileProps> = ({ onBack }) => {
 
           <div>
             <h1 className="text-3xl font-black text-gray-900">{fullName || 'User profile'}</h1>
-            <p className="text-gray-600 font-medium mt-1">{user?.email || 'No email available'}</p>
+            <p className="text-gray-600 font-medium mt-1">Update your personal information and profile photo.</p>
           </div>
         </div>
 
@@ -345,16 +345,6 @@ const UserProfile: React.FC<UserProfileProps> = ({ onBack }) => {
               className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-gray-900 font-semibold outline-none focus:ring-2 focus:ring-bird-blue/40"
             />
           </label>
-
-          <div className="rounded-2xl border border-gray-200 bg-gray-50/70 p-4">
-            <p className="text-xs uppercase tracking-wider text-gray-500 font-bold">Email (not editable)</p>
-            <p className="text-gray-900 font-semibold mt-2 break-words">{user?.email || '-'}</p>
-          </div>
-
-          <div className="rounded-2xl border border-gray-200 bg-gray-50/70 p-4">
-            <p className="text-xs uppercase tracking-wider text-gray-500 font-bold">Role (not editable)</p>
-            <p className="text-gray-900 font-semibold mt-2 capitalize">{user?.rol || '-'}</p>
-          </div>
 
           <div className="md:col-span-2 mt-2 flex flex-wrap gap-3">
             <button

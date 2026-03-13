@@ -15,7 +15,6 @@ import { AdminDashboard } from './components/modals/AdminDashboard';
 import { ParticlesBackground } from './components/effects/ParticlesBackground';
 import { TestimonialsCarousel } from './components/sections/TestimonialsCarousel';
 import { FAQSection } from './components/sections/FAQSection';
-import { SafetySection } from './components/sections/SafetySection';
 import { Button } from './components/common/Button';
 import UserProfile from './pages/UserProfile';
 import { clearAuthSession, hasRole, isAuthenticated } from './utils/session';
@@ -30,7 +29,7 @@ const navItems: NavItemType[] = [
   },
   {
     name: "Help",
-    items: ["Support", "How it works", "Safety"]
+    items: ["Support", "How it works"]
   }
 ];
 
@@ -50,7 +49,6 @@ const LANDING_SECTION_IDS = {
   services: 'services-section',
   steps: 'steps-section',
   testimonials: 'testimonials-section',
-  safety: 'safety-section',
   faq: 'faq-section',
   professionals: 'professionals-section',
 } as const;
@@ -332,21 +330,6 @@ const App: React.FC = () => {
     handleNavigateSection('services');
   };
 
-  const heroHighlights = [
-    {
-      title: 'Nearby matches',
-      description: 'Find professionals close to your area before you book.',
-    },
-    {
-      title: 'Photo + chat',
-      description: 'Explain the issue with images and messages first.',
-    },
-    {
-      title: 'Clear budget',
-      description: 'Start with your range and compare offers with context.',
-    },
-  ];
-
   return (
     <div className="min-h-screen bg-gradient-to-br from-sky-50 via-amber-50 to-orange-50 text-gray-900 selection:bg-bird-blue selection:text-white overflow-x-hidden font-sans flex flex-col relative transition-colors duration-500">
 
@@ -446,7 +429,7 @@ const App: React.FC = () => {
                 initial={{ opacity: 0, x: 50 }}
                 animate={{ opacity: 1, x: 0 }}
                 transition={{ duration: 0.6, delay: 0.2 }}
-                className="lg:col-span-4 flex flex-col justify-between p-6 md:p-10 rounded-3xl bg-white/80 backdrop-blur-xl border border-gray-200/50 shadow-2xl relative overflow-hidden group hover:border-bird-blue/30 transition-all duration-500"
+                className="lg:col-span-4 flex flex-col justify-center p-6 md:p-10 rounded-3xl bg-white/80 backdrop-blur-xl border border-gray-200/50 shadow-2xl relative overflow-hidden group hover:border-bird-blue/30 transition-all duration-500"
               >
                 <motion.div
                   animate={{
@@ -461,7 +444,7 @@ const App: React.FC = () => {
                   className="absolute top-0 right-0 w-80 h-80 bg-bird-yellow/20 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2 pointer-events-none"
                 />
 
-                <div className="relative z-10 flex flex-col h-full">
+                <div className="relative z-10 flex flex-col justify-center h-full">
                   <div>
                     <motion.div
                       initial={{ opacity: 0, scale: 0.8 }}
@@ -510,57 +493,39 @@ const App: React.FC = () => {
                     </motion.p>
                   </div>
 
-                  <div className="mt-auto">
-                    <motion.div
-                      initial={{ opacity: 0, y: 20 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ delay: 0.7, duration: 0.6 }}
-                      className="flex flex-col gap-3 md:gap-4 mb-6 md:mb-8"
+                  <motion.div
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.7, duration: 0.6 }}
+                    className="flex flex-col gap-3 md:gap-4"
+                  >
+                    <Button
+                      onClick={() => handleStartBooking()}
+                      variant="primary"
+                      size="lg"
+                      fullWidth
+                      rightIcon={
+                        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" />
+                        </svg>
+                      }
                     >
-                      <Button
-                        onClick={() => handleStartBooking()}
-                        variant="primary"
-                        size="lg"
-                        fullWidth
-                        rightIcon={
-                          <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" />
-                          </svg>
-                        }
-                      >
-                        Book a service
-                      </Button>
+                      Book a service
+                    </Button>
 
-                      <Button
-                        onClick={() => handleNavigateSection('steps')}
-                        variant="outline"
-                        size="lg"
-                        fullWidth
-                      >
-                        See how it works
-                      </Button>
-                    </motion.div>
-
-                    <motion.div
-                      initial={{ opacity: 0, y: 20 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ delay: 0.8, duration: 0.6 }}
-                      className="pt-4 md:pt-6 border-t border-gray-200 grid grid-cols-1 gap-3 text-xs md:text-sm text-gray-600"
+                    <Button
+                      onClick={() => handleNavigateSection('steps')}
+                      variant="outline"
+                      size="lg"
+                      fullWidth
                     >
-                      {heroHighlights.map((item, index) => (
-                        <motion.div
-                          key={item.title}
-                          initial={{ opacity: 0, y: 16 }}
-                          animate={{ opacity: 1, y: 0 }}
-                          transition={{ delay: 0.9 + index * 0.1, duration: 0.4 }}
-                          className="rounded-2xl border border-gray-200 bg-white/80 px-4 py-3"
-                        >
-                          <p className="text-sm font-bold text-gray-900">{item.title}</p>
-                          <p className="mt-1 text-xs leading-relaxed text-gray-600">{item.description}</p>
-                        </motion.div>
-                      ))}
-                    </motion.div>
-                  </div>
+                      See how it works
+                    </Button>
+
+                    <p className="pt-2 text-sm leading-relaxed text-gray-500">
+                      Share the problem, add photos, and we help you connect with nearby pros.
+                    </p>
+                  </motion.div>
                 </div>
               </motion.div>
             </section>
@@ -672,12 +637,6 @@ const App: React.FC = () => {
             <ScrollReveal>
               <section id={LANDING_SECTION_IDS.testimonials} className="mb-24">
                 <TestimonialsCarousel />
-              </section>
-            </ScrollReveal>
-
-            <ScrollReveal>
-              <section id={LANDING_SECTION_IDS.safety} className="mb-24">
-                <SafetySection />
               </section>
             </ScrollReveal>
 

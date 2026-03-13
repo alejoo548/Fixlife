@@ -2,7 +2,8 @@ import rateLimit from 'express-rate-limit';
 
 export const globalLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 400,
+  // Dashboard polling for chat and request history can exceed the default during normal use.
+  max: 1200,
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: 'Too many requests. Try again later.' },

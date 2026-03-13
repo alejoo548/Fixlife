@@ -56,7 +56,7 @@ declare global {
 }
 
 const notyf = new Notyf({ position: { x: 'left', y: 'bottom' }, ripple: true });
-const CHAT_POLL_MS = 2000;
+const CHAT_POLL_MS = 3000;
 
 export const RequestsView: React.FC<RequestsViewProps> = ({ isOnline, mobileView, token }) => {
   const [statusFilter, setStatusFilter] = useState<'new' | 'accepted' | 'rejected'>('new');
@@ -622,10 +622,10 @@ export const RequestsView: React.FC<RequestsViewProps> = ({ isOnline, mobileView
         </div>
       </motion.div>
 
-      <div className={`flex-1 relative overflow-hidden pointer-events-none ${mobileView === 'map' ? 'block' : 'hidden md:block'}`}>
+      <div className={`flex-1 relative overflow-hidden ${mobileView === 'map' ? 'block' : 'hidden md:block'}`}>
 
         {selectedRequest && (
-          <div className="absolute top-4 left-4 z-[500] rounded-xl bg-white/95 border border-gray-200 shadow p-3 w-[320px] max-w-[90%]">
+          <div className="absolute top-4 left-4 z-[500] pointer-events-auto rounded-xl bg-white/95 border border-gray-200 shadow p-3 w-[320px] max-w-[90%]">
             <p className="text-xs uppercase tracking-wider font-bold text-gray-500">Selected Request</p>
             <h3 className="text-base font-black text-gray-900 mt-1">
               {selectedRequest.service_icon || '🧰'} {selectedRequest.service_name}
