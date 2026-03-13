@@ -3,6 +3,7 @@ import { API_ENDPOINTS, API_URL } from '../../config/api';
 import { Notyf } from 'notyf';
 import 'notyf/notyf.min.css';
 import { motion, AnimatePresence } from 'framer-motion';
+import ForgotPassword from '../../pages/ForgotPassword';
 
 interface ServiceOption {
   id_service: number;
@@ -19,7 +20,7 @@ interface WorkerAuthModalProps {
 }
 
 export const WorkerAuthModal: React.FC<WorkerAuthModalProps> = ({ isOpen, onClose, mode: initialMode, onSuccess }) => {
-  const [view, setView] = useState<'signin' | 'signup' | 'specialties' | 'verify' | 'upload'>(initialMode);
+  const [view, setView] = useState<'signin' | 'signup' | 'specialties' | 'verify' | 'upload' | 'forgot'>(initialMode);
   const [registeredEmail, setRegisteredEmail] = useState('');
   const [otp, setOtp] = useState('');
   const [availableServices, setAvailableServices] = useState<ServiceOption[]>([]);
@@ -347,6 +348,21 @@ export const WorkerAuthModal: React.FC<WorkerAuthModalProps> = ({ isOpen, onClos
 
   const transitionClass = "transition-all duration-700 ease-[cubic-bezier(0.23,1,0.32,1)]";
 
+  if (view === 'forgot') {
+    return (
+      <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+        <div
+          className="absolute inset-0 bg-black/70 backdrop-blur-md"
+          onClick={onClose}
+        />
+
+        <div className="relative bg-white rounded-3xl shadow-2xl p-8 w-full max-w-md animate-zoom-in">
+          <ForgotPassword onBack={() => setView('signin')} />
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
       <div
@@ -639,7 +655,13 @@ export const WorkerAuthModal: React.FC<WorkerAuthModalProps> = ({ isOpen, onClos
               <input required value={formData.password} onChange={e => setFormData({...formData, password: e.target.value})} type="password" maxLength={128} placeholder="Password" className="w-full bg-transparent px-3 py-3 text-sm text-gray-900 outline-none placeholder-gray-500" />
             </div>
             
-            <a href="#" className="text-xs text-gray-500 hover:text-bird-orange transition-colors self-end my-1">Forgot your password?</a>
+            <button
+              type="button"
+              onClick={() => setView('forgot')}
+              className="text-xs text-gray-500 hover:text-bird-orange transition-colors self-end my-1"
+            >
+              Forgot your password?
+            </button>
             
             <button disabled={loading} type="submit" className="w-full py-4 rounded-full bg-gradient-to-r from-bird-orange to-bird-gold text-white font-bold text-sm tracking-wide shadow-lg shadow-bird-orange/20 hover:scale-[1.02] transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed">
               {loading ? 'PROCESSING...' : 'SIGN IN'}
@@ -920,7 +942,13 @@ export const WorkerAuthModal: React.FC<WorkerAuthModalProps> = ({ isOpen, onClos
                       <input required value={formData.password} onChange={e => setFormData({...formData, password: e.target.value})} type="password" maxLength={128} placeholder="Password" className="w-full bg-transparent text-sm text-gray-900 outline-none placeholder-gray-500" />
                     </div>
                     <div className="flex justify-end mt-1">
-                      <a href="#" className="text-xs text-gray-600 hover:text-bird-orange transition-colors">Forgot password?</a>
+                      <button
+                        type="button"
+                        onClick={() => setView('forgot')}
+                        className="text-xs text-gray-600 hover:text-bird-orange transition-colors"
+                      >
+                        Forgot password?
+                      </button>
                     </div>
                     <button disabled={loading} type="submit" className="mt-4 w-full py-4 rounded-xl font-bold text-sm tracking-wide shadow-lg active:scale-[0.98] transition-all duration-300 bg-gradient-to-r from-bird-orange to-bird-gold text-white shadow-bird-orange/20 disabled:opacity-50 disabled:cursor-not-allowed">
                       {loading ? 'PROCESSING...' : "Sign In"}

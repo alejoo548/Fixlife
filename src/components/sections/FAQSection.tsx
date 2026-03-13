@@ -7,6 +7,11 @@ interface FAQItem {
   icon: string;
 }
 
+interface FAQSectionProps {
+  onBookService?: () => void;
+  onNavigateSection?: (target: 'services' | 'steps') => void;
+}
+
 const faqs: FAQItem[] = [
   {
     question: "How does Fixlife work?",
@@ -50,7 +55,7 @@ const faqs: FAQItem[] = [
   }
 ];
 
-export const FAQSection: React.FC = () => {
+export const FAQSection: React.FC<FAQSectionProps> = ({ onBookService, onNavigateSection }) => {
   const [openIndex, setOpenIndex] = useState<number | null>(0);
 
   const toggleFAQ = (index: number) => {
@@ -68,12 +73,16 @@ export const FAQSection: React.FC = () => {
           <p className="text-gray-600 mt-2 ml-6 text-sm font-medium">Everything you need to know about Fixlife</p>
         </div>
         <div className="ml-6 md:ml-0">
-          <a href="#" className="inline-flex items-center gap-2 px-6 py-3 rounded-full bg-gray-100 border border-gray-200 text-gray-900 font-bold text-sm hover:bg-gray-200 transition-all group">
-            <span>Still have questions?</span>
+          <button
+            type="button"
+            onClick={() => onNavigateSection?.('steps')}
+            className="inline-flex items-center gap-2 px-6 py-3 rounded-full bg-gray-100 border border-gray-200 text-gray-900 font-bold text-sm hover:bg-gray-200 transition-all group"
+          >
+            <span>See how it works</span>
             <svg className="w-4 h-4 group-hover:translate-x-1 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" />
             </svg>
-          </a>
+          </button>
         </div>
       </div>
 
@@ -149,21 +158,29 @@ export const FAQSection: React.FC = () => {
       >
         <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-10" />
         <div className="relative z-10">
-          <h4 className="text-xl md:text-2xl font-bold text-white mb-2">Can't find what you're looking for?</h4>
-          <p className="text-blue-100 mb-6 text-sm md:text-base">Our support team is here to help 24/7</p>
+          <h4 className="text-xl md:text-2xl font-bold text-white mb-2">Ready to solve your issue?</h4>
+          <p className="text-blue-100 mb-6 text-sm md:text-base">Start a request or review the service flow before booking.</p>
           <div className="flex flex-col sm:flex-row gap-3 justify-center">
-            <a href="#" className="px-6 py-3 rounded-xl bg-white text-bird-blue font-bold hover:bg-gray-100 transition-all shadow-lg inline-flex items-center justify-center gap-2">
+            <button
+              type="button"
+              onClick={onBookService}
+              className="px-6 py-3 rounded-xl bg-white text-bird-blue font-bold hover:bg-gray-100 transition-all shadow-lg inline-flex items-center justify-center gap-2"
+            >
               <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" />
               </svg>
-              Email Support
-            </a>
-            <a href="#" className="px-6 py-3 rounded-xl bg-bird-darkBlue/50 border border-white/20 text-white font-bold hover:bg-bird-darkBlue/70 transition-all inline-flex items-center justify-center gap-2">
+              Book a Service
+            </button>
+            <button
+              type="button"
+              onClick={() => onNavigateSection?.('services')}
+              className="px-6 py-3 rounded-xl bg-bird-darkBlue/50 border border-white/20 text-white font-bold hover:bg-bird-darkBlue/70 transition-all inline-flex items-center justify-center gap-2"
+            >
               <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-3.582 8-8 8a8.013 8.013 0 01-4.949-1.728c-.297-.184-.526-.239-.848-.152l-2.07.564a1 1 0 01-1.218-1.22l.564-2.068c.088-.322.032-.551-.152-.848A7.996 7.996 0 013 12c0-4.418 3.582-8 8-8s8 3.582 8 8z" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
               </svg>
-              Live Chat
-            </a>
+              Explore Services
+            </button>
           </div>
         </div>
       </motion.div>
