@@ -439,10 +439,10 @@ export const ensureServiceRequestTables = async () => {
 
   const [workerCols] = await pool.execute<RowDataPacket[]>(
     `SELECT COLUMN_NAME
-     FROM information_schema.columns
-     WHERE table_schema = DATABASE()
-       AND table_name = 'service_request_workers'
-       AND column_name IN ('proposed_budget', 'counter_message', 'counter_status')`
+    FROM information_schema.columns
+    WHERE table_schema = DATABASE()
+      AND table_name = 'service_request_workers'
+      AND column_name IN ('proposed_budget', 'counter_message', 'counter_status')`
   );
   const workerColSet = new Set(workerCols.map((c: any) => String(c.COLUMN_NAME)));
   if (!workerColSet.has('proposed_budget')) {
@@ -454,7 +454,7 @@ export const ensureServiceRequestTables = async () => {
   if (!workerColSet.has('counter_status')) {
     await pool.execute(
       `ALTER TABLE service_request_workers
-       ADD COLUMN counter_status ENUM('pending', 'accepted', 'declined') NULL`
+      ADD COLUMN counter_status ENUM('pending', 'accepted', 'declined') NULL`
     );
   }
 

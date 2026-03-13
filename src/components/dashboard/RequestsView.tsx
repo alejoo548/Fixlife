@@ -203,6 +203,20 @@ export const RequestsView: React.FC<RequestsViewProps> = ({ isOnline, mobileView
     }
   }, [requests, selectedRequest, workerCoords]);
 
+  useEffect(() => {
+    if (!mapInstanceRef.current) return;
+
+    const timer = window.setTimeout(() => {
+      try {
+        mapInstanceRef.current.invalidateSize();
+      } catch {
+        // ignore
+      }
+    }, 120);
+
+    return () => window.clearTimeout(timer);
+  }, [leafletReady, mobileView, selectedRequestId, requests.length, statusFilter]);
+
   const fetchRequests = async (silent = false) => {
     if (!token) return;
     if (!silent) setLoading(true);
@@ -480,19 +494,6 @@ export const RequestsView: React.FC<RequestsViewProps> = ({ isOnline, mobileView
 
   return (
     <>
-      {/* Background Fullscreen Map */}
-      <div className={`absolute inset-0 z-0 bg-gray-100`}>
-        <div ref={mapContainerRef} className="absolute inset-0 z-0" />
-        {!leafletReady && (
-          <div className="absolute inset-0 flex items-center justify-center bg-white/70 backdrop-blur-sm z-[500]">
-            <div className="rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm font-semibold text-gray-700 shadow flex items-center gap-3">
-              <motion.div animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 1, ease: 'linear' }} className="w-4 h-4 border-2 border-bird-blue border-r-transparent rounded-full" />
-              Loading map...
-            </div>
-          </div>
-        )}
-      </div>
-
       <motion.div
         initial={mobileView === 'list' ? { y: 0 } : { y: "100%" }}
         animate={{ y: 0 }}
@@ -623,6 +624,17 @@ export const RequestsView: React.FC<RequestsViewProps> = ({ isOnline, mobileView
       </motion.div>
 
       <div className={`flex-1 relative overflow-hidden ${mobileView === 'map' ? 'block' : 'hidden md:block'}`}>
+        <div className="absolute inset-0 z-0 bg-gray-100">
+          <div ref={mapContainerRef} className="absolute inset-0 z-0" />
+          {!leafletReady && (
+            <div className="absolute inset-0 flex items-center justify-center bg-white/70 backdrop-blur-sm z-[500]">
+              <div className="rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm font-semibold text-gray-700 shadow flex items-center gap-3">
+                <motion.div animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 1, ease: 'linear' }} className="w-4 h-4 border-2 border-bird-blue border-r-transparent rounded-full" />
+                Loading map...
+              </div>
+            </div>
+          )}
+        </div>
 
         {selectedRequest && (
           <div className="absolute top-4 left-4 z-[500] pointer-events-auto rounded-xl bg-white/95 border border-gray-200 shadow p-3 w-[320px] max-w-[90%]">
@@ -720,7 +732,20 @@ export const RequestsView: React.FC<RequestsViewProps> = ({ isOnline, mobileView
                   min="1"
                   step="1"
                   value={counterAmount}
-                  onChange={(e) => setCounterAmount(e.target.value)}
+                  onChange={(e) => {
+                    const nextValue = e.target.value;
+                    if (nextValue === '') {
+                      setCounterAmount('');
+                      return;
+                    }
+
+                    const parsed = Number(nextValue);
+                    if (!Number.isFinite(parsed) || parsed < 0) {
+                      return;
+                    }
+
+                    setCounterAmount(nextValue);
+                  }}
                   className="w-full bg-gray-50 border-2 border-gray-200 rounded-xl py-3 pl-10 pr-4 text-gray-900 font-bold focus:outline-none focus:border-amber-500 transition-colors"
                 />
               </div>

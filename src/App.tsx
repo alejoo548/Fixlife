@@ -55,6 +55,19 @@ const LANDING_SECTION_IDS = {
 
 type LandingSectionTarget = keyof typeof LANDING_SECTION_IDS;
 
+const getProtectedPathForView = (view: 'landing' | 'app' | 'pro-dashboard' | 'admin-dashboard' | 'profile') => {
+  switch (view) {
+    case 'pro-dashboard':
+      return '/pro-dashboard';
+    case 'admin-dashboard':
+      return '/admin-dashboard';
+    case 'profile':
+      return '/profile';
+    default:
+      return null;
+  }
+};
+
 const App: React.FC = () => {
   const [isAuthOpen, setIsAuthOpen] = useState(false);
   const [authMode, setAuthMode] = useState<AuthMode>('signin');
@@ -134,6 +147,35 @@ const App: React.FC = () => {
   }, [currentView]);
 
   useEffect(() => {
+    const protectedPath = getProtectedPathForView(currentView);
+    if (!protectedPath || !isAuthenticated()) {
+      return;
+    }
+
+    const blockProtectedBackNavigation = () => {
+      if (!isAuthenticated()) {
+        return;
+      }
+
+      const expectedPath = getProtectedPathForView(currentView);
+      if (!expectedPath) {
+        return;
+      }
+
+      window.history.pushState({ fixlifeProtected: true }, '', expectedPath);
+      setCurrentView(currentView);
+      window.scrollTo(0, 0);
+    };
+
+    window.history.pushState({ fixlifeProtected: true }, '', protectedPath);
+    window.addEventListener('popstate', blockProtectedBackNavigation);
+
+    return () => {
+      window.removeEventListener('popstate', blockProtectedBackNavigation);
+    };
+  }, [currentView]);
+
+  useEffect(() => {
     const fetchServiceCards = async () => {
       try {
         const res = await fetch(API_ENDPOINTS.services.cards);
@@ -189,7 +231,7 @@ const App: React.FC = () => {
       goLandingWithReplace();
       return;
     }
-    window.history.pushState({}, '', '/pro-dashboard');
+    window.history.replaceState({}, '', '/pro-dashboard');
     setCurrentView('pro-dashboard');
     window.scrollTo(0, 0);
   }
@@ -199,7 +241,7 @@ const App: React.FC = () => {
       goLandingWithReplace();
       return;
     }
-    window.history.pushState({}, '', '/admin-dashboard');
+    window.history.replaceState({}, '', '/admin-dashboard');
     setCurrentView('admin-dashboard');
     window.scrollTo(0, 0);
   }
@@ -214,14 +256,23 @@ const App: React.FC = () => {
       handleOpenAuth('signin');
       return;
     }
-    window.history.pushState({}, '', '/profile');
+    window.history.replaceState({}, '', '/profile');
     setCurrentView('profile');
     window.scrollTo(0, 0);
   }
 
   const handleBackToLanding = () => {
     setPendingSection(null);
-    window.history.pushState({}, '', '/');
+    const leavingProtectedView =
+      currentView === 'admin-dashboard' ||
+      currentView === 'pro-dashboard' ||
+      currentView === 'profile';
+
+    if (leavingProtectedView) {
+      window.history.replaceState({}, '', '/');
+    } else {
+      window.history.pushState({}, '', '/');
+    }
     setCurrentView('landing');
     window.scrollTo(0, 0);
   };
@@ -338,6 +389,7 @@ const App: React.FC = () => {
         isOpen={isAuthOpen}
         onClose={() => setIsAuthOpen(false)}
         initialMode={authMode}
+        onAdminLogin={handleOpenAdminDashboard}
       />
 
       <WorkerAuthModal
