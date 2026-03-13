@@ -1106,10 +1106,25 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                             <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-900 font-bold text-lg">$</span>
                                             <input
                                                 type="number"
+                                                min="1"
+                                                step="0.01"
                                                 placeholder="0"
                                                 className="w-full bg-gray-50 border-2 border-gray-200 rounded-xl py-3 pl-10 pr-16 text-gray-900 font-bold text-lg focus:outline-none focus:border-bird-blue transition-all placeholder-gray-400"
                                                 value={data.price}
-                                                onChange={(e) => setData({ ...data, price: e.target.value })}
+                                                onChange={(e) => {
+                                                    const nextValue = e.target.value;
+                                                    if (nextValue === '') {
+                                                        setData({ ...data, price: '' });
+                                                        return;
+                                                    }
+
+                                                    const parsed = Number(nextValue);
+                                                    if (!Number.isFinite(parsed) || parsed < 0) {
+                                                        return;
+                                                    }
+
+                                                    setData({ ...data, price: nextValue });
+                                                }}
                                             />
                                             <span className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-500 text-sm font-medium">USD</span>
                                         </div>

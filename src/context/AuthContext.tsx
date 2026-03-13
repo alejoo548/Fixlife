@@ -1,5 +1,7 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 
+import { clearAuthSession } from '../utils/session';
+
 interface AuthContextType {
   user: any;
   isAuthenticated: boolean;
@@ -10,14 +12,47 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | null>(null);
 
+const readStoredUser = () => {
+  const storedToken = localStorage.getItem('token');
+  const storedUser = localStorage.getItem('user');
+  if (!storedToken || !storedUser) return null;
+
+  try {
+    return JSON.parse(storedUser);
+  } catch {
+    return null;
+  }
+};
+
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<any>(null);
 
   useEffect(() => {
-    const storedUser = localStorage.getItem('user');
-    if (storedUser) {
-      setUser(JSON.parse(storedUser));
-    }
+    const syncUserFromStorage = () => {
+      setUser(readStoredUser());
+    };
+
+    const handleVisibilityChange = () => {
+      if (!document.hidden) {
+        syncUserFromStorage();
+      }
+    };
+
+    syncUserFromStorage();
+
+    window.addEventListener('storage', syncUserFromStorage);
+    window.addEventListener('popstate', syncUserFromStorage);
+    window.addEventListener('pageshow', syncUserFromStorage);
+    window.addEventListener('focus', syncUserFromStorage);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      window.removeEventListener('storage', syncUserFromStorage);
+      window.removeEventListener('popstate', syncUserFromStorage);
+      window.removeEventListener('pageshow', syncUserFromStorage);
+      window.removeEventListener('focus', syncUserFromStorage);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
   }, []);
 
   const login = (user: any, token: string) => {
@@ -27,8 +62,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const logout = () => {
-    localStorage.removeItem('user');
-    localStorage.removeItem('token');
+    clearAuthSession();
     setUser(null);
   };
 

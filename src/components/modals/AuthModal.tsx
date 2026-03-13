@@ -10,9 +10,10 @@ interface AuthModalProps {
   isOpen: boolean;
   onClose: () => void;
   initialMode: AuthMode;
+  onAdminLogin?: () => void;
 }
 
-export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMode }) => {
+export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMode, onAdminLogin }) => {
   type AuthView = AuthMode | 'forgot';
   const [view, setView] = useState<AuthView>(initialMode);
 
@@ -139,7 +140,14 @@ if (!emailRegex.test(formData.email)) {
     login(data.user, data.token);
 
     if (data.user?.rol === 'admin' || data.user?.role === 'admin') {
-      window.location.href = '/admin-dashboard';
+      onClose();
+      setTimeout(() => {
+        if (onAdminLogin) {
+          onAdminLogin();
+          return;
+        }
+        window.location.replace('/admin-dashboard');
+      }, 100);
     } else {
       notyf.success('Welcome back!');
       onClose();
