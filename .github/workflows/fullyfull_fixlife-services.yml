@@ -13,7 +13,7 @@ jobs:
   build:
     runs-on: ubuntu-latest
     permissions:
-      contents: read #This is required for actions/checkout
+      contents: read
 
     steps:
       - uses: actions/checkout@v4
@@ -34,18 +34,17 @@ jobs:
           context: .
           push: true
           tags: fixlifeserv.azurecr.io/${{ secrets.AZUREAPPSERVICE_CONTAINERUSERNAME_099FBFD806D8410BBCB0A0411F074867 }}/fixlife-frontend:${{ github.sha }}
-          file: ./Dockerfile
+          file: ./docker/Dockerfile.prod
 
   deploy:
     runs-on: ubuntu-latest
     permissions:
-      id-token: write #This is required for requesting the JWT
-      contents: read #This is required for actions/checkout
+      id-token: write
+      contents: read
 
     needs: build
     
     steps:
-      
       - name: Login to Azure
         uses: azure/login@v2
         with:
@@ -60,4 +59,3 @@ jobs:
           app-name: 'Fixlife-services'
           slot-name: 'Production'
           images: 'fixlifeserv.azurecr.io/${{ secrets.AZUREAPPSERVICE_CONTAINERUSERNAME_099FBFD806D8410BBCB0A0411F074867 }}/fixlife-frontend:${{ github.sha }}'
-          
