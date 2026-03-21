@@ -3,7 +3,7 @@ import { API_ENDPOINTS, API_URL } from '../../config/api';
 import { Notyf } from 'notyf';
 import 'notyf/notyf.min.css';
 import { motion, AnimatePresence } from 'framer-motion';
-import ForgotPassword from '../../pages/ForgotPassword';
+import WorkerForgotPassword from '../../pages/WorkerForgotPassword';
 
 interface ServiceOption {
   id_service: number;
@@ -357,7 +357,7 @@ export const WorkerAuthModal: React.FC<WorkerAuthModalProps> = ({ isOpen, onClos
         />
 
         <div className="relative bg-white rounded-3xl shadow-2xl p-8 w-full max-w-md animate-zoom-in">
-          <ForgotPassword onBack={() => setView('signin')} />
+          <WorkerForgotPassword onBack={() => setView('signin')} />
         </div>
       </div>
     );
