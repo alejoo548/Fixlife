@@ -16,6 +16,7 @@ import { ParticlesBackground } from './components/effects/ParticlesBackground';
 import { TestimonialsCarousel } from './components/sections/TestimonialsCarousel';
 import { FAQSection } from './components/sections/FAQSection';
 import { Button } from './components/common/Button';
+import { AiSupportChatWidget } from './components/common/AiSupportChatWidget';
 import UserProfile from './pages/UserProfile';
 import { clearAuthSession, hasRole, isAuthenticated } from './utils/session';
 import { API_ENDPOINTS } from './config/api';
@@ -331,6 +332,7 @@ const App: React.FC = () => {
   ];
 
   const cardsToRender = serviceCards.length > 0 ? serviceCards.slice(0, 8) : fallbackCards;
+  const showAiSupportWidget = currentView !== 'admin-dashboard' && currentView !== 'pro-dashboard';
 
   const normalizeLabel = (value: string) => value.toLowerCase().replace(/[^a-z0-9]+/g, '');
 
@@ -698,6 +700,8 @@ const App: React.FC = () => {
           />
         </>
       )}
+
+      {showAiSupportWidget ? <AiSupportChatWidget /> : null}
 
     </div>
   );
