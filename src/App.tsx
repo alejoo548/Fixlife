@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { Navbar } from './components/layout/Navbar';
 import { NavItemType, AuthMode } from './types';
@@ -17,6 +17,8 @@ import { TestimonialsCarousel } from './components/sections/TestimonialsCarousel
 import { FAQSection } from './components/sections/FAQSection';
 import { Button } from './components/common/Button';
 import { AiSupportChatWidget } from './components/common/AiSupportChatWidget';
+import PageLoader from './components/common/PageLoader';
+import { ThreeDCard } from './components/common/ThreeDCard';
 import UserProfile from './pages/UserProfile';
 import { clearAuthSession, hasRole, isAuthenticated } from './utils/session';
 import { API_ENDPOINTS } from './config/api';
@@ -70,6 +72,8 @@ const getProtectedPathForView = (view: 'landing' | 'app' | 'pro-dashboard' | 'ad
 };
 
 const App: React.FC = () => {
+  const [isPageLoading, setIsPageLoading] = useState(true);
+  const loaderTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [isAuthOpen, setIsAuthOpen] = useState(false);
   const [authMode, setAuthMode] = useState<AuthMode>('signin');
   const [isWorkerAuthOpen, setIsWorkerAuthOpen] = useState(false);
@@ -78,6 +82,15 @@ const App: React.FC = () => {
   const [serviceCards, setServiceCards] = useState<HomeServiceCard[]>([]);
   const [selectedService, setSelectedService] = useState<{ id: number; name: string } | null>(null);
   const [pendingSection, setPendingSection] = useState<LandingSectionTarget | null>(null);
+
+  useEffect(() => {
+    loaderTimerRef.current = setTimeout(() => {
+      setIsPageLoading(false);
+    }, 2200);
+    return () => {
+      if (loaderTimerRef.current) clearTimeout(loaderTimerRef.current);
+    };
+  }, []);
 
   const goLandingWithReplace = () => {
     window.history.replaceState({}, '', '/');
@@ -376,6 +389,7 @@ const App: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-sky-50 via-amber-50 to-orange-50 text-gray-900 selection:bg-bird-blue selection:text-white overflow-x-hidden font-sans flex flex-col relative transition-colors duration-500">
+      <PageLoader visible={isPageLoading} />
 
       <div className="fixed inset-0 w-full h-full overflow-hidden pointer-events-none z-0">
         <ParticlesBackground />
@@ -616,9 +630,8 @@ const App: React.FC = () => {
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                 {cardsToRender.map((item, i) => (
                   <ScrollReveal key={i} delay={i * 100} className="h-full">
-                    <motion.div
-                      whileHover={{ y: -8, scale: 1.02 }}
-                      transition={{ type: "spring", stiffness: 300 }}
+                    <ThreeDCard className="h-full">
+                    <div
                       onClick={() => handleStartBooking({ id: item.id_service, name: item.service_name })}
                       className="group h-full cursor-pointer bg-white/80 border border-gray-200/50 rounded-3xl overflow-hidden hover:border-bird-blue/50 transition-all duration-500 hover:shadow-2xl hover:shadow-bird-blue/10 flex flex-col backdrop-blur-sm"
                     >
@@ -662,24 +675,25 @@ const App: React.FC = () => {
                           </svg>
                         </motion.div>
                       </div>
-                    </motion.div>
+                    </div>
+                    </ThreeDCard>
                   </ScrollReveal>
                 ))}
               </div>
             </section>
 
             <ScrollReveal>
-              <section id={LANDING_SECTION_IDS.steps} className="mb-24"><StepsSection onStartBooking={() => handleStartBooking()} /></section>
+              <section id={LANDING_SECTION_IDS.steps} className="mb-14"><StepsSection onStartBooking={() => handleStartBooking()} /></section>
             </ScrollReveal>
 
             <ScrollReveal>
-              <section id={LANDING_SECTION_IDS.testimonials} className="mb-24">
+              <section id={LANDING_SECTION_IDS.testimonials} className="mb-14">
                 <TestimonialsCarousel />
               </section>
             </ScrollReveal>
 
             <ScrollReveal>
-              <section id={LANDING_SECTION_IDS.faq} className="mb-24">
+              <section id={LANDING_SECTION_IDS.faq} className="mb-14">
                 <FAQSection
                   onBookService={() => handleStartBooking()}
                   onNavigateSection={(target) => handleNavigateSection(target)}

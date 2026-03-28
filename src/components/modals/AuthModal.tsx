@@ -148,6 +148,11 @@ if (!emailRegex.test(formData.email)) {
         }
         window.location.replace('/admin-dashboard');
       }, 100);
+    } else if (data.user?.rol === 'worker' || data.user?.role === 'worker') {
+      onClose();
+      setTimeout(() => {
+        window.location.replace('/pro-dashboard');
+      }, 100);
     } else {
       notyf.success('Welcome back!');
       onClose();

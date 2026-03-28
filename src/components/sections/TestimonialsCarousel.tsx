@@ -82,9 +82,9 @@ export const TestimonialsCarousel: React.FC = () => {
 
   return (
     <div className="relative">
-      <div className="flex items-center justify-between mb-10 px-2">
+      <div className="flex items-center justify-between mb-6 px-2">
         <div>
-          <h3 className="text-3xl font-black text-gray-900 flex items-center gap-4">
+          <h3 className="text-2xl font-black text-gray-900 flex items-center gap-4">
             <span className="w-1.5 h-8 rounded-full bg-bird-yellow shadow-[0_0_15px_rgba(255,194,14,0.4)]"></span>
             What Our Customers Say
           </h3>
@@ -92,33 +92,33 @@ export const TestimonialsCarousel: React.FC = () => {
         </div>
       </div>
 
-      <div className="relative overflow-hidden rounded-3xl bg-white/80 backdrop-blur-xl border border-gray-200/50 shadow-2xl p-8 md:p-12">
+      <div className="relative overflow-hidden rounded-3xl bg-white/80 backdrop-blur-xl border border-gray-200/50 shadow-2xl p-5 md:p-8">
         <div className="absolute top-0 left-0 w-full h-full pointer-events-none overflow-hidden">
           <div className="absolute -top-20 -right-20 w-60 h-60 bg-bird-blue/10 rounded-full blur-3xl" />
           <div className="absolute -bottom-20 -left-20 w-60 h-60 bg-bird-yellow/10 rounded-full blur-3xl" />
         </div>
 
         <div className="relative z-10">
-          <div className="flex items-start gap-6 md:gap-8 mb-8">
+          <div className="flex items-start gap-4 md:gap-6 mb-5">
             <div className="relative shrink-0">
-              <div className="w-20 h-20 md:w-24 md:h-24 rounded-2xl overflow-hidden border-4 border-white shadow-xl">
+              <div className="w-14 h-14 md:w-18 md:h-18 rounded-2xl overflow-hidden border-4 border-white shadow-xl">
                 <img
                   src={testimonials[currentIndex].image}
                   alt={testimonials[currentIndex].name}
                   className="w-full h-full object-cover"
                 />
               </div>
-              <div className="absolute -bottom-2 -right-2 w-10 h-10 bg-bird-blue rounded-full flex items-center justify-center shadow-lg border-4 border-white">
-                <svg className="w-5 h-5 text-white" fill="currentColor" viewBox="0 0 24 24">
+              <div className="absolute -bottom-1 -right-1 w-5 h-5 bg-bird-blue rounded-full flex items-center justify-center shadow-lg border-2 border-white">
+                <svg className="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 24 24">
                   <path d="M14.017 21v-7.391c0-5.704 3.731-9.57 8.983-10.609l.995 2.151c-2.432.917-3.995 3.638-3.995 5.849h4v10h-9.983zm-14.017 0v-7.391c0-5.704 3.748-9.57 9-10.609l.996 2.151c-2.433.917-3.996 3.638-3.996 5.849h3.983v10h-9.983z" />
                 </svg>
               </div>
             </div>
 
             <div className="flex-1 min-w-0">
-              <div className="flex items-start justify-between gap-4 mb-3">
+              <div className="flex items-start justify-between gap-4 mb-2">
                 <div className="min-w-0">
-                  <h4 className="text-xl md:text-2xl font-bold text-gray-900 truncate">{testimonials[currentIndex].name}</h4>
+                  <h4 className="text-base md:text-lg font-bold text-gray-900 truncate">{testimonials[currentIndex].name}</h4>
                   <p className="text-sm text-gray-600 font-medium">{testimonials[currentIndex].role}</p>
                 </div>
                 <div className="flex gap-1 shrink-0">
@@ -130,7 +130,7 @@ export const TestimonialsCarousel: React.FC = () => {
                 </div>
               </div>
 
-              <p className="text-gray-700 text-base md:text-lg leading-relaxed mb-4 font-medium">
+              <p className="text-gray-700 text-sm md:text-base leading-relaxed mb-3 font-medium">
                 "{testimonials[currentIndex].text}"
               </p>
 
@@ -183,21 +183,21 @@ export const TestimonialsCarousel: React.FC = () => {
         </div>
       </div>
 
-      <div className="mt-8 grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-6">
-        <div className="bg-white/80 backdrop-blur-sm border border-gray-200 rounded-2xl p-4 md:p-6 text-center shadow-sm hover:shadow-lg transition-shadow">
-          <div className="text-3xl md:text-4xl font-black text-bird-blue mb-1">2.4k+</div>
+      <div className="mt-5 grid grid-cols-2 md:grid-cols-4 gap-3">
+        <div className="bg-white/80 backdrop-blur-sm border border-gray-200 rounded-2xl p-3 md:p-4 text-center shadow-sm hover:shadow-lg transition-shadow">
+          <div className="text-2xl md:text-3xl font-black text-bird-blue mb-0.5">2.4k+</div>
           <div className="text-xs md:text-sm text-gray-600 font-medium">Happy Customers</div>
         </div>
-        <div className="bg-white/80 backdrop-blur-sm border border-gray-200 rounded-2xl p-4 md:p-6 text-center shadow-sm hover:shadow-lg transition-shadow">
-          <div className="text-3xl md:text-4xl font-black text-bird-yellow mb-1">4.9</div>
+        <div className="bg-white/80 backdrop-blur-sm border border-gray-200 rounded-2xl p-3 md:p-4 text-center shadow-sm hover:shadow-lg transition-shadow">
+          <div className="text-2xl md:text-3xl font-black text-bird-yellow mb-0.5">4.9</div>
           <div className="text-xs md:text-sm text-gray-600 font-medium">Average Rating</div>
         </div>
-        <div className="bg-white/80 backdrop-blur-sm border border-gray-200 rounded-2xl p-4 md:p-6 text-center shadow-sm hover:shadow-lg transition-shadow">
-          <div className="text-3xl md:text-4xl font-black text-bird-orange mb-1">15k+</div>
+        <div className="bg-white/80 backdrop-blur-sm border border-gray-200 rounded-2xl p-3 md:p-4 text-center shadow-sm hover:shadow-lg transition-shadow">
+          <div className="text-2xl md:text-3xl font-black text-bird-orange mb-0.5">15k+</div>
           <div className="text-xs md:text-sm text-gray-600 font-medium">Jobs Completed</div>
         </div>
-        <div className="bg-white/80 backdrop-blur-sm border border-gray-200 rounded-2xl p-4 md:p-6 text-center shadow-sm hover:shadow-lg transition-shadow">
-          <div className="text-3xl md:text-4xl font-black text-bird-blue mb-1">98%</div>
+        <div className="bg-white/80 backdrop-blur-sm border border-gray-200 rounded-2xl p-3 md:p-4 text-center shadow-sm hover:shadow-lg transition-shadow">
+          <div className="text-2xl md:text-3xl font-black text-bird-blue mb-0.5">98%</div>
           <div className="text-xs md:text-sm text-gray-600 font-medium">Satisfaction Rate</div>
         </div>
       </div>

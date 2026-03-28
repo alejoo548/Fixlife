@@ -4,6 +4,7 @@ import { Notyf } from 'notyf';
 import 'notyf/notyf.min.css';
 import { motion, AnimatePresence } from 'framer-motion';
 import WorkerForgotPassword from '../../pages/WorkerForgotPassword';
+import { useAuth } from '../../context/AuthContext';
 
 interface ServiceOption {
   id_service: number;
@@ -25,6 +26,7 @@ export const WorkerAuthModal: React.FC<WorkerAuthModalProps> = ({ isOpen, onClos
   const [otp, setOtp] = useState('');
   const [availableServices, setAvailableServices] = useState<ServiceOption[]>([]);
   const [selectedServiceIds, setSelectedServiceIds] = useState<number[]>([]);
+  const { login } = useAuth();
   
   const notyf = new Notyf({
     position: { x: 'right', y: 'bottom' },
@@ -219,8 +221,7 @@ export const WorkerAuthModal: React.FC<WorkerAuthModalProps> = ({ isOpen, onClos
         return;
       }
 
-      localStorage.setItem('token', data.token);
-      localStorage.setItem('user', JSON.stringify(data.user));
+      login(data.user, data.token);
       notyf.success('Email verified! Pro account created.');
       setView('upload');
     } catch (err) {
@@ -259,8 +260,7 @@ export const WorkerAuthModal: React.FC<WorkerAuthModalProps> = ({ isOpen, onClos
         return;
       }
 
-      localStorage.setItem('token', data.token);
-      localStorage.setItem('user', JSON.stringify(data.user));
+      login(data.user, data.token);
       notyf.success('Welcome back, Pro!');
       onClose();
       setTimeout(() => {
