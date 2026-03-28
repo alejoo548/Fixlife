@@ -1,4 +1,5 @@
 import React from 'react';
+import { TextHoverEffect } from '../common/TextHoverEffect';
 
 interface FooterProps {
   onOpenPro?: () => void;
@@ -187,6 +188,11 @@ export const Footer: React.FC<FooterProps> = ({
               </form>
             </div>
           </div>
+        </div>
+
+        {/* Epic Fixlife text watermark */}
+        <div className="relative -mx-4 md:-mx-8 px-4 md:px-8 py-4 overflow-hidden">
+          <TextHoverEffect text="Fixlife" />
         </div>
 
         <div className="pt-8 border-t border-gray-200 flex flex-col md:flex-row items-center justify-between gap-4 text-xs text-gray-500 text-center md:text-left">

@@ -64,9 +64,9 @@ export const FAQSection: React.FC<FAQSectionProps> = ({ onBookService, onNavigat
 
   return (
     <div className="relative">
-      <div className="flex flex-col md:flex-row items-start md:items-center justify-between mb-10 px-2 gap-4">
+      <div className="flex flex-col md:flex-row items-start md:items-center justify-between mb-6 px-2 gap-3">
         <div>
-          <h3 className="text-3xl font-black text-gray-900 flex items-center gap-4">
+          <h3 className="text-2xl font-black text-gray-900 flex items-center gap-4">
             <span className="w-1.5 h-8 rounded-full bg-bird-orange shadow-[0_0_15px_rgba(255,128,0,0.4)]"></span>
             Frequently Asked Questions
           </h3>
@@ -86,7 +86,7 @@ export const FAQSection: React.FC<FAQSectionProps> = ({ onBookService, onNavigat
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
         {faqs.map((faq, index) => (
           <motion.div
             key={index}
@@ -98,20 +98,20 @@ export const FAQSection: React.FC<FAQSectionProps> = ({ onBookService, onNavigat
           >
             <button
               onClick={() => toggleFAQ(index)}
-              className="w-full p-5 md:p-6 flex items-start gap-4 text-left hover:bg-gray-50/50 transition-colors group"
+              className="w-full p-4 flex items-start gap-3 text-left hover:bg-gray-50/50 transition-colors group"
             >
-              <div className={`w-10 h-10 md:w-12 md:h-12 rounded-xl flex items-center justify-center shrink-0 transition-all duration-300 ${
+              <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 transition-all duration-300 ${
                 openIndex === index
                   ? 'bg-bird-blue text-white shadow-lg shadow-bird-blue/20'
                   : 'bg-gray-100 text-gray-600 group-hover:bg-gray-200'
               }`}>
-                <svg className="w-5 h-5 md:w-6 md:h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={faq.icon} />
                 </svg>
               </div>
 
               <div className="flex-1 min-w-0">
-                <h4 className={`text-base md:text-lg font-bold mb-1 transition-colors ${
+                <h4 className={`text-sm md:text-base font-bold mb-1 transition-colors ${
                   openIndex === index ? 'text-bird-blue' : 'text-gray-900 group-hover:text-bird-blue'
                 }`}>
                   {faq.question}
@@ -125,7 +125,7 @@ export const FAQSection: React.FC<FAQSectionProps> = ({ onBookService, onNavigat
                       transition={{ duration: 0.3, ease: "easeInOut" }}
                       className="overflow-hidden"
                     >
-                      <p className="text-gray-600 text-sm md:text-base leading-relaxed mt-3 font-medium">
+                      <p className="text-gray-600 text-xs md:text-sm leading-relaxed mt-2 font-medium">
                         {faq.answer}
                       </p>
                     </motion.div>
@@ -154,12 +154,12 @@ export const FAQSection: React.FC<FAQSectionProps> = ({ onBookService, onNavigat
         whileInView={{ opacity: 1, y: 0 }}
         viewport={{ once: true }}
         transition={{ delay: 0.4 }}
-        className="mt-8 bg-gradient-to-r from-bird-blue to-bird-darkBlue rounded-2xl p-6 md:p-8 text-center relative overflow-hidden"
+        className="mt-5 bg-gradient-to-r from-bird-blue to-bird-darkBlue rounded-2xl p-4 md:p-6 text-center relative overflow-hidden"
       >
         <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-10" />
         <div className="relative z-10">
-          <h4 className="text-xl md:text-2xl font-bold text-white mb-2">Ready to solve your issue?</h4>
-          <p className="text-blue-100 mb-6 text-sm md:text-base">Start a request or review the service flow before booking.</p>
+          <h4 className="text-lg md:text-xl font-bold text-white mb-1.5">Ready to solve your issue?</h4>
+          <p className="text-blue-100 mb-4 text-sm">Start a request or review the service flow before booking.</p>
           <div className="flex flex-col sm:flex-row gap-3 justify-center">
             <button
               type="button"

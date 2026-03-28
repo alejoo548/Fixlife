@@ -35,12 +35,12 @@ export const StepsSection: React.FC<StepsSectionProps> = ({ onStartBooking }) =>
 
   return (
     <div className="w-full relative">
-      <div className="text-center mb-12">
+      <div className="text-center mb-7">
         <motion.h3
           initial={{ opacity: 0, y: 20 }}
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true }}
-          className="text-3xl md:text-4xl font-black text-gray-900 mb-3"
+          className="text-2xl md:text-3xl font-black text-gray-900 mb-2"
         >
           How It Works
         </motion.h3>
@@ -49,13 +49,13 @@ export const StepsSection: React.FC<StepsSectionProps> = ({ onStartBooking }) =>
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true }}
           transition={{ delay: 0.1 }}
-          className="text-gray-600 text-base md:text-lg font-medium"
+          className="text-gray-600 text-sm md:text-base font-medium"
         >
           Get your problem solved in three simple steps
         </motion.p>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-8 md:gap-12 relative">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-5 md:gap-8 relative">
         {/* Connecting line for desktop */}
         <div className="hidden md:block absolute top-20 left-[16%] right-[16%] h-1 bg-gradient-to-r from-transparent via-gray-200 to-transparent">
           <motion.div
@@ -84,14 +84,14 @@ export const StepsSection: React.FC<StepsSectionProps> = ({ onStartBooking }) =>
             <motion.div
               whileHover={{ scale: 1.1, rotate: 5 }}
               transition={{ type: "spring", stiffness: 300 }}
-              className="relative z-10 w-32 h-32 md:w-36 md:h-36 rounded-3xl bg-white border-2 border-gray-200 flex items-center justify-center mb-6 shadow-xl group-hover:border-transparent group-hover:shadow-2xl transition-all duration-300"
+              className="relative z-10 w-24 h-24 md:w-28 md:h-28 rounded-2xl bg-white border-2 border-gray-200 flex items-center justify-center mb-4 shadow-xl group-hover:border-transparent group-hover:shadow-2xl transition-all duration-300"
             >
               {/* Gradient background on hover */}
               <div className={`absolute inset-0 rounded-3xl bg-gradient-to-br ${step.gradient} opacity-0 group-hover:opacity-100 transition-opacity duration-300`} />
               
               {/* Icon */}
               <div className="relative z-10">
-                <svg className="w-12 h-12 md:w-14 md:h-14 text-gray-700 group-hover:text-white transition-colors duration-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <svg className="w-9 h-9 md:w-10 md:h-10 text-gray-700 group-hover:text-white transition-colors duration-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={step.icon} />
                 </svg>
               </div>
@@ -102,9 +102,9 @@ export const StepsSection: React.FC<StepsSectionProps> = ({ onStartBooking }) =>
                 whileInView={{ scale: 1 }}
                 viewport={{ once: true }}
                 transition={{ delay: i * 0.2 + 0.3, type: "spring", stiffness: 200 }}
-                className={`absolute -top-3 -right-3 w-12 h-12 rounded-full bg-gradient-to-br ${step.gradient} flex items-center justify-center shadow-lg border-4 border-white`}
+                className={`absolute -top-3 -right-3 w-9 h-9 rounded-full bg-gradient-to-br ${step.gradient} flex items-center justify-center shadow-lg border-4 border-white`}
               >
-                <span className="text-white font-black text-lg">{step.id}</span>
+                <span className="text-white font-black text-sm">{step.id}</span>
               </motion.div>
 
               {/* Pulse effect */}
@@ -117,7 +117,7 @@ export const StepsSection: React.FC<StepsSectionProps> = ({ onStartBooking }) =>
               whileInView={{ opacity: 1 }}
               viewport={{ once: true }}
               transition={{ delay: i * 0.2 + 0.2 }}
-              className="text-2xl md:text-3xl font-black text-gray-900 mb-3 group-hover:text-transparent group-hover:bg-clip-text group-hover:bg-gradient-to-r group-hover:from-bird-blue group-hover:to-bird-lightBlue transition-all duration-300"
+              className="text-xl md:text-2xl font-black text-gray-900 mb-2 group-hover:text-transparent group-hover:bg-clip-text group-hover:bg-gradient-to-r group-hover:from-bird-blue group-hover:to-bird-lightBlue transition-all duration-300"
             >
               {step.title}
             </motion.h3>
@@ -126,7 +126,7 @@ export const StepsSection: React.FC<StepsSectionProps> = ({ onStartBooking }) =>
               whileInView={{ opacity: 1 }}
               viewport={{ once: true }}
               transition={{ delay: i * 0.2 + 0.3 }}
-              className="text-gray-600 text-sm md:text-base leading-relaxed max-w-xs px-4 font-medium"
+              className="text-gray-600 text-xs md:text-sm leading-relaxed max-w-xs px-2 font-medium"
             >
               {step.desc}
             </motion.p>
@@ -155,15 +155,15 @@ export const StepsSection: React.FC<StepsSectionProps> = ({ onStartBooking }) =>
         whileInView={{ opacity: 1, y: 0 }}
         viewport={{ once: true }}
         transition={{ delay: 0.8 }}
-        className="mt-12 text-center"
+        className="mt-7 text-center"
       >
-        <p className="text-gray-600 text-sm md:text-base mb-4 font-medium">Ready to get started?</p>
+        <p className="text-gray-600 text-sm mb-3 font-medium">Ready to get started?</p>
         <motion.button
           type="button"
           onClick={onStartBooking}
           whileHover={{ scale: 1.05 }}
           whileTap={{ scale: 0.95 }}
-          className="px-8 py-4 rounded-xl bg-gradient-to-r from-bird-blue to-bird-lightBlue text-white font-bold shadow-xl shadow-bird-blue/30 hover:shadow-2xl hover:shadow-bird-blue/40 transition-all"
+          className="px-6 py-3 rounded-xl bg-gradient-to-r from-bird-blue to-bird-lightBlue text-white font-bold shadow-xl shadow-bird-blue/30 hover:shadow-2xl hover:shadow-bird-blue/40 transition-all text-sm"
         >
           Book a Service Now
         </motion.button>

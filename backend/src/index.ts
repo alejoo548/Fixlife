@@ -7,9 +7,14 @@ import authRoutes from './routes/auth.routes';
 import workerRoutes from './routes/worker.routes';
 import adminRoutes from './routes/admin.routes';
 import servicesRoutes from './routes/services.routes';
+import aiChatRoutes from './routes/aiChat.routes';
 import { globalLimiter } from './middlewares/security.middleware';
 
 dotenv.config();
+
+if (!process.env.JWT_SECRET) {
+  console.warn('⚠️  WARNING: JWT_SECRET not set in .env — using insecure default. Set it before going to production.');
+}
 
 const app = express();
 const PORT = process.env.PORT || 8000;
@@ -31,6 +36,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/worker', workerRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/services', servicesRoutes);
+app.use('/api', aiChatRoutes);
 
 
 app.get('/api/health', (req: Request, res: Response) => {
