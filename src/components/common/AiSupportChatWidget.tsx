@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { MessageCircle, Send, Sparkles, X } from 'lucide-react';
 import { API_URL } from '../../config/api';
+import { getToken } from '../../utils/session';
 
 interface ChatMessage {
   id: string;
@@ -71,9 +72,13 @@ export const AiSupportChatWidget: React.FC = () => {
     abortControllerRef.current = new AbortController();
 
     try {
+      const token = getToken();
       const response = await fetch(`${API_URL}/api/ai/chat`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
         body: JSON.stringify({ messages: history }),
         signal: abortControllerRef.current.signal,
       });
