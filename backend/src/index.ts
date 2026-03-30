@@ -28,23 +28,14 @@ const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS ?? '')
   .map((o) => o.trim())
   .filter(Boolean);
 
-const corsOrigin = isProduction
-  ? (ALLOWED_ORIGINS.length > 0 ? ALLOWED_ORIGINS : false)
-  : (origin: string | undefined, cb: (err: Error | null, allow?: boolean) => void) => {
-      if (!origin || /^https?:\/\/localhost(:\d+)?$/.test(origin)) return cb(null, true);
-      if (ALLOWED_ORIGINS.includes(origin)) return cb(null, true);
-      cb(new Error(`CORS: origin ${origin} not allowed`));
-    };
-
 const app = express();
 const PORT = process.env.PORT || 8000;
 const uploadsDir = path.resolve(process.cwd(), 'uploads');
 
 app.use(
-  cors({
-    origin: corsOrigin,
-    credentials: true,
-  })
+  isProduction
+    ? cors({ origin: ALLOWED_ORIGINS.length > 0 ? ALLOWED_ORIGINS : false, credentials: true })
+    : cors()
 );
 app.use(
   helmet({
