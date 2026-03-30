@@ -6,6 +6,7 @@ import path from 'path';
 import pool from '../config/db';
 import { ResultSetHeader, RowDataPacket } from 'mysql2';
 import { sendVerificationEmail, sendPasswordResetEmail } from '../utils/email';
+import { ensureUsersActiveColumn, ensureUsersPendingWorkerColumn } from '../utils/users';
 import { AuthRequest } from '../middlewares/auth.middleware';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'super_secret_jwt_key_for_development';
@@ -47,6 +48,8 @@ const deleteLocalUploadIfExists = (filename: string | null | undefined): void =>
 
 export const registerWorker = async (req: Request, res: Response): Promise<void> => {
   try {
+    await ensureUsersPendingWorkerColumn();
+
     const { name, lastname, email, phone_number, password, username, service_ids } = req.body;
 
     if (!name || !lastname || !email || !phone_number || !password) {
@@ -104,7 +107,7 @@ export const registerWorker = async (req: Request, res: Response): Promise<void>
           const expiresAt = new Date(Date.now() + 15 * 60 * 1000);
 
           await connection.execute(
-            `UPDATE users SET name = ?, lastname = ?, phone_number = ?, password_hash = ?, username = ?, verification_token = ?, token_expires_at = ? WHERE id_user = ?`,
+            `UPDATE users SET name = ?, lastname = ?, phone_number = ?, password_hash = ?, username = ?, verification_token = ?, token_expires_at = ?, pending_worker = 1 WHERE id_user = ?`,
             [trimmedName, trimmedLastname, trimmedPhoneNumber, password_hash, trimmedUsername || null, otp, expiresAt, existingUser.id_user]
           );
 
@@ -144,8 +147,8 @@ export const registerWorker = async (req: Request, res: Response): Promise<void>
       const expiresAt = new Date(Date.now() + 15 * 60 * 1000); // 15 mins
 
       const [insertUserResult] = await connection.execute<ResultSetHeader>(
-        `INSERT INTO users (name, lastname, email, phone_number, password_hash, rol, username, created_at, verification_token, token_expires_at)
-         VALUES (?, ?, ?, ?, ?, 'worker', ?, NOW(), ?, ?)`,
+        `INSERT INTO users (name, lastname, email, phone_number, password_hash, rol, username, created_at, verification_token, token_expires_at, pending_worker)
+         VALUES (?, ?, ?, ?, ?, 'client', ?, NOW(), ?, ?, 1)`,
         [trimmedName, trimmedLastname, trimmedEmail, trimmedPhoneNumber, password_hash, trimmedUsername || null, otp, expiresAt]
       );
 
@@ -202,6 +205,8 @@ export const registerWorker = async (req: Request, res: Response): Promise<void>
 
 export const resendOtp = async (req: Request, res: Response): Promise<void> => {
   try {
+    await ensureUsersPendingWorkerColumn();
+
     const { email } = req.body;
 
     if (!email) {
@@ -211,7 +216,7 @@ export const resendOtp = async (req: Request, res: Response): Promise<void> => {
     const trimmedEmail = String(email).trim().toLowerCase();
 
     const [users] = await pool.execute<RowDataPacket[]>(
-      `SELECT id_user, name, verification_token FROM users WHERE email = ? AND rol = 'worker'`,
+      `SELECT id_user, name, verification_token FROM users WHERE email = ? AND pending_worker = 1`,
       [trimmedEmail]
     );
 
@@ -251,6 +256,8 @@ export const resendOtp = async (req: Request, res: Response): Promise<void> => {
 
 export const verifyWorkerEmail = async (req: Request, res: Response): Promise<void> => {
   try {
+    await ensureUsersPendingWorkerColumn();
+
     const { email, otp } = req.body;
 
     if (!email || !otp) {
@@ -261,8 +268,8 @@ export const verifyWorkerEmail = async (req: Request, res: Response): Promise<vo
     const trimmedOtp = String(otp).trim();
 
     const [users] = await pool.execute<RowDataPacket[]>(
-      `SELECT id_user, name, lastname, email, phone_number, rol, username, profile_image, verification_token, token_expires_at 
-       FROM users WHERE email = ? AND rol = 'worker'`,
+      `SELECT id_user, name, lastname, email, phone_number, rol, username, profile_image, verification_token, token_expires_at, pending_worker
+       FROM users WHERE email = ? AND pending_worker = 1`,
       [trimmedEmail]
     );
 
@@ -304,7 +311,7 @@ export const verifyWorkerEmail = async (req: Request, res: Response): Promise<vo
       const worker = workerProfiles[0];
 
       const token = jwt.sign(
-        { user_id: user.id_user, rol: 'worker' },
+        { user_id: user.id_user, rol: user.rol },
         JWT_SECRET,
         { expiresIn: '7d' }
       );
@@ -321,6 +328,7 @@ export const verifyWorkerEmail = async (req: Request, res: Response): Promise<vo
           rol: user.rol,
           username: user.username,
           profile_image: user.profile_image,
+          pending_worker: user.pending_worker ? 1 : 0,
           worker_profile: {
             id_worker_profile: worker.id_worker_profile,
             bio: worker.bio,
@@ -455,8 +463,11 @@ export const login = async (req: Request, res: Response): Promise<void> => {
       return;
     }
 
+    await ensureUsersActiveColumn();
+    await ensureUsersPendingWorkerColumn();
+
     const [users] = await pool.execute<RowDataPacket[]>(
-      `SELECT id_user, name, lastname, email, phone_number, password_hash, rol, username, profile_image
+      `SELECT id_user, name, lastname, email, phone_number, password_hash, rol, username, profile_image, is_active, pending_worker
        FROM users WHERE email = ?`,
       [email]
     );
@@ -474,6 +485,11 @@ export const login = async (req: Request, res: Response): Promise<void> => {
       return;
     }
 
+    if (user.is_active === 0) {
+      res.status(403).json({ error: 'Account is inactive. Contact support.' });
+      return;
+    }
+
     await pool.execute(
       'UPDATE users SET last_login = NOW() WHERE id_user = ?',
       [user.id_user]
@@ -487,10 +503,11 @@ export const login = async (req: Request, res: Response): Promise<void> => {
       phone_number: user.phone_number,
       rol: user.rol,
       username: user.username,
-      profile_image: user.profile_image
+      profile_image: user.profile_image,
+      pending_worker: user.pending_worker ? 1 : 0
     };
 
-    if (user.rol === 'worker') {
+    if (user.rol === 'worker' || user.pending_worker === 1) {
       const [workerProfiles] = await pool.execute<RowDataPacket[]>(
         `SELECT id_worker_profile, bio, banner_image, dui_document, cert_document, is_verified
          FROM worker_profiles WHERE id_user = ?`,

@@ -11,8 +11,12 @@ import {
   getPendingWorkers,
   approveWorker,
   rejectWorker,
+  getUsersAdmin,
+  updateUserRole,
+  updateUserStatus,
   getDashboardStats,
   getRequestsHistory,
+  getAdminActivity,
   getHeroSlidesPublic,
   updateHeroSlides,
   uploadHeroImageAsset,
@@ -44,9 +48,15 @@ router.get('/pending-workers', getPendingWorkers);
 router.put('/workers/:id/approve', sensitiveLimiter, approveWorker);
 router.put('/workers/:id/reject', sensitiveLimiter, rejectWorker);
 
+// Users management
+router.get('/users', getUsersAdmin);
+router.put('/users/:id/role', sensitiveLimiter, updateUserRole);
+router.put('/users/:id/status', sensitiveLimiter, updateUserStatus);
+
 // Dashboard Stats
 router.get('/stats', getDashboardStats);
 router.get('/requests-history', getRequestsHistory);
+router.get('/activity', getAdminActivity);
 
 // Hero Slides Editor
 router.put('/hero-slides', sensitiveLimiter, updateHeroSlides);

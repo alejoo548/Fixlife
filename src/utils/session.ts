@@ -5,6 +5,7 @@ export type AuthUser = {
   name?: string;
   rol?: string;
   role?: string;
+  pending_worker?: number | boolean;
   worker_profile?: {
     is_verified?: unknown;
     dui_document?: string | null;
@@ -47,6 +48,13 @@ export const hasRole = (role: AuthRole): boolean => {
   const user = getAuthUser();
   if (!user) return false;
   const currentRole = normalizeRole(user.rol ?? user.role);
+  if (role === 'admin') {
+    return currentRole === 'admin' || currentRole === 'root';
+  }
+  if (role === 'worker') {
+    const pending = user.pending_worker === true || user.pending_worker === 1;
+    return currentRole === role || pending;
+  }
   return currentRole === role;
 };
 
