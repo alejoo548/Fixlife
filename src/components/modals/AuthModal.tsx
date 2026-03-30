@@ -139,7 +139,8 @@ if (!emailRegex.test(formData.email)) {
 
     login(data.user, data.token);
 
-    if (data.user?.rol === 'admin' || data.user?.role === 'admin') {
+    const role = String(data.user?.rol ?? data.user?.role ?? '').toLowerCase();
+    if (role === 'admin' || role === 'root') {
       onClose();
       setTimeout(() => {
         if (onAdminLogin) {

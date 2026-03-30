@@ -33,8 +33,12 @@ export const API_ENDPOINTS = {
     pendingWorkers: `${API_URL}/api/admin/pending-workers`,
     approveWorker: (id: number) => `${API_URL}/api/admin/workers/${id}/approve`,
     rejectWorker: (id: number) => `${API_URL}/api/admin/workers/${id}/reject`,
+    users: `${API_URL}/api/admin/users`,
+    updateUserRole: (id: number) => `${API_URL}/api/admin/users/${id}/role`,
+    updateUserStatus: (id: number) => `${API_URL}/api/admin/users/${id}/status`,
     stats: `${API_URL}/api/admin/stats`,
     requestsHistory: `${API_URL}/api/admin/requests-history`,
+    activity: `${API_URL}/api/admin/activity`,
   },
   worker: {
     me: `${API_URL}/api/worker/me`,

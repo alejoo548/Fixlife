@@ -253,7 +253,8 @@ export const WorkerAuthModal: React.FC<WorkerAuthModalProps> = ({ isOpen, onClos
         return;
       }
 
-      if (data.user.rol !== 'worker') {
+      const isWorker = data.user?.rol === 'worker' || data.user?.pending_worker === 1 || data.user?.pending_worker === true;
+      if (!isWorker) {
         notyf.error('This account is not registered as a worker');
         setLoading(false);
         return;
