@@ -18,12 +18,8 @@ import {
 import { verifyToken } from '../middlewares/auth.middleware';
 import { sensitiveLimiter } from '../middlewares/security.middleware';
 import { upload } from '../middlewares/upload.middleware';
-import {
-  validateChangePassword,
-  validateEmailChangeRequest,
-  validateTokenOnly,
-  validateWorkerSettings,
-} from '../middlewares/validation.middleware';
+import { validate } from '../middlewares/validate.middleware';
+import { WorkerSchema } from '../schemas/worker.schema';
 
 const router = Router();
 
@@ -33,10 +29,10 @@ router.post('/requests/:idRequest/accept', verifyToken, sensitiveLimiter, accept
 router.post('/requests/:idRequest/reject', verifyToken, sensitiveLimiter, rejectWorkerRequest);
 router.post('/requests/:idRequest/counter-offer', verifyToken, sensitiveLimiter, counterOfferWorkerRequest);
 router.put('/presence', verifyToken, updateWorkerPresence);
-router.put('/settings', verifyToken, sensitiveLimiter, validateWorkerSettings, updateWorkerSettings);
-router.put('/change-password', verifyToken, sensitiveLimiter, validateChangePassword, changeWorkerPassword);
-router.post('/email-change/request', verifyToken, sensitiveLimiter, validateEmailChangeRequest, requestWorkerEmailChangeToken);
-router.post('/email-change/verify', verifyToken, sensitiveLimiter, validateTokenOnly, verifyWorkerEmailChangeToken);
+router.put('/settings', verifyToken, sensitiveLimiter, validate(WorkerSchema.settings), updateWorkerSettings);
+router.put('/change-password', verifyToken, sensitiveLimiter, validate(WorkerSchema.changePassword), changeWorkerPassword);
+router.post('/email-change/request', verifyToken, sensitiveLimiter, validate(WorkerSchema.emailChangeRequest), requestWorkerEmailChangeToken);
+router.post('/email-change/verify', verifyToken, sensitiveLimiter, validate(WorkerSchema.tokenOnly), verifyWorkerEmailChangeToken);
 router.post('/profile-image', verifyToken, sensitiveLimiter, upload.single('profile_image'), uploadProfileImage);
 router.post('/portfolio', verifyToken, sensitiveLimiter, upload.array('portfolio_images', 10), uploadPortfolioImages);
 router.delete('/portfolio/:idPhoto', verifyToken, sensitiveLimiter, deletePortfolioImage);

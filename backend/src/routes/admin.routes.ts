@@ -21,6 +21,8 @@ import {
 import { verifyToken, requireAdmin } from '../middlewares/auth.middleware';
 import { sensitiveLimiter } from '../middlewares/security.middleware';
 import { upload } from '../middlewares/upload.middleware';
+import { validate } from '../middlewares/validate.middleware';
+import { AdminSchema } from '../schemas/admin.schema';
 
 const router = Router();
 
@@ -30,13 +32,13 @@ router.get('/hero-slides', getHeroSlidesPublic);
 router.use(verifyToken, requireAdmin);
 
 // Services CRUD
-router.post('/services', sensitiveLimiter, createService);
+router.post('/services', sensitiveLimiter, validate(AdminSchema.createService), createService);
 router.get('/services', getAllServices);
-router.put('/services/:id', sensitiveLimiter, updateService);
+router.put('/services/:id', sensitiveLimiter, validate(AdminSchema.updateService), updateService);
 router.delete('/services/:id', sensitiveLimiter, deleteService);
 router.get('/service-cards', getServiceCardsAdmin);
-router.post('/service-cards', sensitiveLimiter, createServiceCard);
-router.put('/service-cards/:idCard', sensitiveLimiter, updateServiceCard);
+router.post('/service-cards', sensitiveLimiter, validate(AdminSchema.createServiceCard), createServiceCard);
+router.put('/service-cards/:idCard', sensitiveLimiter, validate(AdminSchema.updateServiceCard), updateServiceCard);
 router.delete('/service-cards/:idCard', sensitiveLimiter, deleteServiceCard);
 
 // Worker approval
@@ -49,7 +51,7 @@ router.get('/stats', getDashboardStats);
 router.get('/requests-history', getRequestsHistory);
 
 // Hero Slides Editor
-router.put('/hero-slides', sensitiveLimiter, updateHeroSlides);
+router.put('/hero-slides', sensitiveLimiter, validate(AdminSchema.heroSlides), updateHeroSlides);
 router.post(
   '/hero-slides/image-upload',
   sensitiveLimiter,

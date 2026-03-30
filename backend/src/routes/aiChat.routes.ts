@@ -1,5 +1,6 @@
 import { Router, Request, Response } from 'express';
 import { aiChatLimiter } from '../middlewares/security.middleware';
+import { verifyToken } from '../middlewares/auth.middleware';
 
 const router = Router();
 
@@ -20,7 +21,7 @@ Reglas importantes:
 - Sé empático y profesional, pero con un tono cercano y animado
 - REGLA CRÍTICA DE BREVEDAD: Máximo 2 oraciones cortas por respuesta. Sin listas. Sin preguntas múltiples. Si el usuario solo saluda, responde con UNA sola oración de bienvenida y UNA pregunta concreta. Nunca enumeres opciones.`;
 
-router.post('/ai/chat', aiChatLimiter, async (req: Request, res: Response) => {
+router.post('/ai/chat', aiChatLimiter, verifyToken, async (req: Request, res: Response) => {
   const { messages } = req.body;
 
   if (!Array.isArray(messages) || messages.length === 0) {
