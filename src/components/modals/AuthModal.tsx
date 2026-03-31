@@ -4,6 +4,7 @@ import { AuthMode } from '../../types';
 import { Notyf } from 'notyf';
 import 'notyf/notyf.min.css';
 import { useAuth } from '../../context/AuthContext';
+import { setAuthSession } from '../../utils/session';
 import ForgotPassword from '../../pages/ForgotPassword';
 
 interface AuthModalProps {
@@ -137,9 +138,9 @@ if (!emailRegex.test(formData.email)) {
       return;
     }
 
-    login(data.user, data.token);
-
     if (data.user?.rol === 'admin' || data.user?.role === 'admin') {
+      setAuthSession(data.user, data.token, 'admin');
+      notyf.success('Admin session ready.');
       onClose();
       setTimeout(() => {
         if (onAdminLogin) {
@@ -149,6 +150,7 @@ if (!emailRegex.test(formData.email)) {
         window.location.replace('/admin-dashboard');
       }, 100);
     } else {
+      login(data.user, data.token);
       notyf.success('Welcome back!');
       onClose();
     }

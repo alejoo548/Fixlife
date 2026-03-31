@@ -14,6 +14,9 @@ import {
   getDashboardStats,
   getRequestsHistory,
   getHeroSlidesPublic,
+  getWorkerRewardsAdminOverview,
+  markWorkerBonusPayoutPaidController,
+  updateWorkerRewardsProgram,
   updateHeroSlides,
   uploadHeroImageAsset,
   uploadHeroSlideImage,
@@ -47,6 +50,9 @@ router.put('/workers/:id/reject', sensitiveLimiter, rejectWorker);
 // Dashboard Stats
 router.get('/stats', getDashboardStats);
 router.get('/requests-history', getRequestsHistory);
+router.get('/worker-rewards', getWorkerRewardsAdminOverview);
+router.put('/worker-rewards/settings', sensitiveLimiter, updateWorkerRewardsProgram);
+router.post('/worker-rewards/payouts/:idBonusPayout/pay', sensitiveLimiter, markWorkerBonusPayoutPaidController);
 
 // Hero Slides Editor
 router.put('/hero-slides', sensitiveLimiter, updateHeroSlides);

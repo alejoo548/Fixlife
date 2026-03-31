@@ -7,6 +7,7 @@ import authRoutes from './routes/auth.routes';
 import workerRoutes from './routes/worker.routes';
 import adminRoutes from './routes/admin.routes';
 import servicesRoutes from './routes/services.routes';
+import notificationsRoutes from './routes/notifications.routes';
 import { globalLimiter } from './middlewares/security.middleware';
 
 dotenv.config();
@@ -31,6 +32,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/worker', workerRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/services', servicesRoutes);
+app.use('/api/notifications', notificationsRoutes);
 
 
 app.get('/api/health', (req: Request, res: Response) => {

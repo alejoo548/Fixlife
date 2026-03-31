@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, Suspense, lazy } from 'react';
 import { motion } from 'framer-motion';
 import { Navbar } from './components/layout/Navbar';
 import { NavItemType, AuthMode } from './types';
@@ -9,9 +9,6 @@ import { ProBento } from './components/sections/ProBento';
 import { StepsSection } from './components/sections/StepsSection';
 import { Footer } from './components/layout/Footer';
 import { ScrollReveal } from './components/common/ScrollReveal';
-import { ServiceRequestWizard } from './components/modals/ServiceRequestWizard';
-import { ProDashboard } from './components/modals/ProDashboard';
-import { AdminDashboard } from './components/modals/AdminDashboard';
 import { ParticlesBackground } from './components/effects/ParticlesBackground';
 import { TestimonialsCarousel } from './components/sections/TestimonialsCarousel';
 import { FAQSection } from './components/sections/FAQSection';
@@ -19,6 +16,23 @@ import { Button } from './components/common/Button';
 import UserProfile from './pages/UserProfile';
 import { clearAuthSession, hasRole, isAuthenticated } from './utils/session';
 import { API_ENDPOINTS } from './config/api';
+
+const ServiceRequestWizard = lazy(() =>
+  import('./components/modals/ServiceRequestWizard').then((module) => ({
+    default: module.ServiceRequestWizard,
+  }))
+);
+const ProDashboard = lazy(() =>
+  import('./components/modals/ProDashboard').then((module) => ({
+    default: module.ProDashboard,
+  }))
+);
+const AdminDashboard = lazy(() =>
+  import('./components/modals/AdminDashboard').then((module) => ({
+    default: module.AdminDashboard,
+  }))
+);
+const PaymentCheckoutPage = lazy(() => import('./pages/PaymentCheckoutPage'));
 
 const navItems: NavItemType[] = [
   { name: "Services" },
@@ -55,7 +69,22 @@ const LANDING_SECTION_IDS = {
 
 type LandingSectionTarget = keyof typeof LANDING_SECTION_IDS;
 
-const getProtectedPathForView = (view: 'landing' | 'app' | 'pro-dashboard' | 'admin-dashboard' | 'profile') => {
+const AppRouteFallback: React.FC<{ title?: string; subtitle?: string }> = ({
+  title = 'Loading experience...',
+  subtitle = 'Preparing this view for you.',
+}) => (
+  <div className="pointer-events-none fixed right-4 top-4 z-[120]">
+    <div className="flex items-center gap-2 rounded-full border border-white/70 bg-white/82 px-3 py-2 shadow-[0_14px_34px_rgba(15,23,42,0.08)] backdrop-blur-xl">
+      <div className="h-3.5 w-3.5 rounded-full border-2 border-bird-blue/20 border-t-bird-blue animate-spin" />
+      <div className="min-w-0">
+        <p className="text-[10px] font-black uppercase tracking-[0.18em] text-bird-blue">{title}</p>
+        <p className="text-[11px] text-slate-500">{subtitle}</p>
+      </div>
+    </div>
+  </div>
+);
+
+const getProtectedPathForView = (view: 'landing' | 'app' | 'pro-dashboard' | 'admin-dashboard' | 'profile' | 'checkout') => {
   switch (view) {
     case 'pro-dashboard':
       return '/pro-dashboard';
@@ -68,12 +97,27 @@ const getProtectedPathForView = (view: 'landing' | 'app' | 'pro-dashboard' | 'ad
   }
 };
 
+const hasAccessToView = (view: 'landing' | 'app' | 'pro-dashboard' | 'admin-dashboard' | 'profile' | 'checkout') => {
+  switch (view) {
+    case 'pro-dashboard':
+      return isAuthenticated('worker') && hasRole('worker', 'worker');
+    case 'admin-dashboard':
+      return isAuthenticated('admin') && hasRole('admin', 'admin');
+    case 'profile':
+    case 'checkout':
+      return isAuthenticated();
+    default:
+      return true;
+  }
+};
+
 const App: React.FC = () => {
   const [isAuthOpen, setIsAuthOpen] = useState(false);
   const [authMode, setAuthMode] = useState<AuthMode>('signin');
   const [isWorkerAuthOpen, setIsWorkerAuthOpen] = useState(false);
   const [workerAuthMode, setWorkerAuthMode] = useState<'signin' | 'signup'>('signup');
-  const [currentView, setCurrentView] = useState<'landing' | 'app' | 'pro-dashboard' | 'admin-dashboard' | 'profile'>('landing');
+  const [currentView, setCurrentView] = useState<'landing' | 'app' | 'pro-dashboard' | 'admin-dashboard' | 'profile' | 'checkout'>('landing');
+  const [checkoutRequestId, setCheckoutRequestId] = useState<number | null>(null);
   const [serviceCards, setServiceCards] = useState<HomeServiceCard[]>([]);
   const [selectedService, setSelectedService] = useState<{ id: number; name: string } | null>(null);
   const [pendingSection, setPendingSection] = useState<LandingSectionTarget | null>(null);
@@ -84,12 +128,27 @@ const App: React.FC = () => {
   };
 
   const resolveViewFromPath = (path: string) => {
+    const checkoutMatch = path.match(/^\/checkout\/(\d+)$/);
+    if (checkoutMatch) {
+      const requestId = Number(checkoutMatch[1]);
+      if (isAuthenticated() && requestId > 0) {
+        setCheckoutRequestId(requestId);
+        setCurrentView('checkout');
+      } else {
+        setCheckoutRequestId(null);
+        goLandingWithReplace();
+      }
+      return;
+    }
+
     if (path === '/app') {
+      setCheckoutRequestId(null);
       setCurrentView('app');
       return;
     }
 
     if (path === '/profile') {
+      setCheckoutRequestId(null);
       if (isAuthenticated()) {
         setCurrentView('profile');
       } else {
@@ -98,17 +157,19 @@ const App: React.FC = () => {
       return;
     }
 
-    if (path === '/pro-dashboard') {
-      if (isAuthenticated() && hasRole('worker')) {
-        setCurrentView('pro-dashboard');
-      } else {
-        goLandingWithReplace();
+      if (path === '/pro-dashboard') {
+        setCheckoutRequestId(null);
+        if (isAuthenticated('worker') && hasRole('worker', 'worker')) {
+          setCurrentView('pro-dashboard');
+        } else {
+          goLandingWithReplace();
       }
       return;
     }
 
     if (path === '/admin-dashboard') {
-      if (isAuthenticated() && hasRole('admin')) {
+      setCheckoutRequestId(null);
+      if (isAuthenticated('admin') && hasRole('admin', 'admin')) {
         setCurrentView('admin-dashboard');
       } else {
         goLandingWithReplace();
@@ -116,6 +177,7 @@ const App: React.FC = () => {
       return;
     }
 
+    setCheckoutRequestId(null);
     setCurrentView('landing');
   };
 
@@ -131,29 +193,34 @@ const App: React.FC = () => {
 
   // Guard already-open private views in case session disappears
   useEffect(() => {
-    if (currentView === 'pro-dashboard' && (!isAuthenticated() || !hasRole('worker'))) {
+    if (currentView === 'pro-dashboard' && (!isAuthenticated('worker') || !hasRole('worker', 'worker'))) {
       goLandingWithReplace();
       return;
     }
 
-    if (currentView === 'admin-dashboard' && (!isAuthenticated() || !hasRole('admin'))) {
+    if (currentView === 'admin-dashboard' && (!isAuthenticated('admin') || !hasRole('admin', 'admin'))) {
       goLandingWithReplace();
       return;
     }
 
     if (currentView === 'profile' && !isAuthenticated()) {
       goLandingWithReplace();
+      return;
+    }
+
+    if (currentView === 'checkout' && !isAuthenticated()) {
+      goLandingWithReplace();
     }
   }, [currentView]);
 
   useEffect(() => {
     const protectedPath = getProtectedPathForView(currentView);
-    if (!protectedPath || !isAuthenticated()) {
+    if (!protectedPath || !hasAccessToView(currentView)) {
       return;
     }
 
     const blockProtectedBackNavigation = () => {
-      if (!isAuthenticated()) {
+      if (!hasAccessToView(currentView)) {
         return;
       }
 
@@ -227,7 +294,7 @@ const App: React.FC = () => {
   };
 
   const handleOpenProDashboard = () => {
-    if (!isAuthenticated() || !hasRole('worker')) {
+    if (!isAuthenticated('worker') || !hasRole('worker', 'worker')) {
       goLandingWithReplace();
       return;
     }
@@ -237,7 +304,7 @@ const App: React.FC = () => {
   }
 
   const handleOpenAdminDashboard = () => {
-    if (!isAuthenticated() || !hasRole('admin')) {
+    if (!isAuthenticated('admin') || !hasRole('admin', 'admin')) {
       goLandingWithReplace();
       return;
     }
@@ -266,7 +333,8 @@ const App: React.FC = () => {
     const leavingProtectedView =
       currentView === 'admin-dashboard' ||
       currentView === 'pro-dashboard' ||
-      currentView === 'profile';
+      currentView === 'profile' ||
+      currentView === 'checkout';
 
     if (leavingProtectedView) {
       window.history.replaceState({}, '', '/');
@@ -278,9 +346,16 @@ const App: React.FC = () => {
   };
 
   const handleWorkerSignOut = () => {
-    clearAuthSession();
+    clearAuthSession('worker');
     window.history.replaceState({}, '', '/');
     window.location.reload();
+  };
+
+  const handleBackToRequests = () => {
+    window.history.replaceState({}, '', '/app');
+    setCurrentView('app');
+    setCheckoutRequestId(null);
+    window.scrollTo(0, 0);
   };
 
   const fallbackCards: HomeServiceCard[] = [
@@ -400,26 +475,39 @@ const App: React.FC = () => {
       />
 
       {currentView === 'app' ? (
-        <ServiceRequestWizard
-          isOpen={true}
-          onClose={handleBackToLanding}
-          initialServiceId={selectedService?.id}
-          initialServiceName={selectedService?.name}
-        />
-      ) : currentView === 'pro-dashboard' ? (
-        isAuthenticated() && hasRole('worker') ? (
-          <ProDashboard
+        <Suspense fallback={<AppRouteFallback title="Loading booking flow..." subtitle="Getting the service wizard ready." />}>
+          <ServiceRequestWizard
             isOpen={true}
             onClose={handleBackToLanding}
-            onSignOut={handleWorkerSignOut}
+            initialServiceId={selectedService?.id}
+            initialServiceName={selectedService?.name}
           />
+        </Suspense>
+      ) : currentView === 'checkout' ? (
+        <Suspense fallback={<AppRouteFallback title="Loading checkout..." subtitle="Preparing secure payment." />}>
+          <PaymentCheckoutPage
+            requestId={checkoutRequestId}
+            onBack={handleBackToRequests}
+          />
+        </Suspense>
+      ) : currentView === 'pro-dashboard' ? (
+        isAuthenticated('worker') && hasRole('worker', 'worker') ? (
+          <Suspense fallback={<AppRouteFallback title="Loading worker dashboard..." subtitle="Preparing requests, maps and tools." />}>
+            <ProDashboard
+              isOpen={true}
+              onClose={handleBackToLanding}
+              onSignOut={handleWorkerSignOut}
+            />
+          </Suspense>
         ) : null
       ) : currentView === 'admin-dashboard' ? (
-        isAuthenticated() && hasRole('admin') ? (
-          <AdminDashboard
-            isOpen={true}
-            onClose={handleBackToLanding}
-          />
+        isAuthenticated('admin') && hasRole('admin', 'admin') ? (
+          <Suspense fallback={<AppRouteFallback title="Loading admin dashboard..." subtitle="Preparing management tools." />}>
+            <AdminDashboard
+              isOpen={true}
+              onClose={handleBackToLanding}
+            />
+          </Suspense>
         ) : null
       ) : currentView === 'profile' ? (
         <>

@@ -2,6 +2,14 @@ import { Response } from 'express';
 import { ResultSetHeader, RowDataPacket } from 'mysql2';
 import pool from '../config/db';
 import { AuthRequest } from '../middlewares/auth.middleware';
+import {
+  getAllBonusPayoutsForAdmin,
+  getWorkerRewardsSettings,
+  markWorkerBonusPayoutAsPaid,
+  syncAllWorkerBonusPayouts,
+  updateWorkerRewardsSettings,
+} from '../utils/workerRewards';
+import { createUserNotification } from '../utils/notifications';
 import { ensureServiceCardsTable, ensureServiceRequestTables } from './services.controller';
 
 const SCRIPT_PATTERN = /<\s*script|javascript:|on\w+\s*=|data:text\/html/i;
@@ -883,6 +891,199 @@ export const uploadHeroSlideImage = async (req: AuthRequest, res: Response): Pro
     res.json({ success: true, image: imageUrl, slides: toSlidesDto(rows) });
   } catch (error: any) {
     console.error('Error in uploadHeroSlideImage:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
+export const getWorkerRewardsAdminOverview = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    await ensureServiceRequestTables();
+
+    const status = String(req.query.status || 'all').toLowerCase();
+    const settings = await getWorkerRewardsSettings();
+    await syncAllWorkerBonusPayouts(settings);
+    const payouts = await getAllBonusPayoutsForAdmin(status);
+
+    const summary = payouts.reduce(
+      (acc, row) => {
+        const normalizedStatus = String(row.payout_status || '').toLowerCase();
+        const amount = Number(row.bonus_amount || 0);
+        acc.total_bonus_amount += amount;
+        acc.total_rows += 1;
+        if (normalizedStatus === 'scheduled') {
+          acc.scheduled_amount += amount;
+          acc.scheduled_count += 1;
+        } else if (normalizedStatus === 'paid') {
+          acc.paid_amount += amount;
+          acc.paid_count += 1;
+        } else if (normalizedStatus === 'cancelled') {
+          acc.cancelled_amount += amount;
+          acc.cancelled_count += 1;
+        }
+        return acc;
+      },
+      {
+        total_rows: 0,
+        total_bonus_amount: 0,
+        scheduled_count: 0,
+        scheduled_amount: 0,
+        paid_count: 0,
+        paid_amount: 0,
+        cancelled_count: 0,
+        cancelled_amount: 0,
+      }
+    );
+
+    res.json({
+      success: true,
+      settings,
+      summary: {
+        ...summary,
+        total_bonus_amount: Number(summary.total_bonus_amount.toFixed(2)),
+        scheduled_amount: Number(summary.scheduled_amount.toFixed(2)),
+        paid_amount: Number(summary.paid_amount.toFixed(2)),
+        cancelled_amount: Number(summary.cancelled_amount.toFixed(2)),
+      },
+      payouts: payouts.map((row) => ({
+        id_bonus_payout: Number(row.id_bonus_payout),
+        id_worker_profile: Number(row.id_worker_profile),
+        worker_name: `${row.name || ''} ${row.lastname || ''}`.trim() || 'Worker',
+        bonus_type: String(row.bonus_type || 'commission'),
+        cycle_key: String(row.cycle_key || ''),
+        base_amount: Number(row.base_amount || 0),
+        bonus_amount: Number(row.bonus_amount || 0),
+        payout_status: String(row.payout_status || 'scheduled'),
+        scheduled_for: row.scheduled_for,
+        paid_at: row.paid_at || null,
+        notes: row.notes || null,
+        source_request_id: row.source_request_id != null ? Number(row.source_request_id) : null,
+        location_text: row.location_text || null,
+        service_name: row.service_name || null,
+      })),
+    });
+  } catch (error: any) {
+    console.error('Error in getWorkerRewardsAdminOverview:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
+export const updateWorkerRewardsProgram = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const trialMinCompletedJobs = Number(req.body?.trial_min_completed_jobs);
+    const commissionRatePercent = Number(req.body?.commission_rate_percent);
+    const royaltyRatePercent = Number(req.body?.royalty_rate_percent);
+    const royaltyMinJobs = Number(req.body?.royalty_min_jobs);
+    const royaltyMinCompletionRate = Number(req.body?.royalty_min_completion_rate);
+
+    if (
+      !Number.isFinite(trialMinCompletedJobs) ||
+      !Number.isFinite(commissionRatePercent) ||
+      !Number.isFinite(royaltyRatePercent) ||
+      !Number.isFinite(royaltyMinJobs) ||
+      !Number.isFinite(royaltyMinCompletionRate)
+    ) {
+      res.status(400).json({ error: 'All rewards settings are required.' });
+      return;
+    }
+
+    if (trialMinCompletedJobs < 1 || trialMinCompletedJobs > 100) {
+      res.status(400).json({ error: 'Trial jobs must be between 1 and 100.' });
+      return;
+    }
+    if (commissionRatePercent < 0 || commissionRatePercent > 100) {
+      res.status(400).json({ error: 'Commission rate must be between 0 and 100.' });
+      return;
+    }
+    if (royaltyRatePercent < 0 || royaltyRatePercent > 100) {
+      res.status(400).json({ error: 'Royalty rate must be between 0 and 100.' });
+      return;
+    }
+    if (royaltyMinJobs < 1 || royaltyMinJobs > 500) {
+      res.status(400).json({ error: 'Royalty minimum jobs must be between 1 and 500.' });
+      return;
+    }
+    if (royaltyMinCompletionRate < 0 || royaltyMinCompletionRate > 100) {
+      res.status(400).json({ error: 'Royalty completion rate must be between 0 and 100.' });
+      return;
+    }
+
+    const updatedSettings = await updateWorkerRewardsSettings({
+      trial_min_completed_jobs: Math.round(trialMinCompletedJobs),
+      commission_rate: Number((commissionRatePercent / 100).toFixed(4)),
+      royalty_rate: Number((royaltyRatePercent / 100).toFixed(4)),
+      royalty_min_jobs: Math.round(royaltyMinJobs),
+      royalty_min_completion_rate: Number(royaltyMinCompletionRate.toFixed(2)),
+    });
+
+    await syncAllWorkerBonusPayouts(updatedSettings);
+
+    res.json({
+      success: true,
+      message: 'Worker rewards program updated.',
+      settings: updatedSettings,
+    });
+  } catch (error: any) {
+    console.error('Error in updateWorkerRewardsProgram:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
+export const markWorkerBonusPayoutPaidController = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const idBonusPayout = Number(req.params.idBonusPayout);
+    if (!idBonusPayout || Number.isNaN(idBonusPayout)) {
+      res.status(400).json({ error: 'Invalid bonus payout ID.' });
+      return;
+    }
+
+    const [rows] = await pool.execute<RowDataPacket[]>(
+      `SELECT
+         wbp.id_bonus_payout,
+         wbp.id_worker_profile,
+         wbp.source_request_id,
+         wbp.bonus_type,
+         wbp.bonus_amount,
+         wbp.scheduled_for,
+         wp.id_user
+       FROM worker_bonus_payouts wbp
+       INNER JOIN worker_profiles wp ON wp.id_worker_profile = wbp.id_worker_profile
+       WHERE wbp.id_bonus_payout = ?
+       LIMIT 1`,
+      [idBonusPayout]
+    );
+
+    const payoutRow = rows[0];
+    const updated = await markWorkerBonusPayoutAsPaid(idBonusPayout);
+    if (!updated) {
+      res.status(404).json({ error: 'Bonus payout not found or already marked as paid.' });
+      return;
+    }
+
+    if (payoutRow?.id_user) {
+      await createUserNotification({
+        userId: Number(payoutRow.id_user),
+        eventType: 'payout_paid',
+        title: 'Payout released',
+        message: `Your ${String(payoutRow.bonus_type || 'bonus')} payout of $${Number(payoutRow.bonus_amount || 0).toFixed(2)} was marked as paid.`,
+        tone: 'success',
+        bonusPayoutId: Number(payoutRow.id_bonus_payout),
+        requestId: payoutRow.source_request_id != null ? Number(payoutRow.source_request_id) : null,
+        actionUrl: '/pro-dashboard',
+        dedupeKey: `worker-payout-paid-${idBonusPayout}`,
+        metadata: {
+          bonus_type: payoutRow.bonus_type,
+          scheduled_for: payoutRow.scheduled_for,
+          bonus_amount: Number(payoutRow.bonus_amount || 0),
+        },
+      });
+    }
+
+    res.json({
+      success: true,
+      message: 'Bonus payout marked as paid.',
+    });
+  } catch (error: any) {
+    console.error('Error in markWorkerBonusPayoutPaidController:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 };

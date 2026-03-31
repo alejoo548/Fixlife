@@ -4,6 +4,7 @@ import { Notyf } from 'notyf';
 import 'notyf/notyf.min.css';
 import { motion, AnimatePresence } from 'framer-motion';
 import ForgotPassword from '../../pages/ForgotPassword';
+import { getAuthUser, getToken, setAuthSession, updateStoredAuthUser } from '../../utils/session';
 
 interface ServiceOption {
   id_service: number;
@@ -219,8 +220,7 @@ export const WorkerAuthModal: React.FC<WorkerAuthModalProps> = ({ isOpen, onClos
         return;
       }
 
-      localStorage.setItem('token', data.token);
-      localStorage.setItem('user', JSON.stringify(data.user));
+      setAuthSession(data.user, data.token, 'worker');
       notyf.success('Email verified! Pro account created.');
       setView('upload');
     } catch (err) {
@@ -259,8 +259,7 @@ export const WorkerAuthModal: React.FC<WorkerAuthModalProps> = ({ isOpen, onClos
         return;
       }
 
-      localStorage.setItem('token', data.token);
-      localStorage.setItem('user', JSON.stringify(data.user));
+      setAuthSession(data.user, data.token, 'worker');
       notyf.success('Welcome back, Pro!');
       onClose();
       setTimeout(() => {
@@ -303,7 +302,7 @@ export const WorkerAuthModal: React.FC<WorkerAuthModalProps> = ({ isOpen, onClos
     }
 
     setLoading(true);
-    const token = localStorage.getItem('token');
+    const token = getToken('worker');
 
     const formData = new FormData();
     formData.append('dui_document', duiFile);
@@ -327,13 +326,12 @@ export const WorkerAuthModal: React.FC<WorkerAuthModalProps> = ({ isOpen, onClos
       }
 
       // Update localStorage
-      const userData = localStorage.getItem('user');
-      if (userData) {
-        const userObj = JSON.parse(userData);
-        if (!userObj.worker_profile) userObj.worker_profile = {};
-        userObj.worker_profile.dui_document = data.dui_path;
-        userObj.worker_profile.cert_document = data.cert_path;
-        localStorage.setItem('user', JSON.stringify(userObj));
+      const userObj = getAuthUser('worker');
+      if (userObj) {
+          if (!userObj.worker_profile) userObj.worker_profile = {};
+          userObj.worker_profile.dui_document = data.dui_path;
+          userObj.worker_profile.cert_document = data.cert_path;
+          updateStoredAuthUser(userObj, 'worker');
       }
 
       notyf.success('Documents uploaded! Pending admin review.');

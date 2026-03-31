@@ -1,4 +1,6 @@
 export type AuthRole = 'worker' | 'admin';
+export type AuthSessionScope = 'client' | 'worker' | 'admin';
+export const AUTH_SESSION_CHANGED_EVENT = 'fixlife-auth-changed';
 
 export type AuthUser = {
   id_user?: number;
@@ -23,19 +25,45 @@ const safeJsonParse = <T>(raw: string | null): T | null => {
   }
 };
 
-export const getAuthUser = (): AuthUser | null => {
-  if (typeof window === 'undefined') return null;
-  return safeJsonParse<AuthUser>(localStorage.getItem('user'));
+const getStorageKeys = (scope: AuthSessionScope) => {
+  if (scope === 'worker') {
+    return {
+      token: 'worker_token',
+      user: 'workerUser',
+      legacyToken: 'workerToken',
+    };
+  }
+
+  if (scope === 'admin') {
+    return {
+      token: 'admin_token',
+      user: 'adminUser',
+      legacyToken: 'adminToken',
+    };
+  }
+
+  return {
+    token: 'token',
+    user: 'user',
+    legacyToken: 'authToken',
+  };
 };
 
-export const getToken = (): string | null => {
+export const getAuthUser = (scope: AuthSessionScope = 'client'): AuthUser | null => {
   if (typeof window === 'undefined') return null;
-  const token = localStorage.getItem('token');
+  const keys = getStorageKeys(scope);
+  return safeJsonParse<AuthUser>(localStorage.getItem(keys.user));
+};
+
+export const getToken = (scope: AuthSessionScope = 'client'): string | null => {
+  if (typeof window === 'undefined') return null;
+  const keys = getStorageKeys(scope);
+  const token = localStorage.getItem(keys.token) || localStorage.getItem(keys.legacyToken);
   return token && token.trim() ? token : null;
 };
 
-export const isAuthenticated = (): boolean => {
-  return Boolean(getToken() && getAuthUser());
+export const isAuthenticated = (scope: AuthSessionScope = 'client'): boolean => {
+  return Boolean(getToken(scope) && getAuthUser(scope));
 };
 
 const normalizeRole = (value: unknown): string => {
@@ -43,44 +71,44 @@ const normalizeRole = (value: unknown): string => {
   return value.trim().toLowerCase();
 };
 
-export const hasRole = (role: AuthRole): boolean => {
-  const user = getAuthUser();
+export const hasRole = (role: AuthRole, scope: AuthSessionScope = 'client'): boolean => {
+  const user = getAuthUser(scope);
   if (!user) return false;
   const currentRole = normalizeRole(user.rol ?? user.role);
   return currentRole === role;
 };
 
-export const clearAuthSession = (): void => {
+const notifyAuthSessionChanged = (): void => {
+  if (typeof window === 'undefined') return;
+  window.dispatchEvent(new Event(AUTH_SESSION_CHANGED_EVENT));
+};
+
+export const setAuthSession = (user: AuthUser, token: string, scope: AuthSessionScope = 'client'): void => {
+  if (typeof window === 'undefined') return;
+  const keys = getStorageKeys(scope);
+  localStorage.setItem(keys.user, JSON.stringify(user));
+  localStorage.setItem(keys.token, token);
+  notifyAuthSessionChanged();
+};
+
+export const updateStoredAuthUser = (nextUser: AuthUser, scope: AuthSessionScope = 'client'): void => {
+  if (typeof window === 'undefined') return;
+  const keys = getStorageKeys(scope);
+  localStorage.setItem(keys.user, JSON.stringify(nextUser));
+  notifyAuthSessionChanged();
+};
+
+export const clearAuthSession = (scope: AuthSessionScope = 'client'): void => {
   if (typeof window === 'undefined') return;
 
-  const localKeysToClear = [
-    'token',
-    'user',
-    'auth_token',
-    'authToken',
-    'worker_token',
-    'workerToken',
-    'admin_token',
-    'adminToken',
-    'currentUser',
-    'workerUser',
-    'adminUser',
-  ];
+  const keys =
+    scope === 'worker'
+      ? ['worker_token', 'workerToken', 'workerUser']
+      : scope === 'admin'
+        ? ['admin_token', 'adminToken', 'adminUser']
+        : ['token', 'user', 'auth_token', 'authToken', 'currentUser'];
 
-  const sessionKeysToClear = [
-    'token',
-    'user',
-    'auth_token',
-    'authToken',
-    'worker_token',
-    'workerToken',
-    'admin_token',
-    'adminToken',
-    'currentUser',
-    'workerUser',
-    'adminUser',
-  ];
-
-  localKeysToClear.forEach((key) => localStorage.removeItem(key));
-  sessionKeysToClear.forEach((key) => sessionStorage.removeItem(key));
+  keys.forEach((key) => localStorage.removeItem(key));
+  keys.forEach((key) => sessionStorage.removeItem(key));
+  notifyAuthSessionChanged();
 };
