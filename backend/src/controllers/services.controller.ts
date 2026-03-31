@@ -211,13 +211,7 @@ const requeueAssignedRequest = async (
   const [nearRows] = await connection.execute(
     `SELECT
        wp.id_worker_profile,
-       (
-         6371 * ACOS(
-           COS(RADIANS(?)) * COS(RADIANS(wp.latitude)) *
-           COS(RADIANS(wp.longitude) - RADIANS(?)) +
-           SIN(RADIANS(?)) * SIN(RADIANS(wp.latitude))
-         )
-       ) AS distance_km
+       (ST_Distance_Sphere(point(wp.longitude, wp.latitude), point(?, ?)) / 1000) AS distance_km
      FROM worker_profiles wp
      INNER JOIN users u ON u.id_user = wp.id_user
      INNER JOIN worker_services ws ON ws.id_worker_profile = wp.id_worker_profile
@@ -230,10 +224,10 @@ const requeueAssignedRequest = async (
        AND wp.longitude IS NOT NULL
        AND wp.id_worker_profile <> ?
        AND srw.id_request IS NULL
-     HAVING distance_km <= ?
+     HAVING distance_km <= ? AND distance_km <= wp.coverage_km
      ORDER BY distance_km ASC
      LIMIT 50`,
-    [lat, lng, lat, input.idRequest, idService, input.assignedWorkerProfile, radiusKm]
+    [lng, lat, input.idRequest, idService, input.assignedWorkerProfile, radiusKm]
   );
 
   for (const candidate of nearRows as RowDataPacket[]) {
@@ -776,13 +770,7 @@ export const getNearbyWorkers = async (req: Request, res: Response): Promise<voi
          wp.bio,
          wp.latitude,
          wp.longitude,
-         (
-           6371 * ACOS(
-             COS(RADIANS(?)) * COS(RADIANS(wp.latitude)) *
-             COS(RADIANS(wp.longitude) - RADIANS(?)) +
-             SIN(RADIANS(?)) * SIN(RADIANS(wp.latitude))
-           )
-         ) AS distance_km
+         (ST_Distance_Sphere(point(wp.longitude, wp.latitude), point(?, ?)) / 1000) AS distance_km
        FROM worker_profiles wp
        INNER JOIN users u ON u.id_user = wp.id_user
        INNER JOIN worker_services ws ON ws.id_worker_profile = wp.id_worker_profile
@@ -792,10 +780,10 @@ export const getNearbyWorkers = async (req: Request, res: Response): Promise<voi
          AND ws.id_service = ?
          AND wp.latitude IS NOT NULL
          AND wp.longitude IS NOT NULL
-       HAVING distance_km <= ?
+       HAVING distance_km <= ? AND distance_km <= wp.coverage_km
        ORDER BY distance_km ASC
        LIMIT 20`,
-      [lat, lng, lat, idService, radiusKm]
+      [lng, lat, idService, radiusKm]
     );
 
     const workers = rows.map((row: any) => ({
@@ -1549,13 +1537,7 @@ export const createServiceRequest = async (req: AuthRequest, res: Response): Pro
       const [nearRows] = await pool.execute<RowDataPacket[]>(
         `SELECT
            wp.id_worker_profile,
-           (
-             6371 * ACOS(
-               COS(RADIANS(?)) * COS(RADIANS(wp.latitude)) *
-               COS(RADIANS(wp.longitude) - RADIANS(?)) +
-               SIN(RADIANS(?)) * SIN(RADIANS(wp.latitude))
-             )
-           ) AS distance_km
+           (ST_Distance_Sphere(point(wp.longitude, wp.latitude), point(?, ?)) / 1000) AS distance_km
          FROM worker_profiles wp
          INNER JOIN users u ON u.id_user = wp.id_user
          INNER JOIN worker_services ws ON ws.id_worker_profile = wp.id_worker_profile
@@ -1564,10 +1546,10 @@ export const createServiceRequest = async (req: AuthRequest, res: Response): Pro
            AND ws.id_service = ?
            AND wp.latitude IS NOT NULL
            AND wp.longitude IS NOT NULL
-         HAVING distance_km <= ?
+         HAVING distance_km <= ? AND distance_km <= wp.coverage_km
          ORDER BY distance_km ASC
          LIMIT 50`,
-        [latitude, longitude, latitude, idService, radiusKm]
+        [longitude, latitude, idService, radiusKm]
       );
 
       for (const row of nearRows) {
@@ -2063,13 +2045,7 @@ export const autoReassignStaleAssignedRequests = async () => {
         const [nearRows] = await connection.execute<RowDataPacket[]>(
           `SELECT
              wp.id_worker_profile,
-             (
-               6371 * ACOS(
-                 COS(RADIANS(?)) * COS(RADIANS(wp.latitude)) *
-                 COS(RADIANS(wp.longitude) - RADIANS(?)) +
-                 SIN(RADIANS(?)) * SIN(RADIANS(wp.latitude))
-               )
-             ) AS distance_km
+             (ST_Distance_Sphere(point(wp.longitude, wp.latitude), point(?, ?)) / 1000) AS distance_km
            FROM worker_profiles wp
            INNER JOIN users u ON u.id_user = wp.id_user
            INNER JOIN worker_services ws ON ws.id_worker_profile = wp.id_worker_profile
@@ -2082,10 +2058,10 @@ export const autoReassignStaleAssignedRequests = async () => {
              AND wp.longitude IS NOT NULL
              AND wp.id_worker_profile <> ?
              AND srw.id_request IS NULL
-           HAVING distance_km <= ?
+           HAVING distance_km <= ? AND distance_km <= wp.coverage_km
            ORDER BY distance_km ASC
            LIMIT 50`,
-          [lat, lng, lat, idRequest, idService, prevWorker, radiusKm]
+          [lng, lat, idRequest, idService, prevWorker, radiusKm]
         );
 
         for (const row of nearRows) {
@@ -3149,13 +3125,7 @@ export const declineCounterOffer = async (req: AuthRequest, res: Response): Prom
       const [nearRows] = await connection.execute<RowDataPacket[]>(
         `SELECT
            wp.id_worker_profile,
-           (
-             6371 * ACOS(
-               COS(RADIANS(?)) * COS(RADIANS(wp.latitude)) *
-               COS(RADIANS(wp.longitude) - RADIANS(?)) +
-               SIN(RADIANS(?)) * SIN(RADIANS(wp.latitude))
-             )
-           ) AS distance_km
+           (ST_Distance_Sphere(point(wp.longitude, wp.latitude), point(?, ?)) / 1000) AS distance_km
          FROM worker_profiles wp
          INNER JOIN users u ON u.id_user = wp.id_user
          INNER JOIN worker_services ws ON ws.id_worker_profile = wp.id_worker_profile
@@ -3168,10 +3138,10 @@ export const declineCounterOffer = async (req: AuthRequest, res: Response): Prom
            AND wp.longitude IS NOT NULL
            AND wp.id_worker_profile <> ?
            AND srw.id_request IS NULL
-         HAVING distance_km <= ?
+         HAVING distance_km <= ? AND distance_km <= wp.coverage_km
          ORDER BY distance_km ASC
          LIMIT 50`,
-        [lat, lng, lat, idRequest, idService, assignedWorker, radiusKm]
+        [lng, lat, idRequest, idService, assignedWorker, radiusKm]
       );
 
       for (const candidate of nearRows) {

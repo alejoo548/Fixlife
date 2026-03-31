@@ -545,13 +545,7 @@ export const getWorkerRequests = async (req: AuthRequest, res: Response): Promis
        SELECT
          sr.id_request,
          ? AS id_worker_profile,
-         (
-           6371 * ACOS(
-             COS(RADIANS(wp.latitude)) * COS(RADIANS(sr.latitude)) *
-             COS(RADIANS(sr.longitude) - RADIANS(wp.longitude)) +
-             SIN(RADIANS(wp.latitude)) * SIN(RADIANS(sr.latitude))
-           )
-         ) AS distance_km,
+         (ST_Distance_Sphere(point(wp.longitude, wp.latitude), point(sr.longitude, sr.latitude)) / 1000) AS distance_km,
          'new' AS status
        FROM worker_profiles wp
        INNER JOIN worker_services ws ON ws.id_worker_profile = wp.id_worker_profile
@@ -567,13 +561,7 @@ export const getWorkerRequests = async (req: AuthRequest, res: Response): Promis
          AND sr.latitude IS NOT NULL
          AND sr.longitude IS NOT NULL
          AND (sr.id_user IS NULL OR sr.id_user <> wp.id_user)
-         AND (
-           6371 * ACOS(
-             COS(RADIANS(wp.latitude)) * COS(RADIANS(sr.latitude)) *
-             COS(RADIANS(sr.longitude) - RADIANS(wp.longitude)) +
-             SIN(RADIANS(wp.latitude)) * SIN(RADIANS(sr.latitude))
-           )
-         ) <= COALESCE(sr.radius_km, 8)
+         AND (ST_Distance_Sphere(point(wp.longitude, wp.latitude), point(sr.longitude, sr.latitude)) / 1000) <= LEAST(COALESCE(sr.radius_km, 8), wp.coverage_km)
          AND srw.id_request IS NULL`,
       [profileId, profileId]
     );
