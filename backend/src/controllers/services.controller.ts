@@ -211,6 +211,7 @@ const requeueAssignedRequest = async (
   const [nearRows] = await connection.execute(
     `SELECT
        wp.id_worker_profile,
+       wp.coverage_km,
        (ST_Distance_Sphere(point(wp.longitude, wp.latitude), point(?, ?)) / 1000) AS distance_km
      FROM worker_profiles wp
      INNER JOIN users u ON u.id_user = wp.id_user
@@ -767,6 +768,7 @@ export const getNearbyWorkers = async (req: Request, res: Response): Promise<voi
          u.lastname,
          u.profile_image,
          wp.id_worker_profile,
+         wp.coverage_km,
          wp.bio,
          wp.latitude,
          wp.longitude,
@@ -1537,6 +1539,7 @@ export const createServiceRequest = async (req: AuthRequest, res: Response): Pro
       const [nearRows] = await pool.execute<RowDataPacket[]>(
         `SELECT
            wp.id_worker_profile,
+           wp.coverage_km,
            (ST_Distance_Sphere(point(wp.longitude, wp.latitude), point(?, ?)) / 1000) AS distance_km
          FROM worker_profiles wp
          INNER JOIN users u ON u.id_user = wp.id_user
@@ -2045,6 +2048,7 @@ export const autoReassignStaleAssignedRequests = async () => {
         const [nearRows] = await connection.execute<RowDataPacket[]>(
           `SELECT
              wp.id_worker_profile,
+             wp.coverage_km,
              (ST_Distance_Sphere(point(wp.longitude, wp.latitude), point(?, ?)) / 1000) AS distance_km
            FROM worker_profiles wp
            INNER JOIN users u ON u.id_user = wp.id_user
@@ -3125,6 +3129,7 @@ export const declineCounterOffer = async (req: AuthRequest, res: Response): Prom
       const [nearRows] = await connection.execute<RowDataPacket[]>(
         `SELECT
            wp.id_worker_profile,
+           wp.coverage_km,
            (ST_Distance_Sphere(point(wp.longitude, wp.latitude), point(?, ?)) / 1000) AS distance_km
          FROM worker_profiles wp
          INNER JOIN users u ON u.id_user = wp.id_user

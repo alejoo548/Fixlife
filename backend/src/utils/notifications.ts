@@ -103,7 +103,9 @@ export const listUserNotifications = async (
 ) => {
   await ensureNotificationsTable();
 
-  const limit = Math.min(Math.max(Number(options?.limit || 30), 1), 100);
+  let limit = Number(options?.limit);
+  if (!Number.isFinite(limit)) limit = 30;
+  limit = Math.min(Math.max(limit, 1), 100);
   const unreadOnly = Boolean(options?.unreadOnly);
   const where = unreadOnly ? 'WHERE id_user = ? AND is_read = 0' : 'WHERE id_user = ?';
 
