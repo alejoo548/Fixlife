@@ -138,7 +138,9 @@ if (!emailRegex.test(formData.email)) {
       return;
     }
 
-    if (data.user?.rol === 'admin' || data.user?.role === 'admin') {
+    const role = String(data.user?.rol ?? data.user?.role ?? '').toLowerCase();
+
+    if (role === 'admin' || role === 'root') {
       setAuthSession(data.user, data.token, 'admin');
       notyf.success('Admin session ready.');
       onClose();

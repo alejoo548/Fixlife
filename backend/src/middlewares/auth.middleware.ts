@@ -25,7 +25,7 @@ export const verifyToken = (req: AuthRequest, res: Response, next: NextFunction)
 };
 
 export const requireAdmin = (req: AuthRequest, res: Response, next: NextFunction): void => {
-  if (!req.user || req.user.rol !== 'admin') {
+  if (!req.user || (req.user.rol !== 'admin' && req.user.rol !== 'root')) {
     res.status(403).json({ error: 'Access denied. Admin privileges required.' });
     return;
   }

@@ -11,6 +11,7 @@ import {
 } from '../utils/workerRewards';
 import { createUserNotification } from '../utils/notifications';
 import { ensureServiceCardsTable, ensureServiceRequestTables } from './services.controller';
+import { ensureUsersActiveColumn, ensureUsersPendingWorkerColumn } from '../utils/users';
 
 const SCRIPT_PATTERN = /<\s*script|javascript:|on\w+\s*=|data:text\/html/i;
 
@@ -44,15 +45,107 @@ const sanitizeImageUrl = (value: unknown): string | null => {
   return url;
 };
 
+const assertAllowedFields = (payload: any, allowed: string[]) => {
+  if (!payload || typeof payload !== 'object') return;
+  const allowedSet = new Set(allowed);
+  const extras = Object.keys(payload).filter((key) => !allowedSet.has(key));
+  if (extras.length > 0) {
+    throw new Error(`Unexpected fields: ${extras.join(', ')}`);
+  }
+};
+
+const parseBooleanFlag = (value: unknown, fieldName: string): 0 | 1 | undefined => {
+  if (value === undefined) return undefined;
+  if (value === true || value === 1 || value === '1') return 1;
+  if (value === false || value === 0 || value === '0') return 0;
+  throw new Error(`Invalid ${fieldName} value.`);
+};
+
+const parsePositiveInt = (value: unknown, fieldName: string, max = 10000): number => {
+  const parsed = Number(value);
+  if (!parsed || Number.isNaN(parsed) || parsed < 1 || !Number.isFinite(parsed) || parsed > max) {
+    throw new Error(`Invalid ${fieldName} value.`);
+  }
+  return Math.floor(parsed);
+};
+
 const toPublicRequestStatus = (status: string | null | undefined) => {
   if (!status) return 'pending';
   return status === 'open' ? 'pending' : status;
+};
+
+const ALLOWED_USER_ROLES = new Set(['client', 'worker', 'admin', 'root']);
+const ASSIGNABLE_USER_ROLES = new Set(['client', 'admin']);
+
+type AdminActivityRow = RowDataPacket & {
+  id_activity: number;
+  id_admin: number;
+  action_type: string;
+  entity_type: string;
+  entity_id: number | null;
+  summary: string;
+  metadata: string | null;
+  created_at: string;
+  admin_name: string | null;
+  admin_lastname: string | null;
+  admin_email: string | null;
+};
+
+let adminActivityTableChecked = false;
+
+const ensureAdminActivityTable = async () => {
+  if (adminActivityTableChecked) return;
+
+  await pool.execute(`
+    CREATE TABLE IF NOT EXISTS admin_activity_log (
+      id_activity INT NOT NULL AUTO_INCREMENT,
+      id_admin INT NOT NULL,
+      action_type VARCHAR(40) NOT NULL,
+      entity_type VARCHAR(40) NOT NULL,
+      entity_id INT NULL,
+      summary VARCHAR(255) NOT NULL,
+      metadata TEXT NULL,
+      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      PRIMARY KEY (id_activity),
+      INDEX idx_admin_created (id_admin, created_at),
+      INDEX idx_entity (entity_type, entity_id)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+  `);
+
+  adminActivityTableChecked = true;
+};
+
+const logAdminActivity = async (
+  req: AuthRequest,
+  action: string,
+  entity: string,
+  summary: string,
+  entityId?: number | null,
+  metadata?: Record<string, any> | null
+) => {
+  try {
+    const adminId = req.user?.user_id;
+    if (!adminId) return;
+    await ensureAdminActivityTable();
+
+    const safeSummary = sanitizeText(summary, 255);
+    const payload = metadata ? JSON.stringify(metadata).slice(0, 2000) : null;
+
+    await pool.execute<ResultSetHeader>(
+      `INSERT INTO admin_activity_log (id_admin, action_type, entity_type, entity_id, summary, metadata)
+       VALUES (?, ?, ?, ?, ?, ?)`,
+      [adminId, action.toLowerCase(), entity.toLowerCase(), entityId ?? null, safeSummary, payload]
+    );
+  } catch (error) {
+    console.error('Error in logAdminActivity:', error);
+  }
 };
 
 // ─── Services CRUD ───────────────────────────────────────────────────────────
 
 export const createService = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
+    assertAllowedFields(req.body, ['name', 'description', 'icon']);
     const { name, description, icon } = req.body;
 
     if (!name || typeof name !== 'string' || name.trim().length === 0) {
@@ -78,6 +171,15 @@ export const createService = async (req: AuthRequest, res: Response): Promise<vo
     const [result] = await pool.execute<ResultSetHeader>(
       `INSERT INTO services (name, description, icon, is_active) VALUES (?, ?, ?, 1)`,
       [trimmedName, trimmedDesc, trimmedIcon]
+    );
+
+    await logAdminActivity(
+      req,
+      'create',
+      'service',
+      `Created service "${trimmedName}"`,
+      result.insertId,
+      { name: trimmedName }
     );
 
     res.status(201).json({
@@ -205,6 +307,7 @@ export const getAllServices = async (_req: AuthRequest, res: Response): Promise<
 
 export const updateService = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
+    assertAllowedFields(req.body, ['name', 'description', 'icon', 'is_active']);
     const idService = Number(req.params.id);
     if (!idService || isNaN(idService)) {
       res.status(400).json({ error: 'Invalid service ID.' });
@@ -214,6 +317,9 @@ export const updateService = async (req: AuthRequest, res: Response): Promise<vo
     const { name, description, icon, is_active } = req.body;
     const updates: string[] = [];
     const values: any[] = [];
+    const changedFields: string[] = [];
+    let nextName: string | undefined;
+    let parsedActive: 0 | 1 | undefined;
 
     if (name !== undefined) {
       const trimmedName = sanitizeText(name, 100);
@@ -232,21 +338,32 @@ export const updateService = async (req: AuthRequest, res: Response): Promise<vo
       }
       updates.push('name = ?');
       values.push(trimmedName);
+      changedFields.push('name');
+      nextName = trimmedName;
     }
 
     if (description !== undefined) {
       updates.push('description = ?');
       values.push(sanitizeOptionalText(description, 500));
+      changedFields.push('description');
     }
 
     if (icon !== undefined) {
       updates.push('icon = ?');
       values.push(sanitizeOptionalText(icon, 255));
+      changedFields.push('icon');
     }
 
-    if (is_active !== undefined) {
-      updates.push('is_active = ?');
-      values.push(is_active ? 1 : 0);
+    try {
+      parsedActive = parseBooleanFlag(is_active, 'is_active');
+      if (parsedActive !== undefined) {
+        updates.push('is_active = ?');
+        values.push(parsedActive);
+        changedFields.push('is_active');
+      }
+    } catch (error: any) {
+      res.status(400).json({ error: error?.message || 'Invalid is_active value.' });
+      return;
     }
 
     if (updates.length === 0) {
@@ -264,6 +381,16 @@ export const updateService = async (req: AuthRequest, res: Response): Promise<vo
       res.status(404).json({ error: 'Service not found.' });
       return;
     }
+
+    const label = nextName ? `"${nextName}"` : `service #${idService}`;
+    let action = 'update';
+    let summary = `Updated ${label}`;
+    if (changedFields.length === 1 && changedFields[0] === 'is_active') {
+      action = parsedActive === 1 ? 'activate' : 'deactivate';
+      summary = parsedActive === 1 ? `Activated ${label}` : `Deactivated ${label}`;
+    }
+
+    await logAdminActivity(req, action, 'service', summary, idService, { fields: changedFields });
 
     res.json({ success: true, message: 'Service updated successfully.' });
   } catch (error: any) {
@@ -284,6 +411,12 @@ export const deleteService = async (req: AuthRequest, res: Response): Promise<vo
       return;
     }
 
+    const [serviceRows] = await pool.execute<RowDataPacket[]>(
+      `SELECT name FROM services WHERE id_service = ?`,
+      [idService]
+    );
+    const serviceName = serviceRows[0]?.name ? String(serviceRows[0].name) : null;
+
     const [result] = await pool.execute<ResultSetHeader>(
       `DELETE FROM services WHERE id_service = ?`,
       [idService]
@@ -293,6 +426,9 @@ export const deleteService = async (req: AuthRequest, res: Response): Promise<vo
       res.status(404).json({ error: 'Service not found.' });
       return;
     }
+
+    const label = serviceName ? `service "${serviceName}"` : `service #${idService}`;
+    await logAdminActivity(req, 'delete', 'service', `Deleted ${label}`, idService, { name: serviceName });
 
     res.json({ success: true, message: 'Service deleted successfully.' });
   } catch (error: any) {
@@ -335,6 +471,16 @@ export const getServiceCardsAdmin = async (_req: AuthRequest, res: Response): Pr
 
 export const createServiceCard = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
+    assertAllowedFields(req.body, [
+      'id_service',
+      'image_url',
+      'badge',
+      'headline',
+      'summary',
+      'cta_label',
+      'sort_order',
+      'is_active',
+    ]);
     await ensureServiceCardsTable();
 
     const idService = Number(req.body?.id_service);
@@ -372,11 +518,24 @@ export const createServiceCard = async (req: AuthRequest, res: Response): Promis
       ? sanitizeText(req.body.summary, 255)
       : String(service.description || '').slice(0, 255);
     const ctaLabel = sanitizeOptionalText(req.body?.cta_label, 60) || 'Learn More';
-    const isActive = req.body?.is_active === false || req.body?.is_active === 0 ? 0 : 1;
+    let isActive: 0 | 1 = 1;
+    try {
+      const parsedActive = parseBooleanFlag(req.body?.is_active, 'is_active');
+      if (parsedActive !== undefined) isActive = parsedActive;
+    } catch (error: any) {
+      res.status(400).json({ error: error?.message || 'Invalid is_active value.' });
+      return;
+    }
 
-    const requestedOrder = Number(req.body?.sort_order);
-    let sortOrder = requestedOrder;
-    if (!sortOrder || Number.isNaN(sortOrder) || sortOrder < 1) {
+    let sortOrder: number;
+    if (req.body?.sort_order !== undefined) {
+      try {
+        sortOrder = parsePositiveInt(req.body.sort_order, 'sort_order', 5000);
+      } catch (error: any) {
+        res.status(400).json({ error: error?.message || 'Invalid sort_order value.' });
+        return;
+      }
+    } else {
       const [maxRows] = await pool.execute<RowDataPacket[]>(`SELECT COALESCE(MAX(sort_order), 0) AS maxSort FROM service_cards`);
       sortOrder = Number(maxRows[0]?.maxSort || 0) + 1;
     }
@@ -385,6 +544,15 @@ export const createServiceCard = async (req: AuthRequest, res: Response): Promis
       `INSERT INTO service_cards (id_service, image_url, badge, headline, summary, cta_label, sort_order, is_active)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
       [idService, imageUrl, badge, headline, summary || null, ctaLabel, sortOrder, isActive]
+    );
+
+    await logAdminActivity(
+      req,
+      'create',
+      'service_card',
+      `Created homepage card for "${service.name}"`,
+      result.insertId,
+      { id_service: idService, service_name: service.name }
     );
 
     res.status(201).json({
@@ -404,6 +572,16 @@ export const createServiceCard = async (req: AuthRequest, res: Response): Promis
 
 export const updateServiceCard = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
+    assertAllowedFields(req.body, [
+      'id_service',
+      'image_url',
+      'badge',
+      'headline',
+      'summary',
+      'cta_label',
+      'sort_order',
+      'is_active',
+    ]);
     await ensureServiceCardsTable();
 
     const idCard = Number(req.params.idCard);
@@ -414,6 +592,7 @@ export const updateServiceCard = async (req: AuthRequest, res: Response): Promis
 
     const updates: string[] = [];
     const values: any[] = [];
+    const changedFields: string[] = [];
 
     if (req.body?.id_service !== undefined) {
       const idService = Number(req.body.id_service);
@@ -439,46 +618,64 @@ export const updateServiceCard = async (req: AuthRequest, res: Response): Promis
       }
       updates.push('id_service = ?');
       values.push(idService);
+      changedFields.push('id_service');
     }
 
     if (req.body?.image_url !== undefined) {
       updates.push('image_url = ?');
       values.push(sanitizeImageUrl(req.body.image_url));
+      changedFields.push('image_url');
     }
 
     if (req.body?.badge !== undefined) {
       updates.push('badge = ?');
       values.push(sanitizeOptionalText(req.body.badge, 40) || 'POPULAR');
+      changedFields.push('badge');
     }
 
     if (req.body?.headline !== undefined) {
       updates.push('headline = ?');
       values.push(sanitizeOptionalText(req.body.headline, 120));
+      changedFields.push('headline');
     }
 
     if (req.body?.summary !== undefined) {
       updates.push('summary = ?');
       values.push(sanitizeOptionalText(req.body.summary, 255));
+      changedFields.push('summary');
     }
 
     if (req.body?.cta_label !== undefined) {
       updates.push('cta_label = ?');
       values.push(sanitizeOptionalText(req.body.cta_label, 60) || 'Learn More');
+      changedFields.push('cta_label');
     }
 
     if (req.body?.sort_order !== undefined) {
-      const sortOrder = Number(req.body.sort_order);
-      if (!sortOrder || Number.isNaN(sortOrder) || sortOrder < 1) {
-        res.status(400).json({ error: 'sort_order must be a positive number.' });
+      let sortOrder: number;
+      try {
+        sortOrder = parsePositiveInt(req.body.sort_order, 'sort_order', 5000);
+      } catch (error: any) {
+        res.status(400).json({ error: error?.message || 'sort_order must be a positive number.' });
         return;
       }
       updates.push('sort_order = ?');
       values.push(sortOrder);
+      changedFields.push('sort_order');
     }
 
     if (req.body?.is_active !== undefined) {
-      updates.push('is_active = ?');
-      values.push(req.body.is_active ? 1 : 0);
+      try {
+        const parsedActive = parseBooleanFlag(req.body.is_active, 'is_active');
+        if (parsedActive !== undefined) {
+          updates.push('is_active = ?');
+          values.push(parsedActive);
+          changedFields.push('is_active');
+        }
+      } catch (error: any) {
+        res.status(400).json({ error: error?.message || 'Invalid is_active value.' });
+        return;
+      }
     }
 
     if (updates.length === 0) {
@@ -496,6 +693,15 @@ export const updateServiceCard = async (req: AuthRequest, res: Response): Promis
       res.status(404).json({ error: 'Card not found.' });
       return;
     }
+
+    await logAdminActivity(
+      req,
+      'update',
+      'service_card',
+      `Updated homepage card #${idCard}`,
+      idCard,
+      { fields: changedFields }
+    );
 
     res.json({ success: true, message: 'Service card updated.' });
   } catch (error: any) {
@@ -524,6 +730,14 @@ export const deleteServiceCard = async (req: AuthRequest, res: Response): Promis
       return;
     }
 
+    await logAdminActivity(
+      req,
+      'delete',
+      'service_card',
+      `Deleted homepage card #${idCard}`,
+      idCard
+    );
+
     res.json({ success: true, message: 'Service card deleted.' });
   } catch (error: any) {
     console.error('Error in deleteServiceCard:', error);
@@ -533,13 +747,15 @@ export const deleteServiceCard = async (req: AuthRequest, res: Response): Promis
 
 export const getPendingWorkers = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
+    await ensureUsersPendingWorkerColumn();
+
     const [rows] = await pool.execute<RowDataPacket[]>(
       `SELECT 
         u.id_user, u.name, u.lastname, u.email, u.phone_number, u.username, u.profile_image, u.created_at,
         wp.id_worker_profile, wp.bio, wp.dui_document, wp.cert_document, wp.is_verified
        FROM users u
        INNER JOIN worker_profiles wp ON wp.id_user = u.id_user
-       WHERE u.rol = 'worker'
+       WHERE u.pending_worker = 1
          AND u.verification_token IS NULL
          AND wp.is_verified = 0
        ORDER BY u.created_at DESC`
@@ -582,23 +798,73 @@ export const getPendingWorkers = async (req: AuthRequest, res: Response): Promis
 
 export const approveWorker = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
+    await ensureUsersPendingWorkerColumn();
+
     const userId = Number(req.params.id);
     if (!userId || isNaN(userId)) {
       res.status(400).json({ error: 'Invalid user ID.' });
       return;
     }
 
-    const [result] = await pool.execute<ResultSetHeader>(
-      `UPDATE worker_profiles SET is_verified = 1 WHERE id_user = ? AND is_verified = 0`,
-      [userId]
-    );
+    const connection = await pool.getConnection();
+    try {
+      await connection.beginTransaction();
 
-    if (result.affectedRows === 0) {
-      res.status(404).json({ error: 'Worker not found or already processed.' });
-      return;
+      const [userRows] = await connection.execute<RowDataPacket[]>(
+        `SELECT u.id_user, u.pending_worker, u.rol, u.name, u.lastname, wp.is_verified
+         FROM users u
+         INNER JOIN worker_profiles wp ON wp.id_user = u.id_user
+         WHERE u.id_user = ?
+         FOR UPDATE`,
+        [userId]
+      );
+      if (userRows.length === 0) {
+        await connection.rollback();
+        res.status(404).json({ error: 'Worker not found.' });
+        return;
+      }
+      const pendingWorker = Number(userRows[0]?.pending_worker || 0) === 1;
+      const currentRole = String(userRows[0]?.rol || '').toLowerCase();
+      const isVerified = Number(userRows[0]?.is_verified || 0);
+      if (!pendingWorker || isVerified !== 0 || currentRole === 'admin' || currentRole === 'root') {
+        await connection.rollback();
+        res.status(409).json({ error: 'Worker not in a pending state.' });
+        return;
+      }
+
+      const [result] = await connection.execute<ResultSetHeader>(
+        `UPDATE worker_profiles SET is_verified = 1 WHERE id_user = ? AND is_verified = 0`,
+        [userId]
+      );
+
+      if (result.affectedRows === 0) {
+        await connection.rollback();
+        res.status(404).json({ error: 'Worker not found or already processed.' });
+        return;
+      }
+
+      await connection.execute(
+        `UPDATE users SET rol = 'worker', pending_worker = 0 WHERE id_user = ?`,
+        [userId]
+      );
+
+      const workerName = `${userRows[0]?.name || ''} ${userRows[0]?.lastname || ''}`.trim();
+      await connection.commit();
+      await logAdminActivity(
+        req,
+        'approve',
+        'worker',
+        workerName ? `Approved worker "${workerName}"` : `Approved worker #${userId}`,
+        userId,
+        { name: workerName || null }
+      );
+      res.json({ success: true, message: 'Worker approved successfully.' });
+    } catch (error) {
+      await connection.rollback();
+      throw error;
+    } finally {
+      connection.release();
     }
-
-    res.json({ success: true, message: 'Worker approved successfully.' });
   } catch (error: any) {
     console.error('Error in approveWorker:', error);
     res.status(500).json({ error: 'Internal server error' });
@@ -607,25 +873,299 @@ export const approveWorker = async (req: AuthRequest, res: Response): Promise<vo
 
 export const rejectWorker = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
+    await ensureUsersPendingWorkerColumn();
+
     const userId = Number(req.params.id);
     if (!userId || isNaN(userId)) {
       res.status(400).json({ error: 'Invalid user ID.' });
       return;
     }
 
-    const [result] = await pool.execute<ResultSetHeader>(
-      `UPDATE worker_profiles SET is_verified = 2 WHERE id_user = ? AND is_verified = 0`,
-      [userId]
-    );
+    const connection = await pool.getConnection();
+    try {
+      await connection.beginTransaction();
 
-    if (result.affectedRows === 0) {
-      res.status(404).json({ error: 'Worker not found or already processed.' });
+      const [userRows] = await connection.execute<RowDataPacket[]>(
+        `SELECT u.id_user, u.pending_worker, u.rol, u.name, u.lastname, wp.is_verified
+         FROM users u
+         INNER JOIN worker_profiles wp ON wp.id_user = u.id_user
+         WHERE u.id_user = ?
+         FOR UPDATE`,
+        [userId]
+      );
+      if (userRows.length === 0) {
+        await connection.rollback();
+        res.status(404).json({ error: 'Worker not found.' });
+        return;
+      }
+      const pendingWorker = Number(userRows[0]?.pending_worker || 0) === 1;
+      const currentRole = String(userRows[0]?.rol || '').toLowerCase();
+      const isVerified = Number(userRows[0]?.is_verified || 0);
+      if (!pendingWorker || isVerified !== 0 || currentRole === 'admin' || currentRole === 'root') {
+        await connection.rollback();
+        res.status(409).json({ error: 'Worker not in a pending state.' });
+        return;
+      }
+
+      const [result] = await connection.execute<ResultSetHeader>(
+        `UPDATE worker_profiles SET is_verified = 2 WHERE id_user = ? AND is_verified = 0`,
+        [userId]
+      );
+
+      if (result.affectedRows === 0) {
+        await connection.rollback();
+        res.status(404).json({ error: 'Worker not found or already processed.' });
+        return;
+      }
+
+      await connection.execute(
+        `UPDATE users SET pending_worker = 0 WHERE id_user = ?`,
+        [userId]
+      );
+
+      const workerName = `${userRows[0]?.name || ''} ${userRows[0]?.lastname || ''}`.trim();
+      await connection.commit();
+      await logAdminActivity(
+        req,
+        'reject',
+        'worker',
+        workerName ? `Rejected worker "${workerName}"` : `Rejected worker #${userId}`,
+        userId,
+        { name: workerName || null }
+      );
+      res.json({ success: true, message: 'Worker rejected successfully.' });
+    } catch (error) {
+      await connection.rollback();
+      throw error;
+    } finally {
+      connection.release();
+    }
+  } catch (error: any) {
+    console.error('Error in rejectWorker:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
+// ─── Users Management ────────────────────────────────────────────────────
+
+export const getUsersAdmin = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    await ensureUsersActiveColumn();
+
+    const rawSearch = req.query.search ? sanitizeText(req.query.search, 120) : '';
+    const search = rawSearch.trim();
+
+    const roleFilter = req.query.role ? String(req.query.role).toLowerCase() : '';
+    if (roleFilter && !ALLOWED_USER_ROLES.has(roleFilter)) {
+      res.status(400).json({ error: 'Invalid role filter.' });
       return;
     }
 
-    res.json({ success: true, message: 'Worker rejected successfully.' });
+    const statusFilter = req.query.status ? String(req.query.status).toLowerCase() : '';
+    if (statusFilter && statusFilter !== 'active' && statusFilter !== 'inactive') {
+      res.status(400).json({ error: 'Invalid status filter.' });
+      return;
+    }
+
+    const whereParts: string[] = [];
+    const params: any[] = [];
+
+    if (search) {
+      whereParts.push(`(u.name LIKE ? OR u.lastname LIKE ? OR u.email LIKE ? OR u.username LIKE ?)`);
+      const like = `%${search}%`;
+      params.push(like, like, like, like);
+    }
+
+    if (roleFilter) {
+      whereParts.push(`u.rol = ?`);
+      params.push(roleFilter);
+    }
+
+    if (statusFilter) {
+      whereParts.push(`u.is_active = ?`);
+      params.push(statusFilter === 'active' ? 1 : 0);
+    }
+
+    const whereSql = whereParts.length > 0 ? `WHERE ${whereParts.join(' AND ')}` : '';
+
+    const [rows] = await pool.execute<RowDataPacket[]>(
+      `SELECT
+         u.id_user,
+         u.name,
+         u.lastname,
+         u.email,
+         u.phone_number,
+         u.username,
+         u.profile_image,
+         u.rol,
+         u.created_at,
+         u.last_login,
+         u.is_active
+       FROM users u
+       ${whereSql}
+       ORDER BY u.created_at DESC
+       LIMIT 500`,
+      params
+    );
+
+    const users = rows.map((row: any) => ({
+      id_user: Number(row.id_user),
+      name: row.name,
+      lastname: row.lastname,
+      email: row.email,
+      phone_number: row.phone_number,
+      username: row.username,
+      profile_image: row.profile_image,
+      rol: row.rol,
+      created_at: row.created_at,
+      last_login: row.last_login,
+      is_active: row.is_active ? 1 : 0,
+    }));
+
+    res.json({ success: true, users });
   } catch (error: any) {
-    console.error('Error in rejectWorker:', error);
+    console.error('Error in getUsersAdmin:', error);
+    if (typeof error?.message === 'string' && error.message.toLowerCase().includes('invalid')) {
+      res.status(400).json({ error: error.message });
+      return;
+    }
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
+export const updateUserRole = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    assertAllowedFields(req.body, ['rol']);
+    await ensureUsersActiveColumn();
+
+    const userId = Number(req.params.id);
+    if (!userId || isNaN(userId)) {
+      res.status(400).json({ error: 'Invalid user ID.' });
+      return;
+    }
+
+    const newRole = String(req.body?.rol || '').toLowerCase();
+    if (!ALLOWED_USER_ROLES.has(newRole)) {
+      res.status(400).json({ error: 'Invalid role value.' });
+      return;
+    }
+    if (!ASSIGNABLE_USER_ROLES.has(newRole)) {
+      res.status(400).json({ error: 'Role change not allowed.' });
+      return;
+    }
+
+    const [rows] = await pool.execute<RowDataPacket[]>(
+      `SELECT id_user, rol, name, lastname FROM users WHERE id_user = ?`,
+      [userId]
+    );
+    if (rows.length === 0) {
+      res.status(404).json({ error: 'User not found.' });
+      return;
+    }
+
+    const currentRole = String(rows[0].rol || '').toLowerCase();
+    if (currentRole === 'root') {
+      res.status(403).json({ error: 'Root user cannot be modified.' });
+      return;
+    }
+    if (currentRole === 'worker') {
+      res.status(400).json({ error: 'Worker role cannot be changed.' });
+      return;
+    }
+
+    if (currentRole === newRole) {
+      res.json({ success: true, message: 'Role unchanged.' });
+      return;
+    }
+
+    await pool.execute<ResultSetHeader>(
+      `UPDATE users SET rol = ? WHERE id_user = ?`,
+      [newRole, userId]
+    );
+
+    const userName = `${rows[0]?.name || ''} ${rows[0]?.lastname || ''}`.trim();
+    await logAdminActivity(
+      req,
+      'role_change',
+      'user',
+      userName
+        ? `Changed role for "${userName}" to ${newRole}`
+        : `Changed role for user #${userId} to ${newRole}`,
+      userId,
+      { from: currentRole, to: newRole }
+    );
+
+    res.json({ success: true, message: 'Role updated successfully.' });
+  } catch (error: any) {
+    console.error('Error in updateUserRole:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
+export const updateUserStatus = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    assertAllowedFields(req.body, ['is_active']);
+    await ensureUsersActiveColumn();
+
+    const userId = Number(req.params.id);
+    if (!userId || isNaN(userId)) {
+      res.status(400).json({ error: 'Invalid user ID.' });
+      return;
+    }
+
+    let desiredActive: 0 | 1 = 1;
+    try {
+      const parsedActive = parseBooleanFlag(req.body?.is_active, 'is_active');
+      if (parsedActive === undefined) {
+        res.status(400).json({ error: 'is_active is required.' });
+        return;
+      }
+      desiredActive = parsedActive;
+    } catch (error: any) {
+      res.status(400).json({ error: error?.message || 'Invalid is_active value.' });
+      return;
+    }
+
+    const [rows] = await pool.execute<RowDataPacket[]>(
+      `SELECT id_user, rol, name, lastname FROM users WHERE id_user = ?`,
+      [userId]
+    );
+    if (rows.length === 0) {
+      res.status(404).json({ error: 'User not found.' });
+      return;
+    }
+
+    const currentRole = String(rows[0].rol || '').toLowerCase();
+    if (currentRole === 'root') {
+      res.status(403).json({ error: 'Root user cannot be modified.' });
+      return;
+    }
+
+    if (req.user?.user_id === userId && desiredActive === 0) {
+      res.status(400).json({ error: 'You cannot deactivate your own account.' });
+      return;
+    }
+
+    await pool.execute<ResultSetHeader>(
+      `UPDATE users SET is_active = ? WHERE id_user = ?`,
+      [desiredActive, userId]
+    );
+
+    const userName = `${rows[0]?.name || ''} ${rows[0]?.lastname || ''}`.trim();
+    await logAdminActivity(
+      req,
+      'status_change',
+      'user',
+      userName
+        ? `${desiredActive === 1 ? 'Activated' : 'Deactivated'} "${userName}"`
+        : `${desiredActive === 1 ? 'Activated' : 'Deactivated'} user #${userId}`,
+      userId,
+      { is_active: desiredActive }
+    );
+
+    res.json({ success: true, message: 'User status updated successfully.' });
+  } catch (error: any) {
+    console.error('Error in updateUserStatus:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 };
@@ -634,6 +1174,8 @@ export const rejectWorker = async (req: AuthRequest, res: Response): Promise<voi
 
 export const getDashboardStats = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
+    await ensureUsersPendingWorkerColumn();
+
     const [[{ total_services }]] = await pool.execute<RowDataPacket[]>(`SELECT COUNT(*) as total_services FROM services`);
     
     const [[{ total_pros }]] = await pool.execute<RowDataPacket[]>(`
@@ -645,17 +1187,18 @@ export const getDashboardStats = async (req: AuthRequest, res: Response): Promis
     const [[{ pending_pros }]] = await pool.execute<RowDataPacket[]>(`
       SELECT COUNT(*) as pending_pros FROM users u
       INNER JOIN worker_profiles wp ON u.id_user = wp.id_user
-      WHERE u.rol = 'worker' AND wp.is_verified = 0 AND u.verification_token IS NULL
+      WHERE u.pending_worker = 1 AND wp.is_verified = 0 AND u.verification_token IS NULL
     `);
     
-    const [[{ total_users }]] = await pool.execute<RowDataPacket[]>(`SELECT COUNT(*) as total_users FROM users WHERE rol = 'user'`);
+    const [[{ total_users }]] = await pool.execute<RowDataPacket[]>(`SELECT COUNT(*) as total_users FROM users WHERE rol = 'client'`);
+    const [[{ total_admins }]] = await pool.execute<RowDataPacket[]>(`SELECT COUNT(*) as total_admins FROM users WHERE rol IN ('admin', 'root')`);
 
-    // Traffic Data - last 7 days of registrations
     const [trafficRows] = await pool.execute<RowDataPacket[]>(`
       SELECT 
         DATE_FORMAT(created_at, '%a') as name,
-        SUM(CASE WHEN rol = 'user' THEN 1 ELSE 0 END) as Users,
-        SUM(CASE WHEN rol = 'worker' THEN 1 ELSE 0 END) as Pros
+        SUM(CASE WHEN rol = 'client' THEN 1 ELSE 0 END) as Users,
+        SUM(CASE WHEN rol = 'worker' THEN 1 ELSE 0 END) as Pros,
+        SUM(CASE WHEN rol IN ('admin', 'root') THEN 1 ELSE 0 END) as Admins
       FROM users
       WHERE created_at >= DATE_SUB(CURDATE(), INTERVAL 6 DAY)
       GROUP BY DATE(created_at), DATE_FORMAT(created_at, '%a')
@@ -669,6 +1212,7 @@ export const getDashboardStats = async (req: AuthRequest, res: Response): Promis
         total_pros: Number(total_pros),
         pending_pros: Number(pending_pros),
         total_users: Number(total_users),
+        total_admins: Number(total_admins),
         trafficData: trafficRows
       }
     });
@@ -689,6 +1233,7 @@ export const getRequestsHistory = async (req: AuthRequest, res: Response): Promi
       res.status(400).json({ error: 'Invalid status filter.' });
       return;
     }
+    const requestedServiceIdRaw = req.query.service_id;
 
     const whereParts: string[] = [];
     const params: any[] = [];
@@ -700,6 +1245,16 @@ export const getRequestsHistory = async (req: AuthRequest, res: Response): Promi
         whereParts.push(`sr.status = ?`);
         params.push(requestedStatus);
       }
+    }
+
+    if (requestedServiceIdRaw !== undefined) {
+      const serviceId = Number(requestedServiceIdRaw);
+      if (!serviceId || Number.isNaN(serviceId) || serviceId < 1) {
+        res.status(400).json({ error: 'Invalid service filter.' });
+        return;
+      }
+      whereParts.push(`sr.id_service = ?`);
+      params.push(serviceId);
     }
 
     const whereSql = whereParts.length > 0 ? `WHERE ${whereParts.join(' AND ')}` : '';
@@ -786,8 +1341,106 @@ export const getRequestsHistory = async (req: AuthRequest, res: Response): Promi
   }
 };
 
+export const getAdminActivity = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    await ensureAdminActivityTable();
+
+    const rawLimit = Number(req.query.limit ?? 100);
+    const rawOffset = Number(req.query.offset ?? 0);
+    const limit = Number.isFinite(rawLimit) ? Math.min(Math.max(Math.floor(rawLimit), 1), 200) : 100;
+    const offset = Number.isFinite(rawOffset) ? Math.max(Math.floor(rawOffset), 0) : 0;
+
+    const actionFilter = req.query.action ? sanitizeText(req.query.action, 40).toLowerCase() : '';
+    const entityFilter = req.query.entity ? sanitizeText(req.query.entity, 40).toLowerCase() : '';
+
+    let adminId: number | null = null;
+    if (req.query.admin_id !== undefined) {
+      const parsed = Number(req.query.admin_id);
+      if (!parsed || Number.isNaN(parsed)) {
+        res.status(400).json({ error: 'Invalid admin_id filter.' });
+        return;
+      }
+      adminId = parsed;
+    }
+
+    const whereParts: string[] = [];
+    const params: any[] = [];
+
+    if (actionFilter) {
+      whereParts.push('a.action_type = ?');
+      params.push(actionFilter);
+    }
+
+    if (entityFilter) {
+      whereParts.push('a.entity_type = ?');
+      params.push(entityFilter);
+    }
+
+    if (adminId !== null) {
+      whereParts.push('a.id_admin = ?');
+      params.push(adminId);
+    }
+
+    const whereSql = whereParts.length > 0 ? `WHERE ${whereParts.join(' AND ')}` : '';
+
+    const [rows] = await pool.execute<AdminActivityRow[]>(
+      `SELECT
+         a.id_activity,
+         a.id_admin,
+         a.action_type,
+         a.entity_type,
+         a.entity_id,
+         a.summary,
+         a.metadata,
+         a.created_at,
+         u.name AS admin_name,
+         u.lastname AS admin_lastname,
+         u.email AS admin_email
+       FROM admin_activity_log a
+       LEFT JOIN users u ON u.id_user = a.id_admin
+       ${whereSql}
+       ORDER BY a.created_at DESC
+       LIMIT ${limit} OFFSET ${offset}`,
+      params
+    );
+
+    const activities = rows.map((row) => {
+      let metadata: any = null;
+      if (row.metadata) {
+        try {
+          metadata = JSON.parse(String(row.metadata));
+        } catch {
+          metadata = null;
+        }
+      }
+      return {
+        id_activity: Number(row.id_activity),
+        action: String(row.action_type),
+        entity: String(row.entity_type),
+        entity_id: row.entity_id != null ? Number(row.entity_id) : null,
+        summary: row.summary,
+        created_at: row.created_at,
+        admin: row.id_admin
+          ? {
+              id_user: Number(row.id_admin),
+              name: `${row.admin_name || ''} ${row.admin_lastname || ''}`.trim() || 'Admin',
+              email: row.admin_email || null,
+            }
+          : null,
+        metadata,
+      };
+    });
+
+    res.json({ success: true, activities });
+  } catch (error: any) {
+    console.error('Error in getAdminActivity:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
 export const updateHeroSlides = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
+    assertAllowedFields(req.body, ['slides']);
     await ensureHeroSlidesTable();
 
     const slides = Array.isArray(req.body?.slides) ? req.body.slides : null;
@@ -841,6 +1494,15 @@ export const updateHeroSlides = async (req: AuthRequest, res: Response): Promise
        ORDER BY sort_order ASC`
     );
 
+    await logAdminActivity(
+      req,
+      'update',
+      'hero_slide',
+      `Updated homepage carousel (${slides.length} slides)`,
+      null,
+      { slides: slides.length }
+    );
+
     res.json({ success: true, slides: toSlidesDto(rows) });
   } catch (error: any) {
     console.error('Error in updateHeroSlides:', error);
@@ -886,6 +1548,14 @@ export const uploadHeroSlideImage = async (req: AuthRequest, res: Response): Pro
       `SELECT id_slide, sort_order, image_url, tag, title, description, cta
        FROM hero_slides
        ORDER BY sort_order ASC`
+    );
+
+    await logAdminActivity(
+      req,
+      'upload',
+      'hero_slide',
+      `Updated image for slide #${idSlide}`,
+      idSlide
     );
 
     res.json({ success: true, image: imageUrl, slides: toSlidesDto(rows) });

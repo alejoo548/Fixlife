@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
@@ -70,6 +70,20 @@ interface PendingWorker {
   services: { id_service: number; name: string }[];
 }
 
+interface AdminUser {
+  id_user: number;
+  name: string;
+  lastname: string;
+  email: string;
+  phone_number: string | null;
+  username: string | null;
+  profile_image: string | null;
+  rol: string;
+  created_at: string;
+  last_login: string | null;
+  is_active: number | boolean;
+}
+
 interface AdminRequestHistoryItem {
   id_request: number;
   id_user: number | null;
@@ -112,6 +126,17 @@ interface AdminWorkerRewardsPayout {
   service_name: string | null;
 }
 
+interface AdminActivityItem {
+  id_activity: number;
+  action: string;
+  entity: string;
+  entity_id: number | null;
+  summary: string;
+  created_at: string;
+  admin: { id_user: number; name: string; email: string | null } | null;
+  metadata: any;
+}
+
 const notyf = new Notyf({ position: { x: 'right', y: 'bottom' }, ripple: true });
 
 const DEFAULT_REVENUE_DATA = [
@@ -128,7 +153,6 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ isOpen, onClose 
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [user, setUser] = useState<any>(() => getAuthUser('admin'));
 
-  // Services state
   const [services, setServices] = useState<Service[]>([]);
   const [servicesLoading, setServicesLoading] = useState(false);
   const [showServiceForm, setShowServiceForm] = useState(false);
@@ -150,16 +174,20 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ isOpen, onClose 
   });
   const [uploadingCardImage, setUploadingCardImage] = useState(false);
 
-  // Pending Workers state
   const [pendingWorkers, setPendingWorkers] = useState<PendingWorker[]>([]);
   const [workersLoading, setWorkersLoading] = useState(false);
   const [actionLoading, setActionLoading] = useState<number | null>(null);
 
-  // Stats & Preview state
+  const [users, setUsers] = useState<AdminUser[]>([]);
+  const [usersLoading, setUsersLoading] = useState(false);
+  const [userActionLoading, setUserActionLoading] = useState<number | null>(null);
+  const [userSearch, setUserSearch] = useState('');
+  const [roleFilter, setRoleFilter] = useState<'all' | 'client' | 'worker' | 'admin' | 'root'>('all');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive'>('all');
+
   const [dashboardStats, setDashboardStats] = useState<any>(null);
   const [previewDoc, setPreviewDoc] = useState<{ url: string, name: string } | null>(null);
 
-  // Hero Slides state
   const [heroSlidesDraft, setHeroSlidesDraft] = useState<HeroSlideContent[]>([]);
   const [unsavedSlideIds, setUnsavedSlideIds] = useState<number[]>([]);
   const [isSavingHeroSlides, setIsSavingHeroSlides] = useState(false);
@@ -182,6 +210,13 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ isOpen, onClose 
   const [workerRewardsPayouts, setWorkerRewardsPayouts] = useState<AdminWorkerRewardsPayout[]>([]);
   const [savingWorkerRewardsSettings, setSavingWorkerRewardsSettings] = useState(false);
   const [markingPayoutId, setMarkingPayoutId] = useState<number | null>(null);
+  const [requestHistoryServiceId, setRequestHistoryServiceId] = useState<'all' | string>('all');
+  const [adminActivity, setAdminActivity] = useState<AdminActivityItem[]>([]);
+  const [adminActivityLoading, setAdminActivityLoading] = useState(false);
+  const [activityActionFilter, setActivityActionFilter] = useState<'all' | string>('all');
+  const [activityEntityFilter, setActivityEntityFilter] = useState<'all' | string>('all');
+  const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
+  const notificationsRef = useRef<HTMLDivElement | null>(null);
 
   const getToken = () => getSessionToken('admin') || '';
 
@@ -282,7 +317,6 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ isOpen, onClose 
       const data = await res.json();
       if (data.success) setServiceCards(data.cards);
     } catch {
-      /* silent */
     } finally {
       setCardsLoading(false);
     }
@@ -492,6 +526,94 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ isOpen, onClose 
     } catch { notyf.error('Connection error'); } finally { setActionLoading(null); }
   };
 
+  // ─── Users Management API ───────────────────────────────────────────────
+  const fetchUsers = async () => {
+    setUsersLoading(true);
+    try {
+      const params = new URLSearchParams();
+      const trimmedSearch = userSearch.trim();
+      if (trimmedSearch) params.set('search', trimmedSearch);
+      if (roleFilter !== 'all') params.set('role', roleFilter);
+      if (statusFilter !== 'all') params.set('status', statusFilter);
+
+      const query = params.toString();
+      const url = query ? `${API_ENDPOINTS.admin.users}?${query}` : API_ENDPOINTS.admin.users;
+      const res = await fetch(url, {
+        headers: { Authorization: `Bearer ${getToken()}` },
+      });
+      const data = await res.json();
+      if (data.success) setUsers(data.users);
+    } catch {
+      // silent
+    } finally {
+      setUsersLoading(false);
+    }
+  };
+
+  const handleUpdateUserRole = async (target: AdminUser, nextRole: string) => {
+    if (target.rol === 'root') {
+      notyf.error('Root user cannot be modified.');
+      return;
+    }
+    if (target.rol === 'worker') {
+      notyf.error('Worker role cannot be changed.');
+      return;
+    }
+    if (nextRole === 'worker') {
+      notyf.error('Role change not allowed.');
+      return;
+    }
+    if (nextRole === target.rol) return;
+    setUserActionLoading(target.id_user);
+    try {
+      const res = await fetch(API_ENDPOINTS.admin.updateUserRole(target.id_user), {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken()}` },
+        body: JSON.stringify({ rol: nextRole }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        notyf.error(data.error || 'Role update failed');
+        return;
+      }
+      notyf.success('Role updated.');
+      setUsers((prev) => prev.map((u) => (u.id_user === target.id_user ? { ...u, rol: nextRole } : u)));
+    } catch {
+      notyf.error('Connection error');
+    } finally {
+      setUserActionLoading(null);
+    }
+  };
+
+  const handleToggleUserStatus = async (target: AdminUser) => {
+    if (target.rol === 'root') {
+      notyf.error('Root user cannot be modified.');
+      return;
+    }
+    const nextActive = !(target.is_active === true || target.is_active === 1);
+    setUserActionLoading(target.id_user);
+    try {
+      const res = await fetch(API_ENDPOINTS.admin.updateUserStatus(target.id_user), {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken()}` },
+        body: JSON.stringify({ is_active: nextActive }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        notyf.error(data.error || 'Status update failed');
+        return;
+      }
+      notyf.success(nextActive ? 'User activated.' : 'User deactivated.');
+      setUsers((prev) =>
+        prev.map((u) => (u.id_user === target.id_user ? { ...u, is_active: nextActive ? 1 : 0 } : u))
+      );
+    } catch {
+      notyf.error('Connection error');
+    } finally {
+      setUserActionLoading(null);
+    }
+  };
+
   // ─── Stats API ─────────────────────────────────────────────────────────
   const fetchStats = async () => {
     try {
@@ -503,18 +625,25 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ isOpen, onClose 
     } catch { /* silent */ }
   };
 
-  // Fetch data when tabs change
   useEffect(() => {
     fetchStats();
     if (activeTab === 'Services' || activeTab === 'Homepage Cards') {
       fetchServices();
       fetchServiceCards();
     }
-    if (activeTab === 'Users & Pros') fetchPendingWorkers();
-    if (activeTab === 'Requests History') fetchRequestsHistory(requestHistoryStatus);
+    if (activeTab === 'Users & Pros') {
+      fetchPendingWorkers();
+      fetchUsers();
+    }
+    if (activeTab === 'Requests History') {
+      fetchRequestsHistory(requestHistoryStatus, requestHistoryServiceId);
+      fetchServices();
+    }
     if (activeTab === 'Finance Analytics') fetchWorkerRewardsAdmin(workerRewardsStatus);
+    if (activeTab === 'Admin Activity') {
+      fetchAdminActivity(activityActionFilter, activityEntityFilter);
+    }
     
-    // Fetch Hero Slides if in Platform Settings
     if (activeTab === 'Platform Settings') {
       fetchHeroSlides().then((slides) => {
         if (Array.isArray(slides) && slides.length > 0) {
@@ -527,9 +656,39 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ isOpen, onClose 
 
   useEffect(() => {
     if (activeTab === 'Requests History') {
-      fetchRequestsHistory(requestHistoryStatus);
+      fetchRequestsHistory(requestHistoryStatus, requestHistoryServiceId);
     }
-  }, [requestHistoryStatus]);
+  }, [requestHistoryStatus, requestHistoryServiceId, activeTab]);
+
+  useEffect(() => {
+    if (activeTab === 'Admin Activity') {
+      fetchAdminActivity(activityActionFilter, activityEntityFilter);
+    }
+  }, [activityActionFilter, activityEntityFilter, activeTab]);
+
+  useEffect(() => {
+    if (isOpen) {
+      fetchPendingWorkers();
+    }
+  }, [isOpen]);
+
+  useEffect(() => {
+    if (activeTab === 'Users & Pros') {
+      fetchUsers();
+    }
+  }, [roleFilter, statusFilter, activeTab]);
+
+  useEffect(() => {
+    if (!isNotificationsOpen) return;
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as Node;
+      if (notificationsRef.current && !notificationsRef.current.contains(target)) {
+        setIsNotificationsOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [isNotificationsOpen]);
 
   useEffect(() => {
     if (activeTab === 'Finance Analytics') {
@@ -766,10 +925,37 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ isOpen, onClose 
   if (!isOpen) return null;
 
   const stats = [
-    { title: "Total Users", value: dashboardStats ? String(dashboardStats.total_users) : "0", change: "+14.5%", trending: "up", icon: Users, color: "text-emerald-500", bg: "bg-emerald-50", line: "from-emerald-400 to-emerald-600" },
-    { title: "Active Pros", value: dashboardStats ? String(dashboardStats.total_pros) : "0", change: "+5.2%", trending: "up", icon: Briefcase, color: "text-bird-blue", bg: "bg-bird-blue/10", line: "from-bird-blue to-bird-darkBlue" },
+    { title: "Total Users", value: dashboardStats ? String(dashboardStats.total_users) : "0", change: "", trending: "up", icon: Users, color: "text-emerald-500", bg: "bg-emerald-50", line: "from-emerald-400 to-emerald-600" },
+    { title: "Active Pros", value: dashboardStats ? String(dashboardStats.total_pros) : "0", change: "", trending: "up", icon: Briefcase, color: "text-bird-blue", bg: "bg-bird-blue/10", line: "from-bird-blue to-bird-darkBlue" },
+    { title: "Admins", value: dashboardStats ? String(dashboardStats.total_admins) : "0", change: "", trending: "up", icon: Shield, color: "text-red-500", bg: "bg-red-50", line: "from-red-400 to-red-600" },
     { title: "Pending Approvals", value: dashboardStats ? String(dashboardStats.pending_pros) : "0", change: "", trending: "down", icon: Clock, color: "text-bird-orange", bg: "bg-bird-orange/10", line: "from-bird-orange to-red-500" },
     { title: "Services", value: dashboardStats ? String(dashboardStats.total_services) : "0", change: "", trending: "up", icon: Briefcase, color: "text-bird-yellow", bg: "bg-bird-yellow/10", line: "from-bird-yellow to-bird-gold" },
+  ];
+
+  const serviceCategoryStats = [
+    { name: "Plumbing", value: 28 },
+    { name: "Electrical", value: 22 },
+    { name: "HVAC", value: 18 },
+    { name: "Carpentry", value: 14 },
+    { name: "Painting", value: 10 },
+  ];
+
+  const completedServicesWeekly = [
+    { name: "Mon", value: 120 },
+    { name: "Tue", value: 156 },
+    { name: "Wed", value: 142 },
+    { name: "Thu", value: 180 },
+    { name: "Fri", value: 210 },
+    { name: "Sat", value: 165 },
+    { name: "Sun", value: 132 },
+  ];
+
+  const popularLocations = [
+    { name: "Downtown", value: 36 },
+    { name: "North Zone", value: 28 },
+    { name: "East Zone", value: 22 },
+    { name: "West Zone", value: 18 },
+    { name: "South Zone", value: 14 },
   ];
 
   const navItems = [
@@ -778,9 +964,17 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ isOpen, onClose 
     { name: "Services", icon: Briefcase },
     { name: "Homepage Cards", icon: ImageIcon },
     { name: "Requests History", icon: FileText },
-    { name: "Finance Analytics", icon: Activity },
+    { name: "Admin Activity", icon: Activity },
     { name: "Platform Settings", icon: Settings },
   ];
+
+  const uniqueServices = useMemo(() => {
+    const map = new Map<number, Service>();
+    services.forEach((svc) => {
+      if (!map.has(svc.id_service)) map.set(svc.id_service, svc);
+    });
+    return Array.from(map.values());
+  }, [services]);
 
   const availableCardServices = useMemo(() => {
     const blocked = new Set(
@@ -788,8 +982,18 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ isOpen, onClose 
         .filter((c) => !editingCard || c.id_card !== editingCard.id_card)
         .map((c) => c.id_service)
     );
-    return services.filter((svc) => !blocked.has(svc.id_service) && !!svc.is_active);
-  }, [services, serviceCards, editingCard]);
+    return uniqueServices.filter((svc) => !blocked.has(svc.id_service) && !!svc.is_active);
+  }, [uniqueServices, serviceCards, editingCard]);
+
+  const activityActionOptions = useMemo(() => {
+    const actions = Array.from(new Set(adminActivity.map((item) => item.action))).sort();
+    return ['all', ...actions];
+  }, [adminActivity]);
+
+  const activityEntityOptions = useMemo(() => {
+    const entities = Array.from(new Set(adminActivity.map((item) => item.entity))).sort();
+    return ['all', ...entities];
+  }, [adminActivity]);
 
   // ─── RENDER: Services Tab ──────────────────────────────────────────────
   const renderServicesTab = () => (
@@ -1065,7 +1269,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ isOpen, onClose 
                     new Map(
                       [
                         ...availableCardServices,
-                        ...(editingCard ? services.filter((s) => s.id_service === editingCard.id_service) : []),
+                        ...(editingCard ? uniqueServices.filter((s) => s.id_service === editingCard.id_service) : []),
                       ].map((s) => [s.id_service, s])
                     ).values()
                   ).map((svc) => (
@@ -1344,118 +1548,311 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ isOpen, onClose 
 
   // ─── RENDER: Users & Pros (Pending Workers) Tab ────────────────────────
   const renderUsersTab = () => (
-    <div className="space-y-6">
-      <div>
-        <h2 className="text-2xl font-black text-gray-900">Pending Worker Applications</h2>
-        <p className="text-sm text-gray-500 font-medium">Review and approve worker registrations</p>
-      </div>
-
-      {workersLoading ? (
-        <div className="p-12 text-center text-gray-400 font-medium">Loading applications...</div>
-      ) : pendingWorkers.length === 0 ? (
-        <div className="bg-white/70 backdrop-blur-xl rounded-3xl border border-white shadow-xl p-12 text-center">
-          <CheckCircle size={48} className="mx-auto text-emerald-400 mb-4" />
-          <p className="text-gray-600 font-bold text-lg mb-1">All caught up!</p>
-          <p className="text-gray-500 font-medium text-sm">No pending applications at this time.</p>
-        </div>
-      ) : (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {pendingWorkers.map((worker) => (
-            <motion.div
-              key={worker.id_user}
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="bg-white/70 backdrop-blur-xl rounded-3xl border border-white shadow-xl overflow-hidden hover:shadow-2xl transition-shadow"
+    <div className="space-y-10">
+      {/* Users Management */}
+      <div className="space-y-4">
+        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+          <div>
+            <h2 className="text-2xl font-black text-gray-900">User Management</h2>
+            <p className="text-sm text-gray-500 font-medium">Manage roles and account status</p>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <input
+              value={userSearch}
+              onChange={(e) => setUserSearch(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && fetchUsers()}
+              placeholder="Search name, email, username"
+              className="w-64 rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm font-semibold"
+            />
+            <select
+              value={roleFilter}
+              onChange={(e) => setRoleFilter(e.target.value as any)}
+              className="rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm font-semibold"
             >
-              {/* Header */}
-              <div className="p-6 border-b border-gray-100 flex items-center gap-4">
-                <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-bird-orange/10 to-bird-yellow/10 flex items-center justify-center text-bird-orange font-black text-xl shrink-0 border border-bird-orange/10">
-                  {worker.name.charAt(0)}{worker.lastname.charAt(0)}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <h3 className="font-bold text-gray-900 text-lg truncate">{worker.name} {worker.lastname}</h3>
-                  <p className="text-sm text-gray-500 truncate">{worker.email}</p>
-                </div>
-                <span className="px-3 py-1.5 rounded-full text-xs font-bold bg-amber-50 text-amber-600 border border-amber-100 shrink-0">
-                  <Clock size={12} className="inline mr-1" />Pending
-                </span>
-              </div>
+              <option value="all">All Roles</option>
+              <option value="client">Client</option>
+              <option value="worker">Pro</option>
+              <option value="admin">Admin</option>
+              <option value="root">Root</option>
+            </select>
+            <select
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value as any)}
+              className="rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm font-semibold"
+            >
+              <option value="all">All Status</option>
+              <option value="active">Active</option>
+              <option value="inactive">Inactive</option>
+            </select>
+            <button
+              onClick={fetchUsers}
+              className="px-4 py-2 rounded-xl bg-bird-blue text-white text-sm font-bold shadow hover:bg-bird-darkBlue transition-colors"
+            >
+              Refresh
+            </button>
+          </div>
+        </div>
 
-              {/* Details */}
-              <div className="p-6 space-y-4">
-                <div className="grid grid-cols-2 gap-4 text-sm">
-                  <div>
-                    <span className="text-xs font-bold text-gray-400 uppercase tracking-wider">Phone</span>
-                    <p className="font-medium text-gray-700 mt-0.5">{worker.phone_number || '—'}</p>
-                  </div>
-                  <div>
-                    <span className="text-xs font-bold text-gray-400 uppercase tracking-wider">Registered</span>
-                    <p className="font-medium text-gray-700 mt-0.5">{new Date(worker.created_at).toLocaleDateString()}</p>
-                  </div>
-                </div>
+        {usersLoading ? (
+          <div className="p-10 rounded-2xl border border-gray-200 bg-white text-gray-500 font-semibold">
+            Loading users...
+          </div>
+        ) : users.length === 0 ? (
+          <div className="p-10 rounded-2xl border border-gray-200 bg-white text-gray-500 font-semibold">
+            No users found for this filter.
+          </div>
+        ) : (
+          <>
+            {/* Desktop View */}
+            <div className="hidden md:block overflow-x-auto rounded-2xl border border-gray-200 bg-white">
+              <table className="w-full text-left border-collapse min-w-[980px]">
+                <thead>
+                  <tr className="bg-gray-50 text-xs uppercase tracking-wider text-gray-500 font-bold border-b border-gray-100">
+                    <th className="px-4 py-3">User</th>
+                    <th className="px-4 py-3">Role</th>
+                    <th className="px-4 py-3">Status</th>
+                    <th className="px-4 py-3">Created</th>
+                    <th className="px-4 py-3">Last Login</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {users.map((account) => {
+                    const isRoot = account.rol === 'root';
+                    const isWorker = account.rol === 'worker';
+                    const isActive = account.is_active === true || account.is_active === 1;
+                    const isBusy = userActionLoading === account.id_user;
+                    return (
+                      <tr key={account.id_user} className="hover:bg-gray-50/80">
+                        <td className="px-4 py-3">
+                          <p className="font-bold text-gray-900">{account.name} {account.lastname}</p>
+                          <p className="text-xs text-gray-500">{account.email}</p>
+                          <p className="text-[11px] text-gray-400">{account.username ? `@${account.username}` : '-'}</p>
+                        </td>
+                        <td className="px-4 py-3">
+                          {isRoot || isWorker ? (
+                            <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold bg-gray-100 text-gray-600 border border-gray-200">
+                              {isRoot ? 'Root' : 'Pro'}
+                            </span>
+                          ) : (
+                            <select
+                              disabled={isBusy}
+                              value={account.rol}
+                              onChange={(e) => handleUpdateUserRole(account, e.target.value)}
+                              className="rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs font-bold"
+                            >
+                              <option value="client">Client</option>
+                              <option value="admin">Admin</option>
+                            </select>
+                          )}
+                        </td>
+                        <td className="px-4 py-3">
+                          <button
+                            disabled={isRoot || isBusy}
+                            onClick={() => handleToggleUserStatus(account)}
+                            className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold border transition-all ${
+                              isActive
+                                ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                                : 'bg-gray-50 text-gray-600 border-gray-200'
+                            } ${isRoot ? 'opacity-60 cursor-not-allowed' : 'hover:shadow-sm'}`}
+                          >
+                            {isActive ? 'Active' : 'Inactive'}
+                          </button>
+                        </td>
+                        <td className="px-4 py-3 text-sm text-gray-600">
+                          {account.created_at ? new Date(account.created_at).toLocaleDateString() : '-'}
+                        </td>
+                        <td className="px-4 py-3 text-sm text-gray-600">
+                          {account.last_login ? new Date(account.last_login).toLocaleString() : '-'}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
 
-                {/* Services */}
-                {worker.services && worker.services.length > 0 && (
-                  <div>
-                    <span className="text-xs font-bold text-gray-400 uppercase tracking-wider">Specialties</span>
-                    <div className="mt-1.5 flex flex-wrap gap-1.5">
-                      {worker.services.map(s => (
-                        <span key={s.id_service} className="px-2.5 py-1 rounded-lg bg-bird-blue/10 text-bird-blue text-xs font-bold">
-                          {s.name}
+            {/* Mobile View */}
+            <div className="md:hidden space-y-4">
+              {users.map((account) => {
+                const isRoot = account.rol === 'root';
+                const isWorker = account.rol === 'worker';
+                const isActive = account.is_active === true || account.is_active === 1;
+                const isBusy = userActionLoading === account.id_user;
+                return (
+                  <div key={account.id_user} className="bg-white/70 backdrop-blur-xl rounded-2xl border border-white shadow-lg p-5 space-y-4">
+                    <div className="flex items-start justify-between">
+                      <div>
+                        <p className="text-sm font-bold text-gray-900">{account.name} {account.lastname}</p>
+                        <p className="text-xs text-gray-500">{account.email}</p>
+                        <p className="text-[11px] text-gray-400">{account.username ? `@${account.username}` : '-'}</p>
+                      </div>
+                      <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold border ${
+                        isActive ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-gray-50 text-gray-600 border-gray-200'
+                      }`}>
+                        {isActive ? 'Active' : 'Inactive'}
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3 text-xs text-gray-600">
+                      <div>
+                        <div className="text-[10px] font-bold uppercase text-gray-400">Created</div>
+                        <div>{account.created_at ? new Date(account.created_at).toLocaleDateString() : '-'}</div>
+                      </div>
+                      <div>
+                        <div className="text-[10px] font-bold uppercase text-gray-400">Last Login</div>
+                        <div>{account.last_login ? new Date(account.last_login).toLocaleDateString() : '-'}</div>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      {isRoot || isWorker ? (
+                        <span className="px-3 py-1.5 rounded-full text-xs font-bold bg-gray-100 text-gray-600 border border-gray-200">
+                          {isRoot ? 'Root' : 'Pro'}
                         </span>
-                      ))}
+                      ) : (
+                        <select
+                          disabled={isBusy}
+                          value={account.rol}
+                          onChange={(e) => handleUpdateUserRole(account, e.target.value)}
+                          className="flex-1 rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs font-bold"
+                        >
+                          <option value="client">Client</option>
+                          <option value="admin">Admin</option>
+                        </select>
+                      )}
+                      <button
+                        disabled={isRoot || isBusy}
+                        onClick={() => handleToggleUserStatus(account)}
+                        className={`flex-1 px-3 py-2 rounded-xl text-xs font-bold border transition-all ${
+                          isActive
+                            ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                            : 'bg-gray-50 text-gray-600 border-gray-200'
+                        } ${isRoot ? 'opacity-60 cursor-not-allowed' : ''}`}
+                      >
+                        {isActive ? 'Deactivate' : 'Activate'}
+                      </button>
                     </div>
                   </div>
-                )}
+                );
+              })}
+            </div>
+          </>
+        )}
+      </div>
 
-                {/* Documents */}
-                <div>
-                  <span className="text-xs font-bold text-gray-400 uppercase tracking-wider">Documents</span>
-                  <div className="mt-1.5 flex gap-3">
-                    {worker.dui_document_url ? (
-                      <button onClick={() => setPreviewDoc({ url: worker.dui_document_url!, name: 'DUI Document' })}
-                        className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-bird-blue/5 border border-bird-blue/10 text-bird-blue text-xs font-bold hover:bg-bird-blue/10 transition-colors">
-                        <FileText size={14} /> View DUI
-                      </button>
-                    ) : <span className="text-xs text-gray-400 italic">No DUI uploaded</span>}
-                    {worker.cert_document_url ? (
-                      <button onClick={() => setPreviewDoc({ url: worker.cert_document_url!, name: 'Certificate' })}
-                        className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-bird-yellow/10 border border-bird-yellow/20 text-bird-gold text-xs font-bold hover:bg-bird-yellow/20 transition-colors">
-                        <Shield size={14} /> View Cert
-                      </button>
-                    ) : <span className="text-xs text-gray-400 italic">No cert uploaded</span>}
+      {/* Pending Workers */}
+      <div className="space-y-6">
+        <div>
+          <h2 className="text-2xl font-black text-gray-900">Pending Worker Applications</h2>
+          <p className="text-sm text-gray-500 font-medium">Review and approve worker registrations</p>
+        </div>
+
+        {workersLoading ? (
+          <div className="p-12 text-center text-gray-400 font-medium">Loading applications...</div>
+        ) : pendingWorkers.length === 0 ? (
+          <div className="bg-white/70 backdrop-blur-xl rounded-3xl border border-white shadow-xl p-12 text-center">
+            <CheckCircle size={48} className="mx-auto text-emerald-400 mb-4" />
+            <p className="text-gray-600 font-bold text-lg mb-1">All caught up!</p>
+            <p className="text-gray-500 font-medium text-sm">No pending applications at this time.</p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {pendingWorkers.map((worker) => (
+              <motion.div
+                key={worker.id_user}
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="bg-white/70 backdrop-blur-xl rounded-3xl border border-white shadow-xl overflow-hidden hover:shadow-2xl transition-shadow"
+              >
+                {/* Header */}
+                <div className="p-6 border-b border-gray-100 flex items-center gap-4">
+                  <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-bird-orange/10 to-bird-yellow/10 flex items-center justify-center text-bird-orange font-black text-xl shrink-0 border border-bird-orange/10">
+                    {worker.name.charAt(0)}{worker.lastname.charAt(0)}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <h3 className="font-bold text-gray-900 text-lg truncate">{worker.name} {worker.lastname}</h3>
+                    <p className="text-sm text-gray-500 truncate">{worker.email}</p>
+                  </div>
+                  <span className="px-3 py-1.5 rounded-full text-xs font-bold bg-amber-50 text-amber-600 border border-amber-100 shrink-0">
+                    <Clock size={12} className="inline mr-1" />Pending
+                  </span>
+                </div>
+
+                {/* Details */}
+                <div className="p-6 space-y-4">
+                  <div className="grid grid-cols-2 gap-4 text-sm">
+                    <div>
+                      <span className="text-xs font-bold text-gray-400 uppercase tracking-wider">Phone</span>
+                      <p className="font-medium text-gray-700 mt-0.5">{worker.phone_number || '-'}</p>
+                    </div>
+                    <div>
+                      <span className="text-xs font-bold text-gray-400 uppercase tracking-wider">Registered</span>
+                      <p className="font-medium text-gray-700 mt-0.5">{new Date(worker.created_at).toLocaleDateString()}</p>
+                    </div>
+                  </div>
+
+                  {/* Services */}
+                  {worker.services && worker.services.length > 0 && (
+                    <div>
+                      <span className="text-xs font-bold text-gray-400 uppercase tracking-wider">Specialties</span>
+                      <div className="mt-1.5 flex flex-wrap gap-1.5">
+                        {worker.services.map(s => (
+                          <span key={s.id_service} className="px-2.5 py-1 rounded-lg bg-bird-blue/10 text-bird-blue text-xs font-bold">
+                            {s.name}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Documents */}
+                  <div>
+                    <span className="text-xs font-bold text-gray-400 uppercase tracking-wider">Documents</span>
+                    <div className="mt-1.5 flex gap-3">
+                      {worker.dui_document_url ? (
+                        <button onClick={() => setPreviewDoc({ url: worker.dui_document_url!, name: 'DUI Document' })}
+                          className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-bird-blue/5 border border-bird-blue/10 text-bird-blue text-xs font-bold hover:bg-bird-blue/10 transition-colors">
+                          <FileText size={14} /> View DUI
+                        </button>
+                      ) : <span className="text-xs text-gray-400 italic">No DUI uploaded</span>}
+                      {worker.cert_document_url ? (
+                        <button onClick={() => setPreviewDoc({ url: worker.cert_document_url!, name: 'Certificate' })}
+                          className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-bird-yellow/10 border border-bird-yellow/20 text-bird-gold text-xs font-bold hover:bg-bird-yellow/20 transition-colors">
+                          <Shield size={14} /> View Cert
+                        </button>
+                      ) : <span className="text-xs text-gray-400 italic">No cert uploaded</span>}
+                    </div>
                   </div>
                 </div>
-              </div>
 
-              {/* Actions */}
-              <div className="p-6 pt-0 flex gap-3">
-                <button
-                  disabled={actionLoading === worker.id_user}
-                  onClick={() => handleWorkerAction(worker.id_user, 'approve')}
-                  className="flex-1 flex items-center justify-center gap-2 py-3 rounded-2xl bg-gradient-to-r from-emerald-500 to-emerald-600 text-white font-bold text-sm shadow-lg shadow-emerald-500/20 hover:scale-[1.02] transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  <CheckCircle size={16} />
-                  {actionLoading === worker.id_user ? 'Processing...' : 'Approve'}
-                </button>
-                <button
-                  disabled={actionLoading === worker.id_user}
-                  onClick={() => handleWorkerAction(worker.id_user, 'reject')}
-                  className="flex-1 flex items-center justify-center gap-2 py-3 rounded-2xl border-2 border-red-200 text-red-500 font-bold text-sm hover:bg-red-50 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  <XCircle size={16} />
-                  {actionLoading === worker.id_user ? 'Processing...' : 'Reject'}
-                </button>
-              </div>
-            </motion.div>
-          ))}
-        </div>
-      )}
+                {/* Actions */}
+                <div className="p-6 pt-0 flex gap-3">
+                  <button
+                    disabled={actionLoading === worker.id_user}
+                    onClick={() => handleWorkerAction(worker.id_user, 'approve')}
+                    className="flex-1 flex items-center justify-center gap-2 py-3 rounded-2xl bg-gradient-to-r from-emerald-500 to-emerald-600 text-white font-bold text-sm shadow-lg shadow-emerald-500/20 hover:scale-[1.02] transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    <CheckCircle size={16} />
+                    {actionLoading === worker.id_user ? 'Processing...' : 'Approve'}
+                  </button>
+                  <button
+                    disabled={actionLoading === worker.id_user}
+                    onClick={() => handleWorkerAction(worker.id_user, 'reject')}
+                    className="flex-1 flex items-center justify-center gap-2 py-3 rounded-2xl border-2 border-red-200 text-red-500 font-bold text-sm hover:bg-red-50 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    <XCircle size={16} />
+                    {actionLoading === worker.id_user ? 'Processing...' : 'Reject'}
+                  </button>
+                </div>
+              </motion.div>
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   );
 
-  // ─── RENDER: Overview Tab ────────────────────────────────────────────
-  const renderRequestsHistoryTab = () => {
+const renderRequestsHistoryTab = () => {
     const badgeClass = (statusRaw: string) => {
       const status = String(statusRaw || 'pending').toLowerCase();
       if (status === 'done') return 'bg-emerald-50 text-emerald-700 border-emerald-200';
@@ -1478,18 +1875,32 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ isOpen, onClose 
             <h2 className="text-2xl font-black text-gray-900">Requests History</h2>
             <p className="text-sm text-gray-500 font-medium">Client/Admin timeline by status</p>
           </div>
-          <select
-            value={requestHistoryStatus}
-            onChange={(e) => setRequestHistoryStatus(e.target.value as any)}
-            className="rounded-xl border border-gray-200 bg-white px-4 py-2 text-sm font-semibold"
-          >
-            <option value="all">All</option>
-            <option value="pending">Pending</option>
-            <option value="assigned">Assigned</option>
-            <option value="in_progress">In Progress</option>
-            <option value="done">Done</option>
-            <option value="cancelled">Cancelled</option>
-          </select>
+          <div className="flex flex-wrap items-center gap-2">
+            <select
+              value={requestHistoryStatus}
+              onChange={(e) => setRequestHistoryStatus(e.target.value as any)}
+              className="rounded-xl border border-gray-200 bg-white px-4 py-2 text-sm font-semibold"
+            >
+              <option value="all">All Status</option>
+              <option value="pending">Pending</option>
+              <option value="assigned">Assigned</option>
+              <option value="in_progress">In Progress</option>
+              <option value="done">Done</option>
+              <option value="cancelled">Cancelled</option>
+            </select>
+            <select
+              value={requestHistoryServiceId}
+              onChange={(e) => setRequestHistoryServiceId(e.target.value)}
+              className="rounded-xl border border-gray-200 bg-white px-4 py-2 text-sm font-semibold"
+            >
+              <option value="all">All Services</option>
+              {uniqueServices.map((svc) => (
+                <option key={svc.id_service} value={String(svc.id_service)}>
+                  {svc.name}
+                </option>
+              ))}
+            </select>
+          </div>
         </div>
 
         {requestHistoryLoading ? (
@@ -1594,6 +2005,153 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ isOpen, onClose 
     );
   };
 
+  const renderAdminActivityTab = () => {
+    const actionBadge = (actionRaw: string) => {
+      const action = String(actionRaw || '').toLowerCase();
+      if (action === 'create' || action === 'approve' || action === 'activate') return 'bg-emerald-50 text-emerald-700 border-emerald-200';
+      if (action === 'update') return 'bg-blue-50 text-blue-700 border-blue-200';
+      if (action === 'delete' || action === 'reject') return 'bg-red-50 text-red-700 border-red-200';
+      if (action === 'deactivate' || action === 'status_change') return 'bg-amber-50 text-amber-700 border-amber-200';
+      if (action === 'role_change') return 'bg-indigo-50 text-indigo-700 border-indigo-200';
+      if (action === 'upload') return 'bg-violet-50 text-violet-700 border-violet-200';
+      return 'bg-gray-50 text-gray-700 border-gray-200';
+    };
+
+    const entityBadge = (entityRaw: string) => {
+      const entity = String(entityRaw || '').toLowerCase();
+      if (entity === 'service') return 'bg-bird-yellow/10 text-bird-gold border-bird-yellow/20';
+      if (entity === 'service_card') return 'bg-bird-blue/10 text-bird-blue border-bird-blue/20';
+      if (entity === 'worker') return 'bg-emerald-50 text-emerald-700 border-emerald-200';
+      if (entity === 'user') return 'bg-gray-50 text-gray-700 border-gray-200';
+      if (entity === 'hero_slide') return 'bg-purple-50 text-purple-700 border-purple-200';
+      return 'bg-gray-50 text-gray-700 border-gray-200';
+    };
+
+    const formatLabel = (value: string) =>
+      String(value || '')
+        .replace(/_/g, ' ')
+        .replace(/\b\w/g, (char) => char.toUpperCase());
+
+    return (
+      <div className="space-y-6">
+        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+          <div>
+            <h2 className="text-2xl font-black text-gray-900">Admin Activity</h2>
+            <p className="text-sm text-gray-500 font-medium">Historial de cambios realizados en el panel</p>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <select
+              value={activityActionFilter}
+              onChange={(e) => setActivityActionFilter(e.target.value)}
+              className="rounded-xl border border-gray-200 bg-white px-4 py-2 text-sm font-semibold"
+            >
+              {activityActionOptions.map((action) => (
+                <option key={action} value={action}>
+                  {action === 'all' ? 'All Actions' : formatLabel(action)}
+                </option>
+              ))}
+            </select>
+            <select
+              value={activityEntityFilter}
+              onChange={(e) => setActivityEntityFilter(e.target.value)}
+              className="rounded-xl border border-gray-200 bg-white px-4 py-2 text-sm font-semibold"
+            >
+              {activityEntityOptions.map((entity) => (
+                <option key={entity} value={entity}>
+                  {entity === 'all' ? 'All Sections' : formatLabel(entity)}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        {adminActivityLoading ? (
+          <div className="p-10 rounded-2xl border border-gray-200 bg-white text-gray-500 font-semibold">
+            Loading admin activity...
+          </div>
+        ) : adminActivity.length === 0 ? (
+          <div className="p-10 rounded-2xl border border-gray-200 bg-white text-gray-500 font-semibold">
+            No admin activity registered yet.
+          </div>
+        ) : (
+          <>
+            {/* Desktop View */}
+            <div className="hidden md:block overflow-x-auto rounded-2xl border border-gray-200 bg-white">
+              <table className="w-full text-left border-collapse min-w-[980px]">
+                <thead>
+                  <tr className="bg-gray-50 text-xs uppercase tracking-wider text-gray-500 font-bold border-b border-gray-100">
+                    <th className="px-4 py-3">Summary</th>
+                    <th className="px-4 py-3">Action</th>
+                    <th className="px-4 py-3">Section</th>
+                    <th className="px-4 py-3">Admin</th>
+                    <th className="px-4 py-3">Date</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {adminActivity.map((item) => (
+                    <tr key={item.id_activity} className="hover:bg-gray-50/80">
+                      <td className="px-4 py-3">
+                        <p className="text-sm font-semibold text-gray-900">{item.summary}</p>
+                        {item.entity_id && (
+                          <p className="text-xs text-gray-500">ID {item.entity_id}</p>
+                        )}
+                      </td>
+                      <td className="px-4 py-3">
+                        <span className={`inline-flex px-2.5 py-1 rounded-full text-xs font-bold border ${actionBadge(item.action)}`}>
+                          {formatLabel(item.action)}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3">
+                        <span className={`inline-flex px-2.5 py-1 rounded-full text-xs font-bold border ${entityBadge(item.entity)}`}>
+                          {formatLabel(item.entity)}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3">
+                        <p className="text-sm font-semibold text-gray-800">{item.admin?.name || 'Admin'}</p>
+                        <p className="text-xs text-gray-500">{item.admin?.email || '-'}</p>
+                      </td>
+                      <td className="px-4 py-3 text-sm text-gray-600">{new Date(item.created_at).toLocaleString()}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Mobile View */}
+            <div className="md:hidden space-y-4">
+              {adminActivity.map((item) => (
+                <div key={item.id_activity} className="bg-white/70 backdrop-blur-xl rounded-2xl border border-white shadow-lg p-5 space-y-4">
+                  <div className="flex justify-between items-start gap-3">
+                    <div className="space-y-1">
+                      <p className="text-sm font-bold text-gray-900">{item.summary}</p>
+                      <p className="text-xs text-gray-500">{item.admin?.name || 'Admin'}</p>
+                    </div>
+                    <span className={`inline-flex px-2.5 py-1 rounded-full text-[10px] font-black border uppercase tracking-tight ${actionBadge(item.action)}`}>
+                      {formatLabel(item.action)}
+                    </span>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className={`inline-flex px-2.5 py-1 rounded-full text-[10px] font-black border uppercase tracking-tight ${entityBadge(item.entity)}`}>
+                      {formatLabel(item.entity)}
+                    </span>
+                    {item.entity_id && (
+                      <span className="text-[10px] font-bold text-gray-500 bg-gray-50 border border-gray-200 rounded-full px-2.5 py-1">
+                        ID {item.entity_id}
+                      </span>
+                    )}
+                  </div>
+                  <div className="text-xs text-gray-500 font-semibold">
+                    {new Date(item.created_at).toLocaleString()}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </>
+        )}
+      </div>
+    );
+  };
+
   const renderOverviewTab = () => (
     <div className="space-y-8">
       {/* Stats Grid */}
@@ -1626,6 +2184,117 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ isOpen, onClose 
             </div>
           </motion.div>
         ))}
+      </div>
+
+      {/* Admin Insights */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 md:gap-8">
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.2, duration: 0.5 }}
+          className="bg-white/70 backdrop-blur-xl rounded-3xl border border-white shadow-xl shadow-gray-200/20 p-6 flex flex-col h-[320px] md:h-[360px]"
+        >
+          <div className="flex items-start justify-between gap-4 mb-6">
+            <div>
+              <h3 className="text-lg font-bold text-gray-900">Service Categories</h3>
+              <p className="text-sm text-gray-500 font-medium">Current distribution by category</p>
+            </div>
+            <div className="w-10 h-10 rounded-2xl bg-bird-blue/10 text-bird-blue flex items-center justify-center border border-bird-blue/20">
+              <Briefcase size={18} />
+            </div>
+          </div>
+          <div className="flex-1 w-full min-h-0">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={serviceCategoryStats} margin={{ top: 10, right: 0, left: -25, bottom: 0 }} barSize={14}>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E5E7EB" />
+                <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: '#6B7280', fontSize: 12 }} dy={10} />
+                <YAxis axisLine={false} tickLine={false} tick={{ fill: '#6B7280', fontSize: 12 }} />
+                <Tooltip 
+                  cursor={{ fill: '#F3F4F6' }}
+                  contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)' }}
+                />
+                <Bar dataKey="value" name="Share" fill="#0090FF" radius={[6, 6, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </motion.div>
+
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.3, duration: 0.5 }}
+          className="bg-white/70 backdrop-blur-xl rounded-3xl border border-white shadow-xl shadow-gray-200/20 p-6 flex flex-col h-[320px] md:h-[360px]"
+        >
+          <div className="flex items-start justify-between gap-4 mb-6">
+            <div>
+              <h3 className="text-lg font-bold text-gray-900">Completed Services</h3>
+              <p className="text-sm text-gray-500 font-medium">Weekly completion trend</p>
+            </div>
+            <div className="w-10 h-10 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center border border-emerald-100">
+              <CheckCircle size={18} />
+            </div>
+          </div>
+          <div className="flex items-end justify-between gap-3 mb-4">
+            <div>
+              <p className="text-3xl font-black text-gray-900">1,284</p>
+              <p className="text-xs font-semibold text-bird-blue">+12% vs last week</p>
+            </div>
+            <div className="px-3 py-1.5 rounded-full bg-bird-blue/10 text-bird-darkBlue text-xs font-bold border border-bird-blue/20">
+              Last 7 days
+            </div>
+          </div>
+          <div className="flex-1 w-full min-h-0">
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={completedServicesWeekly} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                <defs>
+                  <linearGradient id="completedFill" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#0090FF" stopOpacity={0.35}/>
+                    <stop offset="95%" stopColor="#0090FF" stopOpacity={0}/>
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E5E7EB" />
+                <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: '#6B7280', fontSize: 12 }} dy={10} />
+                <YAxis axisLine={false} tickLine={false} tick={{ fill: '#6B7280', fontSize: 12 }} />
+                <Tooltip 
+                  contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1)' }}
+                  itemStyle={{ fontWeight: 'bold' }}
+                />
+                <Area type="monotone" name="Completed" dataKey="value" stroke="#0090FF" strokeWidth={3} fillOpacity={1} fill="url(#completedFill)" />
+              </AreaChart>
+            </ResponsiveContainer>
+          </div>
+        </motion.div>
+
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.4, duration: 0.5 }}
+          className="bg-white/70 backdrop-blur-xl rounded-3xl border border-white shadow-xl shadow-gray-200/20 p-6 flex flex-col h-[320px] md:h-[360px]"
+        >
+          <div className="flex items-start justify-between gap-4 mb-6">
+            <div>
+              <h3 className="text-lg font-bold text-gray-900">Top Locations</h3>
+              <p className="text-sm text-gray-500 font-medium">Areas with most requests</p>
+            </div>
+            <div className="w-10 h-10 rounded-2xl bg-bird-orange/10 text-bird-orange flex items-center justify-center border border-bird-orange/20">
+              <MapPin size={18} />
+            </div>
+          </div>
+          <div className="flex-1 w-full min-h-0">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={popularLocations} layout="vertical" margin={{ top: 0, right: 10, left: 10, bottom: 0 }} barSize={10}>
+                <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#E5E7EB" />
+                <XAxis type="number" axisLine={false} tickLine={false} tick={{ fill: '#6B7280', fontSize: 12 }} />
+                <YAxis type="category" dataKey="name" axisLine={false} tickLine={false} tick={{ fill: '#6B7280', fontSize: 12 }} width={90} />
+                <Tooltip 
+                  cursor={{ fill: '#F3F4F6' }}
+                  contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)' }}
+                />
+                <Bar dataKey="value" name="Requests" fill="#FFC20E" radius={[0, 6, 6, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </motion.div>
       </div>
 
       {/* Charts Section */}
@@ -1700,52 +2369,6 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ isOpen, onClose 
                 <Bar dataKey="Pros" fill="#FF8000" radius={[4, 4, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
-          </div>
-        </motion.div>
-      </div>
-
-      {/* System Health */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 md:gap-8">
-        <div className="lg:col-span-2" />
-        <motion.div 
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.6 }}
-          className="bg-gray-900 rounded-3xl border border-gray-800 shadow-2xl p-6 flex flex-col text-white relative overflow-hidden"
-        >
-          <div className="absolute top-0 right-0 w-32 h-32 bg-bird-blue/20 rounded-full blur-3xl" />
-          <div className="absolute bottom-0 left-0 w-32 h-32 bg-bird-orange/20 rounded-full blur-3xl" />
-          <h3 className="text-lg font-bold mb-8 relative z-10 flex items-center gap-2">
-            <Activity size={20} className="text-bird-lightBlue" />
-            Live System Health
-          </h3>
-          <div className="space-y-8 flex-1 relative z-10">
-            {[
-              { label: 'Server CPU', value: '42%', width: '42%', color: 'from-bird-lightBlue to-bird-blue' },
-              { label: 'Database Load', value: '78%', width: '78%', color: 'from-bird-yellow to-bird-orange' },
-              { label: 'Storage API', value: '12%', width: '12%', color: 'bg-emerald-500' },
-            ].map((bar, i) => (
-              <div key={bar.label}>
-                <div className="flex justify-between text-sm mb-3">
-                  <span className="font-semibold text-gray-400">{bar.label}</span>
-                  <span className="font-bold text-white">{bar.value}</span>
-                </div>
-                <div className="h-2.5 bg-gray-800 rounded-full overflow-hidden shadow-inner border border-gray-700">
-                  <motion.div 
-                    initial={{ width: 0 }} 
-                    animate={{ width: bar.width }} 
-                    transition={{ duration: 1.5, delay: 0.8 + i * 0.2, ease: "easeOut" }}
-                    className={`h-full rounded-full relative ${bar.color.startsWith('bg-') ? bar.color : `bg-gradient-to-r ${bar.color}`}`}
-                  />
-                </div>
-              </div>
-            ))}
-          </div>
-          <div className="mt-8 pt-6 border-t border-gray-800 relative z-10">
-            <button className="w-full py-4 rounded-xl bg-white/10 hover:bg-white/20 text-white font-bold transition-all backdrop-blur-md border border-white/10 flex items-center justify-center gap-2 group">
-              Generate Full Report
-              <ArrowUpRight size={18} className="text-gray-400 group-hover:text-white transition-colors" />
-            </button>
           </div>
         </motion.div>
       </div>
@@ -2050,17 +2673,22 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ isOpen, onClose 
       case 'Users & Pros': return renderUsersTab();
       case 'Requests History': return renderRequestsHistoryTab();
       case 'Finance Analytics': return renderFinanceAnalyticsTab();
+      case 'Admin Activity': return renderAdminActivityTab();
       case 'Platform Settings': return renderPlatformSettingsTab();
       default: return renderOverviewTab();
     }
   };
 
   const fetchRequestsHistory = async (
-    status: 'all' | 'pending' | 'assigned' | 'in_progress' | 'done' | 'cancelled' = requestHistoryStatus
+    status: 'all' | 'pending' | 'assigned' | 'in_progress' | 'done' | 'cancelled' = requestHistoryStatus,
+    serviceId: 'all' | string = requestHistoryServiceId
   ) => {
     setRequestHistoryLoading(true);
     try {
-      const res = await fetch(`${API_ENDPOINTS.admin.requestsHistory}?status=${status}`, {
+      const params = new URLSearchParams();
+      params.set('status', status);
+      if (serviceId !== 'all') params.set('service_id', String(serviceId));
+      const res = await fetch(`${API_ENDPOINTS.admin.requestsHistory}?${params.toString()}`, {
         headers: { Authorization: `Bearer ${getToken()}` },
       });
       const data = await res.json();
@@ -2170,6 +2798,31 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ isOpen, onClose 
       notyf.error('Connection error marking payout as paid.');
     } finally {
       setMarkingPayoutId(null);
+    }
+  };
+
+  const fetchAdminActivity = async (
+    action: 'all' | string = activityActionFilter,
+    entity: 'all' | string = activityEntityFilter
+  ) => {
+    setAdminActivityLoading(true);
+    try {
+      const params = new URLSearchParams();
+      params.set('limit', '200');
+      if (action !== 'all') params.set('action', String(action));
+      if (entity !== 'all') params.set('entity', String(entity));
+
+      const res = await fetch(`${API_ENDPOINTS.admin.activity}?${params.toString()}`, {
+        headers: { Authorization: `Bearer ${getToken()}` },
+      });
+      const data = await res.json();
+      if (data.success && Array.isArray(data.activities)) {
+        setAdminActivity(data.activities);
+      }
+    } catch {
+      // silent
+    } finally {
+      setAdminActivityLoading(false);
     }
   };
 
@@ -2309,8 +2962,11 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ isOpen, onClose 
           {!isSidebarCollapsed ? (
             <div className="bg-gray-50 rounded-2xl p-4 mb-4 flex items-center gap-3 border border-gray-100">
               <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-bird-orange via-bird-yellow to-bird-blue p-[2px] shrink-0">
-                <div className="w-full h-full rounded-full border-2 border-white overflow-hidden bg-white">
-                  <img src="https://randomuser.me/api/portraits/women/44.jpg" alt="Admin" className="w-full h-full object-cover" />
+                <div className="w-full h-full rounded-full border-2 border-white overflow-hidden bg-white flex items-center justify-center">
+                  <span className="text-gray-800 font-black text-sm">
+                    {(user?.name || 'A').charAt(0)}
+                    {(user?.lastname || 'D').charAt(0)}
+                  </span>
                 </div>
               </div>
               <div className="overflow-hidden">
@@ -2320,8 +2976,11 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ isOpen, onClose 
             </div>
           ) : (
             <div className="w-10 h-10 mx-auto rounded-full bg-gradient-to-tr from-bird-orange via-bird-yellow to-bird-blue p-[2px] mb-4 shrink-0 cursor-pointer">
-              <div className="w-full h-full rounded-full border-2 border-white overflow-hidden bg-white">
-                <img src="https://randomuser.me/api/portraits/women/44.jpg" alt="Admin" className="w-full h-full object-cover" />
+              <div className="w-full h-full rounded-full border-2 border-white overflow-hidden bg-white flex items-center justify-center">
+                <span className="text-gray-800 font-black text-sm">
+                  {(user?.name || 'A').charAt(0)}
+                  {(user?.lastname || 'D').charAt(0)}
+                </span>
               </div>
             </div>
           )}
@@ -2358,22 +3017,111 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ isOpen, onClose 
                 className="w-80 pl-11 pr-4 py-2.5 bg-white/80 border border-gray-200 rounded-full text-sm outline-none focus:border-bird-blue focus:ring-4 focus:ring-bird-blue/10 transition-all shadow-sm backdrop-blur-md"
               />
             </div>
-            <button className="relative p-2.5 rounded-full bg-white border border-gray-200 text-gray-500 hover:text-bird-blue hover:border-bird-blue/30 hover:shadow-md transition-all">
-              <Bell size={20} />
-              {pendingWorkers.length > 0 && (
-                <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] bg-red-500 rounded-full border-[2.5px] border-white text-white text-[10px] font-bold flex items-center justify-center">
-                  {pendingWorkers.length}
-                </span>
-              )}
-            </button>
+            <div className="relative" ref={notificationsRef}>
+              <button
+                onClick={() => {
+                  const nextOpen = !isNotificationsOpen;
+                  setIsNotificationsOpen(nextOpen);
+                  if (nextOpen) fetchPendingWorkers();
+                }}
+                className="relative p-2.5 rounded-full bg-white border border-gray-200 text-gray-500 hover:text-bird-blue hover:border-bird-blue/30 hover:shadow-md transition-all"
+                aria-label="Worker notifications"
+              >
+                <Bell size={20} />
+                {pendingWorkers.length > 0 && (
+                  <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] bg-red-500 rounded-full border-[2.5px] border-white text-white text-[10px] font-bold flex items-center justify-center">
+                    {pendingWorkers.length}
+                  </span>
+                )}
+              </button>
+
+              <AnimatePresence>
+                {isNotificationsOpen && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 8, scale: 0.98 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    exit={{ opacity: 0, y: 8, scale: 0.98 }}
+                    transition={{ duration: 0.15 }}
+                    className="absolute right-0 mt-3 w-[320px] sm:w-[360px] bg-white border border-gray-200 shadow-2xl rounded-2xl overflow-hidden z-50"
+                  >
+                    <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between">
+                      <div>
+                        <p className="text-sm font-black text-gray-900">Worker Requests</p>
+                        <p className="text-xs text-gray-500">Pending approvals</p>
+                      </div>
+                      <span className="text-[11px] font-bold text-gray-500">{pendingWorkers.length}</span>
+                    </div>
+
+                    <div className="max-h-[320px] overflow-y-auto">
+                      {workersLoading ? (
+                        <div className="p-4 text-sm text-gray-500">Loading notifications...</div>
+                      ) : pendingWorkers.length === 0 ? (
+                        <div className="p-4 text-sm text-gray-500">No pending requests right now.</div>
+                      ) : (
+                        pendingWorkers.slice(0, 5).map((worker) => (
+                          <button
+                            key={worker.id_user}
+                            onClick={() => {
+                              setActiveTab('Users & Pros');
+                              setIsNotificationsOpen(false);
+                            }}
+                            className="w-full text-left px-4 py-3 border-b border-gray-100 last:border-b-0 hover:bg-gray-50 transition-colors"
+                          >
+                            <div className="flex items-start gap-3">
+                              <div className="w-10 h-10 rounded-xl bg-bird-blue/10 text-bird-blue flex items-center justify-center font-black text-sm shrink-0">
+                                {worker.name.charAt(0)}{worker.lastname.charAt(0)}
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <p className="text-sm font-bold text-gray-900 truncate">{worker.name} {worker.lastname}</p>
+                                <p className="text-xs text-gray-500 truncate">{worker.email}</p>
+                                <p className="text-[11px] text-gray-400 mt-0.5">
+                                  {new Date(worker.created_at).toLocaleDateString()}
+                                </p>
+                                {worker.services?.length > 0 && (
+                                  <div className="mt-1 flex flex-wrap gap-1">
+                                    {worker.services.slice(0, 2).map((s) => (
+                                      <span key={s.id_service} className="px-2 py-0.5 rounded-full bg-bird-blue/10 text-bird-blue text-[10px] font-bold">
+                                        {s.name}
+                                      </span>
+                                    ))}
+                                    {worker.services.length > 2 && (
+                                      <span className="text-[10px] text-gray-400 font-bold">+{worker.services.length - 2}</span>
+                                    )}
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          </button>
+                        ))
+                      )}
+                    </div>
+
+                    <div className="p-3 border-t border-gray-100">
+                      <button
+                        onClick={() => {
+                          setActiveTab('Users & Pros');
+                          setIsNotificationsOpen(false);
+                        }}
+                        className="w-full text-xs font-bold px-3 py-2 rounded-xl border border-gray-200 text-gray-600 hover:text-bird-blue hover:border-bird-blue/40 hover:bg-bird-blue/5 transition-all"
+                      >
+                        Review All Requests
+                      </button>
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
             <div className="flex items-center gap-3 pl-4 md:pl-6 border-l border-gray-200">
               <div className="hidden md:block text-right">
                 <p className="font-bold text-gray-900 text-sm">{user?.name || 'System'} {user?.lastname || 'Admin'}</p>
                 <p className="text-bird-blue text-xs font-bold">Super User</p>
               </div>
               <div className="w-11 h-11 rounded-full bg-gradient-to-tr from-bird-orange via-bird-yellow to-bird-blue p-[2px] shadow-md cursor-pointer hover:scale-105 transition-transform">
-                <div className="w-full h-full rounded-full border-2 border-white overflow-hidden bg-white">
-                  <img src="https://randomuser.me/api/portraits/women/44.jpg" alt="Admin" className="w-full h-full object-cover" />
+                <div className="w-full h-full rounded-full border-2 border-white overflow-hidden bg-white flex items-center justify-center">
+                  <span className="text-gray-800 font-black text-sm">
+                    {(user?.name || 'A').charAt(0)}
+                    {(user?.lastname || 'D').charAt(0)}
+                  </span>
                 </div>
               </div>
             </div>
