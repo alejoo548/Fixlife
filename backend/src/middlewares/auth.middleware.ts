@@ -4,7 +4,7 @@ import jwt from 'jsonwebtoken';
 const JWT_SECRET = process.env.JWT_SECRET || 'super_secret_jwt_key_for_development';
 
 export interface AuthRequest extends Request {
-  user?: { user_id: number; rol: string };
+  user?: { user_id: number; rol: string; pending_worker?: number };
 }
 
 export const verifyToken = (req: AuthRequest, res: Response, next: NextFunction): void => {
@@ -16,7 +16,7 @@ export const verifyToken = (req: AuthRequest, res: Response, next: NextFunction)
   }
 
   try {
-    const decoded = jwt.verify(token, JWT_SECRET) as { user_id: number; rol: string };
+    const decoded = jwt.verify(token, JWT_SECRET) as { user_id: number; rol: string; pending_worker?: number };
     req.user = decoded;
     next();
   } catch (error) {
@@ -33,7 +33,7 @@ export const requireAdmin = (req: AuthRequest, res: Response, next: NextFunction
 };
 
 export const requireWorker = (req: AuthRequest, res: Response, next: NextFunction): void => {
-  if (!req.user || req.user.rol !== 'worker') {
+  if (!req.user || (req.user.rol !== 'worker' && req.user.pending_worker !== 1)) {
     res.status(403).json({ error: 'Access denied. Worker privileges required.' });
     return;
   }
@@ -48,7 +48,7 @@ export const verifyTokenOptional = (req: AuthRequest, res: Response, next: NextF
   }
 
   try {
-    const decoded = jwt.verify(token, JWT_SECRET) as { user_id: number; rol: string };
+    const decoded = jwt.verify(token, JWT_SECRET) as { user_id: number; rol: string; pending_worker?: number };
     req.user = decoded;
     next();
   } catch (error) {
