@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Notyf } from 'notyf';
 import 'notyf/notyf.min.css';
 import { API_URL } from '../../config/api';
-import { clearAuthSession, getToken as getSessionToken } from '../../utils/session';
+import { clearAuthSession, getAuthUser, getToken as getSessionToken, updateStoredAuthUser } from '../../utils/session';
 
 type PortfolioItem = {
   id_photo: number;
@@ -54,7 +54,7 @@ export const SettingsView: React.FC = () => {
   const [brokenPortfolio, setBrokenPortfolio] = useState<Record<number, boolean>>({});
 
   const authFetch = async (url: string, options: RequestInit = {}) => {
-    const token = getSessionToken();
+    const token = getSessionToken('worker');
     if (!token) throw new Error('No token found. Please sign in again.');
     const headers = new Headers(options.headers || {});
     headers.set('Authorization', `Bearer ${token}`);
@@ -228,11 +228,10 @@ export const SettingsView: React.FC = () => {
       setNewEmail('');
       setEmailToken('');
 
-      const userData = localStorage.getItem('user');
-      if (userData) {
-        const user = JSON.parse(userData);
+      const user = getAuthUser('worker');
+      if (user) {
         user.email = data?.new_email || user.email;
-        localStorage.setItem('user', JSON.stringify(user));
+        updateStoredAuthUser(user, 'worker');
       }
 
       notyf.success('Email updated successfully.');
@@ -317,7 +316,7 @@ export const SettingsView: React.FC = () => {
   };
 
   const handleSignOut = () => {
-    clearAuthSession();
+    clearAuthSession('worker');
     window.history.replaceState({}, '', '/');
     window.location.assign('/');
   };

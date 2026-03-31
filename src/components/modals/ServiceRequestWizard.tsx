@@ -1,10 +1,51 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+﻿import React, { Suspense, lazy, useEffect, useMemo, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ServiceRequestData } from '../../types';
 import { API_ENDPOINTS } from '../../config/api';
 import { getAuthUser, getToken, isAuthenticated } from '../../utils/session';
 import { Notyf } from 'notyf';
+import { NotificationCenter } from '../common/NotificationCenter';
 import 'notyf/notyf.min.css';
+
+const ClientLiveRequestTracker = lazy(() => import('./ClientLiveRequestTracker'));
+
+class TrackerErrorBoundary extends React.Component<
+    { children: React.ReactNode },
+    { hasError: boolean }
+> {
+    constructor(props: { children: React.ReactNode }) {
+        super(props);
+        this.state = { hasError: false };
+    }
+
+    static getDerivedStateFromError() {
+        return { hasError: true };
+    }
+
+    componentDidUpdate(prevProps: { children: React.ReactNode }) {
+        if (this.state.hasError && prevProps.children !== this.props.children) {
+            this.setState({ hasError: false });
+        }
+    }
+
+    render() {
+        if (this.state.hasError) {
+            return (
+                <div className="rounded-3xl border border-amber-200 bg-gradient-to-r from-amber-50 via-white to-sky-50 p-5 shadow-sm">
+                    <p className="text-[11px] font-black uppercase tracking-[0.18em] text-amber-700">Tracker paused</p>
+                    <p className="mt-2 text-sm font-semibold text-slate-900">
+                        The live route hit a temporary issue and was reset safely.
+                    </p>
+                    <p className="mt-1 text-sm text-slate-500">
+                        Refresh the page or reopen the request to continue tracking.
+                    </p>
+                </div>
+            );
+        }
+
+        return this.props.children;
+    }
+}
 
 interface ServiceRequestWizardProps {
     isOpen: boolean;
@@ -37,17 +78,61 @@ interface MyServiceRequest {
     service_name: string;
     description: string;
     location_text: string;
+    latitude?: number | null;
+    longitude?: number | null;
     initial_budget?: number | null;
     budget: number;
     final_budget?: number | null;
     radius_km: number;
-    status: 'pending' | 'assigned' | 'in_progress' | 'done' | 'cancelled' | string;
+    status: 'pending' | 'payment_pending' | 'paid' | 'assigned' | 'in_progress' | 'awaiting_confirmation' | 'done' | 'cancelled' | string;
     created_at: string;
-    assigned_worker: { id_worker_profile: number; name: string } | null;
+    assigned_worker: {
+        id_worker_profile: number;
+        name: string;
+        phone_number?: string | null;
+        bio?: string;
+        profile_image_url?: string | null;
+        latitude?: number | null;
+        longitude?: number | null;
+        is_online?: boolean | null;
+    } | null;
     proposed_budget?: number | null;
     counter_message?: string | null;
     counter_status?: 'pending' | 'accepted' | 'declined' | null;
+    payment?: {
+        provider: string;
+        checkout_reference: string | null;
+        amount: number;
+        status: 'pending' | 'paid' | 'released' | 'refunded' | 'failed' | 'cancelled' | string;
+        paid_at: string | null;
+        released_at: string | null;
+    } | null;
     images: { file_name: string; url: string }[];
+}
+
+interface WorkerPortfolioPhoto {
+    id_photo: number;
+    description: string;
+    uploaded_at: string | null;
+    image_url: string | null;
+}
+
+interface RequestWorkerProfileResponse {
+    worker: {
+        id_worker_profile: number;
+        name: string;
+        phone_number: string | null;
+        bio: string;
+        is_online: boolean | null;
+        profile_image_url: string | null;
+        years_of_experience: number | null;
+        experience_label: string;
+        rating_average: number | null;
+        rating_count: number;
+        completed_jobs: number;
+        services_offered: string[];
+    };
+    portfolio: WorkerPortfolioPhoto[];
 }
 
 interface ChatMessage {
@@ -59,8 +144,78 @@ interface ChatMessage {
     created_at: string;
 }
 
+interface LocationSuggestion {
+    label: string;
+    lat: number;
+    lng: number;
+    source?: 'local' | 'nominatim' | string;
+    kind?: string;
+    short_label?: string;
+    context_label?: string;
+}
+
+interface SavedLocation extends LocationSuggestion {
+    id_saved_location?: number | null;
+    kind: 'home' | 'work' | 'recent' | 'favorite';
+    title: string;
+    last_used_at?: number | null;
+}
+
+type RatingMetricKey = 'punctuality' | 'quality' | 'price_fairness';
+
+const RATING_METRIC_LABELS: Record<RatingMetricKey, string> = {
+    punctuality: 'Punctuality',
+    quality: 'Quality',
+    price_fairness: 'Price fairness',
+};
+
 const notyf = new Notyf({ position: { x: 'left', y: 'bottom' }, ripple: true });
 const CHAT_POLL_MS = 3000;
+const SAVED_LOCATIONS_KEY = 'fixlife.saved_locations.v1';
+const HOME_ICON = "M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6";
+const WORK_ICON = "M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4";
+const RECENT_ICON = "M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z";
+const FAVORITE_ICON = "M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.539 1.118l-2.8-2.034a1 1 0 00-1.176 0l-2.8 2.034c-.783.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81H7.03a1 1 0 00.95-.69l1.07-3.292z";
+const CURRENT_ICON = "M12 21c-4.35-4.56-7-8.28-7-12a7 7 0 1114 0c0 3.72-2.65 7.44-7 12zm0-8.5A2.5 2.5 0 1012 7a2.5 2.5 0 000 5.5z";
+
+const InlineTrackerFallback: React.FC = () => (
+    <div className="rounded-[28px] border border-bird-blue/10 bg-white/95 p-4 shadow-[0_18px_38px_rgba(15,23,42,0.05)]">
+        <div className="flex items-center gap-3">
+            <div className="h-3.5 w-3.5 rounded-full border-2 border-bird-blue/20 border-t-bird-blue animate-spin" />
+            <p className="text-[11px] font-black uppercase tracking-[0.18em] text-bird-blue">Preparing live tracker</p>
+        </div>
+    </div>
+);
+
+const renderStarSummary = (ratingAverage: number | null) => {
+    const safeRating = ratingAverage != null ? Math.max(0, Math.min(5, ratingAverage)) : 0;
+
+    return (
+        <div className="flex items-center gap-1">
+            {Array.from({ length: 5 }).map((_, index) => {
+                const filled = safeRating >= index + 1;
+                const partial = !filled && safeRating > index && safeRating < index + 1;
+                return (
+                    <span
+                        key={`star-${index}`}
+                        className={`text-sm ${filled ? 'text-amber-400' : partial ? 'text-amber-300' : 'text-slate-300'}`}
+                    >
+                        {'★'}
+                    </span>
+                );
+            })}
+        </div>
+    );
+};
+
+const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
+
+const getTouchDistance = (touches: React.TouchList) => {
+    if (touches.length < 2) return 0;
+    const first = touches[0];
+    const second = touches[1];
+    return Math.hypot(second.clientX - first.clientX, second.clientY - first.clientY);
+};
 
 declare global {
     interface Window {
@@ -68,11 +223,360 @@ declare global {
     }
 }
 
-const RECENT_LOCATIONS = [
-    { id: 1, name: "Home", address: "123 Main Street, Apt 4B", icon: "M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" },
-    { id: 2, name: "Office", address: "Tech Hub, 5th Floor", icon: "M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" },
-];
+const parseCoordinateInput = (value: string) => {
+    const match = String(value || '')
+        .trim()
+        .match(/^(-?\d{1,2}(?:\.\d+)?)\s*,\s*(-?\d{1,3}(?:\.\d+)?)$/);
 
+    if (!match) return null;
+
+    const lat = Number(match[1]);
+    const lng = Number(match[2]);
+
+    if (!Number.isFinite(lat) || lat < -90 || lat > 90) return null;
+    if (!Number.isFinite(lng) || lng < -180 || lng > 180) return null;
+
+    return {
+        lat: Number(lat.toFixed(7)),
+        lng: Number(lng.toFixed(7)),
+    };
+};
+
+const readSavedLocations = () => {
+    if (typeof window === 'undefined') {
+        return {
+            home: null as SavedLocation | null,
+            work: null as SavedLocation | null,
+            favorites: [] as SavedLocation[],
+            recent: [] as SavedLocation[],
+        };
+    }
+
+    try {
+        const raw = window.localStorage.getItem(SAVED_LOCATIONS_KEY);
+        if (!raw) {
+            return { home: null, work: null, favorites: [], recent: [] };
+        }
+
+        const parsed = JSON.parse(raw);
+        return {
+            home: parsed?.home ?? null,
+            work: parsed?.work ?? null,
+            favorites: Array.isArray(parsed?.favorites) ? parsed.favorites : [],
+            recent: Array.isArray(parsed?.recent) ? parsed.recent : [],
+        };
+    } catch {
+        return { home: null, work: null, favorites: [], recent: [] };
+    }
+};
+
+const writeSavedLocations = (payload: {
+    home: SavedLocation | null;
+    work: SavedLocation | null;
+    favorites: SavedLocation[];
+    recent: SavedLocation[];
+}) => {
+    if (typeof window === 'undefined') return;
+    window.localStorage.setItem(SAVED_LOCATIONS_KEY, JSON.stringify(payload));
+};
+
+const compactLocationTitle = (label: string) => {
+    const firstPart = String(label || '').split(',')[0]?.trim();
+    if (!firstPart) return 'Recent';
+    return firstPart.slice(0, 28);
+};
+
+const toSavedLocation = (row: any): SavedLocation | null => {
+    const lat = Number(row?.lat);
+    const lng = Number(row?.lng);
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+
+    return {
+        id_saved_location: row?.id_saved_location != null ? Number(row.id_saved_location) : null,
+        kind: String(row?.kind || 'recent') as SavedLocation['kind'],
+        title: String(row?.title || 'Saved place'),
+        label: String(row?.label || ''),
+        lat,
+        lng,
+        last_used_at: row?.last_used_at ? new Date(row.last_used_at).getTime() : null,
+    };
+};
+
+const getPreviewTileUrl = (lat: number, lng: number, zoom = 15) => {
+    const scale = 2 ** zoom;
+    const x = Math.min(
+        Math.max(Math.floor(((lng + 180) / 360) * scale), 0),
+        scale - 1
+    );
+    const y = Math.min(
+        Math.max(
+            Math.floor(
+                ((1 - Math.log(Math.tan((lat * Math.PI) / 180) + 1 / Math.cos((lat * Math.PI) / 180)) / Math.PI) / 2) *
+                    scale
+            ),
+            0
+        ),
+        scale - 1
+    );
+
+    return `https://a.basemaps.cartocdn.com/rastertiles/voyager/${zoom}/${x}/${y}.png`;
+};
+
+const sameCoords = (
+    pointA: { lat: number; lng: number } | null | undefined,
+    pointB: { lat: number; lng: number } | null | undefined
+) => {
+    if (!pointA || !pointB) return false;
+    return (
+        Math.abs(Number(pointA.lat) - Number(pointB.lat)) < 0.00005 &&
+        Math.abs(Number(pointA.lng) - Number(pointB.lng)) < 0.00005
+    );
+};
+
+const distanceKmBetween = (
+    pointA: { lat: number; lng: number } | null | undefined,
+    pointB: { lat: number; lng: number } | null | undefined
+) => {
+    if (!pointA || !pointB) return null;
+
+    const toRad = (value: number) => (value * Math.PI) / 180;
+    const earthRadiusKm = 6371;
+    const dLat = toRad(pointB.lat - pointA.lat);
+    const dLng = toRad(pointB.lng - pointA.lng);
+    const lat1 = toRad(pointA.lat);
+    const lat2 = toRad(pointB.lat);
+
+    const a =
+        Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+        Math.sin(dLng / 2) * Math.sin(dLng / 2) * Math.cos(lat1) * Math.cos(lat2);
+
+    return 2 * earthRadiusKm * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+};
+
+const formatDistanceLabel = (distanceKm: number | null) => {
+    if (distanceKm == null || !Number.isFinite(distanceKm)) return null;
+    if (distanceKm < 1) return `${Math.round(distanceKm * 1000)} m away`;
+    return `${distanceKm.toFixed(1)} km away`;
+};
+
+const getSuggestionDisplay = (suggestion: LocationSuggestion) => {
+    const fallbackParts = String(suggestion.label || '')
+        .split(',')
+        .map((part) => part.trim())
+        .filter(Boolean)
+        .filter((part) => part.toLowerCase() !== 'el salvador');
+
+    return {
+        title: (suggestion.short_label || fallbackParts[0] || suggestion.label || 'Saved place').trim(),
+        context:
+            (suggestion.context_label ||
+                fallbackParts.slice(1, 3).join(' â€¢ ') ||
+                `${suggestion.lat.toFixed(4)}, ${suggestion.lng.toFixed(4)}`).trim(),
+    };
+};
+
+const getSuggestionKindLabel = (kind?: string) => {
+    if (!kind) return 'Place';
+    if (kind === 'centro-comercial') return 'Mall';
+    if (kind === 'residencial') return 'Residential';
+    if (kind === 'colonia') return 'Colonia';
+    if (kind === 'parque') return 'Park';
+    if (kind === 'zona') return 'Zone';
+    return 'Place';
+};
+
+const getSuggestionBadgeLabel = (suggestion: LocationSuggestion) => {
+    if (suggestion.source === 'local') {
+        return `SV â€¢ ${getSuggestionKindLabel(suggestion.kind)}`;
+    }
+
+    if (suggestion.kind) {
+        return getSuggestionKindLabel(suggestion.kind);
+    }
+
+    return 'Map';
+};
+
+const getLocationVisual = (kind: SavedLocation['kind'] | 'current') => {
+    if (kind === 'home') {
+        return {
+            color: '#10b981',
+            label: 'Home',
+            iconPath: HOME_ICON,
+            filled: false,
+            badgeClass: 'from-emerald-500 via-emerald-500 to-teal-500',
+            iconClass: 'text-emerald-600',
+            chipClass: 'border-emerald-200 bg-emerald-50 text-emerald-700',
+        };
+    }
+    if (kind === 'work') {
+        return {
+            color: '#f59e0b',
+            label: 'Work',
+            iconPath: WORK_ICON,
+            filled: false,
+            badgeClass: 'from-amber-400 via-amber-500 to-orange-500',
+            iconClass: 'text-amber-600',
+            chipClass: 'border-amber-200 bg-amber-50 text-amber-700',
+        };
+    }
+    if (kind === 'favorite') {
+        return {
+            color: '#ec4899',
+            label: 'Favorite',
+            iconPath: FAVORITE_ICON,
+            filled: true,
+            badgeClass: 'from-fuchsia-500 via-pink-500 to-rose-500',
+            iconClass: 'text-pink-600',
+            chipClass: 'border-pink-200 bg-pink-50 text-pink-700',
+        };
+    }
+    if (kind === 'recent') {
+        return {
+            color: '#64748b',
+            label: 'Recent',
+            iconPath: RECENT_ICON,
+            filled: false,
+            badgeClass: 'from-slate-500 via-slate-500 to-slate-600',
+            iconClass: 'text-slate-600',
+            chipClass: 'border-slate-200 bg-slate-50 text-slate-700',
+        };
+    }
+    return {
+        color: '#0ea5e9',
+        label: 'Selected',
+        iconPath: CURRENT_ICON,
+        filled: true,
+        badgeClass: 'from-sky-500 via-cyan-500 to-blue-500',
+        iconClass: 'text-sky-600',
+        chipClass: 'border-sky-200 bg-sky-50 text-sky-700',
+    };
+};
+
+const renderLocationIcon = (
+    kind: SavedLocation['kind'] | 'current',
+    className = 'h-4 w-4'
+) => {
+    const visual = getLocationVisual(kind);
+
+    return (
+        <svg
+            className={className}
+            viewBox="0 0 24 24"
+            fill={visual.filled ? 'currentColor' : 'none'}
+            stroke={visual.filled ? 'none' : 'currentColor'}
+            strokeWidth={visual.filled ? 0 : 2}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            aria-hidden="true"
+        >
+            <path d={visual.iconPath} />
+        </svg>
+    );
+};
+
+const renderLocationBadge = (
+    kind: SavedLocation['kind'] | 'current',
+    size: 'sm' | 'md' | 'lg' = 'md'
+) => {
+    const visual = getLocationVisual(kind);
+    const sizeMap = {
+        sm: {
+            outer: 'h-8 w-8 rounded-xl',
+            inner: 'h-6 w-6 rounded-[10px]',
+            icon: 'h-3.5 w-3.5',
+        },
+        md: {
+            outer: 'h-11 w-11 rounded-2xl',
+            inner: 'h-8 w-8 rounded-xl',
+            icon: 'h-4 w-4',
+        },
+        lg: {
+            outer: 'h-12 w-12 rounded-2xl',
+            inner: 'h-9 w-9 rounded-xl',
+            icon: 'h-4.5 w-4.5',
+        },
+    }[size];
+
+    return (
+        <span
+            className={`inline-flex items-center justify-center bg-gradient-to-br ${visual.badgeClass} ${sizeMap.outer} shadow-[0_10px_24px_rgba(15,23,42,0.12)] ring-1 ring-black/5`}
+        >
+            <span className={`inline-flex items-center justify-center bg-white/95 ${visual.iconClass} ${sizeMap.inner}`}>
+                {renderLocationIcon(kind, sizeMap.icon)}
+            </span>
+        </span>
+    );
+};
+
+const renderSavedPlaceActionIcon = (
+    action: 'use' | 'rename' | 'delete',
+    className = 'h-3.5 w-3.5'
+) => {
+    if (action === 'use') {
+        return (
+            <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M13 7l5 5m0 0l-5 5m5-5H6" />
+            </svg>
+        );
+    }
+
+    if (action === 'rename') {
+        return (
+            <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M15.232 5.232l3.536 3.536M9 13l6.768-6.768a2.5 2.5 0 113.536 3.536L12.536 16.536A4 4 0 019.708 17.7L7 18l.3-2.708A4 4 0 018.464 12.536L9 12z" />
+            </svg>
+        );
+    }
+
+    return (
+        <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M6 7h12m-9 0V5a1 1 0 011-1h4a1 1 0 011 1v2m-7 0l1 12h6l1-12M10 11v5m4-5v5" />
+        </svg>
+    );
+};
+
+const getSavedPlaceActionClassName = (action: 'use' | 'rename' | 'delete') => {
+    if (action === 'use') {
+        return 'border-bird-blue/20 bg-bird-blue/10 text-bird-blue hover:bg-bird-blue hover:text-white hover:shadow-[0_12px_24px_rgba(29,78,216,0.18)]';
+    }
+    if (action === 'rename') {
+        return 'border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-400 hover:border-amber-400 hover:text-white hover:shadow-[0_12px_24px_rgba(245,158,11,0.22)]';
+    }
+    return 'border-amber-100 bg-white text-slate-500 hover:border-amber-300 hover:bg-amber-50 hover:text-amber-700';
+};
+
+const getInitials = (value: string) => {
+    const parts = String(value || '')
+        .trim()
+        .split(/\s+/)
+        .filter(Boolean);
+
+    if (parts.length >= 2) return `${parts[0][0]}${parts[1][0]}`.toUpperCase();
+    if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+    return 'PR';
+};
+
+const createLeafletPinIcon = (L: any, kind: SavedLocation['kind'] | 'current') => {
+    const visual = getLocationVisual(kind);
+
+    return L.divIcon({
+        className: 'fixlife-location-pin',
+        iconSize: [30, 42],
+        iconAnchor: [15, 40],
+        popupAnchor: [0, -34],
+        html: `
+          <div style="position:relative;width:30px;height:42px;">
+            <div style="position:absolute;left:50%;top:0;transform:translateX(-50%);width:30px;height:30px;border-radius:999px 999px 999px 0;background:${visual.color};border:3px solid #ffffff;box-shadow:0 10px 18px rgba(15,23,42,.22);transform-origin:center;rotate:-45deg;"></div>
+            <div style="position:absolute;left:50%;top:6px;transform:translateX(-50%);width:16px;height:16px;border-radius:999px;background:#ffffff;color:${visual.color};display:flex;align-items:center;justify-content:center;">
+              <svg viewBox="0 0 24 24" width="11" height="11" fill="${visual.filled ? 'currentColor' : 'none'}" stroke="${visual.filled ? 'none' : 'currentColor'}" stroke-width="${visual.filled ? '0' : '2'}" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="${visual.iconPath}"></path>
+              </svg>
+            </div>
+          </div>
+        `,
+    });
+};
 export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOpen, onClose, initialServiceId, initialServiceName }) => {
     const [step, setStep] = useState(initialServiceId ? 1 : 0);
     const [services, setServices] = useState<ServiceOption[]>([]);
@@ -88,17 +592,60 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
     const [problemFiles, setProblemFiles] = useState<File[]>([]);
     const [problemPreviewUrls, setProblemPreviewUrls] = useState<string[]>([]);
     const [geoLoading, setGeoLoading] = useState(false);
+    const [resolvingLocation, setResolvingLocation] = useState(false);
+    const [suggestionsLoading, setSuggestionsLoading] = useState(false);
     const [geoError, setGeoError] = useState<string | null>(null);
     const [currentCoords, setCurrentCoords] = useState<{ lat: number; lng: number } | null>(null);
+    const [locationSuggestions, setLocationSuggestions] = useState<LocationSuggestion[]>([]);
+    const [showLocationSuggestions, setShowLocationSuggestions] = useState(false);
+    const [highlightedSuggestionIndex, setHighlightedSuggestionIndex] = useState(-1);
+    const [locationInputContext, setLocationInputContext] = useState<'main' | 'save-panel'>('main');
+    const [savedHome, setSavedHome] = useState<SavedLocation | null>(null);
+    const [savedWork, setSavedWork] = useState<SavedLocation | null>(null);
+    const [favoriteLocations, setFavoriteLocations] = useState<SavedLocation[]>([]);
+    const [recentLocations, setRecentLocations] = useState<SavedLocation[]>([]);
+    const [showSaveLocationPanel, setShowSaveLocationPanel] = useState(false);
+    const [showSavedPlacesModal, setShowSavedPlacesModal] = useState(false);
+    const [savedPlacesSearch, setSavedPlacesSearch] = useState('');
+    const [savedPlacesFilter, setSavedPlacesFilter] = useState<'all' | 'primary' | 'favorite' | 'recent'>('all');
+    const [pendingDeleteLocation, setPendingDeleteLocation] = useState<SavedLocation | null>(null);
+    const [pendingRenameLocation, setPendingRenameLocation] = useState<SavedLocation | null>(null);
+    const [pendingRenameTitle, setPendingRenameTitle] = useState('');
+    const [pendingRequestAction, setPendingRequestAction] = useState<{ type: 'cancel' | 'complete'; request: MyServiceRequest } | null>(null);
+    const [workerProfileRequest, setWorkerProfileRequest] = useState<MyServiceRequest | null>(null);
+    const [workerProfileLoading, setWorkerProfileLoading] = useState(false);
+    const [workerProfileData, setWorkerProfileData] = useState<RequestWorkerProfileResponse | null>(null);
+    const [workerPortfolioIndex, setWorkerPortfolioIndex] = useState(0);
+    const [isWorkerPortfolioFullscreen, setIsWorkerPortfolioFullscreen] = useState(false);
+    const [isWorkerPortfolioZoomed, setIsWorkerPortfolioZoomed] = useState(false);
+    const [workerPortfolioScale, setWorkerPortfolioScale] = useState(1);
+    const [workerPortfolioTransformOrigin, setWorkerPortfolioTransformOrigin] = useState('center center');
+    const [saveLocationKind, setSaveLocationKind] = useState<'home' | 'work' | 'favorite'>('favorite');
+    const [saveLocationTitle, setSaveLocationTitle] = useState('');
+    const [paymentModalRequest, setPaymentModalRequest] = useState<MyServiceRequest | null>(null);
+    const [paymentMethod, setPaymentMethod] = useState<'card' | 'paypal'>('card');
+    const [paymentForm, setPaymentForm] = useState({
+        fullName: '',
+        email: '',
+        phone: '',
+        city: '',
+        country: 'Guatemala',
+        cardNumber: '',
+        expiry: '',
+        cvv: '',
+    });
     const [nearbyWorkers, setNearbyWorkers] = useState<NearbyWorker[]>([]);
     const [radiusKm, setRadiusKm] = useState<number>(8);
     const [leafletReady, setLeafletReady] = useState(false);
     const [isSubmittingRequest, setIsSubmittingRequest] = useState(false);
     const [myRequests, setMyRequests] = useState<MyServiceRequest[]>([]);
-    const [historyStatus, setHistoryStatus] = useState<'all' | 'pending' | 'assigned' | 'in_progress' | 'done' | 'cancelled'>('all');
+    const [historyStatus, setHistoryStatus] = useState<'all' | 'pending' | 'payment_pending' | 'paid' | 'assigned' | 'in_progress' | 'awaiting_confirmation' | 'done' | 'cancelled'>('all');
     const [historyLoading, setHistoryLoading] = useState(false);
     const [counterBusyId, setCounterBusyId] = useState<number | null>(null);
+    const [workerApprovalBusyId, setWorkerApprovalBusyId] = useState<number | null>(null);
     const [cancelBusyId, setCancelBusyId] = useState<number | null>(null);
+    const [paymentBusyId, setPaymentBusyId] = useState<number | null>(null);
+    const [completionBusyId, setCompletionBusyId] = useState<number | null>(null);
     const [openChatRequestId, setOpenChatRequestId] = useState<number | null>(null);
     const [chatByRequest, setChatByRequest] = useState<Record<number, ChatMessage[]>>({});
     const [chatMessage, setChatMessage] = useState<Record<number, string>>({});
@@ -106,10 +653,20 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
     const [chatBusyId, setChatBusyId] = useState<number | null>(null);
     const [ratingBusyId, setRatingBusyId] = useState<number | null>(null);
     const [ratingForm, setRatingForm] = useState<Record<number, { punctuality: number; quality: number; price_fairness: number; comment: string }>>({});
+    const [ratingModalRequest, setRatingModalRequest] = useState<MyServiceRequest | null>(null);
+    const [fixesSuccessRequest, setFixesSuccessRequest] = useState<MyServiceRequest | null>(null);
     const mapContainerRef = useRef<HTMLDivElement | null>(null);
     const mapInstanceRef = useRef<any>(null);
-    const mapMarkersRef = useRef<any[]>([]);
-    const lastToastRef = useRef<{ type: 'success' | 'error'; message: string; at: number } | null>(null);
+    const currentMarkerRef = useRef<any>(null);
+    const currentRadiusRef = useRef<any>(null);
+    const savedPlaceMarkersRef = useRef<any[]>([]);
+    const nearbyWorkerMarkersRef = useRef<any[]>([]);
+    const lastCenteredCoordsRef = useRef<{ lat: number; lng: number } | null>(null);
+    const lastToastRef = useRef<{ type: 'success' | 'error' | 'info'; message: string; at: number } | null>(null);
+    const locationSuggestionTimerRef = useRef<number | null>(null);
+    const previousRequestStatusesRef = useRef<Record<number, string>>({});
+    const workerPortfolioPinchRef = useRef<{ startDistance: number; startScale: number } | null>(null);
+    const workerPortfolioTapRef = useRef<number>(0);
 
     useEffect(() => {
         if (!isOpen) return;
@@ -122,10 +679,924 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
         setGeoError(null);
         setNearbyWorkers([]);
         setRadiusKm(8);
+        setShowSaveLocationPanel(false);
+        setShowSavedPlacesModal(false);
+        setPendingDeleteLocation(null);
+        setPendingRenameLocation(null);
+        setPendingRenameTitle('');
+        setPendingRequestAction(null);
+        setWorkerProfileRequest(null);
+        setWorkerProfileData(null);
+        setWorkerProfileLoading(false);
+        setWorkerPortfolioIndex(0);
+        setIsWorkerPortfolioFullscreen(false);
+        setIsWorkerPortfolioZoomed(false);
+        setWorkerPortfolioScale(1);
+        setWorkerPortfolioTransformOrigin('center center');
+        setSavedPlacesSearch('');
+        setSavedPlacesFilter('all');
+        setSaveLocationKind('favorite');
+        setSaveLocationTitle('');
+        setPaymentModalRequest(null);
+        setPaymentMethod('card');
+        setRatingModalRequest(null);
+        setFixesSuccessRequest(null);
     }, [isOpen, initialServiceId, initialServiceName]);
 
+    useEffect(() => {
+        if (!showSavedPlacesModal) {
+            setSavedPlacesSearch('');
+            setSavedPlacesFilter('all');
+            setPendingDeleteLocation(null);
+            setPendingRenameLocation(null);
+            setPendingRenameTitle('');
+            setPendingRequestAction(null);
+        }
+    }, [showSavedPlacesModal]);
+
+    useEffect(() => {
+        const saved = readSavedLocations();
+        setSavedHome(saved.home);
+        setSavedWork(saved.work);
+        setFavoriteLocations(saved.favorites);
+        setRecentLocations(saved.recent);
+    }, []);
+
+    const hydrateSavedLocations = (
+        nextHome: SavedLocation | null,
+        nextWork: SavedLocation | null,
+        nextFavorites: SavedLocation[],
+        nextRecent: SavedLocation[]
+    ) => {
+        setSavedHome(nextHome);
+        setSavedWork(nextWork);
+        setFavoriteLocations(nextFavorites);
+        setRecentLocations(nextRecent);
+    };
+
+    const persistSavedLocations = (
+        nextHome: SavedLocation | null,
+        nextWork: SavedLocation | null,
+        nextFavorites: SavedLocation[],
+        nextRecent: SavedLocation[]
+    ) => {
+        hydrateSavedLocations(nextHome, nextWork, nextFavorites, nextRecent);
+        writeSavedLocations({ home: nextHome, work: nextWork, favorites: nextFavorites, recent: nextRecent });
+    };
+
+    const applySavedLocationsPayload = (rows: any[]) => {
+        const locations = Array.isArray(rows) ? rows.map(toSavedLocation).filter(Boolean) as SavedLocation[] : [];
+        const nextHome = locations.find((item) => item.kind === 'home') || null;
+        const nextWork = locations.find((item) => item.kind === 'work') || null;
+        const nextFavorites = locations
+            .filter((item) => item.kind === 'favorite')
+            .sort((a, b) => Number(b.last_used_at || 0) - Number(a.last_used_at || 0));
+        const nextRecent = locations
+            .filter((item) => item.kind === 'recent')
+            .sort((a, b) => Number(b.last_used_at || 0) - Number(a.last_used_at || 0));
+
+        persistSavedLocations(nextHome, nextWork, nextFavorites, nextRecent);
+    };
+
+    const fetchSavedLocationsFromBackend = async (silent = true) => {
+        const token = getToken();
+        if (!token || !isAuthenticated()) return null;
+
+        try {
+            const res = await fetch(API_ENDPOINTS.services.savedLocations, {
+                headers: { Authorization: `Bearer ${token}` },
+            });
+            const payload = await res.json();
+            if (!res.ok || !payload?.success) {
+                if (!silent) showToast('error', payload?.error || 'Could not load saved locations.');
+                return null;
+            }
+            applySavedLocationsPayload(payload.locations);
+            return Array.isArray(payload.locations) ? payload.locations.length : 0;
+        } catch {
+            if (!silent) showToast('error', 'Could not load saved locations.');
+            return null;
+        }
+    };
+
+    const syncLocalSavedLocationsToBackend = async () => {
+        const token = getToken();
+        if (!token || !isAuthenticated()) return false;
+
+        const cached = readSavedLocations();
+        const entries = [
+            ...(cached.home ? [cached.home] : []),
+            ...(cached.work ? [cached.work] : []),
+            ...(Array.isArray(cached.favorites) ? cached.favorites : []),
+            ...(Array.isArray(cached.recent) ? cached.recent : []),
+        ];
+
+        if (entries.length === 0) return false;
+
+        try {
+            for (const entry of entries) {
+                await fetch(API_ENDPOINTS.services.savedLocations, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        Authorization: `Bearer ${token}`,
+                    },
+                    body: JSON.stringify({
+                        kind: entry.kind,
+                        title: entry.title,
+                        label: entry.label,
+                        lat: entry.lat,
+                        lng: entry.lng,
+                    }),
+                });
+            }
+
+            await fetchSavedLocationsFromBackend(true);
+            return true;
+        } catch {
+            return false;
+        }
+    };
+
+    const upsertSavedLocationToBackend = async (location: SavedLocation, successMessage?: string) => {
+        const token = getToken();
+        if (!token || !isAuthenticated()) return false;
+
+        try {
+            const res = await fetch(API_ENDPOINTS.services.savedLocations, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    Authorization: `Bearer ${token}`,
+                },
+                body: JSON.stringify({
+                    kind: location.kind,
+                    title: location.title,
+                    label: location.label,
+                    lat: location.lat,
+                    lng: location.lng,
+                }),
+            });
+            const payload = await res.json();
+            if (!res.ok || !payload?.success) {
+                showToast('error', payload?.error || 'Could not save this place.');
+                return false;
+            }
+            applySavedLocationsPayload(payload.locations);
+            if (successMessage) showToast('success', successMessage);
+            return true;
+        } catch {
+            showToast('error', 'Could not save this place.');
+            return false;
+        }
+    };
+
+    const updateSavedLocationOnBackend = async (
+        idSavedLocation: number,
+        body: Record<string, unknown>,
+        successMessage?: string
+    ) => {
+        const token = getToken();
+        if (!token || !isAuthenticated()) return false;
+
+        try {
+            const res = await fetch(API_ENDPOINTS.services.savedLocation(idSavedLocation), {
+                method: 'PATCH',
+                headers: {
+                    'Content-Type': 'application/json',
+                    Authorization: `Bearer ${token}`,
+                },
+                body: JSON.stringify(body),
+            });
+            const payload = await res.json();
+            if (!res.ok || !payload?.success) {
+                showToast('error', payload?.error || 'Could not update this saved place.');
+                return false;
+            }
+            applySavedLocationsPayload(payload.locations);
+            if (successMessage) showToast('success', successMessage);
+            return true;
+        } catch {
+            showToast('error', 'Could not update this saved place.');
+            return false;
+        }
+    };
+
+    const deleteSavedLocationOnBackend = async (idSavedLocation: number, successMessage?: string) => {
+        const token = getToken();
+        if (!token || !isAuthenticated()) return false;
+
+        try {
+            const res = await fetch(API_ENDPOINTS.services.savedLocation(idSavedLocation), {
+                method: 'DELETE',
+                headers: {
+                    Authorization: `Bearer ${token}`,
+                },
+            });
+            const payload = await res.json();
+            if (!res.ok || !payload?.success) {
+                showToast('error', payload?.error || 'Could not remove this saved place.');
+                return false;
+            }
+            await fetchSavedLocationsFromBackend(true);
+            if (successMessage) showToast('success', successMessage);
+            return true;
+        } catch {
+            showToast('error', 'Could not remove this saved place.');
+            return false;
+        }
+    };
+
+    const clearRecentLocationsOnBackend = async () => {
+        const token = getToken();
+        if (!token || !isAuthenticated()) return false;
+
+        try {
+            const res = await fetch(`${API_ENDPOINTS.services.savedLocations}?kind=recent`, {
+                method: 'DELETE',
+                headers: {
+                    Authorization: `Bearer ${token}`,
+                },
+            });
+            const payload = await res.json();
+            if (!res.ok || !payload?.success) {
+                showToast('error', payload?.error || 'Could not clear recent locations.');
+                return false;
+            }
+            await fetchSavedLocationsFromBackend(true);
+            showToast('success', 'Recent locations cleared.');
+            return true;
+        } catch {
+            showToast('error', 'Could not clear recent locations.');
+            return false;
+        }
+    };
+
+    const rememberRecentLocation = (label: string, coords: { lat: number; lng: number }) => {
+        const normalizedLabel = String(label || '').trim();
+        if (!normalizedLabel) return;
+
+        const recentEntry: SavedLocation = {
+            kind: 'recent',
+            title: compactLocationTitle(normalizedLabel),
+            label: normalizedLabel,
+            lat: Number(coords.lat.toFixed(7)),
+            lng: Number(coords.lng.toFixed(7)),
+            last_used_at: Date.now(),
+        };
+
+        if (isAuthenticated() && getToken()) {
+            void upsertSavedLocationToBackend(recentEntry);
+            return;
+        }
+
+        const nextRecent = [
+            recentEntry,
+            ...recentLocations.filter(
+                (item) =>
+                    item.label !== normalizedLabel &&
+                    `${item.lat.toFixed(5)},${item.lng.toFixed(5)}` !==
+                        `${coords.lat.toFixed(5)},${coords.lng.toFixed(5)}`
+            ),
+        ].slice(0, 4);
+
+        persistSavedLocations(savedHome, savedWork, favoriteLocations, nextRecent);
+    };
+
+    const saveCurrentLocationAs = async (kind: 'home' | 'work') => {
+        if (!currentCoords || !data.location.trim()) {
+            showToast('error', 'Resolve a location first, then save it.');
+            return;
+        }
+
+        const entry: SavedLocation = {
+            kind,
+            title: kind === 'home' ? 'Home' : 'Work',
+            label: data.location.trim(),
+            lat: Number(currentCoords.lat.toFixed(7)),
+            lng: Number(currentCoords.lng.toFixed(7)),
+            last_used_at: Date.now(),
+        };
+
+        const nextHome = kind === 'home' ? entry : savedHome;
+        const nextWork = kind === 'work' ? entry : savedWork;
+        if (isAuthenticated() && getToken()) {
+            await upsertSavedLocationToBackend(entry, `${entry.title} location saved.`);
+            return;
+        }
+        persistSavedLocations(nextHome, nextWork, favoriteLocations, recentLocations);
+        showToast('success', `${entry.title} location saved.`);
+    };
+
+    const saveCurrentLocationAsFavorite = async (customTitle?: string) => {
+        if (!currentCoords || !data.location.trim()) {
+            showToast('error', 'Resolve a location first, then save it.');
+            return;
+        }
+
+        const fallbackName = compactLocationTitle(data.location.trim());
+        const favoriteName = customTitle ?? fallbackName;
+        const normalizedName = String(favoriteName || '').trim();
+        if (!normalizedName) return;
+
+        const nextFavorites = [
+            {
+                kind: 'favorite' as const,
+                title: normalizedName.slice(0, 28),
+                label: data.location.trim(),
+                lat: Number(currentCoords.lat.toFixed(7)),
+                lng: Number(currentCoords.lng.toFixed(7)),
+                last_used_at: Date.now(),
+            },
+            ...favoriteLocations.filter(
+                (item) =>
+                    item.title.toLowerCase() !== normalizedName.toLowerCase() &&
+                    !sameCoords(item, currentCoords)
+            ),
+        ].slice(0, 8);
+
+        if (isAuthenticated() && getToken()) {
+            await upsertSavedLocationToBackend(nextFavorites[0], `Favorite "${normalizedName}" saved.`);
+            return;
+        }
+        persistSavedLocations(savedHome, savedWork, nextFavorites, recentLocations);
+        showToast('success', `Favorite "${normalizedName}" saved.`);
+    };
+
+    const openSaveLocationPanel = () => {
+        if (!currentCoords || !data.location.trim()) {
+            showToast('error', 'Resolve a location first, then save it.');
+            return;
+        }
+
+        setSaveLocationKind('favorite');
+        setSaveLocationTitle(compactLocationTitle(data.location.trim()));
+        setShowSaveLocationPanel(true);
+    };
+
+    const handleSaveLocationFromPanel = async () => {
+        if (!currentCoords || !data.location.trim()) {
+            showToast('error', 'Resolve a location first, then save it.');
+            return;
+        }
+
+        if (saveLocationKind === 'home' || saveLocationKind === 'work') {
+            await saveCurrentLocationAs(saveLocationKind);
+            setShowSaveLocationPanel(false);
+            setSaveLocationTitle('');
+            return;
+        }
+
+        const normalizedTitle = saveLocationTitle.trim();
+        if (!normalizedTitle) {
+            showToast('error', 'Add a name for this location.');
+            return;
+        }
+
+        await saveCurrentLocationAsFavorite(normalizedTitle);
+        setShowSaveLocationPanel(false);
+        setSaveLocationTitle('');
+    };
+
+    const removeSavedLocation = async (location: SavedLocation) => {
+        if (location.id_saved_location && isAuthenticated() && getToken()) {
+            await deleteSavedLocationOnBackend(location.id_saved_location, `${location.title} removed.`);
+            return;
+        }
+
+        const sameLocation = (item: SavedLocation) =>
+            item.label === location.label &&
+            `${item.lat.toFixed(5)},${item.lng.toFixed(5)}` === `${location.lat.toFixed(5)},${location.lng.toFixed(5)}`;
+
+        const nextHome = location.kind === 'home' ? null : savedHome;
+        const nextWork = location.kind === 'work' ? null : savedWork;
+        const nextFavorites = location.kind === 'favorite'
+            ? favoriteLocations.filter((item) => !sameLocation(item))
+            : favoriteLocations;
+        const nextRecent = location.kind === 'recent'
+            ? recentLocations.filter((item) => !sameLocation(item))
+            : recentLocations;
+
+        persistSavedLocations(nextHome, nextWork, nextFavorites, nextRecent);
+        showToast('success', `${location.title} removed.`);
+    };
+
+    const clearRecentLocations = async () => {
+        if (isAuthenticated() && getToken()) {
+            await clearRecentLocationsOnBackend();
+            return;
+        }
+        if (recentLocations.length === 0) return;
+        persistSavedLocations(savedHome, savedWork, favoriteLocations, []);
+        showToast('success', 'Recent locations cleared.');
+    };
+
+    const requestDeleteSavedLocation = (location: SavedLocation) => {
+        setPendingDeleteLocation(location);
+    };
+
+    const closeDeleteSavedLocationPrompt = (notify = true) => {
+        setPendingDeleteLocation(null);
+        if (notify) {
+            showToast('info', 'Delete cancelled.');
+        }
+    };
+
+    const confirmDeleteSavedLocation = async () => {
+        if (!pendingDeleteLocation) return;
+        const target = pendingDeleteLocation;
+        setPendingDeleteLocation(null);
+        await removeSavedLocation(target);
+    };
+
+    const requestRenameSavedLocation = (location: SavedLocation) => {
+        setPendingRenameLocation(location);
+        setPendingRenameTitle(location.title);
+    };
+
+    const closeRenameSavedLocationPrompt = (notify = true) => {
+        setPendingRenameLocation(null);
+        setPendingRenameTitle('');
+        if (notify) {
+            showToast('info', 'Rename cancelled.');
+        }
+    };
+
+    const renameSavedLocation = async (location: SavedLocation, nextName: string) => {
+        const normalizedName = String(nextName || '').trim();
+        if (!normalizedName || normalizedName === location.title) return;
+
+        if (location.id_saved_location && isAuthenticated() && getToken()) {
+            await updateSavedLocationOnBackend(location.id_saved_location, { title: normalizedName }, 'Saved place renamed.');
+            return;
+        }
+
+        const renamedLocation = {
+            ...location,
+            title: normalizedName.slice(0, 28),
+        };
+        const nextHome = location.kind === 'home' && savedHome && sameCoords(savedHome, location)
+            ? renamedLocation
+            : savedHome;
+        const nextWork = location.kind === 'work' && savedWork && sameCoords(savedWork, location)
+            ? renamedLocation
+            : savedWork;
+        const nextFavorites = favoriteLocations.map((item) =>
+            item.kind === location.kind && sameCoords(item, location)
+                ? { ...item, title: normalizedName.slice(0, 28) }
+                : item
+        );
+        const nextRecent = recentLocations.map((item) =>
+            item.kind === location.kind && sameCoords(item, location)
+                ? { ...item, title: normalizedName.slice(0, 28) }
+                : item
+        );
+
+        persistSavedLocations(nextHome, nextWork, nextFavorites, nextRecent);
+        showToast('success', 'Saved place renamed.');
+    };
+
+    const confirmRenameSavedLocation = async () => {
+        if (!pendingRenameLocation) return;
+        const target = pendingRenameLocation;
+        const nextName = pendingRenameTitle;
+        setPendingRenameLocation(null);
+        setPendingRenameTitle('');
+        await renameSavedLocation(target, nextName);
+    };
+
+    const requestConfirmRequestAction = (type: 'cancel' | 'complete', request: MyServiceRequest) => {
+        setPendingRequestAction({ type, request });
+    };
+
+    const closeRequestActionPrompt = (notify = true) => {
+        setPendingRequestAction(null);
+        if (notify) {
+            showToast('info', 'Action cancelled.');
+        }
+    };
+
+    const handleUseSavedLocation = (location: SavedLocation, nextStep?: number) => {
+        useSavedLocation(location);
+        if (typeof nextStep === 'number') {
+            setStep(nextStep);
+        }
+    };
+
+    const renderSavedPlaceActions = (
+        location: SavedLocation,
+        options?: {
+            nextStep?: number;
+            compact?: boolean;
+        }
+    ) => {
+        const compact = options?.compact ?? false;
+        const buttonClass = compact
+            ? 'group inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-[11px] font-bold transition'
+            : 'group inline-flex items-center gap-1.5 rounded-xl border px-3 py-2 text-[11px] font-bold transition';
+
+        return (
+            <div className={`flex flex-wrap items-center gap-2 ${compact ? '' : 'pt-1'}`}>
+                <motion.button
+                    type="button"
+                    onClick={(e) => {
+                        e.stopPropagation();
+                        handleUseSavedLocation(location, options?.nextStep);
+                    }}
+                    whileHover={{ y: -2, scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                    transition={{ type: 'spring', stiffness: 320, damping: 22 }}
+                    className={`${buttonClass} ${getSavedPlaceActionClassName('use')}`}
+                >
+                    {renderSavedPlaceActionIcon('use', 'h-3.5 w-3.5 transition-transform duration-200 group-hover:translate-x-0.5 group-hover:scale-110')}
+                    Use
+                </motion.button>
+                <motion.button
+                    type="button"
+                    onClick={(e) => {
+                        e.stopPropagation();
+                        requestRenameSavedLocation(location);
+                    }}
+                    whileHover={{ y: -2, scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                    transition={{ type: 'spring', stiffness: 320, damping: 22 }}
+                    className={`${buttonClass} ${getSavedPlaceActionClassName('rename')}`}
+                >
+                    {renderSavedPlaceActionIcon('rename', 'h-3.5 w-3.5 transition-transform duration-200 group-hover:-rotate-6 group-hover:scale-110')}
+                    Rename
+                </motion.button>
+                <motion.button
+                    type="button"
+                    onClick={(e) => {
+                        e.stopPropagation();
+                        requestDeleteSavedLocation(location);
+                    }}
+                    whileHover={{ y: -2, scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                    transition={{ type: 'spring', stiffness: 320, damping: 22 }}
+                    className={`${buttonClass} ${getSavedPlaceActionClassName('delete')}`}
+                >
+                    {renderSavedPlaceActionIcon('delete', 'h-3.5 w-3.5 transition-transform duration-200 group-hover:-translate-y-0.5 group-hover:scale-105')}
+                    Delete
+                </motion.button>
+            </div>
+        );
+    };
+
+    const confirmPendingRequestAction = async () => {
+        if (!pendingRequestAction) return;
+        const action = pendingRequestAction;
+        setPendingRequestAction(null);
+
+        if (action.type === 'cancel') {
+            await submitCancelRequest(action.request);
+            return;
+        }
+
+        await submitClientCompletion(action.request);
+    };
+
+    const useSavedLocation = (location: SavedLocation) => {
+        if (location.kind === 'favorite') {
+            if (location.id_saved_location && isAuthenticated() && getToken()) {
+                void updateSavedLocationOnBackend(location.id_saved_location, { touch: true });
+            } else {
+                const nextFavorites = favoriteLocations
+                    .map((item) =>
+                        sameCoords(item, location)
+                            ? {
+                                  ...item,
+                                  last_used_at: Date.now(),
+                              }
+                            : item
+                    )
+                    .sort((a, b) => Number(b.last_used_at || 0) - Number(a.last_used_at || 0));
+
+                persistSavedLocations(savedHome, savedWork, nextFavorites, recentLocations);
+            }
+        }
+
+        setData((prev) => ({ ...prev, location: location.label }));
+        setCurrentCoords({ lat: location.lat, lng: location.lng });
+        setGeoError(null);
+        setShowLocationSuggestions(false);
+        setShowSaveLocationPanel(false);
+        setShowSavedPlacesModal(false);
+        showToast('success', `${location.title} location loaded.`);
+    };
+
+    const quickAccessLocations = useMemo(() => {
+        const items: Array<SavedLocation & { icon: string }> = [];
+        if (savedHome) items.push({ ...savedHome, icon: HOME_ICON });
+        if (savedWork) items.push({ ...savedWork, icon: WORK_ICON });
+        [...favoriteLocations]
+            .sort((a, b) => Number(b.last_used_at || 0) - Number(a.last_used_at || 0))
+            .forEach((location) => items.push({ ...location, icon: FAVORITE_ICON }));
+        recentLocations.forEach((location) => items.push({ ...location, icon: RECENT_ICON }));
+        return items;
+    }, [savedHome, savedWork, favoriteLocations, recentLocations]);
+
+    const groupedSavedLocations = useMemo(
+        () => ({
+            primary: [savedHome, savedWork].filter(Boolean) as SavedLocation[],
+            favorites: [...favoriteLocations].sort((a, b) => Number(b.last_used_at || 0) - Number(a.last_used_at || 0)),
+            recents: [...recentLocations],
+        }),
+        [savedHome, savedWork, favoriteLocations, recentLocations]
+    );
+
+    const filteredSavedLocations = useMemo(() => {
+        const search = savedPlacesSearch.trim().toLowerCase();
+        const matchesSearch = (location: SavedLocation) => {
+            if (!search) return true;
+            return [
+                location.title,
+                location.label,
+                location.kind,
+                getLocationVisual(location.kind).label,
+            ]
+                .join(' ')
+                .toLowerCase()
+                .includes(search);
+        };
+
+        const matchesSection = (section: 'primary' | 'favorite' | 'recent') =>
+            savedPlacesFilter === 'all' || savedPlacesFilter === section;
+
+        const primary = matchesSection('primary')
+            ? groupedSavedLocations.primary.filter(matchesSearch)
+            : [];
+        const favorites = matchesSection('favorite')
+            ? groupedSavedLocations.favorites.filter(matchesSearch)
+            : [];
+        const recents = matchesSection('recent')
+            ? groupedSavedLocations.recents.filter(matchesSearch)
+            : [];
+
+        return {
+            primary,
+            favorites,
+            recents,
+            total: primary.length + favorites.length + recents.length,
+        };
+    }, [groupedSavedLocations, savedPlacesFilter, savedPlacesSearch]);
+
+    const savedPlacesPreview = useMemo(
+        () => quickAccessLocations.slice(0, 3),
+        [quickAccessLocations]
+    );
+
+    const activeLocationKind = useMemo<SavedLocation['kind'] | 'current'>(() => {
+        if (!currentCoords) return 'current';
+        if (savedHome && sameCoords(savedHome, currentCoords)) return 'home';
+        if (savedWork && sameCoords(savedWork, currentCoords)) return 'work';
+        const favoriteMatch = favoriteLocations.find((location) => sameCoords(location, currentCoords));
+        if (favoriteMatch) return 'favorite';
+        const recentMatch = recentLocations.find((location) => sameCoords(location, currentCoords));
+        if (recentMatch) return 'recent';
+        return 'current';
+    }, [currentCoords, savedHome, savedWork, favoriteLocations, recentLocations]);
+
+    const activeTrackedRequest = useMemo(() => {
+        const priority = ['in_progress', 'awaiting_confirmation', 'paid', 'payment_pending'];
+        return [...myRequests]
+            .filter((request) => {
+                const status = String(request.status || '').toLowerCase();
+                return (
+                    priority.includes(status) &&
+                    !!request.assigned_worker &&
+                    request.latitude != null &&
+                    request.longitude != null
+                );
+            })
+            .sort((left, right) => {
+                const leftStatus = String(left.status || '').toLowerCase();
+                const rightStatus = String(right.status || '').toLowerCase();
+                return (
+                    priority.indexOf(leftStatus) - priority.indexOf(rightStatus) ||
+                    new Date(right.created_at).getTime() - new Date(left.created_at).getTime()
+                );
+            })[0] || null;
+    }, [myRequests]);
+
+    const workerPortfolio = useMemo(
+        () => workerProfileData?.portfolio || [],
+        [workerProfileData]
+    );
+
+    const activeWorkerPortfolioIndex = useMemo(() => {
+        if (workerPortfolio.length === 0) return 0;
+        return Math.min(workerPortfolioIndex, workerPortfolio.length - 1);
+    }, [workerPortfolio, workerPortfolioIndex]);
+
+    const activeWorkerPortfolioPhoto = useMemo(
+        () => workerPortfolio[activeWorkerPortfolioIndex] || null,
+        [workerPortfolio, activeWorkerPortfolioIndex]
+    );
+
+    const selectedWorkerProfile = useMemo(() => {
+        if (!workerProfileRequest) return null;
+
+        return {
+            id_worker_profile:
+                workerProfileData?.worker.id_worker_profile ||
+                workerProfileRequest.assigned_worker?.id_worker_profile ||
+                0,
+            name:
+                workerProfileData?.worker.name ||
+                workerProfileRequest.assigned_worker?.name ||
+                'Assigned pro',
+            phone_number:
+                workerProfileData?.worker.phone_number ??
+                workerProfileRequest.assigned_worker?.phone_number ??
+                null,
+            bio:
+                workerProfileData?.worker.bio ||
+                workerProfileRequest.assigned_worker?.bio ||
+                '',
+            is_online:
+                workerProfileData?.worker.is_online ??
+                workerProfileRequest.assigned_worker?.is_online ??
+                null,
+            profile_image_url:
+                workerProfileData?.worker.profile_image_url ??
+                workerProfileRequest.assigned_worker?.profile_image_url ??
+                null,
+            years_of_experience: workerProfileData?.worker.years_of_experience ?? null,
+            experience_label:
+                workerProfileData?.worker.experience_label || 'Experience not available',
+            rating_average: workerProfileData?.worker.rating_average ?? null,
+            rating_count: workerProfileData?.worker.rating_count ?? 0,
+            completed_jobs: workerProfileData?.worker.completed_jobs ?? 0,
+            services_offered: workerProfileData?.worker.services_offered || [],
+        };
+    }, [workerProfileData, workerProfileRequest]);
+
+    useEffect(() => {
+        if (workerPortfolio.length === 0 && workerPortfolioIndex !== 0) {
+            setWorkerPortfolioIndex(0);
+            return;
+        }
+
+        if (workerPortfolio.length > 0 && workerPortfolioIndex > workerPortfolio.length - 1) {
+            setWorkerPortfolioIndex(workerPortfolio.length - 1);
+        }
+    }, [workerPortfolio, workerPortfolioIndex]);
+
+    useEffect(() => {
+        if (!workerProfileRequest) {
+            setIsWorkerPortfolioFullscreen(false);
+            setIsWorkerPortfolioZoomed(false);
+            setWorkerPortfolioScale(1);
+        }
+    }, [workerProfileRequest]);
+
+    useEffect(() => {
+        if (!isWorkerPortfolioFullscreen) {
+            setIsWorkerPortfolioZoomed(false);
+            setWorkerPortfolioScale(1);
+        }
+    }, [isWorkerPortfolioFullscreen]);
+
+    const closeWorkerProfileModal = () => {
+        setWorkerProfileRequest(null);
+        setWorkerProfileData(null);
+        setWorkerProfileLoading(false);
+        setIsWorkerPortfolioFullscreen(false);
+        setIsWorkerPortfolioZoomed(false);
+        setWorkerPortfolioScale(1);
+    };
+
+    const shiftWorkerPortfolio = (direction: 'prev' | 'next') => {
+        if (workerPortfolio.length <= 1) return;
+        setIsWorkerPortfolioZoomed(false);
+        setWorkerPortfolioScale(1);
+        setWorkerPortfolioIndex((prev) => {
+            if (direction === 'prev') {
+                return prev === 0 ? workerPortfolio.length - 1 : prev - 1;
+            }
+            return prev === workerPortfolio.length - 1 ? 0 : prev + 1;
+        });
+    };
+
+    const setWorkerPortfolioZoomOrigin = (event: React.MouseEvent<HTMLImageElement>) => {
+        const rect = event.currentTarget.getBoundingClientRect();
+        if (!rect.width || !rect.height) return;
+        const x = ((event.clientX - rect.left) / rect.width) * 100;
+        const y = ((event.clientY - rect.top) / rect.height) * 100;
+        setWorkerPortfolioTransformOrigin(`${clamp(x, 0, 100)}% ${clamp(y, 0, 100)}%`);
+    };
+
+    const toggleWorkerPortfolioZoom = () => {
+        setIsWorkerPortfolioZoomed((prev) => {
+            const next = !prev;
+            setWorkerPortfolioScale(next ? 1.65 : 1);
+            if (!next) {
+                setWorkerPortfolioTransformOrigin('center center');
+            }
+            return next;
+        });
+    };
+
+    const handleWorkerPortfolioTouchStart = (event: React.TouchEvent<HTMLDivElement>) => {
+        if (event.touches.length < 2) return;
+        workerPortfolioPinchRef.current = {
+            startDistance: getTouchDistance(event.touches),
+            startScale: workerPortfolioScale,
+        };
+    };
+
+    const handleWorkerPortfolioTouchMove = (event: React.TouchEvent<HTMLDivElement>) => {
+        if (event.touches.length < 2 || !workerPortfolioPinchRef.current) return;
+        const nextDistance = getTouchDistance(event.touches);
+        if (!nextDistance) return;
+        event.preventDefault();
+        const ratio = nextDistance / workerPortfolioPinchRef.current.startDistance;
+        const nextScale = clamp(workerPortfolioPinchRef.current.startScale * ratio, 1, 2.4);
+        setWorkerPortfolioScale(nextScale);
+        setIsWorkerPortfolioZoomed(nextScale > 1.04);
+    };
+
+    const handleWorkerPortfolioTouchEnd = () => {
+        workerPortfolioPinchRef.current = null;
+        setWorkerPortfolioScale((prev) => {
+            if (prev < 1.04) {
+                setIsWorkerPortfolioZoomed(false);
+                return 1;
+            }
+            return prev;
+        });
+    };
+
+    const handleWorkerPortfolioImageTap = (event: React.MouseEvent<HTMLImageElement>) => {
+        setWorkerPortfolioZoomOrigin(event);
+        const now = Date.now();
+        if (now - workerPortfolioTapRef.current < 280) {
+            toggleWorkerPortfolioZoom();
+            workerPortfolioTapRef.current = 0;
+            return;
+        }
+
+        workerPortfolioTapRef.current = now;
+    };
+
+    const handleWorkerPortfolioImageDoubleTap = (event: React.MouseEvent<HTMLImageElement>) => {
+        setWorkerPortfolioZoomOrigin(event);
+        toggleWorkerPortfolioZoom();
+    };
+
+    const renderLocationSuggestionsDropdown = () => {
+        if (!(showLocationSuggestions && (suggestionsLoading || locationSuggestions.length > 0))) {
+            return null;
+        }
+
+        return (
+            <div className="mt-2 rounded-xl border border-gray-200 bg-white shadow-lg overflow-hidden">
+                {suggestionsLoading ? (
+                    <div className="px-4 py-3 text-sm font-medium text-gray-500">Searching places in El Salvador...</div>
+                ) : (
+                    locationSuggestions.map((suggestion, suggestionIndex) => {
+                        const display = getSuggestionDisplay(suggestion);
+                        return (
+                            <button
+                                key={`${suggestion.label}-${suggestion.lat}-${suggestion.lng}`}
+                                type="button"
+                                onMouseDown={(e) => {
+                                    e.preventDefault();
+                                    selectLocationSuggestion(suggestion);
+                                }}
+                                onMouseEnter={() => setHighlightedSuggestionIndex(suggestionIndex)}
+                                className={`w-full border-b border-gray-100 last:border-b-0 px-4 py-3 text-left transition ${
+                                    highlightedSuggestionIndex === suggestionIndex
+                                        ? 'bg-bird-blue/10'
+                                        : 'hover:bg-bird-blue/5'
+                                }`}
+                            >
+                                <div className="flex items-start justify-between gap-3">
+                                    <div className="min-w-0">
+                                        <div className="text-sm font-semibold text-gray-900 line-clamp-1">{display.title}</div>
+                                        <div className="mt-1 text-xs text-gray-500 line-clamp-1">{display.context}</div>
+                                    </div>
+                                    <span
+                                        className={`shrink-0 rounded-full px-2 py-1 text-[10px] font-black uppercase tracking-wide ${
+                                            suggestion.source === 'local'
+                                                ? 'bg-emerald-100 text-emerald-700'
+                                                : 'bg-blue-100 text-blue-700'
+                                        }`}
+                                    >
+                                        {getSuggestionBadgeLabel(suggestion)}
+                                    </span>
+                                </div>
+                            </button>
+                        );
+                    })
+                )}
+            </div>
+        );
+    };
+
     const fetchMyRequests = async (
-        status: 'all' | 'pending' | 'assigned' | 'in_progress' | 'done' | 'cancelled' = historyStatus,
+        status: 'all' | 'pending' | 'payment_pending' | 'paid' | 'assigned' | 'in_progress' | 'awaiting_confirmation' | 'done' | 'cancelled' = historyStatus,
         silent = false
     ) => {
         const token = getToken();
@@ -157,6 +1628,27 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
 
     useEffect(() => {
         if (!isOpen) return;
+        if (!isAuthenticated() || !getToken()) return;
+
+        void (async () => {
+            const backendCount = await fetchSavedLocationsFromBackend(true);
+            if (backendCount == null) return;
+
+            const cached = readSavedLocations();
+            const cachedCount =
+                (cached.home ? 1 : 0) +
+                (cached.work ? 1 : 0) +
+                (cached.favorites?.length || 0) +
+                (cached.recent?.length || 0);
+
+            if (backendCount === 0 && cachedCount > 0) {
+                await syncLocalSavedLocationsToBackend();
+            }
+        })();
+    }, [isOpen]);
+
+    useEffect(() => {
+        if (!isOpen) return;
         if (!isAuthenticated()) return;
 
         const interval = window.setInterval(() => {
@@ -176,11 +1668,35 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
         }
 
         const requestStatus = String(activeRequest.status || '').toLowerCase();
-        const canUseChat = ['assigned', 'in_progress', 'done'].includes(requestStatus) && !!activeRequest.assigned_worker;
+        const canUseChat = canUseRequestChat(activeRequest);
         if (!canUseChat) {
             setOpenChatRequestId(null);
         }
     }, [myRequests, openChatRequestId]);
+
+    useEffect(() => {
+        if (!isOpen) return;
+
+        const previousStatuses = previousRequestStatusesRef.current;
+        const nextStatuses: Record<number, string> = {};
+
+        myRequests.forEach((request) => {
+            const currentStatus = String(request.status || '').toLowerCase();
+            nextStatuses[request.id_request] = currentStatus;
+
+            const previousStatus = previousStatuses[request.id_request];
+            if (!previousStatus || previousStatus === currentStatus) {
+                return;
+            }
+
+            const notification = getRequestStageNotification(request);
+            if (notification) {
+                showToast(notification.type, notification.message);
+            }
+        });
+
+        previousRequestStatusesRef.current = nextStatuses;
+    }, [isOpen, myRequests]);
 
     useEffect(() => {
         const urls = problemFiles.map((file) => URL.createObjectURL(file));
@@ -248,6 +1764,61 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
     }, []);
 
     useEffect(() => {
+        if (!isOpen) return;
+
+        const query = data.location.trim();
+        const parsedCoords = parseCoordinateInput(query);
+
+        if (locationSuggestionTimerRef.current) {
+            window.clearTimeout(locationSuggestionTimerRef.current);
+            locationSuggestionTimerRef.current = null;
+        }
+
+        if (!query || query.length < 2 || parsedCoords) {
+            setLocationSuggestions([]);
+            setSuggestionsLoading(false);
+            return;
+        }
+
+        locationSuggestionTimerRef.current = window.setTimeout(async () => {
+            try {
+                setSuggestionsLoading(true);
+                const params = new URLSearchParams({ q: query });
+                const res = await fetch(`${API_ENDPOINTS.services.geocodeSuggest}?${params.toString()}`);
+                const payload = await res.json();
+                if (!res.ok || !payload?.success) {
+                    setLocationSuggestions([]);
+                    return;
+                }
+                setLocationSuggestions(Array.isArray(payload.suggestions) ? payload.suggestions : []);
+            } catch {
+                setLocationSuggestions([]);
+            } finally {
+                setSuggestionsLoading(false);
+            }
+        }, 220);
+
+        return () => {
+            if (locationSuggestionTimerRef.current) {
+                window.clearTimeout(locationSuggestionTimerRef.current);
+                locationSuggestionTimerRef.current = null;
+            }
+        };
+    }, [data.location, isOpen]);
+
+    useEffect(() => {
+        if (!showLocationSuggestions || locationSuggestions.length === 0) {
+            setHighlightedSuggestionIndex(-1);
+            return;
+        }
+
+        setHighlightedSuggestionIndex((prev) => {
+            if (prev >= 0 && prev < locationSuggestions.length) return prev;
+            return 0;
+        });
+    }, [locationSuggestions, showLocationSuggestions]);
+
+    useEffect(() => {
         if (!isOpen || !mapContainerRef.current || !window.L || !leafletReady) return;
         if (mapInstanceRef.current) return;
 
@@ -255,7 +1826,7 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
         const map = L.map(mapContainerRef.current, {
             zoomControl: false,
             attributionControl: true,
-        }).setView([14.6349, -90.5069], 12);
+        }).setView([13.6929, -89.2182], 12);
 
         L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
             maxZoom: 19,
@@ -263,6 +1834,18 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
         }).addTo(map);
 
         L.control.zoom({ position: 'bottomright' }).addTo(map);
+
+        map.on('click', (event: any) => {
+            const nextCoords = {
+                lat: Number(event.latlng.lat.toFixed(7)),
+                lng: Number(event.latlng.lng.toFixed(7)),
+            };
+
+            void reverseGeocodeCoords(nextCoords, {
+                toastMessage: 'Location adjusted on the map.',
+                fallbackLabel: `${nextCoords.lat}, ${nextCoords.lng}`,
+            });
+        });
 
         mapInstanceRef.current = map;
     }, [isOpen, leafletReady]);
@@ -276,7 +1859,11 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                 // ignore map cleanup errors
             }
             mapInstanceRef.current = null;
-            mapMarkersRef.current = [];
+            currentMarkerRef.current = null;
+            currentRadiusRef.current = null;
+            savedPlaceMarkersRef.current = [];
+            nearbyWorkerMarkersRef.current = [];
+            lastCenteredCoordsRef.current = null;
         }
     }, [isOpen]);
 
@@ -285,37 +1872,124 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
         const L = window.L;
         const map = mapInstanceRef.current;
 
-        mapMarkersRef.current.forEach((m) => {
-            try {
-                map.removeLayer(m);
-            } catch {
-                // ignore
+        if (!currentCoords) {
+            if (currentMarkerRef.current) {
+                try {
+                    map.removeLayer(currentMarkerRef.current);
+                } catch {
+                    // ignore
+                }
+                currentMarkerRef.current = null;
             }
-        });
-        mapMarkersRef.current = [];
+            if (currentRadiusRef.current) {
+                try {
+                    map.removeLayer(currentRadiusRef.current);
+                } catch {
+                    // ignore
+                }
+                currentRadiusRef.current = null;
+            }
+            map.setView([13.6929, -89.2182], 12);
+            lastCenteredCoordsRef.current = null;
+            return;
+        }
 
-        const center = currentCoords || { lat: 14.6349, lng: -90.5069 };
-        map.setView([center.lat, center.lng], currentCoords ? 14 : 12);
+        const shouldRecenter =
+            !lastCenteredCoordsRef.current ||
+            !sameCoords(lastCenteredCoordsRef.current, currentCoords);
 
-        if (currentCoords) {
-            const me = L.circleMarker([currentCoords.lat, currentCoords.lng], {
-                radius: 10,
-                color: '#ffffff',
-                weight: 3,
-                fillColor: '#38bdf8', /* sky-400 equivalent for bird-blue aesthetic */
-                fillOpacity: 1,
-            }).addTo(map).bindPopup('You are here');
-            mapMarkersRef.current.push(me);
+        if (shouldRecenter) {
+            map.setView([currentCoords.lat, currentCoords.lng], 14);
+            lastCenteredCoordsRef.current = currentCoords;
+        }
 
-            const radius = L.circle([currentCoords.lat, currentCoords.lng], {
+        const selectedVisual = getLocationVisual(activeLocationKind);
+
+        if (!currentMarkerRef.current) {
+            const me = L.marker([currentCoords.lat, currentCoords.lng], {
+                draggable: true,
+                icon: createLeafletPinIcon(L, activeLocationKind),
+                zIndexOffset: 1200,
+            })
+                .addTo(map)
+                .bindPopup(`<b>${selectedVisual.label}</b><br/>Drag or tap the map to fine-tune the exact point.`);
+
+            me.on('dragend', () => {
+                const position = me.getLatLng();
+                const nextCoords = {
+                    lat: Number(position.lat.toFixed(7)),
+                    lng: Number(position.lng.toFixed(7)),
+                };
+                void reverseGeocodeCoords(nextCoords, {
+                    toastMessage: 'Location adjusted on the map.',
+                    fallbackLabel: `${nextCoords.lat}, ${nextCoords.lng}`,
+                });
+            });
+
+            currentMarkerRef.current = me;
+        } else {
+            currentMarkerRef.current.setLatLng([currentCoords.lat, currentCoords.lng]);
+            currentMarkerRef.current.setIcon(createLeafletPinIcon(L, activeLocationKind));
+            currentMarkerRef.current.setPopupContent(`<b>${selectedVisual.label}</b><br/>Drag or tap the map to fine-tune the exact point.`);
+        }
+
+        if (!currentRadiusRef.current) {
+            currentRadiusRef.current = L.circle([currentCoords.lat, currentCoords.lng], {
                 radius: radiusKm * 1000,
                 color: '#3b82f6',
                 weight: 1,
                 fillColor: '#3b82f6',
                 fillOpacity: 0.05,
             }).addTo(map);
-            mapMarkersRef.current.push(radius);
+        } else {
+            currentRadiusRef.current.setLatLng([currentCoords.lat, currentCoords.lng]);
+            currentRadiusRef.current.setRadius(radiusKm * 1000);
         }
+    }, [currentCoords, radiusKm, activeLocationKind, isOpen]);
+
+    useEffect(() => {
+        if (!mapInstanceRef.current || !window.L) return;
+        const L = window.L;
+        const map = mapInstanceRef.current;
+
+        savedPlaceMarkersRef.current.forEach((marker) => {
+            try {
+                map.removeLayer(marker);
+            } catch {
+                // ignore
+            }
+        });
+        savedPlaceMarkersRef.current = [];
+
+        quickAccessLocations
+            .filter((location) => location.kind !== 'recent')
+            .filter((location) => !sameCoords(location, currentCoords))
+            .forEach((location) => {
+                const pin = L.marker([location.lat, location.lng], {
+                    icon: createLeafletPinIcon(L, location.kind),
+                    zIndexOffset: 600,
+                })
+                    .addTo(map)
+                    .bindPopup(`<b>${location.title}</b><br/>${location.label}`);
+
+                pin.on('click', () => useSavedLocation(location));
+                savedPlaceMarkersRef.current.push(pin);
+            });
+    }, [quickAccessLocations, currentCoords]);
+
+    useEffect(() => {
+        if (!mapInstanceRef.current || !window.L) return;
+        const L = window.L;
+        const map = mapInstanceRef.current;
+
+        nearbyWorkerMarkersRef.current.forEach((marker) => {
+            try {
+                map.removeLayer(marker);
+            } catch {
+                // ignore
+            }
+        });
+        nearbyWorkerMarkersRef.current = [];
 
         nearbyWorkers.forEach((worker) => {
             const lat = worker.latitude;
@@ -326,15 +2000,15 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                 radius: 8,
                 color: '#ffffff',
                 weight: 2,
-                fillColor: '#0284c7', /* sky-600 */
+                fillColor: '#0284c7',
                 fillOpacity: 1,
             }).addTo(map).bindPopup(
                 `<b>${worker.name}</b><br/>${worker.distance_km != null ? `${worker.distance_km.toFixed(1)} km` : ''}`
             );
 
-            mapMarkersRef.current.push(marker);
+            nearbyWorkerMarkersRef.current.push(marker);
         });
-    }, [currentCoords, nearbyWorkers, radiusKm]);
+    }, [nearbyWorkers]);
 
     const selectedServiceTitle = useMemo(() => {
         if (!data.category) return null;
@@ -354,15 +2028,72 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
         return colors[color] || colors.blue;
     };
 
-    const showToast = (type: 'success' | 'error', message: string) => {
+    const showToast = (type: 'success' | 'error' | 'info', message: string) => {
         const now = Date.now();
         const last = lastToastRef.current;
         if (last && last.type === type && last.message === message && now - last.at < 900) {
             return;
         }
         lastToastRef.current = { type, message, at: now };
-        if (type === 'success') notyf.success(message);
-        else notyf.error(message);
+        if (type === 'success') {
+            notyf.success(message);
+            return;
+        }
+        if (type === 'error') {
+            notyf.error(message);
+            return;
+        }
+        notyf.open({
+            type: 'info',
+            message,
+            background: '#1d4ed8',
+            duration: 2200,
+        });
+    };
+
+    const getRequestStageNotification = (request: MyServiceRequest) => {
+        const status = String(request.status || '').toLowerCase();
+        const workerName = request.assigned_worker?.name || 'Your worker';
+
+        if (status === 'assigned') {
+            return {
+                type: 'info' as const,
+                message: hasPendingWorkerApproval(request)
+                    ? `${workerName} is waiting for your approval.`
+                    : `${workerName} sent a counter offer for your review.`,
+            };
+        }
+        if (status === 'payment_pending') {
+            return {
+                type: 'info' as const,
+                message: `Secure payment so ${workerName} can head over.`,
+            };
+        }
+        if (status === 'paid') {
+            return {
+                type: 'success' as const,
+                message: `Payment secured. ${workerName} is getting ready to head over.`,
+            };
+        }
+        if (status === 'in_progress') {
+            return {
+                type: 'info' as const,
+                message: `${workerName} started working on your service.`,
+            };
+        }
+        if (status === 'awaiting_confirmation') {
+            return {
+                type: 'info' as const,
+                message: `${workerName} marked the job as done. Review and confirm when ready.`,
+            };
+        }
+        if (status === 'done') {
+            return {
+                type: 'success' as const,
+                message: 'Your service is completed. You can now leave a review.',
+            };
+        }
+        return null;
     };
 
     const handleProblemFiles = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -401,6 +2132,163 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
         showToast('success', 'Image removed.');
     };
 
+    const handleLocationChange = (value: string) => {
+        setData((prev) => ({ ...prev, location: value }));
+        setShowLocationSuggestions(true);
+        const parsedCoords = parseCoordinateInput(value);
+        if (parsedCoords) {
+            setCurrentCoords(parsedCoords);
+            setGeoError(null);
+            setLocationSuggestions([]);
+            setShowLocationSuggestions(false);
+            return;
+        }
+
+        setCurrentCoords(null);
+    };
+
+    const applyResolvedLocation = (
+        label: string,
+        coords: { lat: number; lng: number },
+        options?: { toastMessage?: string; remember?: boolean }
+    ) => {
+        const nextLabel = String(label || '').trim();
+        setCurrentCoords({ lat: Number(coords.lat), lng: Number(coords.lng) });
+        setData((prev) => ({ ...prev, location: nextLabel }));
+        setGeoError(null);
+        setShowLocationSuggestions(false);
+        if (options?.remember === true) {
+            rememberRecentLocation(nextLabel, coords);
+        }
+        if (options?.toastMessage) {
+            showToast('success', options.toastMessage);
+        }
+    };
+
+    const reverseGeocodeCoords = async (
+        coords: { lat: number; lng: number },
+        options?: { toastMessage?: string; fallbackLabel?: string; remember?: boolean }
+    ) => {
+        try {
+            const params = new URLSearchParams({ lat: String(coords.lat), lng: String(coords.lng) });
+            const res = await fetch(`${API_ENDPOINTS.services.geocodeReverse}?${params.toString()}`);
+            const payload = await res.json();
+            if (res.ok && payload?.success && payload?.location?.label) {
+                applyResolvedLocation(String(payload.location.label), coords, {
+                    toastMessage: options?.toastMessage,
+                    remember: options?.remember,
+                });
+                return;
+            }
+        } catch {
+            // fallback below
+        }
+
+        applyResolvedLocation(
+            options?.fallbackLabel || `${coords.lat.toFixed(7)}, ${coords.lng.toFixed(7)}`,
+            coords,
+            {
+                toastMessage: options?.toastMessage,
+                remember: options?.remember,
+            }
+        );
+    };
+
+    const selectLocationSuggestion = (suggestion: LocationSuggestion) => {
+        applyResolvedLocation(suggestion.label, { lat: suggestion.lat, lng: suggestion.lng }, {
+            toastMessage: 'Address selected from suggestions.',
+        });
+    };
+
+    const handleLocationKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
+        if (event.key === 'Escape') {
+            setShowLocationSuggestions(false);
+            setHighlightedSuggestionIndex(-1);
+            return;
+        }
+
+        if (event.key === 'ArrowDown') {
+            if (locationSuggestions.length === 0) return;
+            event.preventDefault();
+            setShowLocationSuggestions(true);
+            setHighlightedSuggestionIndex((prev) =>
+                prev < locationSuggestions.length - 1 ? prev + 1 : 0
+            );
+            return;
+        }
+
+        if (event.key === 'ArrowUp') {
+            if (locationSuggestions.length === 0) return;
+            event.preventDefault();
+            setShowLocationSuggestions(true);
+            setHighlightedSuggestionIndex((prev) =>
+                prev > 0 ? prev - 1 : locationSuggestions.length - 1
+            );
+            return;
+        }
+
+        if (event.key === 'Enter') {
+            event.preventDefault();
+            if (
+                showLocationSuggestions &&
+                highlightedSuggestionIndex >= 0 &&
+                highlightedSuggestionIndex < locationSuggestions.length
+            ) {
+                selectLocationSuggestion(locationSuggestions[highlightedSuggestionIndex]);
+                return;
+            }
+
+            void resolveLocationInput();
+        }
+    };
+
+    const resolveLocationInput = async (silent = false) => {
+        const trimmedLocation = data.location.trim();
+        if (!trimmedLocation) {
+            setGeoError('Enter an address reference or paste coordinates.');
+            if (!silent) showToast('error', 'Enter an address or coordinates first.');
+            return null;
+        }
+
+        const parsedCoords = parseCoordinateInput(trimmedLocation);
+        if (parsedCoords) {
+            applyResolvedLocation(trimmedLocation, parsedCoords, {
+                toastMessage: !silent ? 'Coordinates loaded into the map.' : undefined,
+            });
+            return parsedCoords;
+        }
+
+        setResolvingLocation(true);
+        setGeoError(null);
+        try {
+            const params = new URLSearchParams({ q: trimmedLocation });
+            const res = await fetch(`${API_ENDPOINTS.services.geocode}?${params.toString()}`);
+            const payload = await res.json();
+            if (!res.ok || !payload?.success || payload?.location?.lat == null || payload?.location?.lng == null) {
+                    const errorMessage = payload?.error || 'Could not resolve that address in El Salvador.';
+                setGeoError(errorMessage);
+                if (!silent) showToast('error', errorMessage);
+                return null;
+            }
+
+            const resolved = {
+                lat: Number(payload.location.lat),
+                lng: Number(payload.location.lng),
+            };
+
+            applyResolvedLocation(String(payload.location.label || trimmedLocation), resolved, {
+                toastMessage: !silent ? 'Address resolved on the map.' : undefined,
+            });
+            return resolved;
+        } catch {
+            setGeoError('Could not resolve that address in El Salvador right now.');
+            if (!silent) showToast('error', 'Could not resolve that address in El Salvador right now.');
+            return null;
+        } finally {
+            setResolvingLocation(false);
+        }
+    };
+
     const detectCurrentLocation = () => {
         if (!navigator.geolocation) {
             setGeoError('Geolocation is not supported in this browser.');
@@ -416,9 +2304,16 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                 const lat = Number(pos.coords.latitude.toFixed(7));
                 const lng = Number(pos.coords.longitude.toFixed(7));
                 setCurrentCoords({ lat, lng });
-                setData((prev) => ({ ...prev, location: `${lat}, ${lng}` }));
-                showToast('success', 'Current location detected.');
-                setGeoLoading(false);
+                void (async () => {
+                    try {
+                        await reverseGeocodeCoords({ lat, lng }, {
+                            toastMessage: 'Current location detected.',
+                            fallbackLabel: `${lat}, ${lng}`,
+                        });
+                    } finally {
+                        setGeoLoading(false);
+                    }
+                })();
             },
             () => {
                 setGeoError('Could not access your location. Allow permission and try again.');
@@ -436,16 +2331,16 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
             return;
         }
 
-        if (!currentCoords) {
-            showToast('error', 'Use "Detect my location" first.');
+        const resolvedCoords = currentCoords ?? (await resolveLocationInput());
+        if (!resolvedCoords) {
             return;
         }
 
         try {
             const params = new URLSearchParams({
                 id_service: String(selectedService.id_service),
-                lat: String(currentCoords.lat),
-                lng: String(currentCoords.lng),
+                lat: String(resolvedCoords.lat),
+                lng: String(resolvedCoords.lng),
                 radius_km: String(radiusKm),
             });
             const res = await fetch(`${API_ENDPOINTS.services.nearbyWorkers}?${params.toString()}`);
@@ -476,6 +2371,11 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
             showToast('error', 'Location is required.');
             return;
         }
+        const resolvedCoords = currentCoords ?? (await resolveLocationInput());
+        if (!resolvedCoords) {
+            showToast('error', 'We need a valid location before creating the request.');
+            return;
+        }
         if (!data.description.trim() || data.description.trim().length < 10) {
             showToast('error', 'Description must have at least 10 characters.');
             return;
@@ -498,10 +2398,8 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
             form.append('location', data.location.trim());
             form.append('budget', String(budgetValue));
             form.append('radius_km', String(radiusKm));
-            if (currentCoords) {
-                form.append('lat', String(currentCoords.lat));
-                form.append('lng', String(currentCoords.lng));
-            }
+            form.append('lat', String(resolvedCoords.lat));
+            form.append('lng', String(resolvedCoords.lng));
             problemFiles.forEach((file) => form.append('problem_images', file));
 
             const token = getToken();
@@ -523,7 +2421,9 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
 
             showToast('success', `Request #${payload.request?.id_request || ''} created successfully.`);
             setProblemFiles([]);
-            setData((prev) => ({ ...prev, description: '', price: '', images: [] }));
+            setCurrentCoords(null);
+            setGeoError(null);
+            setData((prev) => ({ ...prev, description: '', location: '', price: '', images: [] }));
             fetchMyRequests(historyStatus);
         } catch {
             showToast('error', 'Network error creating request.');
@@ -535,22 +2435,75 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
     const statusBadgeClasses = (statusRaw: string) => {
         const status = String(statusRaw || 'pending').toLowerCase();
         if (status === 'done') return 'bg-emerald-100 text-emerald-700 border-emerald-200';
-        if (status === 'assigned') return 'bg-blue-100 text-blue-700 border-blue-200';
+        if (status === 'awaiting_confirmation') return 'bg-violet-100 text-violet-700 border-violet-200';
+        if (status === 'assigned') return 'bg-sky-100 text-sky-700 border-sky-200';
+        if (status === 'payment_pending') return 'bg-yellow-100 text-yellow-700 border-yellow-200';
+        if (status === 'paid') return 'bg-cyan-100 text-cyan-700 border-cyan-200';
         if (status === 'in_progress') return 'bg-indigo-100 text-indigo-700 border-indigo-200';
         if (status === 'cancelled') return 'bg-red-100 text-red-700 border-red-200';
         return 'bg-amber-100 text-amber-700 border-amber-200';
     };
 
-    const statusLabel = (statusRaw: string) => {
+    const statusLabel = (statusRaw: string, request?: MyServiceRequest) => {
         const status = String(statusRaw || 'pending').toLowerCase();
+        if (status === 'assigned') {
+            if (request && hasPendingWorkerApproval(request)) return 'Review Worker';
+            if (request && hasPendingCounter(request)) return 'Counter Pending';
+            return 'Worker Accepted';
+        }
+        if (status === 'payment_pending') return 'Payment Pending';
+        if (status === 'paid') return 'Payment Secured';
+        if (status === 'awaiting_confirmation') return 'Awaiting Confirmation';
         if (status === 'in_progress') return 'In Progress';
+        if (status === 'done') return 'Completed';
+        if (status === 'pending') return 'Finding Worker';
         return status.charAt(0).toUpperCase() + status.slice(1);
     };
+
+    const getClientTimelineState = (request: MyServiceRequest) => {
+        const status = String(request.status || 'pending').toLowerCase();
+        const workerAccepted =
+            !!request.assigned_worker &&
+            ['assigned', 'payment_pending', 'paid', 'in_progress', 'awaiting_confirmation', 'done'].includes(status);
+        const paymentSecured = ['paid', 'in_progress', 'awaiting_confirmation', 'done'].includes(status);
+        const onTheWay = ['paid', 'in_progress', 'awaiting_confirmation', 'done'].includes(status);
+        const arrived = ['in_progress', 'awaiting_confirmation', 'done'].includes(status);
+        const workInProgress = ['in_progress', 'awaiting_confirmation', 'done'].includes(status);
+        const completed = status === 'done';
+
+        return {
+            workerAccepted,
+            paymentSecured,
+            onTheWay,
+            arrived,
+            workInProgress,
+            completed,
+        };
+    };
+
+    const timelineSteps = [
+        { key: 'workerAccepted', label: 'Worker accepted' },
+        { key: 'paymentSecured', label: 'Payment secured' },
+        { key: 'onTheWay', label: 'On the way' },
+        { key: 'arrived', label: 'Arrived' },
+        { key: 'workInProgress', label: 'Work in progress' },
+        { key: 'completed', label: 'Completed' },
+    ] as const;
 
     const hasPendingCounter = (request: MyServiceRequest) =>
         request.status === 'assigned' &&
         request.proposed_budget != null &&
         (request.counter_status == null || request.counter_status === 'pending');
+
+    const hasPendingWorkerApproval = (request: MyServiceRequest) =>
+        String(request.status || '').toLowerCase() === 'assigned' &&
+        !!request.assigned_worker &&
+        request.proposed_budget == null;
+
+    const canUseRequestChat = (request: MyServiceRequest) => {
+        const status = String(request.status || '').toLowerCase();
+        return ['payment_pending', 'paid', 'in_progress', 'awaiting_confirmation', 'done'].includes(status) && !!request.assigned_worker;
+    };
 
     const getTimelineProgress = (request: MyServiceRequest) => {
         const status = String(request.status || 'pending').toLowerCase();
@@ -558,12 +2511,15 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
         const counterAccepted = request.counter_status === 'accepted';
 
         if (status === 'done') return 6;
+        if (status === 'awaiting_confirmation') return 5;
         if (status === 'in_progress') return 5;
+        if (status === 'paid') return 4;
+        if (status === 'payment_pending') return 3;
         if (status === 'cancelled') return 0;
         if (status === 'assigned') {
             if (hasCounter && !counterAccepted) return 2;
             if (counterAccepted) return 3;
-            return 3;
+            return 1;
         }
         return 0;
     };
@@ -577,6 +2533,47 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
             return <span className="text-[10px] font-bold px-2 py-1 rounded-full bg-red-100 text-red-700 border border-red-200">Counter Declined</span>;
         }
         return <span className="text-[10px] font-bold px-2 py-1 rounded-full bg-amber-100 text-amber-700 border border-amber-200">Counter Offer</span>;
+    };
+
+    const handleWorkerApprovalDecision = async (request: MyServiceRequest, decision: 'accept' | 'decline') => {
+        const token = getToken();
+        if (!token) {
+            showToast('error', 'Login required.');
+            return;
+        }
+
+        setWorkerApprovalBusyId(request.id_request);
+        try {
+            const endpoint =
+                decision === 'accept'
+                    ? API_ENDPOINTS.services.acceptAssignedWorker(request.id_request)
+                    : API_ENDPOINTS.services.declineAssignedWorker(request.id_request);
+
+            const res = await fetch(endpoint, {
+                method: 'POST',
+                headers: { Authorization: `Bearer ${token}` },
+            });
+            const payload = await res.json();
+            if (!res.ok || !payload?.success) {
+                showToast('error', payload?.error || `Could not ${decision} this worker.`);
+                return;
+            }
+
+            showToast(
+                'success',
+                decision === 'accept'
+                    ? 'Worker approved. You can continue with payment now.'
+                    : 'Worker declined. We will keep looking for another pro.'
+            );
+            setWorkerProfileRequest(null);
+            setWorkerProfileData(null);
+            setWorkerProfileLoading(false);
+            await fetchMyRequests(historyStatus, true);
+        } catch {
+            showToast('error', `Network error trying to ${decision} this worker.`);
+        } finally {
+            setWorkerApprovalBusyId(null);
+        }
     };
 
     const handleCounterDecision = async (request: MyServiceRequest, decision: 'accept' | 'decline') => {
@@ -612,7 +2609,150 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
         }
     };
 
-    const handleCancelRequest = async (request: MyServiceRequest) => {
+    const handleSecurePayment = (request: MyServiceRequest) => {
+        const token = getToken();
+        if (!token) {
+            showToast('error', 'Login required.');
+            return;
+        }
+
+        window.history.pushState({}, '', `/checkout/${request.id_request}`);
+        window.dispatchEvent(new PopStateEvent('popstate'));
+    };
+
+    const confirmPaymentThroughModal = async () => {
+        const token = getToken();
+        if (!token || !paymentModalRequest) {
+            showToast('error', 'Login required.');
+            return;
+        }
+
+        if (paymentMethod === 'paypal') {
+            showToast('error', 'PayPal is visible in the demo but not configured yet. Use card checkout for now.');
+            return;
+        }
+
+        if (
+            !paymentForm.fullName.trim() ||
+            !paymentForm.email.trim() ||
+            !paymentForm.phone.trim() ||
+            !paymentForm.city.trim() ||
+            !paymentForm.country.trim() ||
+            !paymentForm.cardNumber.trim() ||
+            !paymentForm.expiry.trim() ||
+            !paymentForm.cvv.trim()
+        ) {
+            showToast('error', 'Complete all card payment fields first.');
+            return;
+        }
+
+        setPaymentBusyId(paymentModalRequest.id_request);
+        try {
+            const checkoutRes = await fetch(API_ENDPOINTS.services.paymentCheckout(paymentModalRequest.id_request), {
+                method: 'POST',
+                headers: { Authorization: `Bearer ${token}` },
+            });
+            const checkoutPayload = await checkoutRes.json();
+            if (!checkoutRes.ok || !checkoutPayload?.success) {
+                showToast('error', checkoutPayload?.error || 'Could not initialize payment.');
+                return;
+            }
+
+            const payRes = await fetch(API_ENDPOINTS.services.confirmPayment(paymentModalRequest.id_request), {
+                method: 'POST',
+                headers: { Authorization: `Bearer ${token}` },
+            });
+            const payPayload = await payRes.json();
+            if (!payRes.ok || !payPayload?.success) {
+                showToast('error', payPayload?.error || 'Could not confirm payment.');
+                return;
+            }
+
+            showToast('success', 'Payment secured. Your pro can now start the job.');
+            setPaymentModalRequest(null);
+            await fetchMyRequests(historyStatus, true);
+        } catch {
+            showToast('error', 'Network error processing payment.');
+        } finally {
+            setPaymentBusyId(null);
+        }
+    };
+
+    const submitClientCompletion = async (request: MyServiceRequest) => {
+        const token = getToken();
+        if (!token) {
+            showToast('error', 'Login required.');
+            return;
+        }
+
+        setCompletionBusyId(request.id_request);
+        try {
+            const res = await fetch(API_ENDPOINTS.services.confirmCompletion(request.id_request), {
+                method: 'POST',
+                headers: { Authorization: `Bearer ${token}` },
+            });
+            const payload = await res.json();
+            if (!res.ok || !payload?.success) {
+                showToast('error', payload?.error || 'Could not confirm completion.');
+                return;
+            }
+
+            showToast('success', 'Work completed. You can now leave a review.');
+            await fetchMyRequests(historyStatus, true);
+        } catch {
+            showToast('error', 'Network error confirming completion.');
+        } finally {
+            setCompletionBusyId(null);
+        }
+    };
+
+    const openWorkerProfileModal = async (request: MyServiceRequest) => {
+        if (!request.assigned_worker) {
+            showToast('info', 'This request does not have an assigned worker yet.');
+            return;
+        }
+
+        const token = getToken();
+        if (!token) {
+            showToast('error', 'Login required.');
+            return;
+        }
+
+        setWorkerProfileRequest(request);
+        setWorkerProfileData(null);
+        setWorkerProfileLoading(true);
+        setWorkerPortfolioIndex(0);
+
+        try {
+            const res = await fetch(API_ENDPOINTS.services.requestWorkerProfile(request.id_request), {
+                headers: { Authorization: `Bearer ${token}` },
+            });
+            const payload = await res.json();
+
+            if (!res.ok || !payload?.success || !payload?.worker) {
+                showToast('error', payload?.error || 'Could not load that worker profile.');
+                setWorkerProfileRequest(null);
+                return;
+            }
+
+            setWorkerProfileData({
+                worker: payload.worker,
+                portfolio: Array.isArray(payload.portfolio) ? payload.portfolio : [],
+            });
+            setWorkerPortfolioIndex(0);
+        } catch {
+            showToast('error', 'Network error loading worker profile.');
+            setWorkerProfileRequest(null);
+        } finally {
+            setWorkerProfileLoading(false);
+        }
+    };
+
+    const handleClientCompletion = async (request: MyServiceRequest) => {
+        requestConfirmRequestAction('complete', request);
+    };
+
+    const submitCancelRequest = async (request: MyServiceRequest) => {
         const token = getToken();
         if (!token) {
             showToast('error', 'Please sign in again.');
@@ -620,13 +2760,10 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
         }
 
         const requestStatus = String(request.status || '').toLowerCase();
-        if (!['pending', 'assigned'].includes(requestStatus)) {
+        if (!['pending', 'assigned', 'payment_pending'].includes(requestStatus)) {
             showToast('error', 'This request can no longer be cancelled.');
             return;
         }
-
-        const confirmed = window.confirm('Are you sure you want to cancel this request?');
-        if (!confirmed) return;
 
         setCancelBusyId(request.id_request);
         try {
@@ -653,6 +2790,16 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
         } finally {
             setCancelBusyId(null);
         }
+    };
+
+    const handleCancelRequest = async (request: MyServiceRequest) => {
+        const requestStatus = String(request.status || '').toLowerCase();
+        if (!['pending', 'assigned', 'payment_pending'].includes(requestStatus)) {
+            showToast('error', 'This request can no longer be cancelled.');
+            return;
+        }
+
+        requestConfirmRequestAction('cancel', request);
     };
 
     const fetchRequestChat = async (idRequest: number, silent = false) => {
@@ -732,9 +2879,7 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
         if (!activeRequest) return;
 
         const requestStatus = String(activeRequest.status || '').toLowerCase();
-        const canUseChat =
-            !!activeRequest.assigned_worker &&
-            ['assigned', 'in_progress', 'done'].includes(requestStatus);
+        const canUseChat = canUseRequestChat(activeRequest);
 
         if (!canUseChat) return;
 
@@ -765,12 +2910,33 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                 showToast('error', payload?.error || 'Could not submit rating.');
                 return;
             }
-            showToast('success', 'Rating submitted.');
+            showToast('success', 'Fixes submitted.');
+            setRatingModalRequest(null);
+            setFixesSuccessRequest(request);
         } catch {
             showToast('error', 'Network error submitting rating.');
         } finally {
             setRatingBusyId(null);
         }
+    };
+
+    const getRatingDraft = (requestId: number) =>
+        ratingForm[requestId] || { punctuality: 5, quality: 5, price_fairness: 5, comment: '' };
+
+    const updateRatingDraft = (
+        requestId: number,
+        patch: Partial<{ punctuality: number; quality: number; price_fairness: number; comment: string }>
+    ) => {
+        setRatingForm((prev) => ({
+            ...prev,
+            [requestId]: {
+                punctuality: prev[requestId]?.punctuality ?? 5,
+                quality: prev[requestId]?.quality ?? 5,
+                price_fairness: prev[requestId]?.price_fairness ?? 5,
+                comment: prev[requestId]?.comment ?? '',
+                ...patch,
+            },
+        }));
     };
 
     return (
@@ -783,23 +2949,33 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
             {/* Map View Background */}
             <div className="absolute inset-0 z-0 bg-gray-100">
                 <div ref={mapContainerRef} className="absolute inset-0 z-0" />
-                {!leafletReady && (
-                    <div className="absolute inset-0 flex items-center justify-center bg-white/70 backdrop-blur-sm z-[500]">
-                        <div className="rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm font-semibold text-gray-700 shadow flex items-center gap-3">
-                            <motion.div animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 1, ease: 'linear' }} className="w-4 h-4 border-2 border-bird-blue border-r-transparent rounded-full" />
-                            Loading map...
-                        </div>
-                    </div>
-                )}
-                <div className="absolute top-4 right-4 md:left-[520px] md:top-4 z-[400] rounded-xl bg-white/95 border border-gray-200 shadow-xl px-4 py-3 pointer-events-auto hidden sm:block">
+                {!leafletReady && <div className="absolute right-4 top-4 z-[500] h-2.5 w-2.5 rounded-full bg-bird-blue/40 animate-pulse" />}
+                {!activeTrackedRequest && (
+                    <div className="absolute top-4 right-4 md:left-[520px] md:top-4 z-[400] rounded-xl bg-white/95 border border-gray-200 shadow-xl px-4 py-3 pointer-events-auto hidden sm:block">
                     <p className="text-[11px] uppercase tracking-wider font-bold text-gray-500">Live Map</p>
                     <p className="text-sm font-bold text-gray-900">
-                        {currentCoords ? `Lat ${currentCoords.lat.toFixed(4)}, Lng ${currentCoords.lng.toFixed(4)}` : 'Detect location to center'}
+                        {currentCoords
+                            ? (data.location.trim() || `Lat ${currentCoords.lat.toFixed(4)}, Lng ${currentCoords.lng.toFixed(4)}`)
+                            : 'Detect location to center'}
                     </p>
                     <p className="text-xs text-bird-blue font-bold mt-1">
                         {nearbyWorkers.length} nearby pro(s) in {radiusKm} km
                     </p>
-                </div>
+                    </div>
+                )}
+                {activeTrackedRequest && (
+                    <div className="absolute inset-y-4 right-4 z-[420] hidden md:block md:left-[466px] lg:left-[516px]">
+                        <TrackerErrorBoundary>
+                            <Suspense fallback={<InlineTrackerFallback />}>
+                                <ClientLiveRequestTracker
+                                    key={`desktop-${activeTrackedRequest.id_request}`}
+                                    leafletReady={leafletReady}
+                                    request={activeTrackedRequest}
+                                />
+                            </Suspense>
+                        </TrackerErrorBoundary>
+                    </div>
+                )}
             </div>
 
             {/* Sidebar / Bottom Sheet */}
@@ -832,6 +3008,7 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                     </motion.button>
 
                     <div className="flex items-center gap-3">
+                        <NotificationCenter token={getToken()} variant="panel" />
                         <div className="text-right hidden sm:block">
                             <div className="text-[10px] text-gray-500 uppercase tracking-wider font-bold">Balance</div>
                             <div className="text-sm font-bold text-bird-orange">$120.50</div>
@@ -871,15 +3048,18 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                     Choose a service and we'll find the perfect pro
                                 </motion.p>
 
+                                {servicesLoading && (
+                                    <div className="mb-5 inline-flex items-center gap-2 rounded-full border border-bird-blue/15 bg-bird-blue/5 px-3 py-2 text-[11px] font-black uppercase tracking-[0.16em] text-bird-blue">
+                                        <span className="h-2 w-2 rounded-full bg-bird-blue animate-pulse" />
+                                        Loading services
+                                    </div>
+                                )}
+
                                 {/* Service Categories */}
                                 <div className="grid grid-cols-2 gap-4 mb-8">
-                                    {servicesLoading ? (
+                                    {services.length === 0 ? (
                                         <div className="col-span-2 text-center text-sm text-gray-500 font-semibold py-8">
-                                            Loading services...
-                                        </div>
-                                    ) : services.length === 0 ? (
-                                        <div className="col-span-2 text-center text-sm text-gray-500 font-semibold py-8">
-                                            No active services available.
+                                            {servicesLoading ? 'Loading active services...' : 'No active services available.'}
                                         </div>
                                     ) : services.map((cat, i) => (
                                         <motion.button
@@ -897,7 +3077,7 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                         >
                                             <div className={`w-14 h-14 rounded-xl bg-white border border-gray-200 flex items-center justify-center text-gray-600 ${getColorClass(['blue', 'yellow', 'orange', 'green'][i % 4])} group-hover:text-white transition-all mb-4 shadow-sm`}>
                                                 <span className="text-2xl">
-                                                    {cat.icon && cat.icon.length <= 2 ? cat.icon : '🧰'}
+                                                    {cat.icon && cat.icon.length <= 2 ? cat.icon : 'ðŸ§°'}
                                                 </span>
                                             </div>
                                             <h3 className="font-bold text-gray-900 text-lg mb-1 line-clamp-1">{cat.name}</h3>
@@ -915,32 +3095,82 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                     animate={{ opacity: 1, y: 0 }}
                                     transition={{ delay: 0.5 }}
                                 >
-                                    <h3 className="text-sm font-bold text-gray-500 uppercase tracking-wider mb-4">Quick Access</h3>
-                                    <div className="space-y-3">
-                                        {RECENT_LOCATIONS.map((loc, i) => (
-                                            <motion.button
-                                                key={loc.id}
-                                                initial={{ opacity: 0, x: -20 }}
-                                                animate={{ opacity: 1, x: 0 }}
-                                                transition={{ delay: 0.6 + i * 0.1 }}
-                                                whileHover={{ x: 5 }}
-                                                className="w-full flex items-center gap-4 p-4 rounded-xl bg-gray-50 border border-gray-200 hover:border-bird-blue hover:bg-bird-blue/5 transition-all text-left group"
+                                    <div className="mb-4 flex items-center justify-between gap-2">
+                                        <h3 className="text-sm font-bold text-gray-500 uppercase tracking-wider">Quick Access</h3>
+                                        {recentLocations.length > 0 && (
+                                            <button
+                                                type="button"
+                                                onClick={() => void clearRecentLocations()}
+                                                className="text-[11px] font-bold uppercase tracking-wide text-red-500 hover:text-red-600"
                                             >
-                                                <div className="w-12 h-12 rounded-xl bg-white border border-gray-200 flex items-center justify-center text-gray-600 group-hover:bg-bird-blue group-hover:text-white transition-all shrink-0">
-                                                    <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={loc.icon} />
-                                                    </svg>
-                                                </div>
-                                                <div className="flex-1 min-w-0">
-                                                    <div className="text-sm font-bold text-gray-900">{loc.name}</div>
-                                                    <div className="text-xs text-gray-500 truncate">{loc.address}</div>
-                                                </div>
-                                                <svg className="w-5 h-5 text-gray-400 group-hover:text-bird-blue transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                                                </svg>
-                                            </motion.button>
-                                        ))}
+                                                Clear recents
+                                            </button>
+                                        )}
                                     </div>
+                                    {quickAccessLocations.length === 0 ? (
+                                        <div className="rounded-xl border border-dashed border-gray-300 bg-gray-50 px-4 py-4 text-sm text-gray-500">
+                                            Save places like <span className="font-bold text-gray-700">Home</span> or <span className="font-bold text-gray-700">Work</span> after resolving a location.
+                                        </div>
+                                    ) : (
+                                        <div className="space-y-3">
+                                            {quickAccessLocations.map((loc, i) => {
+                                                const distanceLabel = currentCoords && !sameCoords(currentCoords, loc)
+                                                    ? formatDistanceLabel(distanceKmBetween(currentCoords, loc))
+                                                    : sameCoords(currentCoords, loc)
+                                                        ? 'Current place'
+                                                        : null;
+
+                                                return (
+                                                <motion.button
+                                                    key={`${loc.kind}-${loc.label}-${i}`}
+                                                    initial={{ opacity: 0, x: -20 }}
+                                                    animate={{ opacity: 1, x: 0 }}
+                                                    transition={{ delay: 0.6 + i * 0.1 }}
+                                                    whileHover={{ x: 5 }}
+                                                    onClick={() => handleUseSavedLocation(loc, 1)}
+                                                    className="w-full flex items-center gap-4 p-4 rounded-xl bg-gray-50 border border-gray-200 hover:border-bird-blue hover:bg-bird-blue/5 transition-all text-left group"
+                                                >
+                                                    <div className="relative w-20 h-20 rounded-2xl overflow-hidden border border-gray-200 bg-white shrink-0">
+                                                        <img
+                                                            src={getPreviewTileUrl(loc.lat, loc.lng)}
+                                                            alt={loc.title}
+                                                            className="w-full h-full object-cover"
+                                                        />
+                                                        <div className="absolute inset-0 bg-gradient-to-t from-black/30 via-transparent to-white/10" />
+                                                        <div className="absolute left-1.5 top-1.5 rounded-lg bg-white/90 px-1.5 py-1 text-gray-600 shadow-sm">
+                                                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={loc.icon} />
+                                                            </svg>
+                                                        </div>
+                                                        <div className="absolute left-1/2 top-1/2 h-3.5 w-3.5 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-white bg-bird-blue shadow" />
+                                                    </div>
+                                                    <div className="flex-1 min-w-0">
+                                                        <div className="flex items-start justify-between gap-2">
+                                                            <div>
+                                                                <div className="text-sm font-bold text-gray-900">{loc.title}</div>
+                                                                <div className="mt-1 text-xs text-gray-500 truncate">{loc.label}</div>
+                                                            </div>
+                                                        </div>
+                                                        <div className="mt-2 text-[11px] font-semibold text-bird-blue">
+                                                            {distanceLabel || `${loc.lat.toFixed(4)}, ${loc.lng.toFixed(4)}`}
+                                                        </div>
+                                                        <div className="mt-2 flex items-center justify-between gap-2">
+                                                            {renderSavedPlaceActions(loc, { nextStep: 1, compact: true })}
+                                                            {loc.last_used_at ? (
+                                                                <span className="text-[11px] font-medium text-gray-400">
+                                                                    Used {new Date(loc.last_used_at).toLocaleDateString()}
+                                                                </span>
+                                                            ) : null}
+                                                        </div>
+                                                    </div>
+                                                    <svg className="w-5 h-5 text-gray-400 group-hover:text-bird-blue transition-colors shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                                                    </svg>
+                                                </motion.button>
+                                                );
+                                            })}
+                                        </div>
+                                    )}
                                 </motion.div>
                             </motion.div>
                         )}
@@ -1001,23 +3231,201 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                     >
                                         <div className="flex items-center justify-between gap-2 mb-2">
                                             <label className="block text-sm font-bold text-gray-700">Where?</label>
-                                            <button
-                                                type="button"
-                                                onClick={detectCurrentLocation}
-                                                disabled={geoLoading}
-                                                className="text-xs font-bold px-3 py-1.5 rounded-lg border border-bird-blue/30 bg-bird-blue/10 text-bird-blue hover:bg-bird-blue/20 disabled:opacity-60"
-                                            >
-                                                {geoLoading ? 'Detecting...' : 'Detect my location'}
-                                            </button>
+                                            <div className="flex flex-wrap items-center justify-end gap-2">
+                                                <button
+                                                    type="button"
+                                                    onClick={openSaveLocationPanel}
+                                                    disabled={!currentCoords || resolvingLocation || geoLoading}
+                                                    className="text-xs font-bold px-3 py-1.5 rounded-lg border border-bird-blue/20 bg-bird-blue text-white hover:bg-bird-darkBlue disabled:opacity-60"
+                                                >
+                                                    Add location
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => void resolveLocationInput()}
+                                                    disabled={resolvingLocation || !data.location.trim()}
+                                                    className="text-xs font-bold px-3 py-1.5 rounded-lg border border-emerald-300 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 disabled:opacity-60"
+                                                >
+                                                    {resolvingLocation ? 'Resolving...' : 'Use typed address'}
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    onClick={detectCurrentLocation}
+                                                    disabled={geoLoading}
+                                                    className="text-xs font-bold px-3 py-1.5 rounded-lg border border-bird-blue/30 bg-bird-blue/10 text-bird-blue hover:bg-bird-blue/20 disabled:opacity-60"
+                                                >
+                                                    {geoLoading ? 'Detecting...' : 'Detect my location'}
+                                                </button>
+                                            </div>
                                         </div>
                                         <input
                                             type="text"
-                                            placeholder="Enter your address or use GPS"
+                                            placeholder="Ej: Residencial Santa Monica, Santa Tecla o 13.6841, -89.2872"
+                                            autoComplete="off"
                                             className="w-full bg-gray-50 border-2 border-gray-200 rounded-xl px-4 py-3 text-gray-900 focus:outline-none focus:border-bird-blue transition-all placeholder-gray-400"
                                             value={data.location}
-                                            onChange={(e) => setData({ ...data, location: e.target.value })}
+                                            onFocus={() => {
+                                                setLocationInputContext('main');
+                                                setShowLocationSuggestions(true);
+                                            }}
+                                            onBlur={() => window.setTimeout(() => setShowLocationSuggestions(false), 120)}
+                                            onKeyDown={handleLocationKeyDown}
+                                            onChange={(e) => handleLocationChange(e.target.value)}
                                         />
+                                        {locationInputContext === 'main' && renderLocationSuggestionsDropdown()}
+                                        <p className="mt-2 text-xs font-medium text-gray-500">
+                                            Write a colonia, residencial, mall, or landmark in El Salvador and click <span className="font-bold text-emerald-700">Use typed address</span>,
+                                            or paste coordinates like <span className="font-bold text-gray-700">13.6841, -89.2872</span>.
+                                        </p>
+                                        <p className="mt-1 text-[11px] font-semibold text-gray-400">
+                                            Keyboard: use â†‘ â†“ to move through suggestions and Enter to confirm.
+                                        </p>
+                                        {currentCoords && (
+                                            <p className="mt-2 text-xs font-semibold text-emerald-700">
+                                                Location ready: {currentCoords.lat.toFixed(4)}, {currentCoords.lng.toFixed(4)}
+                                            </p>
+                                        )}
+                                        {showSaveLocationPanel && currentCoords && (
+                                            <div className="mt-3 rounded-2xl border border-bird-blue/20 bg-bird-blue/5 p-4">
+                                                <div className="flex items-center justify-between gap-3">
+                                                    <div>
+                                                        <p className="text-sm font-bold text-gray-900">Save this location</p>
+                                                        <p className="mt-1 text-xs text-gray-500">
+                                                            Register it once and reuse it in future requests.
+                                                        </p>
+                                                    </div>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setShowSaveLocationPanel(false)}
+                                                        className="rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-[11px] font-bold text-gray-500 hover:text-gray-700"
+                                                    >
+                                                        Cancel
+                                                    </button>
+                                                </div>
+                                                <div className="mt-4">
+                                                    <label className="mb-1 block text-[11px] font-bold uppercase tracking-wide text-gray-500">
+                                                        Search address
+                                                    </label>
+                                                    <input
+                                                        type="text"
+                                                        placeholder="Ej: Jardines de Guadalupe, Antiguo Cuscatlan"
+                                                        autoComplete="off"
+                                                        value={data.location}
+                                                        onFocus={() => {
+                                                            setLocationInputContext('save-panel');
+                                                            setShowLocationSuggestions(true);
+                                                        }}
+                                                        onBlur={() => window.setTimeout(() => setShowLocationSuggestions(false), 120)}
+                                                        onKeyDown={handleLocationKeyDown}
+                                                        onChange={(e) => handleLocationChange(e.target.value)}
+                                                        className="w-full rounded-xl border-2 border-gray-200 bg-white px-4 py-3 text-sm text-gray-900 focus:border-bird-blue focus:outline-none"
+                                                    />
+                                                    {locationInputContext === 'save-panel' && renderLocationSuggestionsDropdown()}
+                                                    <p className="mt-2 text-[11px] font-semibold text-gray-400">
+                                                        Use the same El Salvador autocomplete here to fine-tune the pin before saving.
+                                                    </p>
+                                                </div>
+                                                <div className="mt-4 grid grid-cols-3 gap-2">
+                                                    {(['home', 'work', 'favorite'] as const).map((kind) => (
+                                                        <button
+                                                            key={kind}
+                                                            type="button"
+                                                            onClick={() => {
+                                                                setSaveLocationKind(kind);
+                                                                setSaveLocationTitle(
+                                                                    kind === 'favorite'
+                                                                        ? compactLocationTitle(data.location.trim())
+                                                                        : kind === 'home'
+                                                                            ? 'Home'
+                                                                            : 'Work'
+                                                                );
+                                                            }}
+                                                            className={`rounded-xl border px-3 py-2 text-xs font-bold transition ${
+                                                                saveLocationKind === kind
+                                                                    ? 'border-bird-blue bg-white text-bird-blue shadow-sm'
+                                                                    : 'border-gray-200 bg-white text-gray-600 hover:border-bird-blue/40'
+                                                            }`}
+                                                        >
+                                                            <span className="inline-flex items-center gap-2">
+                                                                {renderLocationBadge(kind, 'sm')}
+                                                                {kind === 'home' ? 'Home' : kind === 'work' ? 'Work' : 'Favorite'}
+                                                            </span>
+                                                        </button>
+                                                    ))}
+                                                </div>
+                                                <div className="mt-3">
+                                                    <label className="mb-1 block text-[11px] font-bold uppercase tracking-wide text-gray-500">
+                                                        {saveLocationKind === 'favorite' ? 'Location name' : 'Saved label'}
+                                                    </label>
+                                                    <input
+                                                        type="text"
+                                                        value={saveLocationKind === 'favorite' ? saveLocationTitle : saveLocationKind === 'home' ? 'Home' : 'Work'}
+                                                        onChange={(e) => setSaveLocationTitle(e.target.value)}
+                                                        disabled={saveLocationKind !== 'favorite'}
+                                                        className="w-full rounded-xl border-2 border-gray-200 bg-white px-4 py-3 text-sm text-gray-900 focus:border-bird-blue focus:outline-none disabled:bg-gray-100 disabled:text-gray-400"
+                                                    />
+                                                </div>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => void handleSaveLocationFromPanel()}
+                                                    className="mt-4 w-full rounded-xl bg-bird-blue px-4 py-3 text-sm font-bold text-white shadow-sm hover:bg-bird-darkBlue"
+                                                >
+                                                    Save location
+                                                </button>
+                                            </div>
+                                        )}
                                         {geoError && <p className="text-xs text-red-600 mt-2 font-semibold">{geoError}</p>}
+                                        <div className="mt-4 rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">
+                                            <div className="flex items-center justify-between gap-3">
+                                                <div>
+                                                    <p className="text-sm font-bold uppercase tracking-wider text-gray-500">Saved places</p>
+                                                    <p className="mt-1 text-xs text-gray-500">
+                                                        Open your saved locations in a cleaner view.
+                                                    </p>
+                                                </div>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setShowSavedPlacesModal(true)}
+                                                    className="rounded-xl border border-gray-200 bg-white px-3 py-2 text-xs font-bold text-bird-blue hover:border-bird-blue/40 hover:bg-bird-blue/5"
+                                                >
+                                                    <span className="inline-flex items-center gap-2">
+                                                        {renderLocationBadge('current', 'sm')}
+                                                        Open saved places
+                                                    </span>
+                                                </button>
+                                            </div>
+                                            {quickAccessLocations.length === 0 ? (
+                                                <div className="mt-4 rounded-xl border border-dashed border-gray-300 bg-gray-50 px-4 py-4 text-sm text-gray-500">
+                                                    Resolve a location first, then use <span className="font-bold text-gray-700">Add location</span> to save it here.
+                                                </div>
+                                            ) : (
+                                                <div className="mt-4 flex flex-wrap gap-2">
+                                                    {savedPlacesPreview.map((location, index) => {
+                                                        const visual = getLocationVisual(location.kind);
+                                                        return (
+                                                            <button
+                                                                key={`${location.kind}-preview-${index}-${location.label}`}
+                                                                type="button"
+                                                                onClick={() => useSavedLocation(location)}
+                                                                className={`inline-flex items-center gap-2 rounded-full border px-3 py-2 text-xs font-bold transition hover:shadow-sm ${visual.chipClass}`}
+                                                            >
+                                                                {renderLocationBadge(location.kind, 'sm')}
+                                                                {location.title}
+                                                            </button>
+                                                        );
+                                                    })}
+                                                    {quickAccessLocations.length > savedPlacesPreview.length && (
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => setShowSavedPlacesModal(true)}
+                                                            className="inline-flex items-center rounded-full border border-dashed border-gray-300 px-3 py-2 text-xs font-bold text-gray-500 hover:border-bird-blue hover:text-bird-blue"
+                                                        >
+                                                            +{quickAccessLocations.length - savedPlacesPreview.length} more
+                                                        </button>
+                                                    )}
+                                                </div>
+                                            )}
+                                        </div>
 
                                         <div className="mt-3">
                                             <label className="block text-xs font-bold uppercase tracking-wider text-gray-500 mb-1">
@@ -1143,7 +3551,7 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                         await fetchNearbyPros();
                                         setTimeout(() => setIsSearching(false), 700);
                                     }}
-                                    disabled={!data.price || !data.location}
+                                    disabled={!data.price || !data.location.trim() || resolvingLocation}
                                     className="w-full mt-6 py-4 rounded-xl bg-gradient-to-r from-bird-blue to-bird-lightBlue text-white font-bold text-lg shadow-xl shadow-bird-blue/30 hover:shadow-2xl transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 group"
                                 >
                                     <span>Find a Pro</span>
@@ -1166,7 +3574,7 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                     whileHover={{ scale: 1.01 }}
                                     whileTap={{ scale: 0.98 }}
                                     onClick={submitServiceRequest}
-                                    disabled={isSubmittingRequest || !isAuthenticated() || !data.price || !data.location || problemFiles.length === 0}
+                                    disabled={isSubmittingRequest || !isAuthenticated() || !data.price || !data.location.trim() || problemFiles.length === 0 || resolvingLocation}
                                     className="w-full mt-3 py-3.5 rounded-xl bg-gradient-to-r from-emerald-500 to-green-500 text-white font-bold text-base shadow-lg shadow-emerald-500/30 hover:shadow-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                                 >
                                     {!isAuthenticated() ? 'Login Required' : isSubmittingRequest ? 'Submitting...' : 'Submit Request'}
@@ -1193,9 +3601,9 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                     </div>
                                 )}
 
-                                <div className="mt-5 rounded-2xl border border-gray-200 bg-white p-4">
-                                    <div className="flex items-center justify-between gap-2 mb-3">
-                                        <p className="text-xs uppercase tracking-wider font-bold text-gray-500">My Request History</p>
+                                    <div className="mt-5 rounded-2xl border border-gray-200 bg-white p-4">
+                                        <div className="flex items-center justify-between gap-2 mb-3">
+                                            <p className="text-xs uppercase tracking-wider font-bold text-gray-500">My Request History</p>
                                         <select
                                             value={historyStatus}
                                             onChange={(e) => setHistoryStatus(e.target.value as any)}
@@ -1203,27 +3611,94 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                         >
                                             <option value="all">All</option>
                                             <option value="pending">Pending</option>
+                                            <option value="payment_pending">Payment Pending</option>
+                                            <option value="paid">Paid</option>
                                             <option value="assigned">Assigned</option>
                                             <option value="in_progress">In Progress</option>
+                                            <option value="awaiting_confirmation">Awaiting Confirmation</option>
                                             <option value="done">Done</option>
                                             <option value="cancelled">Cancelled</option>
                                         </select>
-                                    </div>
+                                            </div>
 
-                                    {historyLoading ? (
-                                        <div className="text-sm text-gray-500">Loading history...</div>
-                                    ) : myRequests.length === 0 ? (
-                                        <div className="text-sm text-gray-500">No requests yet.</div>
-                                    ) : (
-                                        <div className="space-y-3 max-h-72 overflow-y-auto pr-1">
+                                            {activeTrackedRequest && (
+                                                <div className="mb-4 rounded-2xl border border-bird-blue/15 bg-gradient-to-r from-sky-50 via-white to-amber-50 p-4 shadow-sm">
+                                                    <div className="flex items-start justify-between gap-3">
+                                                        <div className="min-w-0">
+                                                            <p className="text-[11px] font-black uppercase tracking-[0.18em] text-bird-blue">Live service active</p>
+                                                            <p className="mt-2 text-sm font-black text-slate-900 truncate">
+                                                                {activeTrackedRequest.service_name}
+                                                            </p>
+                                                            <p className="mt-1 text-xs text-slate-500 line-clamp-2">
+                                                                {activeTrackedRequest.location_text}
+                                                            </p>
+                                                        </div>
+                                                        <span className={`shrink-0 rounded-full border px-3 py-1 text-[10px] font-black uppercase tracking-[0.16em] ${statusBadgeClasses(activeTrackedRequest.status)}`}>
+                                                            {statusLabel(activeTrackedRequest.status, activeTrackedRequest)}
+                                                        </span>
+                                                    </div>
+                                                    <div className="mt-3 grid grid-cols-3 gap-2">
+                                                        <div className="rounded-xl border border-sky-100 bg-sky-50 px-3 py-2">
+                                                            <p className="text-[10px] font-black uppercase tracking-[0.16em] text-sky-700">ETA</p>
+                                                            <p className="mt-1 text-sm font-black text-sky-950">
+                                                                {activeTrackedRequest.status === 'done' ? '0 min' : 'Live'}
+                                                            </p>
+                                                        </div>
+                                                        <div className="rounded-xl border border-emerald-100 bg-emerald-50 px-3 py-2">
+                                                            <p className="text-[10px] font-black uppercase tracking-[0.16em] text-emerald-700">Worker</p>
+                                                            <p className="mt-1 truncate text-sm font-black text-emerald-950">
+                                                                {activeTrackedRequest.assigned_worker?.name || 'Assigned'}
+                                                            </p>
+                                                        </div>
+                                                        <div className="rounded-xl border border-amber-100 bg-amber-50 px-3 py-2">
+                                                            <p className="text-[10px] font-black uppercase tracking-[0.16em] text-amber-700">Track</p>
+                                                            <p className="mt-1 text-sm font-black text-amber-950">On map</p>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            )}
+
+                                            {activeTrackedRequest && (
+                                                <div className="mb-4 md:hidden">
+                                                    <TrackerErrorBoundary>
+                                                        <Suspense fallback={<InlineTrackerFallback />}>
+                                                            <ClientLiveRequestTracker
+                                                                key={`mobile-${activeTrackedRequest.id_request}`}
+                                                                leafletReady={leafletReady}
+                                                                request={activeTrackedRequest}
+                                                            />
+                                                        </Suspense>
+                                                    </TrackerErrorBoundary>
+                                                </div>
+                                            )}
+
+                                            {historyLoading && myRequests.length > 0 && (
+                                                <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-bird-blue/15 bg-bird-blue/5 px-3 py-2 text-[11px] font-black uppercase tracking-[0.16em] text-bird-blue">
+                                                    <span className="h-2 w-2 rounded-full bg-bird-blue animate-pulse" />
+                                                    Refreshing requests
+                                                </div>
+                                            )}
+
+                                            {historyLoading && myRequests.length === 0 ? (
+                                                <div className="inline-flex items-center gap-2 rounded-full border border-bird-blue/15 bg-bird-blue/5 px-3 py-2 text-[11px] font-black uppercase tracking-[0.16em] text-bird-blue">
+                                                    <span className="h-2 w-2 rounded-full bg-bird-blue animate-pulse" />
+                                                    Loading requests
+                                                </div>
+                                            ) : !historyLoading && myRequests.length === 0 ? (
+                                                <div className="text-sm text-gray-500">No requests yet.</div>
+                                            ) : (
+                                                <div className="space-y-3 max-h-72 overflow-y-auto pr-1">
                                             {myRequests.map((request) => {
-                                                const progress = getTimelineProgress(request);
-                                                const timelineSteps = ['Pending', 'Worker matched', 'Counter offer', 'Accepted', 'On the way', 'In progress', 'Done'];
                                                 const pendingCounter = hasPendingCounter(request);
+                                                const pendingWorkerApproval = hasPendingWorkerApproval(request);
                                                 const requestStatus = String(request.status || '').toLowerCase();
-                                                const canUseChat = ['assigned', 'in_progress', 'done'].includes(requestStatus) && !!request.assigned_worker;
+                                                const canUseChat = canUseRequestChat(request);
                                                 const canRate = requestStatus === 'done';
-                                                const canCancel = ['pending', 'assigned'].includes(requestStatus);
+                                                const canCancel = ['pending', 'payment_pending', 'assigned'].includes(requestStatus);
+                                                const canPayNow = requestStatus === 'payment_pending';
+                                                const canConfirmCompletion = requestStatus === 'awaiting_confirmation';
+                                                const paymentStatus = String(request.payment?.status || '').toLowerCase();
+                                                const timelineState = getClientTimelineState(request);
 
                                                 return (
                                                     <div key={request.id_request} className="rounded-2xl border border-gray-200 bg-gradient-to-br from-white to-gray-50 p-3.5 shadow-sm">
@@ -1234,7 +3709,7 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                                             </div>
                                                             <div className="flex flex-col items-end gap-1 shrink-0">
                                                                 <span className={`text-[11px] font-bold px-2 py-1 rounded-full border ${statusBadgeClasses(request.status)}`}>
-                                                                    {statusLabel(request.status)}
+                                                                    {statusLabel(request.status, request)}
                                                                 </span>
                                                                 {counterBadge(request)}
                                                             </div>
@@ -1244,7 +3719,109 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                                             <span>${Number(request.budget || 0).toFixed(2)}</span>
                                                             <span>{new Date(request.created_at).toLocaleString()}</span>
                                                             {request.assigned_worker?.name && <span>Worker: {request.assigned_worker.name}</span>}
+                                                            {request.payment?.checkout_reference && <span>Ref: {request.payment.checkout_reference}</span>}
                                                         </div>
+
+                                                        {request.assigned_worker && (
+                                                            <div className="mt-3 rounded-2xl border border-bird-blue/15 bg-gradient-to-r from-sky-50 via-white to-amber-50 p-3">
+                                                                <div className="flex items-start justify-between gap-3">
+                                                                    <div className="flex min-w-0 items-start gap-3">
+                                                                        {request.assigned_worker.profile_image_url ? (
+                                                                            <img
+                                                                                src={request.assigned_worker.profile_image_url}
+                                                                                alt={request.assigned_worker.name}
+                                                                                className="h-12 w-12 rounded-2xl object-cover ring-2 ring-white shadow-sm"
+                                                                            />
+                                                                        ) : (
+                                                                            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-bird-blue text-sm font-black text-white shadow-sm">
+                                                                                {getInitials(request.assigned_worker.name)}
+                                                                            </div>
+                                                                        )}
+                                                                        <div className="min-w-0">
+                                                                            <p className="text-[10px] font-black uppercase tracking-[0.18em] text-bird-blue">Assigned pro</p>
+                                                                            <p className="mt-1 truncate text-sm font-black text-slate-900">{request.assigned_worker.name}</p>
+                                                                            <p className="mt-1 truncate text-[11px] font-semibold text-slate-600">
+                                                                                {request.assigned_worker.phone_number || 'Phone visible in profile'}
+                                                                            </p>
+                                                                            {request.assigned_worker.bio && (
+                                                                                <p className="mt-1 line-clamp-2 text-[11px] text-slate-500">
+                                                                                    {request.assigned_worker.bio}
+                                                                                </p>
+                                                                            )}
+                                                                        </div>
+                                                                    </div>
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={() => void openWorkerProfileModal(request)}
+                                                                        className="shrink-0 rounded-xl border border-bird-blue/20 bg-white px-3 py-2 text-[11px] font-black text-bird-blue shadow-sm transition hover:border-bird-blue hover:bg-bird-blue hover:text-white"
+                                                                    >
+                                                                        View pro
+                                                                    </button>
+                                                                </div>
+
+                                                                {pendingWorkerApproval && (
+                                                                    <div className="mt-3 rounded-2xl border border-bird-blue/15 bg-white/90 p-3">
+                                                                        <p className="text-[11px] font-black uppercase tracking-[0.18em] text-bird-blue">Approve this pro</p>
+                                                                        <p className="mt-1 text-xs text-slate-600">
+                                                                            Review the worker profile and portfolio first. If you approve this pro, the request moves to payment and the worker can get ready to head over.
+                                                                        </p>
+                                                                        <div className="mt-3 grid grid-cols-2 gap-2">
+                                                                            <button
+                                                                                type="button"
+                                                                                disabled={workerApprovalBusyId === request.id_request}
+                                                                                onClick={() => handleWorkerApprovalDecision(request, 'decline')}
+                                                                                className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-[11px] font-black text-red-600 transition hover:bg-red-100 disabled:opacity-50"
+                                                                            >
+                                                                                {workerApprovalBusyId === request.id_request ? 'Saving...' : 'Decline worker'}
+                                                                            </button>
+                                                                            <button
+                                                                                type="button"
+                                                                                disabled={workerApprovalBusyId === request.id_request}
+                                                                                onClick={() => handleWorkerApprovalDecision(request, 'accept')}
+                                                                                className="rounded-xl bg-bird-blue px-3 py-2 text-[11px] font-black text-white shadow-sm transition hover:bg-bird-darkBlue disabled:opacity-50"
+                                                                            >
+                                                                                {workerApprovalBusyId === request.id_request ? 'Saving...' : 'Accept worker'}
+                                                                            </button>
+                                                                        </div>
+                                                                    </div>
+                                                                )}
+                                                            </div>
+                                                        )}
+
+                                                        {(timelineState.workerAccepted || timelineState.paymentSecured || timelineState.onTheWay || timelineState.workInProgress || timelineState.completed) && (
+                                                            <div className="mt-3 flex flex-wrap gap-2">
+                                                                {timelineState.workerAccepted && (
+                                                                    <span className="rounded-full border border-sky-200 bg-sky-50 px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.14em] text-sky-700">
+                                                                        Worker accepted
+                                                                    </span>
+                                                                )}
+                                                                {timelineState.paymentSecured && (
+                                                                    <span className="rounded-full border border-cyan-200 bg-cyan-50 px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.14em] text-cyan-700">
+                                                                        Payment secured
+                                                                    </span>
+                                                                )}
+                                                                {timelineState.onTheWay && requestStatus === 'paid' && (
+                                                                    <span className="rounded-full border border-blue-200 bg-blue-50 px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.14em] text-blue-700">
+                                                                        On the way
+                                                                    </span>
+                                                                )}
+                                                                {timelineState.arrived && requestStatus !== 'done' && (
+                                                                    <span className="rounded-full border border-violet-200 bg-violet-50 px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.14em] text-violet-700">
+                                                                        Arrived
+                                                                    </span>
+                                                                )}
+                                                                {timelineState.workInProgress && requestStatus !== 'done' && (
+                                                                    <span className="rounded-full border border-indigo-200 bg-indigo-50 px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.14em] text-indigo-700">
+                                                                        Work in progress
+                                                                    </span>
+                                                                )}
+                                                                {timelineState.completed && (
+                                                                    <span className="rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.14em] text-emerald-700">
+                                                                        Completed
+                                                                    </span>
+                                                                )}
+                                                            </div>
+                                                        )}
 
                                                         {canCancel && (
                                                             <div className="mt-3 flex justify-end">
@@ -1256,6 +3833,49 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                                                 >
                                                                     {cancelBusyId === request.id_request ? 'Cancelling...' : 'Cancel request'}
                                                                 </button>
+                                                            </div>
+                                                        )}
+
+                                                        {(canPayNow || request.payment) && (
+                                                            <div className="mt-3 rounded-xl border border-cyan-200 bg-cyan-50/70 p-3">
+                                                                <div className="flex items-start justify-between gap-2">
+                                                                    <div>
+                                                                        <p className="text-[11px] uppercase tracking-wider font-bold text-cyan-700">Payment</p>
+                                                                        <p className="mt-1 text-sm font-black text-cyan-900">
+                                                                            {request.payment?.amount != null ? `$${Number(request.payment.amount).toFixed(2)}` : `$${Number(request.final_budget ?? request.budget ?? 0).toFixed(2)}`}
+                                                                        </p>
+                                                                        <p className="text-[11px] text-cyan-900/80 mt-1">
+                                                                            {paymentStatus === 'released'
+                                                                                ? 'Funds released to the worker.'
+                                                                                : paymentStatus === 'paid'
+                                                                                    ? 'Funds secured. The worker can start now.'
+                                                                                    : canPayNow
+                                                                                        ? 'Secure the funds so your worker can begin.'
+                                                                                        : 'Checkout is ready for this request.'}
+                                                                        </p>
+                                                                    </div>
+                                                                    {request.payment && (
+                                                                        <span className={`text-[10px] font-bold px-2 py-1 rounded-full border ${
+                                                                            paymentStatus === 'released'
+                                                                                ? 'bg-emerald-100 text-emerald-700 border-emerald-200'
+                                                                                : paymentStatus === 'paid'
+                                                                                    ? 'bg-blue-100 text-blue-700 border-blue-200'
+                                                                                    : 'bg-white text-cyan-700 border-cyan-200'
+                                                                        }`}>
+                                                                            {paymentStatus || 'pending'}
+                                                                        </span>
+                                                                    )}
+                                                                </div>
+                                                                {canPayNow && (
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={() => handleSecurePayment(request)}
+                                                                        disabled={paymentBusyId === request.id_request}
+                                                                        className="mt-3 w-full py-2 rounded-lg bg-cyan-600 text-white text-xs font-bold hover:bg-cyan-700 disabled:opacity-50"
+                                                                    >
+                                                                        {paymentBusyId === request.id_request ? 'Processing Payment...' : 'Secure Payment'}
+                                                                    </button>
+                                                                )}
                                                             </div>
                                                         )}
 
@@ -1278,15 +3898,29 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                                             </div>
                                                         </div>
 
-                                                        <div className="mt-3 rounded-xl border border-gray-200 bg-white p-2.5">
-                                                            <div className="flex items-center justify-between gap-1">
-                                                                {timelineSteps.map((step, idx) => {
-                                                                    const done = idx <= progress;
+                                                        <div className="mt-3 rounded-2xl border border-slate-200 bg-white p-3">
+                                                            <div className="mb-2 flex items-center justify-between">
+                                                                <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">Service timeline</p>
+                                                                <span className="text-[10px] font-semibold text-slate-400">
+                                                                    {requestStatus === 'pending' ? 'Waiting for a worker match' : 'Live progress'}
+                                                                </span>
+                                                            </div>
+                                                            <div className="grid grid-cols-3 gap-x-2 gap-y-3 sm:grid-cols-6">
+                                                                {timelineSteps.map((step) => {
+                                                                    const done = timelineState[step.key];
                                                                     return (
-                                                                        <div key={`${request.id_request}-${step}`} className="flex-1 flex flex-col items-center text-center">
-                                                                            <span className={`w-2.5 h-2.5 rounded-full ${done ? 'bg-bird-blue' : 'bg-gray-300'}`} />
-                                                                            <span className={`mt-1 text-[9px] font-bold leading-tight ${done ? 'text-gray-700' : 'text-gray-400'}`}>
-                                                                                {step}
+                                                                        <div key={`${request.id_request}-${step.key}`} className="flex flex-col items-center text-center">
+                                                                            <span className={`flex h-8 w-8 items-center justify-center rounded-full border text-[11px] font-black ${
+                                                                                done
+                                                                                    ? 'border-bird-blue bg-bird-blue text-white shadow-[0_10px_18px_rgba(37,99,235,0.2)]'
+                                                                                    : 'border-slate-200 bg-slate-100 text-slate-400'
+                                                                            }`}>
+                                                                                {done ? 'âœ“' : 'â€¢'}
+                                                                            </span>
+                                                                            <span className={`mt-1 text-[10px] font-bold leading-tight ${
+                                                                                done ? 'text-slate-700' : 'text-slate-400'
+                                                                            }`}>
+                                                                                {step.label}
                                                                             </span>
                                                                         </div>
                                                                     );
@@ -1325,6 +3959,23 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                                             </div>
                                                         )}
 
+                                                        {canConfirmCompletion && (
+                                                            <div className="mt-3 rounded-xl border border-violet-200 bg-violet-50/70 p-3">
+                                                                <p className="text-[11px] uppercase tracking-wider font-bold text-violet-700">Finish service</p>
+                                                                <p className="mt-1 text-xs text-violet-900/80">
+                                                                    The worker marked the job as done. Confirm it to release the payment and unlock the review.
+                                                                </p>
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => handleClientCompletion(request)}
+                                                                    disabled={completionBusyId === request.id_request}
+                                                                    className="mt-3 w-full py-2 rounded-lg bg-violet-600 text-white text-xs font-bold hover:bg-violet-700 disabled:opacity-50"
+                                                                >
+                                                                    {completionBusyId === request.id_request ? 'Confirming...' : 'Confirm Completion'}
+                                                                </button>
+                                                            </div>
+                                                        )}
+
                                                         <div className="mt-3 rounded-xl border border-gray-200 bg-white p-3">
                                                             <div className="flex items-center justify-between">
                                                                 <p className="text-[11px] uppercase tracking-wider font-bold text-gray-500">Chat</p>
@@ -1348,7 +3999,7 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                                             </div>
                                                             {!canUseChat && (
                                                                 <p className="mt-2 text-[11px] font-semibold text-amber-700">
-                                                                    Chat will unlock when a worker accepts this request.
+                                                                    Chat unlocks after you approve the worker.
                                                                 </p>
                                                             )}
 
@@ -1419,66 +4070,39 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                                             )}
                                                         </div>
 
-                                                        <div className="mt-3 rounded-xl border border-gray-200 bg-white p-3">
-                                                            <p className="text-[11px] uppercase tracking-wider font-bold text-gray-500">Reputation</p>
-                                                            {!canRate && (
-                                                                <p className="mt-2 text-[11px] font-semibold text-amber-700">
-                                                                    Rating unlocks when the job is marked as done.
-                                                                </p>
-                                                            )}
-                                                            <div className="mt-2 grid grid-cols-3 gap-2">
-                                                                {(['punctuality', 'quality', 'price_fairness'] as const).map((key) => (
-                                                                    <label key={key} className="text-[10px] text-gray-600">
-                                                                        <span className="block mb-1 font-bold capitalize">{key.replace('_', ' ')}</span>
-                                                                        <select
-                                                                            value={ratingForm[request.id_request]?.[key] ?? 5}
-                                                                            onChange={(e) =>
-                                                                                setRatingForm((prev) => ({
-                                                                                    ...prev,
-                                                                                    [request.id_request]: {
-                                                                                        punctuality: prev[request.id_request]?.punctuality ?? 5,
-                                                                                        quality: prev[request.id_request]?.quality ?? 5,
-                                                                                        price_fairness: prev[request.id_request]?.price_fairness ?? 5,
-                                                                                        comment: prev[request.id_request]?.comment ?? '',
-                                                                                        [key]: Number(e.target.value),
-                                                                                    },
-                                                                                }))
-                                                                            }
-                                                                            disabled={!canRate}
-                                                                            className="w-full rounded-md border border-gray-200 px-1.5 py-1 text-[10px]"
-                                                                        >
-                                                                            {[1, 2, 3, 4, 5].map((n) => (
-                                                                                <option key={n} value={n}>{n}</option>
-                                                                            ))}
-                                                                        </select>
-                                                                    </label>
+                                                        <div className="mt-3 rounded-2xl border border-bird-yellow/25 bg-gradient-to-r from-amber-50 via-white to-sky-50 p-3">
+                                                            <div className="flex items-center justify-between gap-3">
+                                                                <div>
+                                                                    <p className="text-[11px] font-black uppercase tracking-[0.18em] text-bird-orange">Fixes</p>
+                                                                    <p className="mt-1 text-xs font-semibold text-slate-600">
+                                                                        {canRate
+                                                                            ? 'The job is complete. You can now leave your star review.'
+                                                                            : 'Fixes unlock after the completed job is confirmed.'}
+                                                                    </p>
+                                                                </div>
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => canRate && setRatingModalRequest(request)}
+                                                                    disabled={!canRate}
+                                                                    className={`rounded-xl px-3 py-2 text-[11px] font-black transition ${
+                                                                        canRate
+                                                                            ? 'border border-bird-blue/20 bg-white text-bird-blue shadow-sm hover:-translate-y-0.5 hover:border-bird-blue hover:bg-bird-blue hover:text-white'
+                                                                            : 'border border-slate-200 bg-slate-100 text-slate-400 cursor-not-allowed'
+                                                                    }`}
+                                                                >
+                                                                    {canRate ? 'Open Fixes' : 'Locked'}
+                                                                </button>
+                                                            </div>
+                                                            <div className="mt-3 flex items-center gap-1.5">
+                                                                {Array.from({ length: 5 }).map((_, index) => (
+                                                                    <span
+                                                                        key={`fix-preview-${request.id_request}-${index}`}
+                                                                        className={`text-lg ${canRate ? 'text-bird-yellow' : 'text-slate-300'}`}
+                                                                    >
+                                                                        {'★'}
+                                                                    </span>
                                                                 ))}
                                                             </div>
-                                                            <textarea
-                                                                value={ratingForm[request.id_request]?.comment ?? ''}
-                                                                onChange={(e) =>
-                                                                    setRatingForm((prev) => ({
-                                                                        ...prev,
-                                                                        [request.id_request]: {
-                                                                            punctuality: prev[request.id_request]?.punctuality ?? 5,
-                                                                            quality: prev[request.id_request]?.quality ?? 5,
-                                                                            price_fairness: prev[request.id_request]?.price_fairness ?? 5,
-                                                                            comment: e.target.value,
-                                                                        },
-                                                                    }))
-                                                                }
-                                                                placeholder="Comment..."
-                                                                disabled={!canRate}
-                                                                className="mt-2 w-full rounded-lg border border-gray-200 px-2.5 py-2 text-xs"
-                                                            />
-                                                            <button
-                                                                type="button"
-                                                                onClick={() => submitRating(request)}
-                                                                disabled={!canRate || ratingBusyId === request.id_request}
-                                                                className="mt-2 w-full py-2 rounded-lg bg-slate-800 text-white text-xs font-bold disabled:opacity-50"
-                                                            >
-                                                                Submit Rating
-                                                            </button>
                                                         </div>
                                                     </div>
                                                 );
@@ -1486,6 +4110,1450 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                         </div>
                                     )}
                                 </div>
+                            </motion.div>
+                        )}
+                    </AnimatePresence>
+
+                    <AnimatePresence>
+                        {ratingModalRequest && (
+                            <motion.div
+                                initial={{ opacity: 0 }}
+                                animate={{ opacity: 1 }}
+                                exit={{ opacity: 0 }}
+                                className="fixed inset-0 z-[80] bg-slate-950/35 backdrop-blur-[3px] flex items-center justify-center p-4"
+                            >
+                                <motion.div
+                                    initial={{ opacity: 0, scale: 0.96, y: 12 }}
+                                    animate={{ opacity: 1, scale: 1, y: 0 }}
+                                    exit={{ opacity: 0, scale: 0.96, y: 12 }}
+                                    transition={{ type: 'spring', damping: 24, stiffness: 260 }}
+                                    className="w-full max-w-2xl overflow-hidden rounded-[30px] border border-gray-200 bg-white shadow-2xl"
+                                >
+                                    <div className="bg-gradient-to-r from-bird-blue via-sky-500 to-bird-yellow px-6 py-5 text-white">
+                                        <div className="flex items-start justify-between gap-4">
+                                            <div>
+                                                <p className="text-[11px] font-black uppercase tracking-[0.2em] text-white/80">Fixes review</p>
+                                                <h3 className="mt-1 text-2xl font-black">Rate this completed job</h3>
+                                                <p className="mt-2 text-sm text-white/85">
+                                                    Share how the pro did after finishing <span className="font-black">{ratingModalRequest.service_name}</span>.
+                                                </p>
+                                            </div>
+                                            <button
+                                                type="button"
+                                                onClick={() => setRatingModalRequest(null)}
+                                                className="rounded-full border border-white/30 bg-white/10 px-3 py-1.5 text-xs font-black uppercase tracking-wide text-white hover:bg-white/20"
+                                            >
+                                                Close
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    <div className="p-6">
+                                        <div className="rounded-3xl border border-bird-blue/10 bg-gradient-to-r from-sky-50 via-white to-amber-50 p-4">
+                                            <div className="flex flex-wrap items-center justify-between gap-3">
+                                                <div>
+                                                    <p className="text-[11px] font-black uppercase tracking-[0.18em] text-bird-blue">Completed service</p>
+                                                    <p className="mt-1 text-lg font-black text-slate-900">
+                                                        {ratingModalRequest.service_name}
+                                                    </p>
+                                                    <p className="mt-1 text-sm text-slate-600">
+                                                        {ratingModalRequest.assigned_worker?.name || 'Your pro'}
+                                                    </p>
+                                                </div>
+                                                <span className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-[11px] font-black uppercase tracking-[0.18em] text-emerald-700">
+                                                    Unlocked
+                                                </span>
+                                            </div>
+                                        </div>
+
+                                        <div className="mt-5 space-y-4">
+                                            {(['punctuality', 'quality', 'price_fairness'] as RatingMetricKey[]).map((key) => {
+                                                const currentValue = getRatingDraft(ratingModalRequest.id_request)[key];
+                                                return (
+                                                    <div key={key} className="rounded-3xl border border-slate-200 bg-slate-50 p-4">
+                                                        <div className="flex items-center justify-between gap-3">
+                                                            <div>
+                                                                <p className="text-sm font-black text-slate-900">{RATING_METRIC_LABELS[key]}</p>
+                                                                <p className="mt-1 text-xs text-slate-500">
+                                                                    Leave your Fixes stars for this part of the service.
+                                                                </p>
+                                                            </div>
+                                                            <span className="rounded-full border border-bird-yellow/25 bg-bird-yellow/10 px-3 py-1 text-[11px] font-black text-amber-700">
+                                                                {currentValue}/5
+                                                            </span>
+                                                        </div>
+                                                        <div className="mt-4 flex flex-wrap gap-2">
+                                                            {Array.from({ length: 5 }).map((_, index) => {
+                                                                const starValue = index + 1;
+                                                                const active = starValue <= currentValue;
+                                                                return (
+                                                                    <button
+                                                                        key={`${key}-${starValue}`}
+                                                                        type="button"
+                                                                        onClick={() => updateRatingDraft(ratingModalRequest.id_request, { [key]: starValue })}
+                                                                        className={`flex h-11 w-11 items-center justify-center rounded-2xl border text-xl transition ${
+                                                                            active
+                                                                                ? 'border-bird-yellow/30 bg-bird-yellow/15 text-bird-yellow shadow-sm'
+                                                                                : 'border-slate-200 bg-white text-slate-300 hover:border-bird-blue/20 hover:text-bird-blue'
+                                                                        }`}
+                                                                    >
+                                                                        {'★'}
+                                                                    </button>
+                                                                );
+                                                            })}
+                                                        </div>
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+
+                                        <div className="mt-5 rounded-3xl border border-slate-200 bg-white p-4">
+                                            <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">Comment</p>
+                                            <textarea
+                                                value={getRatingDraft(ratingModalRequest.id_request).comment}
+                                                onChange={(e) => updateRatingDraft(ratingModalRequest.id_request, { comment: e.target.value })}
+                                                placeholder="Tell us how the service went, what stood out, or what could be better..."
+                                                className="mt-3 min-h-[120px] w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm text-slate-700 outline-none transition focus:border-bird-blue/40 focus:ring-2 focus:ring-bird-blue/10"
+                                            />
+                                        </div>
+
+                                        <div className="mt-5 flex flex-col gap-3 sm:flex-row sm:justify-end">
+                                            <button
+                                                type="button"
+                                                onClick={() => setRatingModalRequest(null)}
+                                                className="rounded-2xl border border-slate-200 bg-white px-5 py-3 text-sm font-black text-slate-600 transition hover:border-slate-300 hover:bg-slate-50"
+                                            >
+                                                Maybe later
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => submitRating(ratingModalRequest)}
+                                                disabled={ratingBusyId === ratingModalRequest.id_request}
+                                                className="rounded-2xl bg-bird-blue px-5 py-3 text-sm font-black text-white shadow-[0_16px_30px_rgba(0,144,255,0.18)] transition hover:-translate-y-0.5 hover:bg-blue-700 disabled:opacity-50"
+                                            >
+                                                {ratingBusyId === ratingModalRequest.id_request ? 'Sending Fixes...' : 'Submit Fixes'}
+                                            </button>
+                                        </div>
+                                    </div>
+                                    <div className="border-t border-slate-200 bg-white/95 px-6 py-4 backdrop-blur">
+                                        {workerProfileRequest && hasPendingWorkerApproval(workerProfileRequest) ? (
+                                            <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                                                <div className="min-w-0">
+                                                    <p className="text-[11px] font-black uppercase tracking-[0.18em] text-bird-blue">Approve this pro</p>
+                                                    <p className="mt-1 text-sm text-slate-500">
+                                                        Review the profile and portfolio, then confirm this worker to move the request to payment.
+                                                    </p>
+                                                </div>
+                                                <div className="grid grid-cols-2 gap-3 lg:w-[380px]">
+                                                    <button
+                                                        type="button"
+                                                        disabled={workerApprovalBusyId === workerProfileRequest.id_request}
+                                                        onClick={() => handleWorkerApprovalDecision(workerProfileRequest, 'decline')}
+                                                        className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-black text-red-600 transition hover:bg-red-100 disabled:opacity-50"
+                                                    >
+                                                        {workerApprovalBusyId === workerProfileRequest.id_request ? 'Saving...' : 'Decline worker'}
+                                                    </button>
+                                                    <button
+                                                        type="button"
+                                                        disabled={workerApprovalBusyId === workerProfileRequest.id_request}
+                                                        onClick={() => handleWorkerApprovalDecision(workerProfileRequest, 'accept')}
+                                                        className="rounded-2xl bg-gradient-to-r from-bird-blue to-sky-500 px-4 py-3 text-sm font-black text-white shadow-[0_14px_30px_rgba(14,165,233,0.22)] transition hover:translate-y-[-1px] disabled:opacity-50"
+                                                    >
+                                                        {workerApprovalBusyId === workerProfileRequest.id_request ? 'Saving...' : 'Accept this worker'}
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        ) : (
+                                            <div className="flex items-center justify-end">
+                                                <button
+                                                    type="button"
+                                                    onClick={() => {
+                                                        setWorkerProfileRequest(null);
+                                                        setWorkerProfileData(null);
+                                                        setWorkerProfileLoading(false);
+                                                    }}
+                                                    className="rounded-2xl bg-slate-100 px-5 py-3 text-sm font-black text-slate-700 transition hover:bg-slate-200"
+                                                >
+                                                    Close profile
+                                                </button>
+                                            </div>
+                                        )}
+                                    </div>
+                                </motion.div>
+                            </motion.div>
+                        )}
+                    </AnimatePresence>
+
+                    <AnimatePresence>
+                        {fixesSuccessRequest && (
+                            <motion.div
+                                initial={{ opacity: 0 }}
+                                animate={{ opacity: 1 }}
+                                exit={{ opacity: 0 }}
+                                className="absolute inset-0 z-35 bg-slate-950/35 backdrop-blur-[3px] flex items-center justify-center p-4"
+                            >
+                                <motion.div
+                                    initial={{ opacity: 0, scale: 0.94, y: 16 }}
+                                    animate={{ opacity: 1, scale: 1, y: 0 }}
+                                    exit={{ opacity: 0, scale: 0.94, y: 16 }}
+                                    transition={{ type: 'spring', damping: 22, stiffness: 240 }}
+                                    className="w-full max-w-xl overflow-hidden rounded-[30px] border border-emerald-200 bg-white shadow-[0_30px_70px_rgba(15,23,42,0.18)]"
+                                >
+                                    <div className="relative overflow-hidden bg-gradient-to-r from-emerald-500 via-teal-500 to-cyan-500 px-6 py-6 text-white">
+                                        <div className="absolute -right-10 -top-10 h-36 w-36 rounded-full bg-white/10 blur-2xl" />
+                                        <div className="relative flex items-start justify-between gap-4">
+                                            <div>
+                                                <p className="text-[11px] font-black uppercase tracking-[0.2em] text-white/80">Fixes saved</p>
+                                                <h3 className="mt-2 text-3xl font-black">Thanks for the review</h3>
+                                                <p className="mt-2 text-sm text-white/90">
+                                                    Your Fixes stars for <span className="font-black">{fixesSuccessRequest.service_name}</span> are now part of the worker profile.
+                                                </p>
+                                            </div>
+                                            <div className="flex h-16 w-16 items-center justify-center rounded-full bg-white/15 text-white shadow-[0_20px_34px_rgba(15,23,42,0.18)]">
+                                                <span className="text-3xl font-black">★</span>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div className="p-6">
+                                        <div className="rounded-[26px] border border-slate-200 bg-slate-50 p-4">
+                                            <div className="flex flex-wrap items-center justify-between gap-3">
+                                                <div>
+                                                    <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">Reviewed pro</p>
+                                                    <p className="mt-1 text-lg font-black text-slate-900">
+                                                        {fixesSuccessRequest.assigned_worker?.name || 'Assigned pro'}
+                                                    </p>
+                                                </div>
+                                                <span className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-[11px] font-black uppercase tracking-[0.18em] text-emerald-700">
+                                                    Review submitted
+                                                </span>
+                                            </div>
+                                        </div>
+
+                                        <div className="mt-4 grid gap-3 sm:grid-cols-3">
+                                            <div className="rounded-2xl border border-bird-yellow/20 bg-bird-yellow/10 px-4 py-4 text-center">
+                                                <p className="text-[11px] font-black uppercase tracking-[0.18em] text-amber-700">Punctuality</p>
+                                                <p className="mt-2 text-2xl font-black text-slate-950">{getRatingDraft(fixesSuccessRequest.id_request).punctuality}/5</p>
+                                            </div>
+                                            <div className="rounded-2xl border border-bird-blue/15 bg-bird-blue/10 px-4 py-4 text-center">
+                                                <p className="text-[11px] font-black uppercase tracking-[0.18em] text-bird-blue">Quality</p>
+                                                <p className="mt-2 text-2xl font-black text-slate-950">{getRatingDraft(fixesSuccessRequest.id_request).quality}/5</p>
+                                            </div>
+                                            <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-4 text-center">
+                                                <p className="text-[11px] font-black uppercase tracking-[0.18em] text-emerald-700">Price fairness</p>
+                                                <p className="mt-2 text-2xl font-black text-slate-950">{getRatingDraft(fixesSuccessRequest.id_request).price_fairness}/5</p>
+                                            </div>
+                                        </div>
+
+                                        <div className="mt-5 flex justify-end">
+                                            <button
+                                                type="button"
+                                                onClick={() => setFixesSuccessRequest(null)}
+                                                className="rounded-2xl bg-bird-blue px-5 py-3 text-sm font-black text-white shadow-[0_16px_30px_rgba(0,144,255,0.18)] transition hover:-translate-y-0.5 hover:bg-blue-700"
+                                            >
+                                                Back to requests
+                                            </button>
+                                        </div>
+                                    </div>
+                                </motion.div>
+                            </motion.div>
+                        )}
+                    </AnimatePresence>
+
+                    <AnimatePresence>
+                        {showSavedPlacesModal && (
+                            <motion.div
+                                initial={{ opacity: 0 }}
+                                animate={{ opacity: 1 }}
+                                exit={{ opacity: 0 }}
+                                className="absolute inset-0 z-30 bg-slate-950/20 backdrop-blur-[2px] flex justify-end"
+                            >
+                                <motion.div
+                                    initial={{ x: 36, opacity: 0 }}
+                                    animate={{ x: 0, opacity: 1 }}
+                                    exit={{ x: 36, opacity: 0 }}
+                                    transition={{ type: 'spring', damping: 24, stiffness: 220 }}
+                                    className="h-full w-full max-w-[420px] border-l border-gray-200 bg-white shadow-2xl"
+                                >
+                                    <div className="flex h-full flex-col">
+                                        <div className="border-b border-gray-200 px-5 py-4">
+                                            <div className="flex items-center justify-between gap-4">
+                                                <div>
+                                                    <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-gray-400">Saved places</p>
+                                                    <h3 className="mt-1 text-lg font-black text-gray-900">Your location library</h3>
+                                                </div>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setShowSavedPlacesModal(false)}
+                                                    className="rounded-xl border border-gray-200 bg-white px-3 py-2 text-xs font-bold text-gray-500 hover:text-gray-700"
+                                                >
+                                                    Close
+                                                </button>
+                                            </div>
+
+                                            <div className="mt-4 space-y-3">
+                                                <div className="relative">
+                                                    <svg className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-4.35-4.35m1.85-5.15a7 7 0 11-14 0 7 7 0 0114 0z" />
+                                                    </svg>
+                                                    <input
+                                                        type="text"
+                                                        value={savedPlacesSearch}
+                                                        onChange={(e) => setSavedPlacesSearch(e.target.value)}
+                                                        placeholder="Search by name, address or type"
+                                                        className="w-full rounded-2xl border border-gray-200 bg-gray-50 pl-10 pr-10 py-3 text-sm text-gray-900 focus:border-bird-blue focus:bg-white focus:outline-none"
+                                                    />
+                                                    {savedPlacesSearch.trim() && (
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => setSavedPlacesSearch('')}
+                                                            className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-black text-gray-400 hover:text-gray-600"
+                                                        >
+                                                            x
+                                                        </button>
+                                                    )}
+                                                </div>
+
+                                                <div className="flex flex-wrap gap-2">
+                                                    {[
+                                                        { key: 'all', label: 'All', count: quickAccessLocations.length },
+                                                        { key: 'primary', label: 'Home & Work', count: groupedSavedLocations.primary.length },
+                                                        { key: 'favorite', label: 'Favorites', count: groupedSavedLocations.favorites.length },
+                                                        { key: 'recent', label: 'Recent', count: groupedSavedLocations.recents.length },
+                                                    ].map((option) => (
+                                                        <button
+                                                            key={option.key}
+                                                            type="button"
+                                                            onClick={() => setSavedPlacesFilter(option.key as 'all' | 'primary' | 'favorite' | 'recent')}
+                                                            className={`inline-flex items-center gap-2 rounded-full border px-3 py-2 text-xs font-bold transition ${
+                                                                savedPlacesFilter === option.key
+                                                                    ? 'border-bird-blue bg-bird-blue text-white shadow-sm'
+                                                                    : 'border-gray-200 bg-white text-gray-600 hover:border-bird-blue/40 hover:text-bird-blue'
+                                                            }`}
+                                                        >
+                                                            <span>{option.label}</span>
+                                                            <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-black ${
+                                                                savedPlacesFilter === option.key
+                                                                    ? 'bg-white/20 text-white'
+                                                                    : 'bg-gray-100 text-gray-500'
+                                                            }`}>
+                                                                {option.count}
+                                                            </span>
+                                                        </button>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <div className="flex-1 overflow-y-auto p-5 space-y-5">
+                                            {quickAccessLocations.length === 0 ? (
+                                                <div className="rounded-2xl border border-dashed border-gray-300 bg-gray-50 px-4 py-5 text-sm text-gray-500">
+                                                    You do not have saved places yet. Resolve a location first, then use <span className="font-bold text-gray-700">Add location</span>.
+                                                </div>
+                                            ) : filteredSavedLocations.total === 0 ? (
+                                                <div className="rounded-2xl border border-dashed border-gray-300 bg-gray-50 px-4 py-5 text-sm text-gray-500">
+                                                    No saved places match your current search or filter.
+                                                </div>
+                                            ) : (
+                                                <>
+                                                    {filteredSavedLocations.primary.length > 0 && (
+                                                        <div>
+                                                            <p className="mb-3 text-[11px] font-bold uppercase tracking-wide text-gray-400">Home & Work</p>
+                                                            <div className="space-y-3">
+                                                                {filteredSavedLocations.primary.map((location, index) => {
+                                                                    const visual = getLocationVisual(location.kind);
+                                                                    const distanceLabel = currentCoords && !sameCoords(currentCoords, location)
+                                                                        ? formatDistanceLabel(distanceKmBetween(currentCoords, location))
+                                                                        : sameCoords(currentCoords, location)
+                                                                            ? 'Current place'
+                                                                            : null;
+
+                                                                    return (
+                                                                        <div
+                                                                            key={`${location.kind}-modal-${index}-${location.label}`}
+                                                                            className="rounded-2xl border border-gray-200 bg-slate-50 p-3"
+                                                                        >
+                                                                            <div className="flex items-center gap-3">
+                                                                                {renderLocationBadge(location.kind, 'md')}
+                                                                                <button
+                                                                                    type="button"
+                                                                                    onClick={() => handleUseSavedLocation(location)}
+                                                                                    className="min-w-0 flex-1 text-left"
+                                                                                >
+                                                                                    <p className="text-sm font-bold text-gray-900">{location.title}</p>
+                                                                                    <p className="mt-1 line-clamp-2 text-xs text-gray-500">{location.label}</p>
+                                                                                    <p className={`mt-1 inline-flex rounded-full border px-2 py-1 text-[11px] font-semibold ${visual.chipClass}`}>
+                                                                                        {distanceLabel || `${location.lat.toFixed(4)}, ${location.lng.toFixed(4)}`}
+                                                                                    </p>
+                                                                                </button>
+                                                                                <div className="shrink-0">
+                                                                                    {renderSavedPlaceActions(location, { compact: true })}
+                                                                                </div>
+                                                                            </div>
+                                                                        </div>
+                                                                    );
+                                                                })}
+                                                            </div>
+                                                        </div>
+                                                    )}
+
+                                                    {filteredSavedLocations.favorites.length > 0 && (
+                                                        <div>
+                                                            <p className="mb-3 text-[11px] font-bold uppercase tracking-wide text-gray-400">Favorites</p>
+                                                            <div className="space-y-3">
+                                                                {filteredSavedLocations.favorites.map((location, index) => {
+                                                                    const visual = getLocationVisual(location.kind);
+                                                                    const distanceLabel = currentCoords && !sameCoords(currentCoords, location)
+                                                                        ? formatDistanceLabel(distanceKmBetween(currentCoords, location))
+                                                                        : sameCoords(currentCoords, location)
+                                                                            ? 'Current place'
+                                                                            : null;
+
+                                                                    return (
+                                                                        <div
+                                                                            key={`${location.kind}-modal-favorite-${index}-${location.label}`}
+                                                                            className="flex items-center gap-3 rounded-2xl border border-gray-200 bg-white p-3"
+                                                                        >
+                                                                            <div className="relative h-16 w-16 shrink-0 overflow-hidden rounded-2xl border border-gray-200 bg-slate-100">
+                                                                                <img src={getPreviewTileUrl(location.lat, location.lng)} alt={location.title} className="h-full w-full object-cover" />
+                                                                                <div className="absolute inset-0 bg-gradient-to-t from-black/25 via-transparent to-white/10" />
+                                                                                <span className="absolute left-2 top-2">
+                                                                                    {renderLocationBadge(location.kind, 'sm')}
+                                                                                </span>
+                                                                            </div>
+                                                                            <button
+                                                                                type="button"
+                                                                                onClick={() => handleUseSavedLocation(location)}
+                                                                                className="min-w-0 flex-1 text-left"
+                                                                            >
+                                                                                <p className="truncate text-sm font-bold text-gray-900">{location.title}</p>
+                                                                                <p className="mt-1 truncate text-xs text-gray-500">{location.label}</p>
+                                                                                <p className={`mt-1 inline-flex rounded-full border px-2 py-1 text-[11px] font-semibold ${visual.chipClass}`}>
+                                                                                    {distanceLabel || `${location.lat.toFixed(4)}, ${location.lng.toFixed(4)}`}
+                                                                                </p>
+                                                                            </button>
+                                                                            <div className="shrink-0">
+                                                                                {renderSavedPlaceActions(location, { compact: true })}
+                                                                            </div>
+                                                                        </div>
+                                                                    );
+                                                                })}
+                                                            </div>
+                                                        </div>
+                                                    )}
+
+                                                    {filteredSavedLocations.recents.length > 0 && (
+                                                        <div>
+                                                            <div className="mb-3 flex items-center justify-between gap-3">
+                                                                <p className="text-[11px] font-bold uppercase tracking-wide text-gray-400">Recent</p>
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => void clearRecentLocations()}
+                                                                    className="text-[11px] font-bold text-red-500 hover:text-red-600"
+                                                                >
+                                                                    Clear
+                                                                </button>
+                                                            </div>
+                                                            <div className="flex flex-wrap gap-2">
+                                                                {filteredSavedLocations.recents.map((location, index) => {
+                                                                    const visual = getLocationVisual(location.kind);
+                                                                    return (
+                                                                        <button
+                                                                            key={`${location.kind}-modal-recent-${index}-${location.label}`}
+                                                                            type="button"
+                                                                            onClick={() => handleUseSavedLocation(location)}
+                                                                            className={`inline-flex items-center gap-2 rounded-full border px-3 py-2 text-xs font-bold transition ${visual.chipClass} hover:shadow-sm`}
+                                                                        >
+                                                                            {renderLocationBadge(location.kind, 'sm')}
+                                                                            {location.title}
+                                                                        </button>
+                                                                    );
+                                                                })}
+                                                            </div>
+                                                            <div className="mt-3 space-y-2">
+                                                                {filteredSavedLocations.recents.map((location, index) => (
+                                                                    <div
+                                                                        key={`${location.kind}-actions-${index}-${location.label}`}
+                                                                        className="flex items-center justify-between rounded-2xl border border-gray-200 bg-white px-3 py-2"
+                                                                    >
+                                                                        <div className="min-w-0">
+                                                                            <p className="truncate text-xs font-bold text-gray-800">{location.title}</p>
+                                                                            <p className="truncate text-[11px] text-gray-400">{location.label}</p>
+                                                                        </div>
+                                                                        <div className="shrink-0">
+                                                                            {renderSavedPlaceActions(location, { compact: true })}
+                                                                        </div>
+                                                                    </div>
+                                                                ))}
+                                                            </div>
+                                                        </div>
+                                                    )}
+                                                </>
+                                            )}
+                                        </div>
+                                    </div>
+                                </motion.div>
+                            </motion.div>
+                        )}
+                    </AnimatePresence>
+
+                    <AnimatePresence>
+                        {workerProfileRequest && (
+                            <motion.div
+                                initial={{ opacity: 0 }}
+                                animate={{ opacity: 1 }}
+                                exit={{ opacity: 0 }}
+                                className="absolute inset-0 z-40 bg-slate-950/35 backdrop-blur-[3px] flex items-center justify-center p-4"
+                            >
+                                <motion.div
+                                    initial={{ opacity: 0, scale: 0.96, y: 12 }}
+                                    animate={{ opacity: 1, scale: 1, y: 0 }}
+                                    exit={{ opacity: 0, scale: 0.96, y: 12 }}
+                                    transition={{ type: 'spring', damping: 24, stiffness: 260 }}
+                                    className="flex max-h-[90vh] w-full max-w-4xl flex-col overflow-hidden rounded-[30px] border border-gray-200 bg-white shadow-2xl"
+                                >
+                                    <div className="bg-gradient-to-r from-bird-blue via-sky-500 to-yellow-300 px-6 py-5">
+                                        <div className="flex items-center justify-between gap-3">
+                                            <div className="flex items-center gap-4">
+                                                {selectedWorkerProfile?.profile_image_url ? (
+                                                    <img
+                                                        src={selectedWorkerProfile.profile_image_url}
+                                                        alt={selectedWorkerProfile.name}
+                                                        className="h-16 w-16 rounded-3xl object-cover ring-2 ring-white shadow-md"
+                                                    />
+                                                ) : (
+                                                    <div className="flex h-16 w-16 items-center justify-center rounded-3xl bg-white/20 text-2xl font-black text-white">
+                                                        {getInitials(selectedWorkerProfile?.name || 'Pro')}
+                                                    </div>
+                                                )}
+                                                <div className="text-white">
+                                                    <p className="text-[11px] font-black uppercase tracking-[0.2em] text-white/80">Worker profile</p>
+                                                    <h3 className="mt-1 text-2xl font-black">
+                                                        {selectedWorkerProfile?.name || 'Assigned pro'}
+                                                    </h3>
+                                                    <p className="mt-1 text-sm text-white/85">
+                                                        Review the pro before accepting or continuing with this request.
+                                                    </p>
+                                                    <div className="mt-3 flex items-center gap-3">
+                                                        <div className="flex items-center gap-2 rounded-full bg-white/92 px-3 py-1.5 shadow-sm">
+                                                            {renderStarSummary(selectedWorkerProfile?.rating_average ?? null)}
+                                                            <span className="text-[11px] font-black text-slate-900">
+                                                                {selectedWorkerProfile?.rating_average != null
+                                                                    ? `${selectedWorkerProfile.rating_average.toFixed(1)} / 5`
+                                                                    : 'No Fixes yet'}
+                                                            </span>
+                                                        </div>
+                                                        <span className="text-[11px] font-bold text-white/85">
+                                                            {selectedWorkerProfile?.rating_count ?? 0} review(s)
+                                                        </span>
+                                                    </div>
+                                                    <div className="mt-3 flex flex-wrap items-center gap-2">
+                                                        <span className="rounded-full bg-white/90 px-3 py-1 text-[11px] font-black uppercase tracking-[0.16em] text-bird-blue shadow-sm">
+                                                            {selectedWorkerProfile?.completed_jobs ?? 0} jobs completed
+                                                        </span>
+                                                        <span className="rounded-full bg-slate-950/15 px-3 py-1 text-[11px] font-black text-white backdrop-blur">
+                                                            {selectedWorkerProfile?.rating_average != null
+                                                                ? `${selectedWorkerProfile.rating_average.toFixed(1)} Fixes`
+                                                                : 'No Fixes yet'}
+                                                        </span>
+                                                        <span className={`rounded-full px-3 py-1 text-[11px] font-black uppercase tracking-[0.14em] ${
+                                                            selectedWorkerProfile?.is_online
+                                                                ? 'bg-emerald-50 text-emerald-700'
+                                                                : 'bg-white/15 text-white'
+                                                        }`}>
+                                                            {selectedWorkerProfile?.is_online ? 'Online now' : 'Offline'}
+                                                        </span>
+                                                        {workerProfileLoading && (
+                                                            <span className="inline-flex items-center gap-2 rounded-full bg-white/15 px-3 py-1 text-[11px] font-black text-white">
+                                                                <span className="h-2 w-2 rounded-full bg-white animate-pulse" />
+                                                                Refreshing
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                    <div className="mt-4 grid gap-2 sm:grid-cols-4">
+                                                        <div className="rounded-2xl border border-white/20 bg-white/12 px-3 py-2 backdrop-blur">
+                                                            <p className="text-[10px] font-black uppercase tracking-[0.16em] text-white/70">Fixes</p>
+                                                            <p className="mt-1 text-lg font-black text-white">
+                                                                {selectedWorkerProfile?.rating_average != null
+                                                                    ? selectedWorkerProfile.rating_average.toFixed(1)
+                                                                    : '--'}
+                                                            </p>
+                                                        </div>
+                                                        <div className="rounded-2xl border border-white/20 bg-white/12 px-3 py-2 backdrop-blur">
+                                                            <p className="text-[10px] font-black uppercase tracking-[0.16em] text-white/70">Reviews</p>
+                                                            <p className="mt-1 text-lg font-black text-white">{selectedWorkerProfile?.rating_count ?? 0}</p>
+                                                        </div>
+                                                        <div className="rounded-2xl border border-white/20 bg-white/12 px-3 py-2 backdrop-blur">
+                                                            <p className="text-[10px] font-black uppercase tracking-[0.16em] text-white/70">Completed</p>
+                                                            <p className="mt-1 text-lg font-black text-white">{selectedWorkerProfile?.completed_jobs ?? 0}</p>
+                                                        </div>
+                                                        <div className="rounded-2xl border border-white/20 bg-white/12 px-3 py-2 backdrop-blur">
+                                                            <p className="text-[10px] font-black uppercase tracking-[0.16em] text-white/70">Services</p>
+                                                            <p className="mt-1 text-lg font-black text-white">{selectedWorkerProfile?.services_offered?.length ?? 0}</p>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <button
+                                                type="button"
+                                                onClick={closeWorkerProfileModal}
+                                                className="rounded-full border border-white/30 bg-white/10 px-3 py-1.5 text-xs font-black uppercase tracking-wide text-white hover:bg-white/20"
+                                            >
+                                                Close
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    <div className="flex-1 overflow-y-auto">
+                                        <div className="grid gap-0 lg:grid-cols-[0.92fr_1.08fr]">
+                                        <div className="border-b border-gray-100 bg-slate-50/80 p-6 lg:border-b-0 lg:border-r">
+                                            <div className="space-y-4">
+                                                <div className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
+                                                    <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">About this pro</p>
+                                                    <p className="mt-2 text-xl font-black text-slate-900">
+                                                        {selectedWorkerProfile?.name || 'Assigned pro'}
+                                                    </p>
+                                                    <p className="mt-2 text-sm leading-6 text-slate-600">
+                                                        {selectedWorkerProfile?.bio || 'This pro has not added a bio yet, but you can still review the uploaded work below.'}
+                                                    </p>
+                                                </div>
+
+                                                <div className="grid gap-3 sm:grid-cols-2">
+                                                    <div className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
+                                                        <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">Phone</p>
+                                                        <p className="mt-2 text-base font-black text-slate-900">
+                                                            {selectedWorkerProfile?.phone_number || 'Not shared yet'}
+                                                        </p>
+                                                    </div>
+                                                    <div className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
+                                                        <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">Experience</p>
+                                                        <p className="mt-2 text-base font-black text-slate-900">
+                                                            {selectedWorkerProfile?.experience_label || 'Experience not available'}
+                                                        </p>
+                                                    </div>
+                                                    <div className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
+                                                        <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">Fixes</p>
+                                                        <div className="mt-2 flex items-center gap-3">
+                                                            {renderStarSummary(selectedWorkerProfile?.rating_average ?? null)}
+                                                            <div>
+                                                                <p className="text-base font-black text-slate-900">
+                                                                    {selectedWorkerProfile?.rating_average != null
+                                                                        ? `${selectedWorkerProfile.rating_average.toFixed(1)} average`
+                                                                        : 'No Fixes yet'}
+                                                                </p>
+                                                                <p className="text-[11px] font-semibold text-slate-500">
+                                                                    {selectedWorkerProfile?.completed_jobs ?? 0} completed jobs
+                                                                </p>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                </div>
+
+                                                <div className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
+                                                    <div className="flex items-center justify-between gap-3">
+                                                        <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">Services offered</p>
+                                                        <span className={`rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-[0.18em] ${
+                                                            selectedWorkerProfile?.is_online
+                                                                ? 'border border-emerald-200 bg-emerald-50 text-emerald-700'
+                                                                : 'border border-slate-200 bg-slate-100 text-slate-600'
+                                                        }`}>
+                                                            {selectedWorkerProfile?.is_online ? 'Online' : 'Offline'}
+                                                        </span>
+                                                    </div>
+                                                    <div className="mt-3 flex flex-wrap gap-2">
+                                                        {(selectedWorkerProfile?.services_offered || []).length > 0 ? (
+                                                            selectedWorkerProfile?.services_offered.map((serviceName) => (
+                                                                <span
+                                                                    key={serviceName}
+                                                                    className="rounded-full border border-bird-blue/15 bg-bird-blue/10 px-3 py-1 text-[11px] font-black text-bird-blue"
+                                                                >
+                                                                    {serviceName}
+                                                                </span>
+                                                            ))
+                                                        ) : (
+                                                            <span className="rounded-full border border-slate-200 bg-slate-100 px-3 py-1 text-[11px] font-bold text-slate-500">
+                                                                Services not listed yet
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                </div>
+
+                                            </div>
+                                        </div>
+
+                                        <div className="p-6">
+                                            <div className="mb-4 flex items-center justify-between gap-3">
+                                                <div>
+                                                    <p className="text-[11px] font-black uppercase tracking-[0.18em] text-bird-blue">Portfolio</p>
+                                                    <h4 className="mt-1 text-xl font-black text-slate-900">Recent work from this pro</h4>
+                                                    <p className="mt-1 text-sm text-slate-500">Review real uploads before you approve this worker.</p>
+                                                </div>
+                                                <div className="flex items-center gap-2">
+                                                    <span className="rounded-full border border-bird-blue/15 bg-bird-blue/10 px-3 py-1 text-[11px] font-black text-bird-blue">
+                                                        {(workerProfileData?.portfolio || []).length} photo(s)
+                                                    </span>
+                                                    {workerProfileLoading && (
+                                                        <span className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-[11px] font-black text-slate-500">
+                                                            <span className="h-2 w-2 rounded-full bg-bird-blue animate-pulse" />
+                                                            Syncing
+                                                        </span>
+                                                    )}
+                                                </div>
+                                            </div>
+
+                                            {workerPortfolio.length === 0 ? (
+                                                <div className="rounded-3xl border border-dashed border-slate-200 bg-slate-50 px-5 py-10 text-center">
+                                                    <p className="text-sm font-bold text-slate-700">
+                                                        {workerProfileLoading ? 'Loading portfolio...' : 'No portfolio photos uploaded yet.'}
+                                                    </p>
+                                                    <p className="mt-2 text-sm text-slate-500">
+                                                        {workerProfileLoading
+                                                            ? 'We are refreshing the worker uploads for you.'
+                                                            : 'You can still use the worker bio and phone details above before deciding.'}
+                                                    </p>
+                                                </div>
+                                            ) : (
+                                                <div className="space-y-4">
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setIsWorkerPortfolioFullscreen(true)}
+                                                        className="group w-full overflow-hidden rounded-[30px] border border-slate-200 bg-white text-left shadow-sm transition hover:-translate-y-0.5 hover:border-bird-blue/30 hover:shadow-xl"
+                                                    >
+                                                        <div className="relative aspect-[1.22/1] overflow-hidden bg-slate-900">
+                                                            {activeWorkerPortfolioPhoto?.image_url ? (
+                                                                <img
+                                                                    src={activeWorkerPortfolioPhoto.image_url}
+                                                                    alt={activeWorkerPortfolioPhoto.description || 'Portfolio work'}
+                                                                    className="h-full w-full object-cover transition duration-500 group-hover:scale-[1.03]"
+                                                                />
+                                                            ) : (
+                                                                <div className="h-full w-full bg-slate-100" />
+                                                            )}
+                                                            <div className="absolute inset-x-0 top-0 z-10 flex items-center justify-between p-4">
+                                                                <span className="rounded-full bg-white/92 px-3 py-1 text-[11px] font-black uppercase tracking-[0.18em] text-bird-blue shadow-sm">
+                                                                    Portfolio modal
+                                                                </span>
+                                                                <span className="rounded-full bg-slate-950/70 px-3 py-1 text-[11px] font-black text-white backdrop-blur">
+                                                                    {activeWorkerPortfolioIndex + 1} / {workerPortfolio.length}
+                                                                </span>
+                                                            </div>
+                                                            <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-slate-950/90 via-slate-950/45 to-transparent px-5 pb-5 pt-16 text-white">
+                                                                <p className="text-base font-black">
+                                                                    {activeWorkerPortfolioPhoto?.description || 'Recent portfolio work'}
+                                                                </p>
+                                                                <div className="mt-3 flex flex-wrap items-center gap-2 text-[11px] font-bold text-white/80">
+                                                                    <span className="rounded-full border border-white/20 bg-white/10 px-3 py-1">
+                                                                        {activeWorkerPortfolioPhoto?.uploaded_at
+                                                                            ? new Date(activeWorkerPortfolioPhoto.uploaded_at).toLocaleDateString()
+                                                                            : 'Recently uploaded'}
+                                                                    </span>
+                                                                    <span className="rounded-full border border-white/20 bg-white/10 px-3 py-1">
+                                                                        Double tap, pinch, swipe
+                                                                    </span>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    </button>
+
+                                                    <div className="rounded-[28px] border border-slate-200 bg-slate-50/80 p-4 shadow-sm">
+                                                        <div className="flex flex-wrap items-start justify-between gap-3">
+                                                            <div>
+                                                                <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">Open the full portfolio</p>
+                                                                <p className="mt-2 text-sm leading-6 text-slate-600">
+                                                                    Browse this worker&apos;s uploads in a dedicated modal with swipe, pinch-to-zoom,
+                                                                    profile details, and image notes.
+                                                                </p>
+                                                            </div>
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => setIsWorkerPortfolioFullscreen(true)}
+                                                                className="rounded-2xl bg-bird-blue px-4 py-3 text-sm font-black text-white shadow-lg shadow-bird-blue/20 transition hover:-translate-y-0.5 hover:bg-bird-blue/95"
+                                                            >
+                                                                Open portfolio
+                                                            </button>
+                                                        </div>
+
+                                                        {workerPortfolio.length > 1 && (
+                                                            <div className="mt-4 grid grid-cols-4 gap-3">
+                                                                {workerPortfolio.map((item, index) => (
+                                                                    <button
+                                                                        key={item.id_photo}
+                                                                        type="button"
+                                                                        onClick={() => {
+                                                                            setWorkerPortfolioIndex(index);
+                                                                            setIsWorkerPortfolioFullscreen(true);
+                                                                        }}
+                                                                        className={`group overflow-hidden rounded-2xl border transition ${
+                                                                            index === activeWorkerPortfolioIndex
+                                                                                ? 'border-bird-blue bg-bird-blue/5 shadow-md'
+                                                                                : 'border-slate-200 bg-white hover:border-bird-blue/35'
+                                                                        }`}
+                                                                    >
+                                                                        {item.image_url ? (
+                                                                            <img
+                                                                                src={item.image_url}
+                                                                                alt={item.description || 'Portfolio thumbnail'}
+                                                                                className="aspect-square w-full object-cover transition duration-300 group-hover:scale-[1.03]"
+                                                                            />
+                                                                        ) : (
+                                                                            <div className="aspect-square w-full bg-slate-100" />
+                                                                        )}
+                                                                    </button>
+                                                                ))}
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+                                    </div>
+                                </motion.div>
+                            </motion.div>
+                        )}
+                    </AnimatePresence>
+
+                    <AnimatePresence>
+                        {workerProfileRequest && isWorkerPortfolioFullscreen && activeWorkerPortfolioPhoto && (
+                            <motion.div
+                                initial={{ opacity: 0 }}
+                                animate={{ opacity: 1 }}
+                                exit={{ opacity: 0 }}
+                                className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md"
+                                onClick={() => setIsWorkerPortfolioFullscreen(false)}
+                            >
+                                <motion.div
+                                    initial={{ opacity: 0, y: 16, scale: 0.98 }}
+                                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                                    exit={{ opacity: 0, y: 16, scale: 0.98 }}
+                                    transition={{ type: 'spring', damping: 24, stiffness: 260 }}
+                                    className="absolute inset-4 overflow-hidden rounded-[34px] border border-white/10 bg-slate-950 shadow-[0_30px_90px_rgba(15,23,42,0.45)]"
+                                    onClick={(event) => event.stopPropagation()}
+                                >
+                                    <div className="absolute inset-x-0 top-0 z-20 flex items-center justify-between gap-3 p-5">
+                                        <div className="rounded-full border border-white/15 bg-slate-950/70 px-4 py-2 text-white backdrop-blur">
+                                            <p className="text-[10px] font-black uppercase tracking-[0.2em] text-white/60">Portfolio</p>
+                                            <p className="mt-1 text-sm font-black">
+                                                {activeWorkerPortfolioIndex + 1} / {workerPortfolio.length}
+                                            </p>
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                            <button
+                                                type="button"
+                                                onClick={toggleWorkerPortfolioZoom}
+                                                className={`rounded-full border px-4 py-2 text-xs font-black uppercase tracking-[0.16em] backdrop-blur transition ${
+                                                    isWorkerPortfolioZoomed
+                                                        ? 'border-bird-yellow/70 bg-bird-yellow/20 text-bird-yellow'
+                                                        : 'border-white/15 bg-white/10 text-white hover:bg-white/15'
+                                                }`}
+                                            >
+                                                {isWorkerPortfolioZoomed ? 'Zoom out' : 'Zoom in'}
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => setIsWorkerPortfolioFullscreen(false)}
+                                                className="rounded-full border border-white/15 bg-white/10 px-4 py-2 text-xs font-black uppercase tracking-[0.16em] text-white backdrop-blur hover:bg-white/15"
+                                            >
+                                                Close
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    <div className="absolute inset-0">
+                                        {activeWorkerPortfolioPhoto.image_url ? (
+                                            <motion.div
+                                                drag={isWorkerPortfolioZoomed ? false : 'x'}
+                                                dragConstraints={{ left: 0, right: 0 }}
+                                                dragElastic={0.16}
+                                                onTouchStart={handleWorkerPortfolioTouchStart}
+                                                onTouchMove={handleWorkerPortfolioTouchMove}
+                                                onTouchEnd={handleWorkerPortfolioTouchEnd}
+                                                onDragEnd={(_, info) => {
+                                                    if (isWorkerPortfolioZoomed || workerPortfolio.length <= 1) return;
+                                                    if (info.offset.x <= -90) {
+                                                        shiftWorkerPortfolio('next');
+                                                    } else if (info.offset.x >= 90) {
+                                                        shiftWorkerPortfolio('prev');
+                                                    }
+                                                }}
+                                                style={{ touchAction: isWorkerPortfolioZoomed ? 'none' : 'pan-y' }}
+                                                className="flex h-full w-full items-center justify-center px-4 pb-24 pt-24 sm:px-8"
+                                            >
+                                                <motion.img
+                                                    key={`${activeWorkerPortfolioPhoto.id_photo}`}
+                                                    src={activeWorkerPortfolioPhoto.image_url}
+                                                    alt={activeWorkerPortfolioPhoto.description || 'Portfolio work'}
+                                                    initial={{ opacity: 0.45, scale: 0.96 }}
+                                                    animate={{ opacity: 1, scale: workerPortfolioScale }}
+                                                    transition={{ type: 'spring', stiffness: 220, damping: 24 }}
+                                                    onClick={handleWorkerPortfolioImageTap}
+                                                    onDoubleClick={handleWorkerPortfolioImageDoubleTap}
+                                                    style={{ transformOrigin: workerPortfolioTransformOrigin }}
+                                                    className={`max-h-full max-w-full rounded-[28px] object-contain shadow-[0_24px_60px_rgba(15,23,42,0.38)] transition ${
+                                                        isWorkerPortfolioZoomed ? 'cursor-zoom-out' : 'cursor-zoom-in'
+                                                    }`}
+                                                />
+                                            </motion.div>
+                                        ) : (
+                                            <div className="h-full w-full bg-slate-900" />
+                                        )}
+                                        <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-slate-950 via-slate-950/75 to-transparent px-6 pb-6 pt-20 text-white">
+                                            <div className="flex flex-wrap items-end justify-between gap-4">
+                                                <div className="flex flex-wrap items-start gap-4">
+                                                    <div className="flex items-center gap-3 rounded-[24px] border border-white/12 bg-white/10 px-4 py-3 backdrop-blur-md">
+                                                        {selectedWorkerProfile?.profile_image_url ? (
+                                                            <img
+                                                                src={selectedWorkerProfile.profile_image_url}
+                                                                alt={selectedWorkerProfile.name || 'Worker'}
+                                                                className="h-14 w-14 rounded-2xl object-cover ring-2 ring-white/10"
+                                                            />
+                                                        ) : (
+                                                            <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-white/15 text-lg font-black text-white">
+                                                                {getInitials(selectedWorkerProfile?.name || 'Pro')}
+                                                            </div>
+                                                        )}
+                                                        <div>
+                                                            <p className="text-base font-black text-white">
+                                                                {selectedWorkerProfile?.name || 'Assigned pro'}
+                                                            </p>
+                                                            <p className="mt-1 text-xs font-semibold uppercase tracking-[0.14em] text-white/55">
+                                                                {selectedWorkerProfile?.experience_label || 'Verified professional'}
+                                                            </p>
+                                                            <p className="mt-1 text-sm text-white/70">
+                                                                {selectedWorkerProfile?.phone_number || 'Phone shared after approval'}
+                                                            </p>
+                                                        </div>
+                                                    </div>
+                                                    <div>
+                                                        <p className="text-[11px] font-black uppercase tracking-[0.18em] text-white/55">Image note</p>
+                                                        <p className="mt-2 text-lg font-black">
+                                                            {activeWorkerPortfolioPhoto.description || 'Recent portfolio work'}
+                                                        </p>
+                                                        <p className="mt-2 text-sm text-white/70">
+                                                            {activeWorkerPortfolioPhoto.uploaded_at
+                                                                ? new Date(activeWorkerPortfolioPhoto.uploaded_at).toLocaleDateString()
+                                                                : 'Recently uploaded'}
+                                                        </p>
+                                                    </div>
+                                                </div>
+                                                <div className="rounded-full border border-white/15 bg-white/10 px-4 py-2 text-sm font-black backdrop-blur">
+                                                    {(selectedWorkerProfile?.services_offered || []).slice(0, 2).join(' • ') || 'Assigned pro'}
+                                                </div>
+                                            </div>
+                                            <div className="mt-3 flex flex-wrap items-center gap-2 text-[11px] font-bold uppercase tracking-[0.14em] text-white/65">
+                                                <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1">
+                                                    {isWorkerPortfolioZoomed ? `Zoom ${workerPortfolioScale.toFixed(1)}x active` : 'Tap image to zoom'}
+                                                </span>
+                                                {workerPortfolio.length > 1 && !isWorkerPortfolioZoomed && (
+                                                    <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1">
+                                                        Swipe left or right to browse
+                                                    </span>
+                                                )}
+                                                <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1">
+                                                    Pinch with two fingers to zoom
+                                                </span>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {workerPortfolio.length > 1 && (
+                                        <>
+                                            <button
+                                                type="button"
+                                                onClick={() => shiftWorkerPortfolio('prev')}
+                                                className="absolute left-6 top-1/2 z-20 flex h-14 w-14 -translate-y-1/2 items-center justify-center rounded-full border border-white/20 bg-white/10 text-3xl font-black text-white backdrop-blur transition hover:bg-white/20"
+                                            >
+                                                {'‹'}
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => shiftWorkerPortfolio('next')}
+                                                className="absolute right-6 top-1/2 z-20 flex h-14 w-14 -translate-y-1/2 items-center justify-center rounded-full border border-white/20 bg-white/10 text-3xl font-black text-white backdrop-blur transition hover:bg-white/20"
+                                            >
+                                                {'›'}
+                                            </button>
+
+                                            <div className="absolute inset-x-0 bottom-5 z-20 px-6">
+                                                <div className="mx-auto grid max-w-3xl grid-cols-4 gap-3 rounded-[24px] border border-white/10 bg-slate-950/65 p-3 backdrop-blur-md">
+                                                    {workerPortfolio.map((item, index) => (
+                                                        <button
+                                                            key={item.id_photo}
+                                                            type="button"
+                                                            onClick={() => setWorkerPortfolioIndex(index)}
+                                                            className={`group overflow-hidden rounded-2xl border transition ${
+                                                                index === activeWorkerPortfolioIndex
+                                                                    ? 'border-bird-blue bg-bird-blue/10 shadow-[0_12px_28px_rgba(29,78,216,0.2)]'
+                                                                    : 'border-white/10 bg-white/5 hover:border-bird-blue/35'
+                                                            }`}
+                                                        >
+                                                            {item.image_url ? (
+                                                                <img
+                                                                    src={item.image_url}
+                                                                    alt={item.description || 'Portfolio thumbnail'}
+                                                                    className="aspect-square w-full object-cover transition duration-300 group-hover:scale-[1.04]"
+                                                                />
+                                                            ) : (
+                                                                <div className="aspect-square w-full bg-slate-800" />
+                                                            )}
+                                                        </button>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        </>
+                                    )}
+                                </motion.div>
+                            </motion.div>
+                        )}
+                    </AnimatePresence>
+
+                    <AnimatePresence>
+                        {pendingDeleteLocation && (
+                            <motion.div
+                                initial={{ opacity: 0 }}
+                                animate={{ opacity: 1 }}
+                                exit={{ opacity: 0 }}
+                                className="absolute inset-0 z-40 bg-slate-950/35 backdrop-blur-[3px] flex items-center justify-center p-4"
+                            >
+                                <motion.div
+                                    initial={{ opacity: 0, scale: 0.96, y: 12 }}
+                                    animate={{ opacity: 1, scale: 1, y: 0 }}
+                                    exit={{ opacity: 0, scale: 0.96, y: 12 }}
+                                    transition={{ type: 'spring', damping: 24, stiffness: 260 }}
+                                    className="w-full max-w-md overflow-hidden rounded-[28px] border border-gray-200 bg-white shadow-2xl"
+                                >
+                                    <div className="bg-gradient-to-r from-amber-400 via-yellow-300 to-bird-blue px-6 py-5">
+                                        <div className="flex items-center gap-4">
+                                            {renderLocationBadge(pendingDeleteLocation.kind, 'lg')}
+                                            <div className="text-slate-900">
+                                                <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-700">Delete saved place</p>
+                                                <h3 className="mt-1 text-xl font-black">{pendingDeleteLocation.title}</h3>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div className="p-6">
+                                        <div className="rounded-2xl border border-amber-100 bg-amber-50/70 p-4">
+                                            <p className="text-sm font-bold text-slate-900">Are you sure you want to remove this location?</p>
+                                            <p className="mt-2 text-sm text-slate-600">{pendingDeleteLocation.label}</p>
+                                            <div className="mt-3 inline-flex rounded-full border border-bird-blue/20 bg-bird-blue/10 px-3 py-1 text-[11px] font-bold text-bird-blue">
+                                                {pendingDeleteLocation.lat.toFixed(4)}, {pendingDeleteLocation.lng.toFixed(4)}
+                                            </div>
+                                        </div>
+
+                                        <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:justify-end">
+                                            <motion.button
+                                                type="button"
+                                                onClick={() => closeDeleteSavedLocationPrompt(true)}
+                                                whileHover={{ y: -2, scale: 1.01 }}
+                                                whileTap={{ scale: 0.98 }}
+                                                className="inline-flex items-center justify-center gap-2 rounded-2xl border border-bird-blue/20 bg-bird-blue/10 px-4 py-3 text-sm font-black text-bird-blue transition hover:bg-bird-blue hover:text-white"
+                                            >
+                                                {renderSavedPlaceActionIcon('use')}
+                                                Keep place
+                                            </motion.button>
+                                            <motion.button
+                                                type="button"
+                                                onClick={() => void confirmDeleteSavedLocation()}
+                                                whileHover={{ y: -2, scale: 1.01 }}
+                                                whileTap={{ scale: 0.98 }}
+                                                className="inline-flex items-center justify-center gap-2 rounded-2xl border border-amber-300 bg-gradient-to-r from-amber-300 to-yellow-300 px-4 py-3 text-sm font-black text-slate-900 transition hover:shadow-[0_12px_28px_rgba(245,158,11,0.28)]"
+                                            >
+                                                {renderSavedPlaceActionIcon('delete')}
+                                                Delete saved place
+                                            </motion.button>
+                                        </div>
+                                    </div>
+                                </motion.div>
+                            </motion.div>
+                        )}
+                    </AnimatePresence>
+
+                    <AnimatePresence>
+                        {pendingRenameLocation && (
+                            <motion.div
+                                initial={{ opacity: 0 }}
+                                animate={{ opacity: 1 }}
+                                exit={{ opacity: 0 }}
+                                className="absolute inset-0 z-40 bg-slate-950/35 backdrop-blur-[3px] flex items-center justify-center p-4"
+                            >
+                                <motion.div
+                                    initial={{ opacity: 0, scale: 0.96, y: 12 }}
+                                    animate={{ opacity: 1, scale: 1, y: 0 }}
+                                    exit={{ opacity: 0, scale: 0.96, y: 12 }}
+                                    transition={{ type: 'spring', damping: 24, stiffness: 260 }}
+                                    className="w-full max-w-md overflow-hidden rounded-[28px] border border-gray-200 bg-white shadow-2xl"
+                                >
+                                    <div className="bg-gradient-to-r from-bird-blue via-sky-500 to-yellow-300 px-6 py-5">
+                                        <div className="flex items-center gap-4">
+                                            {renderLocationBadge(pendingRenameLocation.kind, 'lg')}
+                                            <div className="text-slate-900">
+                                                <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-700">Rename saved place</p>
+                                                <h3 className="mt-1 text-xl font-black">{pendingRenameLocation.title}</h3>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div className="p-6">
+                                        <label className="block text-[11px] font-black uppercase tracking-[0.18em] text-gray-500">
+                                            New label
+                                        </label>
+                                        <input
+                                            type="text"
+                                            value={pendingRenameTitle}
+                                            autoFocus
+                                            autoComplete="off"
+                                            onChange={(e) => setPendingRenameTitle(e.target.value)}
+                                            onKeyDown={(e) => {
+                                                if (e.key === 'Enter') {
+                                                    e.preventDefault();
+                                                    void confirmRenameSavedLocation();
+                                                }
+                                                if (e.key === 'Escape') {
+                                                    e.preventDefault();
+                                                    closeRenameSavedLocationPrompt(true);
+                                                }
+                                            }}
+                                            className="mt-2 w-full rounded-2xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-900 focus:border-bird-blue focus:bg-white focus:outline-none"
+                                            placeholder="Ex: Home, Office, Mom's house"
+                                        />
+                                        <p className="mt-3 text-sm text-gray-500">
+                                            Update the name without touching the saved coordinates.
+                                        </p>
+
+                                        <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:justify-end">
+                                            <motion.button
+                                                type="button"
+                                                onClick={() => closeRenameSavedLocationPrompt(true)}
+                                                whileHover={{ y: -2, scale: 1.01 }}
+                                                whileTap={{ scale: 0.98 }}
+                                                className="inline-flex items-center justify-center gap-2 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-black text-amber-700 transition hover:bg-amber-400 hover:text-white"
+                                            >
+                                                {renderSavedPlaceActionIcon('delete')}
+                                                Cancel
+                                            </motion.button>
+                                            <motion.button
+                                                type="button"
+                                                onClick={() => void confirmRenameSavedLocation()}
+                                                whileHover={{ y: -2, scale: 1.01 }}
+                                                whileTap={{ scale: 0.98 }}
+                                                className="inline-flex items-center justify-center gap-2 rounded-2xl border border-bird-blue/20 bg-bird-blue px-4 py-3 text-sm font-black text-white transition hover:shadow-[0_12px_28px_rgba(29,78,216,0.28)]"
+                                            >
+                                                {renderSavedPlaceActionIcon('rename')}
+                                                Save name
+                                            </motion.button>
+                                        </div>
+                                    </div>
+                                </motion.div>
+                            </motion.div>
+                        )}
+                    </AnimatePresence>
+
+                    <AnimatePresence>
+                        {pendingRequestAction && (
+                            <motion.div
+                                initial={{ opacity: 0 }}
+                                animate={{ opacity: 1 }}
+                                exit={{ opacity: 0 }}
+                                className="absolute inset-0 z-40 bg-slate-950/35 backdrop-blur-[3px] flex items-center justify-center p-4"
+                            >
+                                <motion.div
+                                    initial={{ opacity: 0, scale: 0.96, y: 12 }}
+                                    animate={{ opacity: 1, scale: 1, y: 0 }}
+                                    exit={{ opacity: 0, scale: 0.96, y: 12 }}
+                                    transition={{ type: 'spring', damping: 24, stiffness: 260 }}
+                                    className="w-full max-w-md overflow-hidden rounded-[28px] border border-gray-200 bg-white shadow-2xl"
+                                >
+                                    <div className={`px-6 py-5 ${
+                                        pendingRequestAction.type === 'cancel'
+                                            ? 'bg-gradient-to-r from-amber-400 via-yellow-300 to-orange-300'
+                                            : 'bg-gradient-to-r from-bird-blue via-sky-500 to-cyan-400'
+                                    }`}>
+                                        <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-700">
+                                            {pendingRequestAction.type === 'cancel' ? 'Cancel request' : 'Confirm completion'}
+                                        </p>
+                                        <h3 className="mt-2 text-xl font-black text-slate-900">
+                                            #{pendingRequestAction.request.id_request} - {pendingRequestAction.request.service_name}
+                                        </h3>
+                                    </div>
+
+                                    <div className="p-6">
+                                        <div className={`rounded-2xl border p-4 ${
+                                            pendingRequestAction.type === 'cancel'
+                                                ? 'border-amber-200 bg-amber-50/70'
+                                                : 'border-blue-200 bg-blue-50/70'
+                                        }`}>
+                                            <p className="text-sm font-bold text-slate-900">
+                                                {pendingRequestAction.type === 'cancel'
+                                                    ? 'Are you sure you want to cancel this request?'
+                                                    : 'Confirm that the work is completed and release the payment?'}
+                                            </p>
+                                            <p className="mt-2 text-sm text-slate-600 line-clamp-3">
+                                                {pendingRequestAction.request.description}
+                                            </p>
+                                        </div>
+
+                                        <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:justify-end">
+                                            <motion.button
+                                                type="button"
+                                                onClick={() => closeRequestActionPrompt(true)}
+                                                whileHover={{ y: -2, scale: 1.01 }}
+                                                whileTap={{ scale: 0.98 }}
+                                                className="inline-flex items-center justify-center gap-2 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-black text-amber-700 transition hover:bg-amber-400 hover:text-white"
+                                            >
+                                                {renderSavedPlaceActionIcon('delete')}
+                                                Back
+                                            </motion.button>
+                                            <motion.button
+                                                type="button"
+                                                onClick={() => void confirmPendingRequestAction()}
+                                                whileHover={{ y: -2, scale: 1.01 }}
+                                                whileTap={{ scale: 0.98 }}
+                                                className={`inline-flex items-center justify-center gap-2 rounded-2xl px-4 py-3 text-sm font-black text-white transition ${
+                                                    pendingRequestAction.type === 'cancel'
+                                                        ? 'bg-gradient-to-r from-amber-500 to-orange-500 hover:shadow-[0_12px_28px_rgba(245,158,11,0.28)]'
+                                                        : 'bg-bird-blue hover:shadow-[0_12px_28px_rgba(29,78,216,0.28)]'
+                                                }`}
+                                            >
+                                                {renderSavedPlaceActionIcon(pendingRequestAction.type === 'cancel' ? 'delete' : 'use')}
+                                                {pendingRequestAction.type === 'cancel' ? 'Yes, cancel request' : 'Yes, confirm completion'}
+                                            </motion.button>
+                                        </div>
+                                    </div>
+                                </motion.div>
+                            </motion.div>
+                        )}
+                    </AnimatePresence>
+
+                    <AnimatePresence>
+                        {paymentModalRequest && (
+                            <motion.div
+                                initial={{ opacity: 0 }}
+                                animate={{ opacity: 1 }}
+                                exit={{ opacity: 0 }}
+                                className="fixed inset-0 z-[78] bg-slate-950/35 backdrop-blur-sm p-4 flex items-center justify-center"
+                            >
+                                <motion.div
+                                    initial={{ opacity: 0, scale: 0.96, y: 16 }}
+                                    animate={{ opacity: 1, scale: 1, y: 0 }}
+                                    exit={{ opacity: 0, scale: 0.96, y: 16 }}
+                                    transition={{ type: 'spring', damping: 24, stiffness: 220 }}
+                                    className="w-full max-w-5xl overflow-hidden rounded-[28px] border border-gray-200 bg-white shadow-2xl"
+                                >
+                                    <div className="grid grid-cols-1 lg:grid-cols-[1.05fr_0.95fr]">
+                                        <div className="bg-gradient-to-br from-sky-600 via-blue-700 to-cyan-500 p-8 text-white">
+                                            <div className="flex items-center gap-4">
+                                                <div className="rounded-2xl bg-white/15 px-4 py-2 text-sm font-black tracking-wide">FIXLIFE PAY</div>
+                                                <div className="rounded-2xl bg-white/10 px-4 py-2 text-sm font-bold">Checkout seguro</div>
+                                            </div>
+                                            <div className="mt-10">
+                                                <p className="text-lg font-medium text-blue-100">Reserva tu servicio de forma segura</p>
+                                                <h3 className="mt-3 text-5xl font-black leading-none">PAGOS CON TARJETA</h3>
+                                                <p className="mt-3 text-2xl font-semibold text-cyan-100">sin salir de Fixlife</p>
+                                            </div>
+                                            <div className="mt-10 rounded-3xl bg-white/10 p-5 backdrop-blur-sm">
+                                                <p className="text-[11px] uppercase tracking-[0.18em] text-blue-100">Solicitud actual</p>
+                                                <p className="mt-2 text-2xl font-black">{paymentModalRequest.service_name}</p>
+                                                <p className="mt-2 text-sm text-blue-100 line-clamp-3">{paymentModalRequest.description}</p>
+                                                <div className="mt-5 grid grid-cols-2 gap-3">
+                                                    <div className="rounded-2xl bg-white/10 px-4 py-3">
+                                                        <p className="text-[11px] uppercase tracking-wide text-blue-100">Monto</p>
+                                                        <p className="mt-1 text-2xl font-black">
+                                                            ${Number(paymentModalRequest.final_budget ?? paymentModalRequest.proposed_budget ?? paymentModalRequest.budget ?? 0).toFixed(2)}
+                                                        </p>
+                                                    </div>
+                                                    <div className="rounded-2xl bg-white/10 px-4 py-3">
+                                                        <p className="text-[11px] uppercase tracking-wide text-blue-100">Estado</p>
+                                                        <p className="mt-1 text-lg font-black">Pago pendiente</p>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <div className="bg-white p-8">
+                                            <div className="flex items-start justify-between gap-4">
+                                                <div>
+                                                    <p className="text-[11px] uppercase tracking-[0.18em] font-bold text-gray-400">Checkout</p>
+                                                    <h3 className="mt-1 text-2xl font-black text-gray-900">Elige tu metodo de pago</h3>
+                                                </div>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setPaymentModalRequest(null)}
+                                                    className="rounded-xl border border-gray-200 bg-white px-3 py-2 text-xs font-bold text-gray-500 hover:text-gray-700"
+                                                >
+                                                    Cerrar
+                                                </button>
+                                            </div>
+
+                                            <div className="mt-6 grid gap-3 sm:grid-cols-2">
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setPaymentMethod('paypal')}
+                                                    className={`rounded-2xl border px-4 py-4 text-left transition ${
+                                                        paymentMethod === 'paypal'
+                                                            ? 'border-blue-500 bg-blue-50 shadow-sm'
+                                                            : 'border-gray-200 bg-white hover:border-blue-300'
+                                                    }`}
+                                                >
+                                                    <div className="flex items-center justify-between gap-3">
+                                                        <div>
+                                                            <p className="text-lg font-black text-[#003087]">PayPal</p>
+                                                            <p className="mt-1 text-xs font-semibold text-gray-500">Visible en la UI, todavia no configurado.</p>
+                                                        </div>
+                                                        <span className="rounded-full bg-amber-100 px-2.5 py-1 text-[10px] font-black uppercase tracking-wide text-amber-700">
+                                                            Soon
+                                                        </span>
+                                                    </div>
+                                                </button>
+
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setPaymentMethod('card')}
+                                                    className={`rounded-2xl border px-4 py-4 text-left transition ${
+                                                        paymentMethod === 'card'
+                                                            ? 'border-cyan-500 bg-cyan-50 shadow-sm'
+                                                            : 'border-gray-200 bg-white hover:border-cyan-300'
+                                                    }`}
+                                                >
+                                                    <div className="flex items-center justify-between gap-3">
+                                                        <div>
+                                                            <p className="text-lg font-black text-gray-900">Tarjeta de credito o debito</p>
+                                                            <p className="mt-1 text-xs font-semibold text-gray-500">Checkout demo listo dentro de Fixlife.</p>
+                                                        </div>
+                                                        <span className="rounded-full bg-emerald-100 px-2.5 py-1 text-[10px] font-black uppercase tracking-wide text-emerald-700">
+                                                            Activo
+                                                        </span>
+                                                    </div>
+                                                </button>
+                                            </div>
+
+                                            {paymentMethod === 'paypal' ? (
+                                                <div className="mt-6 rounded-3xl border border-blue-200 bg-blue-50 p-6">
+                                                    <p className="text-sm font-black text-[#003087]">PayPal proximamente</p>
+                                                    <p className="mt-2 text-sm text-slate-600">
+                                                        Ya dejamos visible la opcion de PayPal en la UI, pero la integracion real todavia no esta configurada.
+                                                    </p>
+                                                    <button
+                                                        type="button"
+                                                        disabled
+                                                        className="mt-5 w-full rounded-2xl bg-[#0070ba] px-4 py-3 text-sm font-black text-white opacity-60"
+                                                    >
+                                                        Paga con PayPal
+                                                    </button>
+                                                </div>
+                                            ) : (
+                                                <div className="mt-6 space-y-4">
+                                                    <div className="rounded-2xl border border-gray-200 bg-gray-50 p-4">
+                                                        <p className="text-[11px] uppercase tracking-[0.18em] font-bold text-gray-400">Resumen del cobro</p>
+                                                        <p className="mt-2 text-3xl font-black text-gray-900">
+                                                            ${Number(paymentModalRequest.final_budget ?? paymentModalRequest.proposed_budget ?? paymentModalRequest.budget ?? 0).toFixed(2)}
+                                                        </p>
+                                                        <p className="mt-1 text-sm text-gray-500">El cobro se asegura para este trabajo en modo demo.</p>
+                                                    </div>
+
+                                                    <div className="grid gap-4 sm:grid-cols-2">
+                                                        <label className="text-xs font-bold text-gray-600">
+                                                            Nombre
+                                                            <input
+                                                                type="text"
+                                                                value={paymentForm.fullName}
+                                                                onChange={(e) => setPaymentForm((prev) => ({ ...prev, fullName: e.target.value }))}
+                                                                className="mt-1 w-full rounded-xl border border-gray-200 px-4 py-3 text-sm text-gray-900 focus:border-bird-blue focus:outline-none"
+                                                                placeholder="Juan Perez"
+                                                            />
+                                                        </label>
+                                                        <label className="text-xs font-bold text-gray-600">
+                                                            Correo electronico
+                                                            <input
+                                                                type="email"
+                                                                value={paymentForm.email}
+                                                                onChange={(e) => setPaymentForm((prev) => ({ ...prev, email: e.target.value }))}
+                                                                className="mt-1 w-full rounded-xl border border-gray-200 px-4 py-3 text-sm text-gray-900 focus:border-bird-blue focus:outline-none"
+                                                                placeholder="john@doe.com"
+                                                            />
+                                                        </label>
+                                                        <label className="text-xs font-bold text-gray-600">
+                                                            Telefono
+                                                            <input
+                                                                type="text"
+                                                                value={paymentForm.phone}
+                                                                onChange={(e) => setPaymentForm((prev) => ({ ...prev, phone: e.target.value }))}
+                                                                className="mt-1 w-full rounded-xl border border-gray-200 px-4 py-3 text-sm text-gray-900 focus:border-bird-blue focus:outline-none"
+                                                                placeholder="+503 7000 0000"
+                                                            />
+                                                        </label>
+                                                        <label className="text-xs font-bold text-gray-600">
+                                                            Ciudad
+                                                            <input
+                                                                type="text"
+                                                                value={paymentForm.city}
+                                                                onChange={(e) => setPaymentForm((prev) => ({ ...prev, city: e.target.value }))}
+                                                                className="mt-1 w-full rounded-xl border border-gray-200 px-4 py-3 text-sm text-gray-900 focus:border-bird-blue focus:outline-none"
+                                                                placeholder="Santa Tecla"
+                                                            />
+                                                        </label>
+                                                    </div>
+
+                                                    <label className="text-xs font-bold text-gray-600">
+                                                        Pais
+                                                        <select
+                                                            value={paymentForm.country}
+                                                            onChange={(e) => setPaymentForm((prev) => ({ ...prev, country: e.target.value }))}
+                                                            className="mt-1 w-full rounded-xl border border-gray-200 px-4 py-3 text-sm text-gray-900 focus:border-bird-blue focus:outline-none"
+                                                        >
+                                                            <option value="Guatemala">Guatemala</option>
+                                                            <option value="El Salvador">El Salvador</option>
+                                                            <option value="Honduras">Honduras</option>
+                                                            <option value="Mexico">Mexico</option>
+                                                        </select>
+                                                    </label>
+
+                                                    <label className="text-xs font-bold text-gray-600">
+                                                        Tarjeta de credito o debito
+                                                        <input
+                                                            type="text"
+                                                            value={paymentForm.cardNumber}
+                                                            onChange={(e) => setPaymentForm((prev) => ({ ...prev, cardNumber: e.target.value }))}
+                                                            className="mt-1 w-full rounded-xl border border-gray-200 px-4 py-3 text-sm text-gray-900 focus:border-bird-blue focus:outline-none"
+                                                            placeholder="4242 4242 4242 4242"
+                                                        />
+                                                    </label>
+
+                                                    <div className="grid gap-4 sm:grid-cols-2">
+                                                        <label className="text-xs font-bold text-gray-600">
+                                                            MM / AA
+                                                            <input
+                                                                type="text"
+                                                                value={paymentForm.expiry}
+                                                                onChange={(e) => setPaymentForm((prev) => ({ ...prev, expiry: e.target.value }))}
+                                                                className="mt-1 w-full rounded-xl border border-gray-200 px-4 py-3 text-sm text-gray-900 focus:border-bird-blue focus:outline-none"
+                                                                placeholder="MM / YY"
+                                                            />
+                                                        </label>
+                                                        <label className="text-xs font-bold text-gray-600">
+                                                            CVV
+                                                            <input
+                                                                type="password"
+                                                                value={paymentForm.cvv}
+                                                                onChange={(e) => setPaymentForm((prev) => ({ ...prev, cvv: e.target.value }))}
+                                                                className="mt-1 w-full rounded-xl border border-gray-200 px-4 py-3 text-sm text-gray-900 focus:border-bird-blue focus:outline-none"
+                                                                placeholder="123"
+                                                            />
+                                                        </label>
+                                                    </div>
+
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => void confirmPaymentThroughModal()}
+                                                        disabled={paymentBusyId === paymentModalRequest.id_request}
+                                                        className="w-full rounded-2xl bg-cyan-600 px-4 py-3 text-sm font-black text-white shadow-sm hover:bg-cyan-700 disabled:opacity-50"
+                                                    >
+                                                        {paymentBusyId === paymentModalRequest.id_request ? 'Procesando pago...' : 'Pagar y asegurar reserva'}
+                                                    </button>
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+                                </motion.div>
                             </motion.div>
                         )}
                     </AnimatePresence>
@@ -1537,4 +5605,6 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
         </motion.div>
     );
 };
+
+
 
