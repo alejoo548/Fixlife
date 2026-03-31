@@ -38,21 +38,32 @@ USE `fixlife_db`;
 DROP TABLE IF EXISTS `users`;
 
 CREATE TABLE `users` (
-    `id_user` int NOT NULL,
-    `name` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
-    `lastname` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
-    `email` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
-    `phone_number` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
-    `password_hash` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
-    `rol` enum('client', 'worker', 'admin') CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'client',
-    `profile_image` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-    `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    `last_login` datetime DEFAULT NULL,
-    `username` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-    `verification_token` varchar(6) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-    `token_expires_at` datetime DEFAULT NULL,
-    `pending_email` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL
-) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci;
+  `id_user` int NOT NULL,
+  `name` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
+  `lastname` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
+  `email` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
+  `phone_number` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
+  `password_hash` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
+  `rol` enum('client','worker','admin','root') CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'client',
+  `profile_image` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `last_login` datetime DEFAULT NULL,
+  `username` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `verification_token` varchar(6) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `token_expires_at` datetime DEFAULT NULL,
+  `pending_email` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `is_active` tinyint(1) NOT NULL DEFAULT '1',
+  `pending_worker` tinyint(1) NOT NULL DEFAULT '0'
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+--
+-- Volcado de datos para la tabla `users`
+--
+
+INSERT INTO `users` (`id_user`, `name`, `lastname`, `email`, `phone_number`, `password_hash`, `rol`, `profile_image`, `created_at`, `last_login`, `username`, `verification_token`, `token_expires_at`, `pending_email`, `is_active`, `pending_worker`) VALUES
+(19, 'Pablo', 'Escobar', 'paescobar831@gmail.com', '978465453', '$2b$12$pe9DAzHVYRO0aMcc9YyyAOvK713kyBTcWWgbn5kDgMP94NFP79u6O', 'root', NULL, '2026-03-12 05:12:56', '2026-03-30 21:32:55', 'pabloski', NULL, NULL, NULL, 1, 0),
+(22, 'Alejandro', 'Medrano', 'medranoalejandro418@gmail.com', '21548413', '$2b$12$UxQpv8jjQWDNeOUYJ1bFzeEZA57IoSF9vkTYvrHRVZe1D33QCTP4m', 'worker', NULL, '2026-03-13 17:43:53', '2026-03-27 21:52:27', NULL, NULL, NULL, NULL, 1, 0),
+(24, 'Rafael', 'Hernandez', 'rafamoihernandez@gmail.com', '978465453', '$2b$12$xYQm/SgjAlOTe9MEUQbTY.Lo8sqxMegsRoPdwddI2uMokHdlahWgi', 'client', NULL, '2026-03-27 13:39:56', NULL, 'rafita', NULL, NULL, NULL, 1, 0);
 
 -- --------------------------------------------------------
 
@@ -125,8 +136,7 @@ ADD UNIQUE KEY `id_user` (`id_user`);
 -- AUTO_INCREMENT de la tabla `users`
 --
 ALTER TABLE `users`
-MODIFY `id_user` int NOT NULL AUTO_INCREMENT,
-AUTO_INCREMENT = 7;
+MODIFY `id_user` int NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=28;
 
 --
 -- AUTO_INCREMENT de la tabla `worker_portfolio`
