@@ -1,6 +1,13 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 
-import { clearAuthSession } from '../utils/session';
+import {
+  AUTH_SESSION_CHANGED_EVENT,
+  clearAuthSession,
+  getAuthUser,
+  getToken,
+  setAuthSession,
+  updateStoredAuthUser,
+} from '../utils/session';
 
 interface AuthContextType {
   user: any;
@@ -13,15 +20,10 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | null>(null);
 
 const readStoredUser = () => {
-  const storedToken = localStorage.getItem('token');
-  const storedUser = localStorage.getItem('user');
+  const storedToken = getToken('client');
+  const storedUser = getAuthUser('client');
   if (!storedToken || !storedUser) return null;
-
-  try {
-    return JSON.parse(storedUser);
-  } catch {
-    return null;
-  }
+  return storedUser;
 };
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -41,6 +43,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     syncUserFromStorage();
 
     window.addEventListener('storage', syncUserFromStorage);
+    window.addEventListener(AUTH_SESSION_CHANGED_EVENT, syncUserFromStorage);
     window.addEventListener('popstate', syncUserFromStorage);
     window.addEventListener('pageshow', syncUserFromStorage);
     window.addEventListener('focus', syncUserFromStorage);
@@ -48,6 +51,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     return () => {
       window.removeEventListener('storage', syncUserFromStorage);
+      window.removeEventListener(AUTH_SESSION_CHANGED_EVENT, syncUserFromStorage);
       window.removeEventListener('popstate', syncUserFromStorage);
       window.removeEventListener('pageshow', syncUserFromStorage);
       window.removeEventListener('focus', syncUserFromStorage);
@@ -56,18 +60,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, []);
 
   const login = (user: any, token: string) => {
-    localStorage.setItem('user', JSON.stringify(user));
-    localStorage.setItem('token', token);
+    setAuthSession(user, token, 'client');
     setUser(user);
   };
 
   const logout = () => {
-    clearAuthSession();
+    clearAuthSession('client');
     setUser(null);
   };
 
   const updateUser = (nextUser: any) => {
-    localStorage.setItem('user', JSON.stringify(nextUser));
+    updateStoredAuthUser(nextUser, 'client');
     setUser(nextUser);
   };
 

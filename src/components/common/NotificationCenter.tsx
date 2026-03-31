@@ -1,0 +1,487 @@
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { AnimatePresence, motion } from 'framer-motion';
+import { Notyf } from 'notyf';
+import 'notyf/notyf.min.css';
+import { API_ENDPOINTS } from '../../config/api';
+
+type NotificationTone = 'info' | 'success' | 'warning';
+
+interface NotificationItem {
+  id_notification: number;
+  event_type: string;
+  title: string;
+  message: string;
+  tone: NotificationTone;
+  is_read: boolean;
+  action_url: string | null;
+  created_at: string;
+}
+
+interface NotificationCenterProps {
+  token: string | null;
+  variant?: 'landing' | 'panel';
+  className?: string;
+}
+
+type NotificationFilter = 'all' | 'unread' | 'payments' | 'jobs';
+
+const notyf = new Notyf({ position: { x: 'right', y: 'bottom' }, ripple: true });
+
+const toneClasses: Record<NotificationTone, string> = {
+  info: 'border-blue-200 bg-blue-50 text-blue-700',
+  success: 'border-emerald-200 bg-emerald-50 text-emerald-700',
+  warning: 'border-amber-200 bg-amber-50 text-amber-700',
+};
+
+const paymentEventTypes = new Set([
+  'payment_secured',
+  'payout_scheduled',
+  'payout_paid',
+  'counter_offer_accepted',
+]);
+
+const jobEventTypes = new Set([
+  'request_accepted',
+  'counter_offer_received',
+  'counter_offer_sent',
+  'worker_arriving',
+  'job_started',
+  'job_completed_pending_confirmation',
+  'job_completed',
+  'chat_new_message',
+]);
+
+const filterOptions: Array<{ id: NotificationFilter; label: string }> = [
+  { id: 'all', label: 'All' },
+  { id: 'unread', label: 'Unread' },
+  { id: 'payments', label: 'Payments' },
+  { id: 'jobs', label: 'Jobs' },
+];
+
+const eventLabelMap: Record<string, string> = {
+  request_accepted: 'Accepted',
+  counter_offer_received: 'Counter offer',
+  counter_offer_sent: 'Counter sent',
+  counter_offer_accepted: 'Counter accepted',
+  payment_secured: 'Payment',
+  worker_arriving: 'Arriving',
+  job_started: 'In progress',
+  job_completed_pending_confirmation: 'Pending confirm',
+  job_completed: 'Completed',
+  payout_scheduled: 'Payout',
+  payout_paid: 'Paid out',
+  chat_new_message: 'New chat',
+};
+
+const eventAccentClasses: Record<string, string> = {
+  request_accepted: 'from-blue-500 to-sky-400 text-white',
+  counter_offer_received: 'from-amber-400 to-orange-400 text-white',
+  counter_offer_sent: 'from-amber-400 to-orange-400 text-white',
+  counter_offer_accepted: 'from-emerald-500 to-green-400 text-white',
+  payment_secured: 'from-emerald-500 to-teal-400 text-white',
+  worker_arriving: 'from-blue-500 to-indigo-500 text-white',
+  job_started: 'from-violet-500 to-indigo-500 text-white',
+  job_completed_pending_confirmation: 'from-fuchsia-500 to-pink-500 text-white',
+  job_completed: 'from-emerald-500 to-lime-400 text-white',
+  payout_scheduled: 'from-bird-blue to-cyan-400 text-white',
+  payout_paid: 'from-emerald-500 to-green-400 text-white',
+  chat_new_message: 'from-bird-orange to-amber-400 text-white',
+};
+
+const formatTimeAgo = (value: string) => {
+  const date = new Date(value);
+  const diffMs = Date.now() - date.getTime();
+  const diffMin = Math.max(1, Math.floor(diffMs / 60000));
+
+  if (diffMin < 60) return `${diffMin}m ago`;
+  const diffHours = Math.floor(diffMin / 60);
+  if (diffHours < 24) return `${diffHours}h ago`;
+  const diffDays = Math.floor(diffHours / 24);
+  if (diffDays < 7) return `${diffDays}d ago`;
+  return date.toLocaleDateString();
+};
+
+const openNotificationUrl = (actionUrl: string) => {
+  if (!actionUrl) return;
+  window.history.pushState({}, '', actionUrl);
+  window.dispatchEvent(new PopStateEvent('popstate'));
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+};
+
+const renderEventGlyph = (eventType: string) => {
+  switch (eventType) {
+    case 'payment_secured':
+    case 'payout_scheduled':
+    case 'payout_paid':
+      return '💸';
+    case 'chat_new_message':
+      return '💬';
+    case 'job_completed':
+    case 'job_completed_pending_confirmation':
+      return '✅';
+    case 'worker_arriving':
+      return '🚗';
+    case 'request_accepted':
+      return '🛠️';
+    case 'counter_offer_received':
+    case 'counter_offer_sent':
+    case 'counter_offer_accepted':
+      return '💼';
+    case 'job_started':
+      return '⚡';
+    default:
+      return '🔔';
+  }
+};
+
+export const NotificationCenter: React.FC<NotificationCenterProps> = ({
+  token,
+  variant = 'landing',
+  className = '',
+}) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [notifications, setNotifications] = useState<NotificationItem[]>([]);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [activeFilter, setActiveFilter] = useState<NotificationFilter>('all');
+  const rootRef = useRef<HTMLDivElement | null>(null);
+
+  const fetchNotifications = async (silent = false) => {
+    if (!token) {
+      setNotifications([]);
+      setUnreadCount(0);
+      return;
+    }
+
+    if (!silent) setLoading(true);
+    try {
+      const res = await fetch(`${API_ENDPOINTS.notifications.list}?limit=20`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+      const payload = await res.json();
+      if (!res.ok || !payload?.success) {
+        throw new Error(payload?.error || 'Could not load notifications.');
+      }
+
+      setNotifications(Array.isArray(payload.notifications) ? payload.notifications : []);
+      setUnreadCount(Number(payload.summary?.unread_count || 0));
+    } catch (error: any) {
+      if (!silent) {
+        notyf.error(error?.message || 'Could not load notifications.');
+      }
+    } finally {
+      if (!silent) setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    void fetchNotifications(true);
+    if (!token) return;
+
+    const intervalId = window.setInterval(() => {
+      void fetchNotifications(true);
+    }, 15000);
+
+    return () => window.clearInterval(intervalId);
+  }, [token]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    void fetchNotifications(true);
+  }, [isOpen]);
+
+  useEffect(() => {
+    const handleOutsideClick = (event: MouseEvent) => {
+      if (!rootRef.current?.contains(event.target as Node)) {
+        setIsOpen(false);
+      }
+    };
+
+    if (isOpen) {
+      document.addEventListener('mousedown', handleOutsideClick);
+    }
+
+    return () => document.removeEventListener('mousedown', handleOutsideClick);
+  }, [isOpen]);
+
+  const unreadItems = useMemo(
+    () => notifications.filter((item) => !item.is_read).slice(0, 3),
+    [notifications]
+  );
+
+  const filteredNotifications = useMemo(() => {
+    switch (activeFilter) {
+      case 'unread':
+        return notifications.filter((item) => !item.is_read);
+      case 'payments':
+        return notifications.filter((item) => paymentEventTypes.has(item.event_type));
+      case 'jobs':
+        return notifications.filter((item) => jobEventTypes.has(item.event_type));
+      case 'all':
+      default:
+        return notifications;
+    }
+  }, [activeFilter, notifications]);
+
+  const filterCounts = useMemo(
+    () => ({
+      all: notifications.length,
+      unread: notifications.filter((item) => !item.is_read).length,
+      payments: notifications.filter((item) => paymentEventTypes.has(item.event_type)).length,
+      jobs: notifications.filter((item) => jobEventTypes.has(item.event_type)).length,
+    }),
+    [notifications]
+  );
+
+  const markOneRead = async (idNotification: number) => {
+    if (!token) return;
+    const alreadyRead = notifications.some(
+      (item) => item.id_notification === idNotification && item.is_read
+    );
+    if (alreadyRead) return;
+    try {
+      await fetch(API_ENDPOINTS.notifications.readOne(idNotification), {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+      setNotifications((prev) =>
+        prev.map((item) =>
+          item.id_notification === idNotification ? { ...item, is_read: true } : item
+        )
+      );
+      setUnreadCount((prev) => Math.max(prev - 1, 0));
+    } catch {
+      // keep quiet; polling will recover
+    }
+  };
+
+  const markAllRead = async () => {
+    if (!token) return;
+    try {
+      const res = await fetch(API_ENDPOINTS.notifications.readAll, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+      const payload = await res.json();
+      if (!res.ok || !payload?.success) {
+        throw new Error(payload?.error || 'Could not mark notifications as read.');
+      }
+      setNotifications((prev) => prev.map((item) => ({ ...item, is_read: true })));
+      setUnreadCount(0);
+    } catch (error: any) {
+      notyf.error(error?.message || 'Could not mark notifications as read.');
+    }
+  };
+
+  if (!token) return null;
+
+  return (
+    <div ref={rootRef} className={`relative ${className}`}>
+      <button
+        type="button"
+        onClick={() => setIsOpen((prev) => !prev)}
+        className={`relative flex h-11 w-11 items-center justify-center rounded-2xl border transition duration-300 ${
+          variant === 'panel'
+            ? 'border-white/60 bg-white/90 text-slate-700 shadow-[0_16px_30px_rgba(15,23,42,0.08)] hover:-translate-y-0.5 hover:border-bird-blue/30 hover:text-bird-blue hover:shadow-[0_18px_32px_rgba(0,144,255,0.18)]'
+            : 'border-gray-200 bg-white text-slate-700 shadow-sm hover:-translate-y-0.5 hover:border-bird-blue/20 hover:text-bird-blue hover:shadow-[0_12px_24px_rgba(0,144,255,0.14)]'
+        }`}
+        aria-label="Open notifications"
+      >
+        <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth={1.9}
+            d="M15 17h5l-1.4-1.4a2 2 0 01-.6-1.4V11a6 6 0 10-12 0v3.2a2 2 0 01-.6 1.4L4 17h5m6 0a3 3 0 11-6 0m6 0H9"
+          />
+        </svg>
+        {unreadCount > 0 && (
+          <>
+            <span className="absolute -right-1 -top-1 inline-flex h-5 w-5 animate-ping rounded-full bg-bird-orange/35" />
+            <span className="absolute -right-1 -top-1 inline-flex min-h-[22px] min-w-[22px] items-center justify-center rounded-full bg-bird-orange px-1.5 text-[10px] font-black text-white shadow-lg shadow-orange-400/40">
+              {unreadCount > 9 ? '9+' : unreadCount}
+            </span>
+          </>
+        )}
+      </button>
+
+      <AnimatePresence>
+        {isOpen && (
+          <motion.div
+            initial={{ opacity: 0, y: -8, scale: 0.98 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -8, scale: 0.98 }}
+            transition={{ duration: 0.2, ease: 'easeOut' }}
+            className="absolute right-0 top-14 z-[160] w-[360px] max-w-[calc(100vw-2rem)] overflow-hidden rounded-[28px] border border-white/70 bg-white/96 shadow-[0_24px_60px_rgba(15,23,42,0.16)] backdrop-blur-xl"
+          >
+            <div className="relative overflow-hidden border-b border-slate-100 bg-gradient-to-r from-sky-50 via-white to-amber-50 px-5 py-4">
+              <div className="pointer-events-none absolute -left-8 top-0 h-24 w-24 rounded-full bg-bird-blue/10 blur-2xl" />
+              <div className="pointer-events-none absolute right-0 top-2 h-20 w-20 rounded-full bg-bird-yellow/20 blur-2xl" />
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-[11px] font-black uppercase tracking-[0.18em] text-bird-blue">Notification Center</p>
+                  <h3 className="mt-1 text-lg font-black text-slate-900">Recent activity</h3>
+                  <p className="mt-1 text-xs text-slate-500">
+                    {unreadCount > 0
+                      ? `${unreadCount} unread event${unreadCount === 1 ? '' : 's'} waiting`
+                      : 'Everything is up to date.'}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => void markAllRead()}
+                  className="rounded-full border border-bird-blue/15 bg-white px-3 py-1.5 text-[11px] font-black text-bird-blue shadow-sm transition hover:border-bird-blue hover:bg-bird-blue hover:text-white"
+                >
+                  Read all
+                </button>
+              </div>
+              {unreadItems.length > 0 && (
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {unreadItems.map((item) => (
+                    <span
+                      key={`peek-${item.id_notification}`}
+                      className={`rounded-full border px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.14em] ${toneClasses[item.tone]}`}
+                    >
+                      {item.title}
+                    </span>
+                  ))}
+                </div>
+              )}
+              <div className="mt-4 flex flex-wrap gap-2">
+                {filterOptions.map((filter) => {
+                  const isActive = activeFilter === filter.id;
+                  return (
+                    <button
+                      key={filter.id}
+                      type="button"
+                      onClick={() => setActiveFilter(filter.id)}
+                      className={`rounded-full px-3 py-1.5 text-[11px] font-black transition ${
+                        isActive
+                          ? 'bg-bird-blue text-white shadow-sm shadow-blue-200'
+                          : 'border border-slate-200 bg-white text-slate-500 hover:border-bird-blue/25 hover:text-bird-blue'
+                      }`}
+                    >
+                      <span className="inline-flex items-center gap-1.5">
+                        {filter.label}
+                        <span
+                          className={`rounded-full px-1.5 py-0.5 text-[10px] ${
+                            isActive ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-500'
+                          }`}
+                        >
+                          {filterCounts[filter.id]}
+                        </span>
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div className="max-h-[420px] overflow-y-auto px-4 py-4">
+              {loading ? (
+                <div className="space-y-3">
+                  {Array.from({ length: 3 }).map((_, index) => (
+                    <div key={`notif-skeleton-${index}`} className="animate-pulse rounded-2xl border border-slate-100 p-4">
+                      <div className="h-3 w-24 rounded-full bg-slate-200" />
+                      <div className="mt-3 h-4 w-3/4 rounded-full bg-slate-100" />
+                      <div className="mt-2 h-3 w-full rounded-full bg-slate-100" />
+                    </div>
+                  ))}
+                </div>
+              ) : filteredNotifications.length === 0 ? (
+                <div className="rounded-3xl border border-dashed border-slate-200 bg-slate-50 px-5 py-8 text-center">
+                  <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-white shadow-sm">
+                    <svg className="h-6 w-6 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M15 17h5l-1.4-1.4a2 2 0 01-.6-1.4V11a6 6 0 10-12 0v3.2a2 2 0 01-.6 1.4L4 17h5m6 0a3 3 0 11-6 0" />
+                    </svg>
+                  </div>
+                  <p className="mt-4 text-sm font-bold text-slate-700">
+                    {activeFilter === 'all' ? 'No notifications yet' : `No ${activeFilter} notifications`}
+                  </p>
+                  <p className="mt-1 text-xs text-slate-500">
+                    {activeFilter === 'all'
+                      ? "We'll save request, payment and payout events here."
+                      : 'Try another filter or check back in a moment.'}
+                  </p>
+                </div>
+              ) : (
+                <motion.div
+                  layout
+                  className="space-y-3"
+                >
+                  <AnimatePresence initial={false}>
+                    {filteredNotifications.map((item, index) => (
+                    <motion.div
+                      key={item.id_notification}
+                      layout
+                      initial={{ opacity: 0, y: 14, scale: 0.98 }}
+                      animate={{ opacity: 1, y: 0, scale: 1 }}
+                      exit={{ opacity: 0, y: -10, scale: 0.98 }}
+                      transition={{ duration: 0.2, delay: index * 0.03 }}
+                      className={`rounded-3xl border p-4 transition ${
+                        item.is_read
+                          ? 'border-slate-100 bg-slate-50/75 hover:border-slate-200 hover:bg-white'
+                          : 'border-bird-blue/15 bg-white shadow-[0_16px_32px_rgba(37,99,235,0.08)] hover:-translate-y-0.5 hover:shadow-[0_20px_36px_rgba(37,99,235,0.14)]'
+                      }`}
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div
+                          className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br text-lg shadow-sm ${
+                            eventAccentClasses[item.event_type] || 'from-slate-500 to-slate-400 text-white'
+                          }`}
+                        >
+                          <span>{renderEventGlyph(item.event_type)}</span>
+                        </div>
+                        <div className="min-w-0">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className={`rounded-full border px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.14em] ${toneClasses[item.tone]}`}>
+                              {eventLabelMap[item.event_type] || item.event_type.replace(/_/g, ' ')}
+                            </span>
+                            {!item.is_read && <span className="h-2.5 w-2.5 rounded-full bg-bird-orange shadow-[0_0_0_4px_rgba(255,140,0,0.15)]" />}
+                            <span className="text-[11px] font-semibold text-slate-400">{formatTimeAgo(item.created_at)}</span>
+                          </div>
+                          <p className="mt-2 text-sm font-black text-slate-900">{item.title}</p>
+                          <p className="mt-1 text-xs leading-5 text-slate-600">{item.message}</p>
+                        </div>
+                      </div>
+
+                      <div className="mt-3 flex items-center justify-between gap-2">
+                        <button
+                          type="button"
+                          onClick={() => void markOneRead(item.id_notification)}
+                          className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-[11px] font-black text-slate-600 transition hover:-translate-y-0.5 hover:border-bird-blue/25 hover:text-bird-blue"
+                        >
+                          {item.is_read ? 'Read' : 'Mark read'}
+                        </button>
+                        {item.action_url && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              void markOneRead(item.id_notification);
+                              openNotificationUrl(item.action_url);
+                              setIsOpen(false);
+                            }}
+                            className="rounded-full bg-bird-blue px-3 py-1.5 text-[11px] font-black text-white shadow-sm shadow-blue-200 transition hover:-translate-y-0.5 hover:bg-blue-700"
+                          >
+                            Open
+                          </button>
+                        )}
+                      </div>
+                    </motion.div>
+                  ))}
+                  </AnimatePresence>
+                </motion.div>
+              )}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+};

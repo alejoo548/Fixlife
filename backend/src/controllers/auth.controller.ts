@@ -455,10 +455,12 @@ export const login = async (req: Request, res: Response): Promise<void> => {
       return;
     }
 
+    const trimmedEmail = String(email).trim().toLowerCase();
+
     const [users] = await pool.execute<RowDataPacket[]>(
       `SELECT id_user, name, lastname, email, phone_number, password_hash, rol, username, profile_image
        FROM users WHERE email = ?`,
-      [email]
+      [trimmedEmail]
     );
 
     if (users.length === 0) {

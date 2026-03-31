@@ -87,6 +87,44 @@ html {
   }
 }
 
+@keyframes route-flow {
+  from {
+    stroke-dashoffset: 68;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+@keyframes route-breathe {
+  0%, 100% {
+    stroke-opacity: 0.18;
+  }
+  50% {
+    stroke-opacity: 0.35;
+  }
+}
+
+@keyframes marker-pulse {
+  0%, 100% {
+    transform: scale(1);
+    transform-origin: center;
+  }
+  50% {
+    transform: scale(1.12);
+    transform-origin: center;
+  }
+}
+
+@keyframes marker-soft-blink {
+  0%, 100% {
+    stroke-opacity: 1;
+  }
+  50% {
+    stroke-opacity: 0.72;
+  }
+}
+
 @layer utilities {
   .animate-blob {
     animation: blob 20s infinite;
@@ -218,4 +256,31 @@ html {
   .no-print {
     display: none !important;
   }
+}
+
+.leaflet-overlay-pane svg path.worker-route-line {
+  filter: drop-shadow(0 0 10px rgba(37, 99, 235, 0.28));
+}
+
+.leaflet-overlay-pane svg path.worker-route-live {
+  animation: route-flow 1.35s linear infinite;
+}
+
+.leaflet-overlay-pane svg path.worker-route-glow {
+  animation: route-breathe 1.8s ease-in-out infinite;
+}
+
+.leaflet-overlay-pane svg path.worker-route-traffic {
+  animation: route-breathe 2.1s ease-in-out infinite;
+  filter: drop-shadow(0 0 8px rgba(245, 158, 11, 0.18));
+}
+
+.leaflet-overlay-pane svg path.worker-destination-marker-active {
+  animation: marker-pulse 1.6s ease-in-out infinite;
+  filter: drop-shadow(0 0 12px rgba(251, 146, 60, 0.32));
+}
+
+.leaflet-overlay-pane svg path.worker-current-marker-live {
+  animation: marker-soft-blink 1.3s ease-in-out infinite;
+  filter: drop-shadow(0 0 10px rgba(56, 189, 248, 0.28));
 }

@@ -1,20 +1,50 @@
-
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, Suspense, lazy } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ProSidebar } from './ProSidebar';
-import { RequestsView } from '../dashboard/RequestsView';
-import { EarningsView } from '../dashboard/EarningsView';
-import { ScheduleView } from '../dashboard/ScheduleView';
-import { SettingsView } from '../dashboard/SettingsView';
-import { UploadDocumentsView } from '../dashboard/UploadDocumentsView';
 import { API_URL } from '../../config/api';
-import { clearAuthSession, getAuthUser, getToken as getSessionToken, isAuthenticated } from '../../utils/session';
+import { clearAuthSession, getAuthUser, getToken as getSessionToken, isAuthenticated, updateStoredAuthUser } from '../../utils/session';
+import { NotificationCenter } from '../common/NotificationCenter';
+
+const RequestsView = lazy(() =>
+   import('../dashboard/RequestsView').then((module) => ({
+      default: module.RequestsView,
+   }))
+);
+const EarningsView = lazy(() =>
+   import('../dashboard/EarningsView').then((module) => ({
+      default: module.EarningsView,
+   }))
+);
+const ScheduleView = lazy(() =>
+   import('../dashboard/ScheduleView').then((module) => ({
+      default: module.ScheduleView,
+   }))
+);
+const SettingsView = lazy(() =>
+   import('../dashboard/SettingsView').then((module) => ({
+      default: module.SettingsView,
+   }))
+);
+const UploadDocumentsView = lazy(() =>
+   import('../dashboard/UploadDocumentsView').then((module) => ({
+      default: module.UploadDocumentsView,
+   }))
+);
 
 interface ProDashboardProps {
    isOpen: boolean;
    onClose: () => void;
    onSignOut?: () => void;
 }
+
+const DashboardPanelFallback: React.FC<{ label?: string }> = ({ label = 'Loading panel...' }) => (
+   <div className="w-full h-full min-h-[220px] p-4">
+      <div className="inline-flex items-center gap-2 rounded-full border border-white/70 bg-white/82 px-3 py-2 shadow-[0_14px_34px_rgba(15,23,42,0.08)] backdrop-blur-xl">
+         <div className="h-3.5 w-3.5 rounded-full border-2 border-bird-blue/20 border-t-bird-blue animate-spin" />
+         <p className="text-[11px] font-black uppercase tracking-[0.16em] text-bird-blue">{label}</p>
+      </div>
+   </div>
+);
 
 export const ProDashboard: React.FC<ProDashboardProps> = ({ isOpen, onClose, onSignOut }) => {
    const [isOnline, setIsOnline] = useState(false);
@@ -34,7 +64,7 @@ export const ProDashboard: React.FC<ProDashboardProps> = ({ isOpen, onClose, onS
    };
 
    const handleSignOut = () => {
-      clearAuthSession();
+      clearAuthSession('worker');
       if (onSignOut) {
          onSignOut();
          return;
@@ -66,15 +96,14 @@ export const ProDashboard: React.FC<ProDashboardProps> = ({ isOpen, onClose, onS
          setIsVerified(verified);
          setHasUploadedDocs(uploaded);
 
-         const userData = localStorage.getItem('user');
-         if (userData) {
-            const user = JSON.parse(userData);
+         const user = getAuthUser('worker');
+         if (user) {
             user.worker_profile = {
                ...(user.worker_profile || {}),
                ...wp,
                is_verified: verified,
             };
-            localStorage.setItem('user', JSON.stringify(user));
+            updateStoredAuthUser(user, 'worker');
          }
       } catch (error) {
          console.error('syncWorkerStatus error:', error);
@@ -82,13 +111,13 @@ export const ProDashboard: React.FC<ProDashboardProps> = ({ isOpen, onClose, onS
    };
 
    useEffect(() => {
-      if (!isAuthenticated()) {
+      if (!isAuthenticated('worker')) {
          onClose();
          return;
       }
 
-      const user = getAuthUser();
-      const storedToken = getSessionToken();
+      const user = getAuthUser('worker');
+      const storedToken = getSessionToken('worker');
 
       if (storedToken) {
          setToken(storedToken);
@@ -219,6 +248,7 @@ export const ProDashboard: React.FC<ProDashboardProps> = ({ isOpen, onClose, onS
                </div>
 
                <div className="flex items-center gap-3">
+                  <NotificationCenter token={token} variant="panel" />
                   <motion.div
                      initial={{ scale: 0, opacity: 0 }}
                      animate={{ scale: 1, opacity: 1 }}
@@ -319,14 +349,16 @@ export const ProDashboard: React.FC<ProDashboardProps> = ({ isOpen, onClose, onS
                className="flex-1 flex flex-col md:flex-row overflow-hidden relative pb-16 md:pb-0"
             >
                {!isVerified && !hasUploadedDocs ? (
-                  <UploadDocumentsView 
-                     token={token} 
-                     onSuccess={() => {
-                        setHasUploadedDocs(true);
-                        setIsVerified(true);
-                        if (token) syncWorkerStatus(token);
-                     }} 
-                  />
+                  <Suspense fallback={<DashboardPanelFallback label="Loading documents..." />}>
+                     <UploadDocumentsView 
+                        token={token} 
+                        onSuccess={() => {
+                           setHasUploadedDocs(true);
+                           setIsVerified(true);
+                           if (token) syncWorkerStatus(token);
+                        }} 
+                     />
+                  </Suspense>
                ) : (
                   <>
                      {!isVerified && hasUploadedDocs && (
@@ -359,7 +391,9 @@ export const ProDashboard: React.FC<ProDashboardProps> = ({ isOpen, onClose, onS
                            transition={{ duration: 0.3 }}
                            className="w-full h-full flex"
                         >
-                           <RequestsView isOnline={isOnline} mobileView={mobileView} token={token} />
+                           <Suspense fallback={<DashboardPanelFallback label="Loading requests..." />}>
+                              <RequestsView isOnline={isOnline} mobileView={mobileView} token={token} />
+                           </Suspense>
                         </motion.div>
                      )}
 
@@ -372,7 +406,9 @@ export const ProDashboard: React.FC<ProDashboardProps> = ({ isOpen, onClose, onS
                            transition={{ duration: 0.3 }}
                            className="w-full h-full"
                         >
-                           <EarningsView />
+                           <Suspense fallback={<DashboardPanelFallback label="Loading earnings..." />}>
+                              <EarningsView />
+                           </Suspense>
                         </motion.div>
                      )}
 
@@ -385,7 +421,9 @@ export const ProDashboard: React.FC<ProDashboardProps> = ({ isOpen, onClose, onS
                            transition={{ duration: 0.3 }}
                            className="w-full h-full"
                         >
-                           <ScheduleView />
+                           <Suspense fallback={<DashboardPanelFallback label="Loading schedule..." />}>
+                              <ScheduleView />
+                           </Suspense>
                         </motion.div>
                      )}
 
@@ -398,7 +436,9 @@ export const ProDashboard: React.FC<ProDashboardProps> = ({ isOpen, onClose, onS
                            transition={{ duration: 0.3 }}
                            className="w-full h-full"
                         >
-                           <SettingsView />
+                           <Suspense fallback={<DashboardPanelFallback label="Loading settings..." />}>
+                              <SettingsView />
+                           </Suspense>
                         </motion.div>
                      )}
                   </AnimatePresence>
