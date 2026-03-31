@@ -311,7 +311,7 @@ export const verifyWorkerEmail = async (req: Request, res: Response): Promise<vo
       const worker = workerProfiles[0];
 
       const token = jwt.sign(
-        { user_id: user.id_user, rol: user.rol },
+        { user_id: user.id_user, rol: user.rol, pending_worker: user.pending_worker ? 1 : 0 },
         JWT_SECRET,
         { expiresIn: '7d' }
       );
@@ -423,7 +423,7 @@ export const registerUser = async (req: Request, res: Response): Promise<void> =
       await connection.commit();
 
       const token = jwt.sign(
-        { user_id: userId, rol: 'client' },
+        { user_id: userId, rol: 'client', pending_worker: 0 },
         JWT_SECRET,
         { expiresIn: '7d' }
       );
@@ -530,7 +530,7 @@ export const login = async (req: Request, res: Response): Promise<void> => {
     }
 
     const token = jwt.sign(
-      { user_id: user.id_user, rol: user.rol },
+      { user_id: user.id_user, rol: user.rol, pending_worker: user.pending_worker ? 1 : 0 },
       JWT_SECRET,
       { expiresIn: '7d' }
     );
