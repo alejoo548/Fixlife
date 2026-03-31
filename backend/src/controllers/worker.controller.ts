@@ -6,7 +6,20 @@ import { ResultSetHeader, RowDataPacket } from 'mysql2';
 import pool from '../config/db';
 import { AuthRequest } from '../middlewares/auth.middleware';
 import { sendEmailChangeToken, sendProfileChangeNotice } from '../utils/email';
+import {
+  getCycleEnd as rewardsGetCycleEnd,
+  getCycleStart as rewardsGetCycleStart,
+  getNextPayoutWeekday,
+  REWARDS_PROGRAM_START_SQL,
+  getWorkerBonusPayouts,
+  getWorkerRewardsSettings,
+  syncWorkerBonusPayouts,
+} from '../utils/workerRewards';
+import { createUserNotification } from '../utils/notifications';
 import { autoReassignStaleAssignedRequests, ensureServiceRequestTables, ensureWorkerGeoColumns } from './services.controller';
+
+const ACTIVE_WORKER_REQUEST_STATUSES = ['payment_pending', 'paid', 'assigned', 'in_progress', 'awaiting_confirmation'];
+
 const toPublicRequestStatus = (status: string | null | undefined) => {
   if (!status) return 'pending';
   return status === 'open' ? 'pending' : status;
@@ -44,6 +57,11 @@ const buildAssetUrl = (req: AuthRequest, fileName: string | null) => {
   return `${req.protocol}://${req.get('host')}/uploads/${encodeURIComponent(fileName)}`;
 };
 
+const toSqlDateTime = (date: Date) => date.toISOString().slice(0, 19).replace('T', ' ');
+
+const formatMonthLabel = (anchor = new Date()) =>
+  anchor.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+
 const ensureWorkerProfile = async (userId: number) => {
   const [profiles] = await pool.execute<RowDataPacket[]>(
     `SELECT id_worker_profile FROM worker_profiles WHERE id_user = ? LIMIT 1`,
@@ -68,6 +86,36 @@ const getUserCore = async (userId: number) => {
     [userId]
   );
   return rows[0] || null;
+};
+
+const getWorkerActiveRequest = async (
+  executor: Pick<typeof pool, 'execute'>,
+  profileId: number,
+  excludeRequestId?: number
+) => {
+  const params: any[] = [profileId, ...ACTIVE_WORKER_REQUEST_STATUSES];
+  let excludeSql = '';
+  if (excludeRequestId != null) {
+    excludeSql = ' AND id_request <> ?';
+    params.push(excludeRequestId);
+  }
+
+  const [rows] = await executor.execute<RowDataPacket[]>(
+    `SELECT id_request, status
+     FROM service_requests
+     WHERE assigned_worker_profile = ?
+       AND status IN (${ACTIVE_WORKER_REQUEST_STATUSES.map(() => '?').join(', ')})
+       ${excludeSql}
+     ORDER BY updated_at DESC
+     LIMIT 1`,
+    params
+  );
+
+  if (rows.length === 0) return null;
+  return {
+    id_request: Number(rows[0].id_request),
+    status: String(rows[0].status || '').toLowerCase(),
+  };
 };
 
 export const getWorkerMe = async (req: AuthRequest, res: Response): Promise<void> => {
@@ -120,6 +168,339 @@ export const getWorkerMe = async (req: AuthRequest, res: Response): Promise<void
   }
 };
 
+export const getWorkerRewardsDashboard = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const userId = req.user?.user_id;
+    if (!userId) {
+      res.status(401).json({ error: 'Unauthorized' });
+      return;
+    }
+
+    await ensureServiceRequestTables();
+
+    const [profileRows] = await pool.execute<RowDataPacket[]>(
+      `SELECT id_worker_profile
+       FROM worker_profiles
+       WHERE id_user = ?
+       LIMIT 1`,
+      [userId]
+    );
+
+    if (profileRows.length === 0) {
+      res.status(404).json({ error: 'Worker profile not found.' });
+      return;
+    }
+
+    const profileId = Number(profileRows[0].id_worker_profile);
+    const settings = await getWorkerRewardsSettings();
+    await syncWorkerBonusPayouts(profileId, settings);
+
+    const now = new Date();
+    const cycleStart = rewardsGetCycleStart(now);
+    const cycleEnd = rewardsGetCycleEnd(now);
+    const currentCycleKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+    const cycleStartSql = toSqlDateTime(cycleStart);
+    const cycleEndSql = toSqlDateTime(cycleEnd);
+
+    const [lifetimeRows] = await pool.execute<RowDataPacket[]>(
+      `SELECT COUNT(*) AS total
+       FROM service_requests
+       WHERE assigned_worker_profile = ?
+         AND status = 'done'
+         AND COALESCE(updated_at, created_at) >= ?`,
+      [profileId, REWARDS_PROGRAM_START_SQL]
+    );
+
+    const [cycleCompletedRows] = await pool.execute<RowDataPacket[]>(
+      `SELECT
+         sr.id_request,
+         sr.location_text,
+         sr.description,
+         sr.final_budget,
+         sr.budget,
+         s.name AS service_name,
+         COALESCE(srp.worker_payout, sr.final_budget, sr.budget, 0) AS worker_payout,
+         srp.payment_status,
+         srp.released_at,
+         srp.paid_at,
+         COALESCE(srp.released_at, sr.updated_at, sr.created_at) AS completed_at
+       FROM service_requests sr
+       INNER JOIN services s ON s.id_service = sr.id_service
+       LEFT JOIN service_request_payments srp ON srp.id_request = sr.id_request
+       WHERE sr.assigned_worker_profile = ?
+         AND sr.status = 'done'
+         AND COALESCE(srp.released_at, sr.updated_at, sr.created_at) >= ?
+         AND COALESCE(srp.released_at, sr.updated_at, sr.created_at) BETWEEN ? AND ?
+       ORDER BY completed_at DESC`,
+      [profileId, REWARDS_PROGRAM_START_SQL, cycleStartSql, cycleEndSql]
+    );
+
+    const [cycleCancelledRows] = await pool.execute<RowDataPacket[]>(
+      `SELECT COUNT(*) AS total
+       FROM service_requests
+       WHERE assigned_worker_profile = ?
+         AND status = 'cancelled'
+         AND COALESCE(updated_at, created_at) >= ?
+         AND COALESCE(updated_at, created_at) BETWEEN ? AND ?`,
+      [profileId, REWARDS_PROGRAM_START_SQL, cycleStartSql, cycleEndSql]
+    );
+
+    const [pendingWorkerPayoutRows] = await pool.execute<RowDataPacket[]>(
+      `SELECT COALESCE(SUM(COALESCE(srp.worker_payout, sr.final_budget, sr.budget, 0)), 0) AS total
+       FROM service_requests sr
+       INNER JOIN service_request_payments srp ON srp.id_request = sr.id_request
+       WHERE sr.assigned_worker_profile = ?
+         AND srp.payment_status = 'paid'`,
+      [profileId]
+    );
+
+    const [releasedWorkerPayoutRows] = await pool.execute<RowDataPacket[]>(
+      `SELECT COALESCE(SUM(COALESCE(srp.worker_payout, sr.final_budget, sr.budget, 0)), 0) AS total
+       FROM service_requests sr
+       INNER JOIN service_request_payments srp ON srp.id_request = sr.id_request
+       WHERE sr.assigned_worker_profile = ?
+         AND srp.payment_status = 'released'`,
+      [profileId]
+    );
+
+    const [historyRows] = await pool.execute<RowDataPacket[]>(
+      `SELECT
+         sr.id_request,
+         sr.location_text,
+         sr.description,
+         s.name AS service_name,
+         COALESCE(srp.worker_payout, sr.final_budget, sr.budget, 0) AS worker_payout,
+         srp.payment_status,
+         srp.released_at,
+         srp.paid_at,
+         COALESCE(srp.released_at, sr.updated_at, sr.created_at) AS completed_at,
+         u.name AS client_name,
+         u.lastname AS client_lastname
+       FROM service_requests sr
+       INNER JOIN services s ON s.id_service = sr.id_service
+       LEFT JOIN service_request_payments srp ON srp.id_request = sr.id_request
+       LEFT JOIN users u ON u.id_user = sr.id_user
+       WHERE sr.assigned_worker_profile = ?
+         AND sr.status = 'done'
+         AND COALESCE(srp.released_at, sr.updated_at, sr.created_at) >= ?
+       ORDER BY completed_at DESC
+       LIMIT 18`,
+      [profileId, REWARDS_PROGRAM_START_SQL]
+    );
+
+    const bonusPayoutRows = await getWorkerBonusPayouts(profileId);
+
+    await Promise.all(
+      bonusPayoutRows
+        .filter((row: any) => String(row.payout_status || '').toLowerCase() === 'scheduled')
+        .map((row: any) =>
+          createUserNotification({
+            userId,
+            eventType: 'payout_scheduled',
+            title: String(row.bonus_type || '').toLowerCase() === 'royalty' ? 'Royalty payout scheduled' : 'Commission payout scheduled',
+            message: `A $${Number(row.bonus_amount || 0).toFixed(2)} payout is scheduled for ${row.scheduled_for ? new Date(row.scheduled_for).toLocaleDateString() : 'the next cycle'}.`,
+            tone: 'success',
+            bonusPayoutId: Number(row.id_bonus_payout),
+            requestId: row.source_request_id != null ? Number(row.source_request_id) : null,
+            actionUrl: '/pro-dashboard',
+            dedupeKey: `worker-payout-scheduled-${Number(row.id_bonus_payout)}`,
+            metadata: {
+              bonus_type: row.bonus_type,
+              scheduled_for: row.scheduled_for,
+              bonus_amount: Number(row.bonus_amount || 0),
+            },
+          })
+        )
+    );
+    const cycleBonusItems = bonusPayoutRows.filter(
+      (row) =>
+        String(row.cycle_key || '') === currentCycleKey &&
+        String(row.payout_status || '').toLowerCase() !== 'cancelled'
+    );
+
+    const lifetimeCompletedJobs = Number(lifetimeRows[0]?.total || 0);
+    const currentCycleCompletedJobs = cycleCompletedRows.length;
+    const currentCycleCancelledJobs = Number(cycleCancelledRows[0]?.total || 0);
+    const currentCycleClosedJobs = currentCycleCompletedJobs + currentCycleCancelledJobs;
+    const completionRate = currentCycleClosedJobs > 0
+      ? Number(((currentCycleCompletedJobs / currentCycleClosedJobs) * 100).toFixed(1))
+      : currentCycleCompletedJobs > 0
+        ? 100
+        : 0;
+
+    const trialUnlocked = lifetimeCompletedJobs >= settings.trial_min_completed_jobs;
+    const royaltyUnlocked =
+      currentCycleCompletedJobs >= settings.royalty_min_jobs &&
+      completionRate >= settings.royalty_min_completion_rate;
+
+    const cycleGrossEarnings = cycleCompletedRows.reduce(
+      (sum, row) => sum + Number(row.worker_payout || 0),
+      0
+    );
+    const pendingWorkerPayout = Number(pendingWorkerPayoutRows[0]?.total || 0);
+    const releasedWorkerPayout = Number(releasedWorkerPayoutRows[0]?.total || 0);
+
+    const groupedCalendar = new Map<
+      string,
+      {
+        date: string;
+        label: string;
+        type: 'commission' | 'royalty' | 'combined';
+        amount: number;
+        jobs_count: number;
+      }
+    >();
+
+    bonusPayoutRows.forEach((row: any) => {
+      if (String(row.payout_status || '').toLowerCase() === 'cancelled') return;
+      const key = row.scheduled_for ? new Date(row.scheduled_for).toISOString().slice(0, 10) : null;
+      if (!key) return;
+      const type = String(row.bonus_type || 'commission').toLowerCase() as 'commission' | 'royalty';
+      const existing = groupedCalendar.get(key);
+      if (existing) {
+        existing.amount = Number((existing.amount + Number(row.bonus_amount || 0)).toFixed(2));
+        existing.jobs_count += type === 'commission' && row.source_request_id ? 1 : 0;
+        existing.type = existing.type === type ? type : 'combined';
+        existing.label = existing.type === 'combined'
+          ? 'Commission + royalty payout'
+          : type === 'royalty'
+            ? 'Royalty payout'
+            : 'Commission payout';
+      } else {
+        groupedCalendar.set(key, {
+          date: key,
+          label: type === 'royalty' ? 'Royalty payout' : 'Commission payout',
+          type,
+          amount: Number(row.bonus_amount || 0),
+          jobs_count: type === 'commission' && row.source_request_id ? 1 : 0,
+        });
+      }
+    });
+
+    const currentMonthCommission = cycleBonusItems
+      .filter((row) => String(row.bonus_type || '').toLowerCase() === 'commission' && String(row.payout_status || '').toLowerCase() !== 'cancelled')
+      .reduce((sum, row) => sum + Number(row.bonus_amount || 0), 0);
+    const royaltyBonus = cycleBonusItems
+      .filter((row) => String(row.bonus_type || '').toLowerCase() === 'royalty' && String(row.payout_status || '').toLowerCase() !== 'cancelled')
+      .reduce((sum, row) => sum + Number(row.bonus_amount || 0), 0);
+
+    const upcomingCalendar = [...groupedCalendar.values()].sort((left, right) => left.date.localeCompare(right.date));
+    const nextScheduledRows = bonusPayoutRows
+      .filter((row) => String(row.payout_status || '').toLowerCase() === 'scheduled')
+      .sort((left, right) => String(left.scheduled_for || '').localeCompare(String(right.scheduled_for || '')));
+
+    let nextPayout: { date: string | null; amount: number; label: string | null } | null = null;
+    if (nextScheduledRows.length > 0) {
+      const nextDateKey = nextScheduledRows[0].scheduled_for
+        ? new Date(nextScheduledRows[0].scheduled_for).toISOString().slice(0, 10)
+        : null;
+      const sameDateRows = nextScheduledRows.filter((row) => {
+        const rowKey = row.scheduled_for ? new Date(row.scheduled_for).toISOString().slice(0, 10) : null;
+        return rowKey === nextDateKey;
+      });
+      const hasCommission = sameDateRows.some((row) => String(row.bonus_type || '').toLowerCase() === 'commission');
+      const hasRoyalty = sameDateRows.some((row) => String(row.bonus_type || '').toLowerCase() === 'royalty');
+      nextPayout = {
+        date: nextDateKey,
+        amount: Number(sameDateRows.reduce((sum, row) => sum + Number(row.bonus_amount || 0), 0).toFixed(2)),
+        label: hasCommission && hasRoyalty
+          ? 'Commission + royalty payout'
+          : hasRoyalty
+            ? 'Royalty payout'
+            : 'Commission payout',
+      };
+    }
+
+    const history = historyRows.map((row) => {
+      const completedAt = row.completed_at ? new Date(row.completed_at) : now;
+      const workerPayout = Number(row.worker_payout || 0);
+      const commissionPayout = bonusPayoutRows.find(
+        (payout: any) =>
+          String(payout.bonus_type || '').toLowerCase() === 'commission' &&
+          payout.source_request_id != null &&
+          Number(payout.source_request_id) === Number(row.id_request)
+      );
+      const commissionBonus = commissionPayout ? Number(commissionPayout.bonus_amount || 0) : 0;
+      const payoutDate = commissionPayout?.scheduled_for
+        ? new Date(commissionPayout.scheduled_for)
+        : getNextPayoutWeekday(completedAt, settings.payout_weekday);
+
+      return {
+        id_request: Number(row.id_request),
+        service_name: String(row.service_name || 'Service'),
+        location_text: String(row.location_text || ''),
+        description: String(row.description || ''),
+        client_name: `${row.client_name || ''} ${row.client_lastname || ''}`.trim(),
+        completed_at: completedAt.toISOString(),
+        worker_payout: workerPayout,
+        payment_status: String(row.payment_status || 'pending'),
+        commission_bonus: commissionBonus,
+        royalty_bonus: 0,
+        total_bonus: commissionBonus,
+        scheduled_payout_date: payoutDate.toISOString(),
+        bonus_status: commissionPayout ? String(commissionPayout.payout_status || 'scheduled') : 'not_eligible',
+        paid_at: commissionPayout?.paid_at ? new Date(commissionPayout.paid_at).toISOString() : null,
+      };
+    });
+
+    const jobsUntilTrial = Math.max(settings.trial_min_completed_jobs - lifetimeCompletedJobs, 0);
+    const jobsUntilRoyalty = Math.max(settings.royalty_min_jobs - currentCycleCompletedJobs, 0);
+    const completionRateGap = Math.max(settings.royalty_min_completion_rate - completionRate, 0);
+    const payoutWeekdayLabel = new Intl.DateTimeFormat('en-US', { weekday: 'long' }).format(
+      getNextPayoutWeekday(now, settings.payout_weekday)
+    );
+
+    res.json({
+      success: true,
+      program: {
+        trial_min_completed_jobs: settings.trial_min_completed_jobs,
+        commission_rate: settings.commission_rate,
+        royalty_rate: settings.royalty_rate,
+        royalty_min_jobs: settings.royalty_min_jobs,
+        royalty_min_completion_rate: settings.royalty_min_completion_rate,
+        payout_day_label: payoutWeekdayLabel,
+      },
+      summary: {
+        lifetime_completed_jobs: lifetimeCompletedJobs,
+        current_cycle_completed_jobs: currentCycleCompletedJobs,
+        current_cycle_closed_jobs: currentCycleClosedJobs,
+        completion_rate: completionRate,
+        cycle_gross_earnings: Number(cycleGrossEarnings.toFixed(2)),
+        released_worker_payout: Number(releasedWorkerPayout.toFixed(2)),
+        pending_worker_payout: Number(pendingWorkerPayout.toFixed(2)),
+        current_month_commission: Number(currentMonthCommission.toFixed(2)),
+        royalty_bonus: royaltyBonus,
+        total_bonus: Number((currentMonthCommission + royaltyBonus).toFixed(2)),
+        next_payout_date: nextPayout?.date || null,
+        next_payout_amount: nextPayout?.amount || 0,
+        next_payout_label: nextPayout?.label || null,
+        trial_unlocked: trialUnlocked,
+        royalty_unlocked: royaltyUnlocked,
+      },
+      progress: {
+        jobs_until_trial: jobsUntilTrial,
+        jobs_until_royalty: jobsUntilRoyalty,
+        completion_rate_gap: Number(completionRateGap.toFixed(1)),
+        trial_progress_percent: Math.min(100, Math.round((lifetimeCompletedJobs / settings.trial_min_completed_jobs) * 100)),
+        royalty_jobs_progress_percent: Math.min(100, Math.round((currentCycleCompletedJobs / settings.royalty_min_jobs) * 100)),
+        completion_rate_progress_percent: Math.min(
+          100,
+          Math.round((completionRate / settings.royalty_min_completion_rate) * 100)
+        ),
+      },
+      calendar: {
+        month_label: formatMonthLabel(now),
+        anchor_date: now.toISOString(),
+        items: upcomingCalendar,
+      },
+      history,
+    });
+  } catch (error: any) {
+    console.error('Error in getWorkerRewardsDashboard:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
 export const getWorkerRequests = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const userId = req.user?.user_id;
@@ -155,6 +536,7 @@ export const getWorkerRequests = async (req: AuthRequest, res: Response): Promis
     const profileId = Number(profileRows[0].id_worker_profile);
     const workerLat = profileRows[0].latitude != null ? Number(profileRows[0].latitude) : null;
     const workerLng = profileRows[0].longitude != null ? Number(profileRows[0].longitude) : null;
+    const activeRequest = await getWorkerActiveRequest(pool, profileId);
 
     // Backfill discovery rows so older/open requests become visible for eligible workers.
     // This covers requests created before the worker had geo/service data ready.
@@ -312,6 +694,8 @@ export const getWorkerRequests = async (req: AuthRequest, res: Response): Promis
         id_worker_profile: profileId,
         latitude: workerLat,
         longitude: workerLng,
+        active_request_id: activeRequest?.id_request ?? null,
+        active_request_status: activeRequest?.status ?? null,
       },
       requests,
     });
@@ -347,11 +731,20 @@ export const acceptWorkerRequest = async (req: AuthRequest, res: Response): Prom
       return;
     }
     const profileId = Number(profileRows[0].id_worker_profile);
+    const activeRequest = await getWorkerActiveRequest(connection as any, profileId, idRequest);
+    if (activeRequest) {
+      res.status(409).json({
+        error: `Finish request #${activeRequest.id_request} before accepting another one.`,
+        active_request_id: activeRequest.id_request,
+        active_request_status: activeRequest.status,
+      });
+      return;
+    }
 
     await connection.beginTransaction();
 
     const [requestRows] = await connection.execute<RowDataPacket[]>(
-      `SELECT id_request, status, assigned_worker_profile
+      `SELECT id_request, id_user, status, assigned_worker_profile
        FROM service_requests
        WHERE id_request = ?
        FOR UPDATE`,
@@ -385,7 +778,11 @@ export const acceptWorkerRequest = async (req: AuthRequest, res: Response): Prom
 
     await connection.execute(
       `UPDATE service_requests
-       SET status = 'assigned', assigned_worker_profile = ?, assigned_at = CURRENT_TIMESTAMP, final_budget = NULL, updated_at = CURRENT_TIMESTAMP
+       SET status = 'assigned',
+           assigned_worker_profile = ?,
+           assigned_at = CURRENT_TIMESTAMP,
+           final_budget = COALESCE(final_budget, budget),
+           updated_at = CURRENT_TIMESTAMP
        WHERE id_request = ?`,
       [profileId, idRequest]
     );
@@ -405,7 +802,40 @@ export const acceptWorkerRequest = async (req: AuthRequest, res: Response): Prom
     );
 
     await connection.commit();
-    res.json({ success: true, message: 'Request accepted successfully.', id_request: idRequest });
+
+    const requestOwnerId = Number(request.id_user || 0);
+    if (requestOwnerId) {
+      await createUserNotification({
+        userId: requestOwnerId,
+        eventType: 'request_accepted',
+        title: 'Worker ready for your approval',
+        message: `Request #${idRequest} now has a pro assigned. Review the profile and accept or decline this worker.`,
+        tone: 'success',
+        requestId: idRequest,
+        actionUrl: '/app',
+        dedupeKey: `request-${idRequest}-accepted-client`,
+        metadata: { request_status: 'assigned', awaiting_client_approval: true },
+      });
+    }
+
+    await createUserNotification({
+      userId,
+      eventType: 'request_accepted',
+      title: 'Waiting for client approval',
+      message: `You accepted request #${idRequest}. The client now needs to approve you before the trip can continue.`,
+      tone: 'success',
+      requestId: idRequest,
+      actionUrl: '/pro-dashboard',
+      dedupeKey: `request-${idRequest}-accepted-worker`,
+      metadata: { request_status: 'assigned', awaiting_client_approval: true },
+    });
+
+    res.json({
+      success: true,
+      message: 'Request accepted. Waiting for client approval.',
+      id_request: idRequest,
+      request_status: 'assigned',
+    });
   } catch (error: any) {
     await connection.rollback();
     console.error('Error in acceptWorkerRequest:', error);
@@ -494,11 +924,20 @@ export const counterOfferWorkerRequest = async (req: AuthRequest, res: Response)
       return;
     }
     const profileId = Number(profileRows[0].id_worker_profile);
+    const activeRequest = await getWorkerActiveRequest(connection as any, profileId, idRequest);
+    if (activeRequest) {
+      res.status(409).json({
+        error: `Finish request #${activeRequest.id_request} before taking another one.`,
+        active_request_id: activeRequest.id_request,
+        active_request_status: activeRequest.status,
+      });
+      return;
+    }
 
     await connection.beginTransaction();
 
     const [requestRows] = await connection.execute<RowDataPacket[]>(
-      `SELECT id_request, status, assigned_worker_profile
+      `SELECT id_request, id_user, status, assigned_worker_profile
        FROM service_requests
        WHERE id_request = ?
        FOR UPDATE`,
@@ -552,6 +991,34 @@ export const counterOfferWorkerRequest = async (req: AuthRequest, res: Response)
     );
 
     await connection.commit();
+
+    const requestOwnerId = Number(request.id_user || 0);
+    if (requestOwnerId) {
+      await createUserNotification({
+        userId: requestOwnerId,
+        eventType: 'counter_offer_received',
+        title: 'Counter offer received',
+        message: `Your pro sent a new quote for request #${idRequest}. Review it before paying.`,
+        tone: 'warning',
+        requestId: idRequest,
+        actionUrl: '/app',
+        dedupeKey: `request-${idRequest}-counter-client`,
+        metadata: { request_status: 'assigned', proposed_budget: proposedBudget },
+      });
+    }
+
+    await createUserNotification({
+      userId,
+      eventType: 'counter_offer_sent',
+      title: 'Counter offer sent',
+      message: `You sent a counter offer for request #${idRequest}. Waiting for the client response.`,
+      tone: 'info',
+      requestId: idRequest,
+      actionUrl: '/pro-dashboard',
+      dedupeKey: `request-${idRequest}-counter-worker`,
+      metadata: { request_status: 'assigned', proposed_budget: proposedBudget },
+    });
+
     res.json({
       success: true,
       message: 'Counter offer sent and request assigned.',
@@ -562,6 +1029,243 @@ export const counterOfferWorkerRequest = async (req: AuthRequest, res: Response)
   } catch (error: any) {
     await connection.rollback();
     console.error('Error in counterOfferWorkerRequest:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  } finally {
+    connection.release();
+  }
+};
+
+export const startWorkerRequest = async (req: AuthRequest, res: Response): Promise<void> => {
+  const connection = await pool.getConnection();
+  try {
+    const userId = req.user?.user_id;
+    if (!userId) {
+      res.status(401).json({ error: 'Unauthorized' });
+      return;
+    }
+
+    await ensureServiceRequestTables();
+
+    const idRequest = Number(req.params.idRequest);
+    if (!idRequest) {
+      res.status(400).json({ error: 'Invalid request id.' });
+      return;
+    }
+
+    await connection.beginTransaction();
+
+    const [profileRows] = await connection.execute<RowDataPacket[]>(
+      `SELECT id_worker_profile
+       FROM worker_profiles
+       WHERE id_user = ?
+       LIMIT 1
+       FOR UPDATE`,
+      [userId]
+    );
+    if (profileRows.length === 0) {
+      await connection.rollback();
+      res.status(404).json({ error: 'Worker profile not found.' });
+      return;
+    }
+    const profileId = Number(profileRows[0].id_worker_profile);
+    const activeRequest = await getWorkerActiveRequest(connection as any, profileId, idRequest);
+    if (activeRequest) {
+      await connection.rollback();
+      res.status(409).json({
+        error: `Finish request #${activeRequest.id_request} before accepting another one.`,
+        active_request_id: activeRequest.id_request,
+        active_request_status: activeRequest.status,
+      });
+      return;
+    }
+
+    const [requestRows] = await connection.execute<RowDataPacket[]>(
+      `SELECT id_request, id_user, status, assigned_worker_profile
+       FROM service_requests
+       WHERE id_request = ?
+       LIMIT 1
+       FOR UPDATE`,
+      [idRequest]
+    );
+    if (requestRows.length === 0) {
+      await connection.rollback();
+      res.status(404).json({ error: 'Request not found.' });
+      return;
+    }
+
+    const request = requestRows[0];
+    if (Number(request.assigned_worker_profile || 0) !== profileId) {
+      await connection.rollback();
+      res.status(403).json({ error: 'This request is assigned to another worker.' });
+      return;
+    }
+    if (String(request.status || '').toLowerCase() !== 'paid') {
+      await connection.rollback();
+      res.status(409).json({ error: 'The client must complete payment before the job can start.' });
+      return;
+    }
+
+    await connection.execute(
+      `UPDATE service_requests
+       SET status = 'in_progress', updated_at = CURRENT_TIMESTAMP
+       WHERE id_request = ?`,
+      [idRequest]
+    );
+
+    await connection.commit();
+
+    const requestOwnerId = Number(request.id_user || 0);
+    if (requestOwnerId) {
+      await createUserNotification({
+        userId: requestOwnerId,
+        eventType: 'worker_arriving',
+        title: 'Your worker is on the way',
+        message: `Your pro is heading to request #${idRequest}. You can follow the tracker live.`,
+        tone: 'info',
+        requestId: idRequest,
+        actionUrl: '/app',
+        dedupeKey: `request-${idRequest}-worker-arriving-client`,
+        metadata: { request_status: 'in_progress' },
+      });
+    }
+
+    await createUserNotification({
+      userId,
+      eventType: 'job_started',
+      title: 'Route started',
+      message: `Request #${idRequest} is now in progress.`,
+      tone: 'success',
+      requestId: idRequest,
+      actionUrl: '/pro-dashboard',
+      dedupeKey: `request-${idRequest}-job-started-worker`,
+      metadata: { request_status: 'in_progress' },
+    });
+
+    res.json({ success: true, message: 'Job started successfully.', id_request: idRequest, request_status: 'in_progress' });
+  } catch (error: any) {
+    await connection.rollback();
+    console.error('Error in startWorkerRequest:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  } finally {
+    connection.release();
+  }
+};
+
+export const completeWorkerRequest = async (req: AuthRequest, res: Response): Promise<void> => {
+  const connection = await pool.getConnection();
+  try {
+    const userId = req.user?.user_id;
+    if (!userId) {
+      res.status(401).json({ error: 'Unauthorized' });
+      return;
+    }
+
+    await ensureServiceRequestTables();
+
+    const idRequest = Number(req.params.idRequest);
+    if (!idRequest) {
+      res.status(400).json({ error: 'Invalid request id.' });
+      return;
+    }
+
+    await connection.beginTransaction();
+
+    const [profileRows] = await connection.execute<RowDataPacket[]>(
+      `SELECT id_worker_profile
+       FROM worker_profiles
+       WHERE id_user = ?
+       LIMIT 1
+       FOR UPDATE`,
+      [userId]
+    );
+    if (profileRows.length === 0) {
+      await connection.rollback();
+      res.status(404).json({ error: 'Worker profile not found.' });
+      return;
+    }
+    const profileId = Number(profileRows[0].id_worker_profile);
+    const activeRequest = await getWorkerActiveRequest(connection as any, profileId, idRequest);
+    if (activeRequest) {
+      await connection.rollback();
+      res.status(409).json({
+        error: `Finish request #${activeRequest.id_request} before taking another one.`,
+        active_request_id: activeRequest.id_request,
+        active_request_status: activeRequest.status,
+      });
+      return;
+    }
+
+    const [requestRows] = await connection.execute<RowDataPacket[]>(
+      `SELECT id_request, id_user, status, assigned_worker_profile
+       FROM service_requests
+       WHERE id_request = ?
+       LIMIT 1
+       FOR UPDATE`,
+      [idRequest]
+    );
+    if (requestRows.length === 0) {
+      await connection.rollback();
+      res.status(404).json({ error: 'Request not found.' });
+      return;
+    }
+
+    const request = requestRows[0];
+    if (Number(request.assigned_worker_profile || 0) !== profileId) {
+      await connection.rollback();
+      res.status(403).json({ error: 'This request is assigned to another worker.' });
+      return;
+    }
+    if (String(request.status || '').toLowerCase() !== 'in_progress') {
+      await connection.rollback();
+      res.status(409).json({ error: 'Only jobs in progress can be marked as completed.' });
+      return;
+    }
+
+    await connection.execute(
+      `UPDATE service_requests
+       SET status = 'awaiting_confirmation', updated_at = CURRENT_TIMESTAMP
+       WHERE id_request = ?`,
+      [idRequest]
+    );
+
+    await connection.commit();
+
+    const requestOwnerId = Number(request.id_user || 0);
+    if (requestOwnerId) {
+      await createUserNotification({
+        userId: requestOwnerId,
+        eventType: 'job_completed_pending_confirmation',
+        title: 'Job completed',
+        message: `Your pro marked request #${idRequest} as completed. Review it and confirm when ready.`,
+        tone: 'success',
+        requestId: idRequest,
+        actionUrl: '/app',
+        dedupeKey: `request-${idRequest}-awaiting-confirmation-client`,
+        metadata: { request_status: 'awaiting_confirmation' },
+      });
+    }
+
+    await createUserNotification({
+      userId,
+      eventType: 'job_completed_pending_confirmation',
+      title: 'Waiting for client confirmation',
+      message: `You marked request #${idRequest} as completed. The client must now confirm it.`,
+      tone: 'info',
+      requestId: idRequest,
+      actionUrl: '/pro-dashboard',
+      dedupeKey: `request-${idRequest}-awaiting-confirmation-worker`,
+      metadata: { request_status: 'awaiting_confirmation' },
+    });
+
+    res.json({
+      success: true,
+      message: 'Job marked as completed. Waiting for client confirmation.',
+      id_request: idRequest,
+      request_status: 'awaiting_confirmation',
+    });
+  } catch (error: any) {
+    await connection.rollback();
+    console.error('Error in completeWorkerRequest:', error);
     res.status(500).json({ error: 'Internal server error' });
   } finally {
     connection.release();

@@ -3,6 +3,8 @@ import { API_URL } from '../../config/api';
 import { NavbarProps, AuthMode } from '../../types';
 import { Logo } from '../common/Logo';
 import { useAuth } from '../../context/AuthContext';
+import { NotificationCenter } from '../common/NotificationCenter';
+import { getToken } from '../../utils/session';
 
 export const Navbar: React.FC<NavbarProps> = ({
   navItems,
@@ -14,6 +16,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   onSelectCategory,
 }) => {
   const { user, logout } = useAuth();
+  const authToken = getToken();
 
   const fullName = [user?.name, user?.lastname].filter(Boolean).join(' ');
 
@@ -305,7 +308,14 @@ export const Navbar: React.FC<NavbarProps> = ({
           />
         </nav>
 
+        {user && (
+          <div className="hidden lg:flex items-center gap-3 ml-4">
+            <NotificationCenter token={authToken} className="shrink-0" />
+          </div>
+        )}
+
         <div className="lg:hidden flex items-center">
+          {user && <NotificationCenter token={authToken} className="mr-2" />}
           <button
             onClick={() => setIsMobileMenuOpen(true)}
             className="p-2 text-gray-700 hover:text-bird-blue focus:outline-none"

@@ -32,6 +32,14 @@ export const requireAdmin = (req: AuthRequest, res: Response, next: NextFunction
   next();
 };
 
+export const requireWorker = (req: AuthRequest, res: Response, next: NextFunction): void => {
+  if (!req.user || req.user.rol !== 'worker') {
+    res.status(403).json({ error: 'Access denied. Worker privileges required.' });
+    return;
+  }
+  next();
+};
+
 export const verifyTokenOptional = (req: AuthRequest, res: Response, next: NextFunction): void => {
   const token = req.headers['authorization']?.split(' ')[1];
   if (!token) {

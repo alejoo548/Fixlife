@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import { FileUp, CheckCircle, AlertCircle, Loader2, UploadCloud } from 'lucide-react';
 import { API_URL } from '../../config/api';
+import { getAuthUser, updateStoredAuthUser } from '../../utils/session';
 
 interface UploadDocumentsViewProps {
   token: string | null;
@@ -67,13 +68,12 @@ export const UploadDocumentsView: React.FC<UploadDocumentsViewProps> = ({ token,
 
       if (response.ok) {
         // Update localStorage so it doesn't ask for documents again on reload
-        const userData = localStorage.getItem('user');
-        if (userData) {
-          const userObj = JSON.parse(userData);
+        const userObj = getAuthUser('worker');
+        if (userObj) {
           if (!userObj.worker_profile) userObj.worker_profile = {};
           userObj.worker_profile.dui_document = data.dui_path;
           userObj.worker_profile.cert_document = data.cert_path;
-          localStorage.setItem('user', JSON.stringify(userObj));
+          updateStoredAuthUser(userObj, 'worker');
         }
         
         onSuccess(); // Change state to "hasUploadedDocs: true"

@@ -8,10 +8,10 @@ import {
   LayoutDashboard, Users, Briefcase, Settings, LogOut, Search, Bell, TrendingUp, Activity, Clock, CheckCircle, Menu, X, ArrowUpRight, ArrowDownRight, ChevronLeft, ChevronRight, Image as ImageIcon, MapPin,
   Plus, Edit3, Trash2, Eye, XCircle, FileText, Shield, Download
 } from 'lucide-react';
-import { useAuth } from '../../context/AuthContext';
 import { API_ENDPOINTS } from '../../config/api';
 import { Notyf } from 'notyf';
 import 'notyf/notyf.min.css';
+import { clearAuthSession, getAuthUser, getToken as getSessionToken, isAuthenticated } from '../../utils/session';
 import {
   DEFAULT_HERO_SLIDES,
   fetchHeroSlides,
@@ -86,6 +86,32 @@ interface AdminRequestHistoryItem {
   assigned_worker: { id_worker_profile: number; name: string } | null;
 }
 
+interface AdminWorkerRewardsSettings {
+  trial_min_completed_jobs: number;
+  commission_rate: number;
+  royalty_rate: number;
+  royalty_min_jobs: number;
+  royalty_min_completion_rate: number;
+  payout_weekday: number;
+}
+
+interface AdminWorkerRewardsPayout {
+  id_bonus_payout: number;
+  id_worker_profile: number;
+  worker_name: string;
+  bonus_type: 'commission' | 'royalty' | string;
+  cycle_key: string;
+  base_amount: number;
+  bonus_amount: number;
+  payout_status: 'scheduled' | 'paid' | 'cancelled' | string;
+  scheduled_for: string;
+  paid_at: string | null;
+  notes: string | null;
+  source_request_id: number | null;
+  location_text: string | null;
+  service_name: string | null;
+}
+
 const notyf = new Notyf({ position: { x: 'right', y: 'bottom' }, ripple: true });
 
 const DEFAULT_REVENUE_DATA = [
@@ -100,7 +126,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ isOpen, onClose 
   const [activeTab, setActiveTab] = useState('Overview');
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
-  const { user, logout } = useAuth();
+  const [user, setUser] = useState<any>(() => getAuthUser('admin'));
 
   // Services state
   const [services, setServices] = useState<Service[]>([]);
@@ -142,14 +168,37 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ isOpen, onClose 
   const [requestHistory, setRequestHistory] = useState<AdminRequestHistoryItem[]>([]);
   const [requestHistoryLoading, setRequestHistoryLoading] = useState(false);
   const [requestHistoryStatus, setRequestHistoryStatus] = useState<'all' | 'pending' | 'assigned' | 'in_progress' | 'done' | 'cancelled'>('all');
+  const [workerRewardsLoading, setWorkerRewardsLoading] = useState(false);
+  const [workerRewardsStatus, setWorkerRewardsStatus] = useState<'all' | 'scheduled' | 'paid' | 'cancelled'>('all');
+  const [workerRewardsSettings, setWorkerRewardsSettings] = useState<AdminWorkerRewardsSettings | null>(null);
+  const [workerRewardsSettingsForm, setWorkerRewardsSettingsForm] = useState({
+    trial_min_completed_jobs: '3',
+    commission_rate_percent: '7',
+    royalty_rate_percent: '4',
+    royalty_min_jobs: '8',
+    royalty_min_completion_rate: '85',
+  });
+  const [workerRewardsSummary, setWorkerRewardsSummary] = useState<any>(null);
+  const [workerRewardsPayouts, setWorkerRewardsPayouts] = useState<AdminWorkerRewardsPayout[]>([]);
+  const [savingWorkerRewardsSettings, setSavingWorkerRewardsSettings] = useState(false);
+  const [markingPayoutId, setMarkingPayoutId] = useState<number | null>(null);
 
-  const getToken = () => localStorage.getItem('token') || '';
+  const getToken = () => getSessionToken('admin') || '';
 
   const handleLogout = () => {
-    logout();
+    clearAuthSession('admin');
     onClose();
     window.location.replace('/');
   };
+
+  useEffect(() => {
+    if (!isAuthenticated('admin')) {
+      onClose();
+      return;
+    }
+
+    setUser(getAuthUser('admin'));
+  }, [onClose]);
 
   // ─── Services API ──────────────────────────────────────────────────────
   const fetchServices = async () => {
@@ -463,6 +512,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ isOpen, onClose 
     }
     if (activeTab === 'Users & Pros') fetchPendingWorkers();
     if (activeTab === 'Requests History') fetchRequestsHistory(requestHistoryStatus);
+    if (activeTab === 'Finance Analytics') fetchWorkerRewardsAdmin(workerRewardsStatus);
     
     // Fetch Hero Slides if in Platform Settings
     if (activeTab === 'Platform Settings') {
@@ -480,6 +530,12 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ isOpen, onClose 
       fetchRequestsHistory(requestHistoryStatus);
     }
   }, [requestHistoryStatus]);
+
+  useEffect(() => {
+    if (activeTab === 'Finance Analytics') {
+      fetchWorkerRewardsAdmin(workerRewardsStatus);
+    }
+  }, [workerRewardsStatus]);
 
   const updateSlideField = (
     index: number,
@@ -1697,6 +1753,152 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ isOpen, onClose 
   );
 
   // ─── RENDER: Platform Settings Tab ───────────────────────────────────────
+  const renderFinanceAnalyticsTab = () => (
+    <div className="max-w-[1600px] mx-auto space-y-6 pb-10">
+      <div className="grid grid-cols-1 xl:grid-cols-[0.9fr_1.1fr] gap-6">
+        <div className="bg-white/80 border border-gray-200 rounded-3xl p-6 md:p-8 shadow-lg">
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <h2 className="text-2xl font-black text-gray-900">Worker rewards program</h2>
+              <p className="text-gray-600 mt-1">
+                Control the commission unlock, royalty target, and recurring bonus percentages without touching code.
+              </p>
+            </div>
+            <div className="rounded-full border border-bird-blue/20 bg-bird-blue/10 px-4 py-2 text-xs font-black uppercase tracking-[0.18em] text-bird-darkBlue">
+              Admin control
+            </div>
+          </div>
+
+          <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-4">
+            <label className="space-y-2">
+              <span className="text-xs font-black uppercase tracking-[0.18em] text-gray-500">Trial completed jobs</span>
+              <input type="number" min={1} value={workerRewardsSettingsForm.trial_min_completed_jobs} onChange={(e) => setWorkerRewardsSettingsForm((prev) => ({ ...prev, trial_min_completed_jobs: e.target.value }))} className="w-full rounded-2xl border border-gray-200 bg-white px-4 py-3 font-semibold text-gray-900 outline-none focus:border-bird-blue focus:ring-4 focus:ring-bird-blue/10" />
+            </label>
+            <label className="space-y-2">
+              <span className="text-xs font-black uppercase tracking-[0.18em] text-gray-500">Commission rate %</span>
+              <input type="number" min={0} max={100} step="0.1" value={workerRewardsSettingsForm.commission_rate_percent} onChange={(e) => setWorkerRewardsSettingsForm((prev) => ({ ...prev, commission_rate_percent: e.target.value }))} className="w-full rounded-2xl border border-gray-200 bg-white px-4 py-3 font-semibold text-gray-900 outline-none focus:border-bird-blue focus:ring-4 focus:ring-bird-blue/10" />
+            </label>
+            <label className="space-y-2">
+              <span className="text-xs font-black uppercase tracking-[0.18em] text-gray-500">Royalty min jobs</span>
+              <input type="number" min={1} value={workerRewardsSettingsForm.royalty_min_jobs} onChange={(e) => setWorkerRewardsSettingsForm((prev) => ({ ...prev, royalty_min_jobs: e.target.value }))} className="w-full rounded-2xl border border-gray-200 bg-white px-4 py-3 font-semibold text-gray-900 outline-none focus:border-bird-blue focus:ring-4 focus:ring-bird-blue/10" />
+            </label>
+            <label className="space-y-2">
+              <span className="text-xs font-black uppercase tracking-[0.18em] text-gray-500">Royalty completion %</span>
+              <input type="number" min={0} max={100} step="0.1" value={workerRewardsSettingsForm.royalty_min_completion_rate} onChange={(e) => setWorkerRewardsSettingsForm((prev) => ({ ...prev, royalty_min_completion_rate: e.target.value }))} className="w-full rounded-2xl border border-gray-200 bg-white px-4 py-3 font-semibold text-gray-900 outline-none focus:border-bird-blue focus:ring-4 focus:ring-bird-blue/10" />
+            </label>
+            <label className="space-y-2 md:col-span-2">
+              <span className="text-xs font-black uppercase tracking-[0.18em] text-gray-500">Royalty rate %</span>
+              <input type="number" min={0} max={100} step="0.1" value={workerRewardsSettingsForm.royalty_rate_percent} onChange={(e) => setWorkerRewardsSettingsForm((prev) => ({ ...prev, royalty_rate_percent: e.target.value }))} className="w-full rounded-2xl border border-gray-200 bg-white px-4 py-3 font-semibold text-gray-900 outline-none focus:border-bird-blue focus:ring-4 focus:ring-bird-blue/10" />
+            </label>
+          </div>
+
+          <div className="mt-6 flex flex-wrap items-center gap-3">
+            <button onClick={handleSaveWorkerRewardsSettings} disabled={savingWorkerRewardsSettings} className="px-6 py-3 rounded-2xl bg-gradient-to-r from-bird-blue to-bird-darkBlue text-white font-black shadow-lg shadow-bird-blue/20 hover:scale-[1.02] transition-transform disabled:opacity-60">
+              {savingWorkerRewardsSettings ? 'Saving...' : 'Save rewards program'}
+            </button>
+            {workerRewardsSettings && (
+              <span className="text-sm font-semibold text-gray-500">
+                Current live policy: {Math.round(workerRewardsSettings.commission_rate * 100)}% commission, {Math.round(workerRewardsSettings.royalty_rate * 100)}% royalty.
+              </span>
+            )}
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="bg-white/80 border border-gray-200 rounded-3xl p-6 shadow-lg">
+            <p className="text-xs font-black uppercase tracking-[0.18em] text-gray-400">Scheduled bonuses</p>
+            <p className="mt-3 text-3xl font-black text-gray-900">{workerRewardsSummary?.scheduled_count || 0}</p>
+            <p className="mt-2 text-sm text-gray-500">{`$${Number(workerRewardsSummary?.scheduled_amount || 0).toFixed(2)} pending to pay`}</p>
+          </div>
+          <div className="bg-white/80 border border-gray-200 rounded-3xl p-6 shadow-lg">
+            <p className="text-xs font-black uppercase tracking-[0.18em] text-gray-400">Paid bonuses</p>
+            <p className="mt-3 text-3xl font-black text-gray-900">{workerRewardsSummary?.paid_count || 0}</p>
+            <p className="mt-2 text-sm text-gray-500">{`$${Number(workerRewardsSummary?.paid_amount || 0).toFixed(2)} already released`}</p>
+          </div>
+          <div className="bg-white/80 border border-gray-200 rounded-3xl p-6 shadow-lg">
+            <p className="text-xs font-black uppercase tracking-[0.18em] text-gray-400">Total bonus rows</p>
+            <p className="mt-3 text-3xl font-black text-gray-900">{workerRewardsSummary?.total_rows || 0}</p>
+            <p className="mt-2 text-sm text-gray-500">{`$${Number(workerRewardsSummary?.total_bonus_amount || 0).toFixed(2)} generated`}</p>
+          </div>
+        </div>
+      </div>
+
+      <div className="bg-white/80 border border-gray-200 rounded-3xl p-6 shadow-lg">
+        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+          <div>
+            <h3 className="text-xl font-black text-gray-900">Bonus payout ledger</h3>
+            <p className="text-sm text-gray-500 mt-1">
+              Mark payouts as paid when the worker actually receives the bonus. Scheduled items stay visible until you clear them.
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {(['all', 'scheduled', 'paid', 'cancelled'] as const).map((status) => (
+              <button key={status} onClick={() => setWorkerRewardsStatus(status)} className={`px-4 py-2 rounded-full text-xs font-black uppercase tracking-[0.18em] transition-all ${workerRewardsStatus === status ? 'bg-bird-blue text-white shadow-lg shadow-bird-blue/20' : 'border border-gray-200 bg-white text-gray-500 hover:border-bird-blue/20 hover:text-bird-blue'}`}>
+                {status}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="mt-6 space-y-4">
+          {workerRewardsLoading ? (
+            <div className="rounded-3xl border border-dashed border-gray-200 bg-gray-50 px-4 py-10 text-center text-sm font-semibold text-gray-500">
+              Loading rewards ledger...
+            </div>
+          ) : workerRewardsPayouts.length === 0 ? (
+            <div className="rounded-3xl border border-dashed border-gray-200 bg-gray-50 px-4 py-10 text-center text-sm font-semibold text-gray-500">
+              No bonus payouts match this filter yet.
+            </div>
+          ) : (
+            workerRewardsPayouts.map((payout) => (
+              <div key={payout.id_bonus_payout} className="rounded-3xl border border-gray-200 bg-gray-50 p-4 md:p-5">
+                <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <p className="text-lg font-black text-gray-900">{payout.worker_name}</p>
+                      <span className={`rounded-full px-3 py-1 text-[11px] font-black uppercase tracking-[0.16em] ${payout.bonus_type === 'royalty' ? 'border border-purple-200 bg-purple-50 text-purple-700' : 'border border-bird-blue/20 bg-bird-blue/10 text-bird-darkBlue'}`}>
+                        {payout.bonus_type}
+                      </span>
+                      <span className={`rounded-full px-3 py-1 text-[11px] font-black uppercase tracking-[0.16em] ${payout.payout_status === 'paid' ? 'border border-emerald-200 bg-emerald-50 text-emerald-700' : payout.payout_status === 'cancelled' ? 'border border-gray-200 bg-gray-100 text-gray-500' : 'border border-amber-200 bg-amber-50 text-amber-700'}`}>
+                        {payout.payout_status}
+                      </span>
+                    </div>
+                    <p className="mt-2 text-sm text-gray-500">
+                      {`Cycle ${payout.cycle_key}`}
+                      {payout.service_name ? ` / ${payout.service_name}` : ''}
+                      {payout.location_text ? ` / ${payout.location_text}` : ''}
+                    </p>
+                    <div className="mt-3 flex flex-wrap items-center gap-2 text-xs font-semibold text-gray-500">
+                      <span>{`Base: $${Number(payout.base_amount || 0).toFixed(2)}`}</span>
+                      <span>{` / Scheduled: ${new Date(payout.scheduled_for).toLocaleDateString()}`}</span>
+                      {payout.paid_at && <span>{` / Paid: ${new Date(payout.paid_at).toLocaleDateString()}`}</span>}
+                    </div>
+                  </div>
+
+                  <div className="flex flex-col items-start gap-3 md:items-end">
+                    <div className="text-right">
+                      <p className="text-xs font-black uppercase tracking-[0.18em] text-gray-400">Bonus amount</p>
+                      <p className="mt-1 text-2xl font-black text-gray-900">{`$${Number(payout.bonus_amount || 0).toFixed(2)}`}</p>
+                    </div>
+                    {payout.payout_status !== 'paid' ? (
+                      <button onClick={() => handleMarkBonusPaid(payout.id_bonus_payout)} disabled={markingPayoutId === payout.id_bonus_payout} className="px-5 py-3 rounded-2xl border border-emerald-200 bg-emerald-50 text-emerald-700 font-black hover:bg-emerald-100 transition-all disabled:opacity-60">
+                        {markingPayoutId === payout.id_bonus_payout ? 'Updating...' : 'Mark as paid'}
+                      </button>
+                    ) : (
+                      <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-black text-emerald-700">
+                        Already paid
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+      </div>
+    </div>
+  );
+
   const renderPlatformSettingsTab = () => (
     <div className="max-w-[1600px] mx-auto space-y-6 pb-10">
       <div className="bg-white/80 border border-gray-200 rounded-3xl p-6 md:p-8 shadow-lg">
@@ -1847,6 +2049,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ isOpen, onClose 
       case 'Homepage Cards': return renderServicesTab();
       case 'Users & Pros': return renderUsersTab();
       case 'Requests History': return renderRequestsHistoryTab();
+      case 'Finance Analytics': return renderFinanceAnalyticsTab();
       case 'Platform Settings': return renderPlatformSettingsTab();
       default: return renderOverviewTab();
     }
@@ -1868,6 +2071,105 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ isOpen, onClose 
       // silent
     } finally {
       setRequestHistoryLoading(false);
+    }
+  };
+
+  const hydrateWorkerRewardsSettingsForm = (settings: AdminWorkerRewardsSettings) => {
+    const nextForm = {
+      trial_min_completed_jobs: String(settings.trial_min_completed_jobs),
+      commission_rate_percent: String(Math.round(Number(settings.commission_rate || 0) * 10000) / 100),
+      royalty_rate_percent: String(Math.round(Number(settings.royalty_rate || 0) * 10000) / 100),
+      royalty_min_jobs: String(settings.royalty_min_jobs),
+      royalty_min_completion_rate: String(settings.royalty_min_completion_rate),
+    };
+
+    setWorkerRewardsSettingsForm((prev) => {
+      const same =
+        prev.trial_min_completed_jobs === nextForm.trial_min_completed_jobs &&
+        prev.commission_rate_percent === nextForm.commission_rate_percent &&
+        prev.royalty_rate_percent === nextForm.royalty_rate_percent &&
+        prev.royalty_min_jobs === nextForm.royalty_min_jobs &&
+        prev.royalty_min_completion_rate === nextForm.royalty_min_completion_rate;
+      return same ? prev : nextForm;
+    });
+  };
+
+  const fetchWorkerRewardsAdmin = async (
+    status: 'all' | 'scheduled' | 'paid' | 'cancelled' = workerRewardsStatus
+  ) => {
+    setWorkerRewardsLoading(true);
+    try {
+      const res = await fetch(`${API_ENDPOINTS.admin.workerRewards}?status=${status}`, {
+        headers: { Authorization: `Bearer ${getToken()}` },
+      });
+      const data = await res.json();
+      if (!res.ok || !data?.success) {
+        notyf.error(data?.error || 'Could not load worker rewards.');
+        return;
+      }
+
+      setWorkerRewardsSettings(data.settings);
+      hydrateWorkerRewardsSettingsForm(data.settings);
+      setWorkerRewardsSummary(data.summary || null);
+      setWorkerRewardsPayouts(Array.isArray(data.payouts) ? data.payouts : []);
+    } catch {
+      notyf.error('Connection error loading worker rewards.');
+    } finally {
+      setWorkerRewardsLoading(false);
+    }
+  };
+
+  const handleSaveWorkerRewardsSettings = async () => {
+    setSavingWorkerRewardsSettings(true);
+    try {
+      const res = await fetch(API_ENDPOINTS.admin.workerRewardsSettings, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${getToken()}`,
+        },
+        body: JSON.stringify({
+          trial_min_completed_jobs: Number(workerRewardsSettingsForm.trial_min_completed_jobs),
+          commission_rate_percent: Number(workerRewardsSettingsForm.commission_rate_percent),
+          royalty_rate_percent: Number(workerRewardsSettingsForm.royalty_rate_percent),
+          royalty_min_jobs: Number(workerRewardsSettingsForm.royalty_min_jobs),
+          royalty_min_completion_rate: Number(workerRewardsSettingsForm.royalty_min_completion_rate),
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data?.success) {
+        notyf.error(data?.error || 'Could not update rewards program.');
+        return;
+      }
+
+      notyf.success('Rewards program updated.');
+      await fetchWorkerRewardsAdmin(workerRewardsStatus);
+    } catch {
+      notyf.error('Connection error updating rewards program.');
+    } finally {
+      setSavingWorkerRewardsSettings(false);
+    }
+  };
+
+  const handleMarkBonusPaid = async (idBonusPayout: number) => {
+    setMarkingPayoutId(idBonusPayout);
+    try {
+      const res = await fetch(API_ENDPOINTS.admin.markWorkerBonusPaid(idBonusPayout), {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${getToken()}` },
+      });
+      const data = await res.json();
+      if (!res.ok || !data?.success) {
+        notyf.error(data?.error || 'Could not mark bonus as paid.');
+        return;
+      }
+
+      notyf.success('Bonus payout marked as paid.');
+      await fetchWorkerRewardsAdmin(workerRewardsStatus);
+    } catch {
+      notyf.error('Connection error marking payout as paid.');
+    } finally {
+      setMarkingPayoutId(null);
     }
   };
 
