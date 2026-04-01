@@ -449,7 +449,7 @@ const getLocationVisual = (kind: SavedLocation['kind'] | 'current') => {
         filled: true,
         badgeClass: 'from-sky-500 via-cyan-500 to-blue-500',
         iconClass: 'text-sky-600',
-        chipClass: 'border-sky-200 bg-sky-50 text-sky-700',
+        chipClass: 'border-sky-200 bg-sky-50 text-gray-500',
     };
 };
 
@@ -2436,7 +2436,7 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
         const status = String(statusRaw || 'pending').toLowerCase();
         if (status === 'done') return 'bg-emerald-100 text-emerald-700 border-emerald-200';
         if (status === 'awaiting_confirmation') return 'bg-violet-100 text-violet-700 border-violet-200';
-        if (status === 'assigned') return 'bg-sky-100 text-sky-700 border-sky-200';
+        if (status === 'assigned') return 'bg-sky-100 text-gray-500 border-sky-200';
         if (status === 'payment_pending') return 'bg-yellow-100 text-yellow-700 border-yellow-200';
         if (status === 'paid') return 'bg-cyan-100 text-cyan-700 border-cyan-200';
         if (status === 'in_progress') return 'bg-indigo-100 text-indigo-700 border-indigo-200';
@@ -2984,7 +2984,7 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                 animate={{ y: 0, opacity: 1 }}
                 exit={{ y: "100%", opacity: 0 }}
                 transition={{ type: "spring", damping: 25, stiffness: 200 }}
-                className="w-full h-[60vh] mt-auto md:mt-0 md:h-full md:w-[450px] lg:w-[500px] flex flex-col bg-white/95 backdrop-blur-lg relative z-20 shadow-[0_-10px_40px_rgba(0,0,0,0.15)] md:shadow-2xl overflow-hidden rounded-t-[2rem] md:rounded-none md:border-r border-gray-200"
+                className="w-full h-[60vh] mt-auto md:mt-0 md:h-full md:w-[450px] lg:w-[500px] flex flex-col bg-white relative z-20 shadow-[0_-10px_40px_rgba(0,0,0,0.15)] md:shadow-2xl overflow-hidden rounded-t-[2rem] md:rounded-none md:border-r border-gray-200"
             >
                 {/* Mobile Drag Handle */}
                 <div className="w-full flex justify-center pt-4 pb-0 md:hidden bg-white">
@@ -2992,7 +2992,7 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                 </div>
 
                 {/* Header */}
-                <div className="h-16 md:h-20 flex items-center justify-between px-4 md:px-6 border-b border-gray-200 bg-white shrink-0">
+                <div className="h-14 flex items-center justify-between px-5 border-b border-gray-200 bg-white shrink-0">
                     <motion.button
                         whileHover={{ scale: 1.05 }}
                         whileTap={{ scale: 0.95 }}
@@ -3152,7 +3152,7 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                             type="text"
                                             placeholder="Ej: Residencial Santa Monica, Santa Tecla o 13.6841, -89.2872"
                                             autoComplete="off"
-                                            className="w-full bg-gray-50 border-2 border-gray-200 rounded-xl px-4 py-3 text-gray-900 focus:outline-none focus:border-bird-blue transition-all placeholder-gray-400"
+                                            className="w-full bg-gray-100 border-none rounded-xl px-4 py-3 text-gray-900 focus:outline-none focus:ring-2 focus:ring-gray-300 transition-all placeholder-gray-400"
                                             value={data.location}
                                             onFocus={() => {
                                                 setLocationInputContext('main');
@@ -3342,7 +3342,7 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                     >
                                         <label className="block text-sm font-bold text-gray-700 mb-2">What's the problem?</label>
                                         <textarea
-                                            className="w-full h-32 bg-gray-50 border-2 border-gray-200 rounded-xl p-4 text-gray-900 focus:outline-none focus:border-bird-blue transition-all resize-none placeholder-gray-400"
+                                            className="w-full h-32 bg-gray-100 border-none rounded-xl p-4 text-gray-900 focus:outline-none focus:ring-2 focus:ring-gray-300 transition-all resize-none placeholder-gray-400"
                                             placeholder="Describe what needs fixing..."
                                             value={data.description}
                                             onChange={(e) => setData({ ...data, description: e.target.value })}
@@ -3359,7 +3359,7 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                             <span className="text-xs font-bold text-gray-500">{problemFiles.length}/5</span>
                                         </div>
                                         <label className="block cursor-pointer">
-                                            <div className="w-full rounded-2xl border-2 border-dashed border-gray-300 bg-gradient-to-br from-white to-sky-50 hover:from-sky-50 hover:to-blue-50 hover:border-bird-blue transition p-4 text-center">
+                                            <div className="w-full rounded-2xl border-2 border-dashed border-gray-200 bg-gray-50 hover:bg-gray-100 hover:border-gray-300 transition p-4 text-center">
                                                 <div className="text-slate-900 text-3xl font-black leading-none">+</div>
                                                 <div className="text-gray-900 font-black mt-1">Dropify Upload Zone</div>
                                                 <div className="text-xs text-gray-500">PNG/JPG/WEBP only, up to 5 images</div>
@@ -3407,7 +3407,7 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                                 min="1"
                                                 step="0.01"
                                                 placeholder="0"
-                                                className="w-full bg-gray-50 border-2 border-gray-200 rounded-xl py-3 pl-10 pr-16 text-gray-900 font-bold text-lg focus:outline-none focus:border-bird-blue transition-all placeholder-gray-400"
+                                                className="w-full bg-gray-100 border-none rounded-xl py-3 pl-10 pr-16 text-gray-900 font-bold text-lg focus:outline-none focus:ring-2 focus:ring-gray-300 transition-all placeholder-gray-400"
                                                 value={data.price}
                                                 onChange={(e) => {
                                                     const nextValue = e.target.value;
@@ -3442,7 +3442,7 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                         setTimeout(() => setIsSearching(false), 700);
                                     }}
                                     disabled={!data.price || !data.location.trim() || resolvingLocation}
-                                    className="w-full mt-6 py-4 rounded-xl bg-gradient-to-r from-bird-blue to-bird-lightBlue text-white font-bold text-lg shadow-xl shadow-bird-blue/30 hover:shadow-2xl transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 group"
+                                    className="w-full mt-6 py-3.5 rounded-2xl bg-gray-900 text-white font-semibold text-[15px] hover:bg-black transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                                 >
                                     <span>Find a Pro</span>
                                     <motion.svg
@@ -3465,19 +3465,19 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                     whileTap={{ scale: 0.98 }}
                                     onClick={submitServiceRequest}
                                     disabled={isSubmittingRequest || !isAuthenticated() || !data.price || !data.location.trim() || problemFiles.length === 0 || resolvingLocation}
-                                    className="w-full mt-3 py-3.5 rounded-xl bg-gradient-to-r from-emerald-500 to-green-500 text-white font-bold text-base shadow-lg shadow-emerald-500/30 hover:shadow-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                                    className="w-full mt-2.5 py-3.5 rounded-2xl bg-white border-2 border-gray-900 text-gray-900 font-semibold text-[15px] hover:bg-gray-50 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                                 >
                                     {!isAuthenticated() ? 'Login Required' : isSubmittingRequest ? 'Submitting...' : 'Submit Request'}
                                 </motion.button>
 
                                 {nearbyWorkers.length > 0 && (
-                                    <div className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50/60 p-3">
+                                    <div className="mt-4 rounded-xl border border-gray-100 bg-white p-3">
                                         <p className="text-xs uppercase tracking-wider font-bold text-emerald-700 mb-2">
                                             Nearby workers in range
                                         </p>
                                         <div className="space-y-2">
                                             {nearbyWorkers.slice(0, 5).map((worker) => (
-                                                <div key={worker.id_worker_profile} className="flex items-center justify-between rounded-lg bg-white border border-emerald-100 px-3 py-2">
+                                                <div key={worker.id_worker_profile} className="flex items-center justify-between rounded-lg bg-gray-50 border border-gray-100 px-3 py-2">
                                                     <div className="min-w-0">
                                                         <p className="text-[15px] font-bold text-slate-800 truncate">{worker.name}</p>
                                                         <p className="text-xs text-gray-500 truncate">{worker.bio || 'Available now'}</p>
@@ -3512,7 +3512,7 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                             </div>
 
                                             {activeTrackedRequest && (
-                                                <div className="mb-4 rounded-2xl border border-bird-blue/15 bg-gradient-to-r from-sky-50 via-white to-amber-50 p-4 shadow-sm">
+                                                <div className="mb-3 rounded-2xl border border-gray-200 bg-white p-4">
                                                     <div className="flex items-start justify-between gap-3">
                                                         <div className="min-w-0">
                                                             <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-900">Live service active</p>
@@ -3528,21 +3528,21 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                                         </span>
                                                     </div>
                                                     <div className="mt-3 grid grid-cols-3 gap-2">
-                                                        <div className="rounded-xl border border-sky-100 bg-sky-50 px-3 py-2">
-                                                            <p className="text-[10px] font-black uppercase tracking-[0.16em] text-sky-700">ETA</p>
-                                                            <p className="mt-1 text-sm font-black text-sky-950">
+                                                        <div className="rounded-lg bg-gray-50 border border-gray-100 px-3 py-2">
+                                                            <p className="text-[10px] font-black uppercase tracking-[0.16em] text-gray-500">ETA</p>
+                                                            <p className="mt-1 text-sm font-black text-gray-900">
                                                                 {activeTrackedRequest.status === 'done' ? '0 min' : 'Live'}
                                                             </p>
                                                         </div>
                                                         <div className="rounded-xl border border-emerald-100 bg-emerald-50 px-3 py-2">
                                                             <p className="text-[10px] font-black uppercase tracking-[0.16em] text-emerald-700">Worker</p>
-                                                            <p className="mt-1 truncate text-sm font-black text-emerald-950">
+                                                            <p className="mt-1 truncate text-sm font-black text-gray-900">
                                                                 {activeTrackedRequest.assigned_worker?.name || 'Assigned'}
                                                             </p>
                                                         </div>
-                                                        <div className="rounded-xl border border-amber-100 bg-amber-50 px-3 py-2">
+                                                        <div className="rounded-lg bg-gray-50 border border-gray-100 px-3 py-2">
                                                             <p className="text-[10px] font-black uppercase tracking-[0.16em] text-amber-700">Track</p>
-                                                            <p className="mt-1 text-sm font-black text-amber-950">On map</p>
+                                                            <p className="mt-1 text-sm font-black text-gray-900">On map</p>
                                                         </div>
                                                     </div>
                                                 </div>
@@ -3563,14 +3563,14 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                             )}
 
                                             {historyLoading && myRequests.length > 0 && (
-                                                <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-bird-blue/15 bg-bird-blue/5 px-3 py-2 text-[11px] font-black uppercase tracking-[0.16em] text-slate-900">
+                                                <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-gray-200 bg-gray-50 px-3 py-1.5 text-[11px] font-medium uppercase tracking-wider text-gray-500">
                                                     <span className="h-2 w-2 rounded-full bg-bird-blue animate-pulse" />
                                                     Refreshing requests
                                                 </div>
                                             )}
 
                                             {historyLoading && myRequests.length === 0 ? (
-                                                <div className="inline-flex items-center gap-2 rounded-full border border-bird-blue/15 bg-bird-blue/5 px-3 py-2 text-[11px] font-black uppercase tracking-[0.16em] text-slate-900">
+                                                <div className="inline-flex items-center gap-2 rounded-full border border-gray-200 bg-gray-50 px-3 py-1.5 text-[11px] font-medium uppercase tracking-wider text-gray-500">
                                                     <span className="h-2 w-2 rounded-full bg-bird-blue animate-pulse" />
                                                     Loading requests
                                                 </div>
@@ -3591,7 +3591,7 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                                 const timelineState = getClientTimelineState(request);
 
                                                 return (
-                                                    <div key={request.id_request} className="rounded-2xl border border-gray-200 bg-gradient-to-br from-white to-gray-50 p-3.5 shadow-sm">
+                                                    <div key={request.id_request} className="rounded-2xl border border-gray-200 bg-white p-4">
                                                         <div className="flex items-start justify-between gap-2">
                                                             <div className="min-w-0">
                                                                 <p className="text-sm font-black text-gray-900 truncate">#{request.id_request} - {request.service_name}</p>
@@ -3613,7 +3613,7 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                                         </div>
 
                                                         {request.assigned_worker && (
-                                                            <div className="mt-3 rounded-2xl border border-bird-blue/15 bg-gradient-to-r from-sky-50 via-white to-amber-50 p-3">
+                                                            <div className="mt-3 rounded-xl border border-gray-100 bg-gray-50 p-3">
                                                                 <div className="flex items-start justify-between gap-3">
                                                                     <div className="flex min-w-0 items-start gap-3">
                                                                         {request.assigned_worker.profile_image_url ? (
@@ -3668,7 +3668,7 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                                                                 type="button"
                                                                                 disabled={workerApprovalBusyId === request.id_request}
                                                                                 onClick={() => handleWorkerApprovalDecision(request, 'accept')}
-                                                                                className="rounded-xl bg-bird-blue px-3 py-2 text-[11px] font-black text-white shadow-sm transition hover:bg-bird-darkBlue disabled:opacity-50"
+                                                                                className="rounded-xl bg-gray-900 px-3 py-2 text-[11px] font-semibold text-white transition hover:bg-black disabled:opacity-40"
                                                                             >
                                                                                 {workerApprovalBusyId === request.id_request ? 'Saving...' : 'Accept worker'}
                                                                             </button>
@@ -3681,7 +3681,7 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                                         {(timelineState.workerAccepted || timelineState.paymentSecured || timelineState.onTheWay || timelineState.workInProgress || timelineState.completed) && (
                                                             <div className="mt-3 flex flex-wrap gap-2">
                                                                 {timelineState.workerAccepted && (
-                                                                    <span className="rounded-full border border-sky-200 bg-sky-50 px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.14em] text-sky-700">
+                                                                    <span className="rounded-full border border-sky-200 bg-sky-50 px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.14em] text-gray-500">
                                                                         Worker accepted
                                                                     </span>
                                                                 )}
@@ -3727,11 +3727,11 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                                         )}
 
                                                         {(canPayNow || request.payment) && (
-                                                            <div className="mt-3 rounded-xl border border-cyan-200 bg-cyan-50/70 p-3">
+                                                            <div className="mt-3 rounded-xl border border-gray-100 bg-gray-50 p-3">
                                                                 <div className="flex items-start justify-between gap-2">
                                                                     <div>
-                                                                        <p className="text-[11px] uppercase tracking-wider font-bold text-cyan-700">Payment</p>
-                                                                        <p className="mt-1 text-sm font-black text-cyan-900">
+                                                                        <p className="text-[11px] uppercase tracking-wider font-medium text-gray-400">Payment</p>
+                                                                        <p className="mt-1 text-sm font-bold text-gray-900">
                                                                             {request.payment?.amount != null ? `$${Number(request.payment.amount).toFixed(2)}` : `$${Number(request.final_budget ?? request.budget ?? 0).toFixed(2)}`}
                                                                         </p>
                                                                         <p className="text-[11px] text-cyan-900/80 mt-1">
@@ -3761,7 +3761,7 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                                                         type="button"
                                                                         onClick={() => handleSecurePayment(request)}
                                                                         disabled={paymentBusyId === request.id_request}
-                                                                        className="mt-3 w-full py-2 rounded-lg bg-cyan-600 text-white text-xs font-bold hover:bg-cyan-700 disabled:opacity-50"
+                                                                        className="mt-3 w-full py-3 rounded-xl bg-gray-900 text-white text-sm font-semibold hover:bg-black disabled:opacity-40 transition-colors"
                                                                     >
                                                                         {paymentBusyId === request.id_request ? 'Processing Payment...' : 'Secure Payment'}
                                                                     </button>
@@ -3788,7 +3788,7 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                                             </div>
                                                         </div>
 
-                                                        <div className="mt-3 rounded-2xl border border-slate-200 bg-white p-3">
+                                                        <div className="mt-3 rounded-xl border border-gray-100 bg-gray-50/50 p-3">
                                                             <div className="mb-2 flex items-center justify-between">
                                                                 <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">Service timeline</p>
                                                                 <span className="text-[10px] font-semibold text-slate-400">
@@ -4195,7 +4195,7 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                             <div>
                                                 <p className="text-[11px] font-black uppercase tracking-[0.2em] text-white/80">Fixes saved</p>
                                                 <h3 className="mt-2 text-3xl font-black">Thanks for the review</h3>
-                                                <p className="mt-2 text-sm text-white/90">
+                                                <p className="mt-2 text-sm text-gray-900">
                                                     Your Fixes stars for <span className="font-black">{fixesSuccessRequest.service_name}</span> are now part of the worker profile.
                                                 </p>
                                             </div>
