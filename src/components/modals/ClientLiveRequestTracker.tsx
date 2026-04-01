@@ -344,55 +344,55 @@ const stageVisual = (stage: TrackerStage) => {
     if (stage === 'completed') {
         return {
             label: 'Completed',
-            toneClass: 'bg-emerald-100 text-emerald-700 border-emerald-200',
+            toneClass: 'bg-gray-100 text-gray-700 border-gray-200',
             note: 'The service is complete and saved in your history.',
         };
     }
     if (stage === 'work_in_progress') {
         return {
             label: 'Work in progress',
-            toneClass: 'bg-indigo-100 text-indigo-700 border-indigo-200',
+            toneClass: 'bg-gray-100 text-gray-700 border-gray-200',
             note: 'The worker arrived and is actively working on the service.',
         };
     }
     if (stage === 'arrived') {
         return {
             label: 'Arrived',
-            toneClass: 'bg-violet-100 text-violet-700 border-violet-200',
+            toneClass: 'bg-gray-100 text-gray-700 border-gray-200',
             note: 'Your worker is already at the destination.',
         };
     }
     if (stage === 'nearby') {
         return {
             label: 'Arriving now',
-            toneClass: 'bg-amber-100 text-amber-700 border-amber-200',
+            toneClass: 'bg-gray-100 text-gray-700 border-gray-200',
             note: 'The worker is very close to your location.',
         };
     }
     if (stage === 'on_the_way') {
         return {
             label: 'On the way',
-            toneClass: 'bg-blue-100 text-blue-700 border-blue-200',
+            toneClass: 'bg-gray-100 text-gray-700 border-gray-200',
             note: 'The worker is heading to your address right now.',
         };
     }
     if (stage === 'payment_secured') {
         return {
             label: 'Payment secured',
-            toneClass: 'bg-cyan-100 text-cyan-700 border-cyan-200',
+            toneClass: 'bg-gray-100 text-gray-700 border-gray-200',
             note: 'Funds are secured. Your worker can head out any moment.',
         };
     }
     if (stage === 'awaiting_payment') {
         return {
             label: 'Waiting for payment',
-            toneClass: 'bg-yellow-100 text-yellow-700 border-yellow-200',
+            toneClass: 'bg-gray-100 text-gray-700 border-gray-200',
             note: 'Your worker accepted. Secure payment so the trip can start.',
         };
     }
     return {
         label: 'Worker accepted',
-        toneClass: 'bg-sky-100 text-sky-700 border-sky-200',
+        toneClass: 'bg-gray-100 text-gray-700 border-gray-200',
         note: 'A worker is assigned and standing by for this service.',
     };
 };
@@ -932,12 +932,12 @@ const ClientLiveRequestTracker: React.FC<ClientLiveRequestTrackerProps> = ({ lea
                 )}
             </AnimatePresence>
 
-            <div className="overflow-hidden rounded-[32px] border border-bird-blue/12 bg-white shadow-[0_28px_70px_rgba(15,23,42,0.09)]">
-            <div className="border-b border-slate-100 bg-gradient-to-r from-sky-50 via-white to-amber-50 px-5 py-4">
+            <div className="overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-lg">
+            <div className="border-b border-gray-100 bg-white px-5 py-4">
                 <div className="flex flex-wrap items-start justify-between gap-3">
                     <div>
-                        <div className="inline-flex items-center gap-2 rounded-full bg-white/90 px-3 py-1 text-[10px] font-black uppercase tracking-[0.22em] text-bird-blue shadow-sm">
-                            <span className="h-2.5 w-2.5 rounded-full bg-bird-yellow" />
+                        <div className="inline-flex items-center gap-2 rounded-full bg-gray-100 px-3 py-1 text-[10px] font-medium uppercase tracking-wider text-gray-500">
+                            <span className="h-2 w-2 rounded-full bg-green-500 animate-pulse" />
                             Client tracker
                         </div>
                         <h3 className="mt-3 text-xl font-black text-slate-950">{workerName} is handling this request</h3>
@@ -986,7 +986,7 @@ const ClientLiveRequestTracker: React.FC<ClientLiveRequestTrackerProps> = ({ lea
                                     onClick={() => setCameraMode('balanced')}
                                     className={`rounded-full px-3 py-2 text-[11px] font-black transition ${
                                         cameraMode === 'balanced'
-                                            ? 'bg-bird-blue text-white shadow-sm'
+                                            ? 'bg-gray-900 text-white'
                                             : 'text-slate-600 hover:bg-slate-100'
                                     }`}
                                 >
@@ -997,14 +997,14 @@ const ClientLiveRequestTracker: React.FC<ClientLiveRequestTrackerProps> = ({ lea
                                     onClick={() => setCameraMode('close')}
                                     className={`rounded-full px-3 py-2 text-[11px] font-black transition ${
                                         cameraMode === 'close'
-                                            ? 'bg-bird-blue text-white shadow-sm'
+                                            ? 'bg-gray-900 text-white'
                                             : 'text-slate-600 hover:bg-slate-100'
                                     }`}
                                 >
                                     Close Follow
                                 </button>
                             </div>
-                            <span className="rounded-full border border-white/70 bg-white/92 px-3 py-2 text-[10px] font-black uppercase tracking-[0.18em] text-bird-blue shadow-lg backdrop-blur">
+                            <span className="rounded-full bg-white/90 px-3 py-1.5 text-[10px] font-medium uppercase tracking-wider text-gray-600 shadow-lg backdrop-blur">
                                 Expanded map
                             </span>
                             <button
@@ -1026,7 +1026,7 @@ const ClientLiveRequestTracker: React.FC<ClientLiveRequestTrackerProps> = ({ lea
                     >
                         <div className="flex items-start justify-between gap-3">
                             <div className="min-w-0">
-                                <p className="text-[10px] font-black uppercase tracking-[0.18em] text-bird-blue">Worker on route</p>
+                                <p className="text-[10px] font-medium uppercase tracking-wider text-gray-400">Worker on route</p>
                                 <h4 className={`mt-2 truncate font-black text-slate-950 ${isMapExpanded ? 'text-base' : 'text-lg'}`}>{workerName}</h4>
                                 <p className={`mt-1 truncate text-slate-500 ${isMapExpanded ? 'text-xs' : 'text-sm'}`}>{request.service_name}</p>
                             </div>
@@ -1035,17 +1035,17 @@ const ClientLiveRequestTracker: React.FC<ClientLiveRequestTrackerProps> = ({ lea
                             </span>
                         </div>
                         <div className={`mt-3 grid gap-2 ${isMapExpanded ? 'grid-cols-3' : 'grid-cols-3'}`}>
-                            <div className="rounded-2xl border border-sky-100 bg-sky-50/90 px-3 py-2.5">
-                                <p className="text-[10px] font-black uppercase tracking-[0.18em] text-sky-700">ETA</p>
-                                <p className="mt-1 text-sm font-black text-sky-950">{etaLabel}</p>
+                            <div className="rounded-xl bg-gray-50 px-3 py-2">
+                                <p className="text-[10px] font-medium uppercase tracking-wider text-gray-400">ETA</p>
+                                <p className="mt-1 text-sm font-bold text-gray-900">{etaLabel}</p>
                             </div>
-                            <div className="rounded-2xl border border-emerald-100 bg-emerald-50/90 px-3 py-2.5">
-                                <p className="text-[10px] font-black uppercase tracking-[0.18em] text-emerald-700">Distance</p>
-                                <p className="mt-1 text-sm font-black text-emerald-950">{distanceLabel}</p>
+                            <div className="rounded-xl bg-gray-50 px-3 py-2">
+                                <p className="text-[10px] font-medium uppercase tracking-wider text-gray-400">Distance</p>
+                                <p className="mt-1 text-sm font-bold text-gray-900">{distanceLabel}</p>
                             </div>
-                            <div className="rounded-2xl border border-amber-100 bg-amber-50/90 px-3 py-2.5">
-                                <p className="text-[10px] font-black uppercase tracking-[0.18em] text-amber-700">Route</p>
-                                <p className="mt-1 text-sm font-black text-amber-950">
+                            <div className="rounded-xl bg-gray-50 px-3 py-2">
+                                <p className="text-[10px] font-medium uppercase tracking-wider text-gray-400">Route</p>
+                                <p className="mt-1 text-sm font-bold text-gray-900">
                                     {request.status === 'paid' ? 'Live demo' : request.status === 'done' ? 'Finished' : 'Stand by'}
                                 </p>
                             </div>
@@ -1056,7 +1056,7 @@ const ClientLiveRequestTracker: React.FC<ClientLiveRequestTrackerProps> = ({ lea
                                 <button
                                     type="button"
                                     onClick={() => setCameraMode((prev) => (prev === 'close' ? 'balanced' : 'close'))}
-                                    className="shrink-0 rounded-full border border-bird-blue/15 bg-bird-blue/10 px-3 py-1 text-[10px] font-black uppercase tracking-[0.16em] text-bird-blue"
+                                    className="shrink-0 rounded-full bg-gray-100 px-3 py-1 text-[10px] font-medium uppercase tracking-wider text-gray-600"
                                 >
                                     {cameraMode === 'close' ? 'Close follow' : 'Balanced'}
                                 </button>
@@ -1066,30 +1066,30 @@ const ClientLiveRequestTracker: React.FC<ClientLiveRequestTrackerProps> = ({ lea
                 </div>
 
                 <div className="bg-white px-5 py-5 lg:px-6">
-                    <div className="rounded-[28px] border border-slate-200 bg-slate-50/90 p-5 shadow-sm">
+                    <div className="rounded-2xl border border-gray-100 bg-white p-5">
                         <div className="flex items-start justify-between gap-3">
                             <div className="min-w-0">
                                 <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">Request summary</p>
                                 <h4 className="mt-2 truncate text-xl font-black text-slate-950">{request.service_name}</h4>
                                 <p className="mt-2 text-sm leading-6 text-slate-500 line-clamp-2">{request.location_text}</p>
                             </div>
-                            <span className="shrink-0 rounded-full border border-bird-blue/10 bg-bird-blue/10 px-3 py-1 text-[11px] font-black text-bird-blue">
+                            <span className="shrink-0 rounded-full bg-gray-100 px-3 py-1 text-[11px] font-medium text-gray-500">
                                 #{request.id_request}
                             </span>
                         </div>
 
                         <div className="mt-5 grid grid-cols-2 gap-3 xl:grid-cols-4">
-                            <div className="rounded-2xl border border-sky-100 bg-sky-50/90 p-4">
-                                <p className="text-[10px] font-black uppercase tracking-[0.18em] text-sky-700">ETA</p>
-                                <p className="mt-2 text-xl font-black text-sky-950">{etaLabel}</p>
+                            <div className="rounded-xl bg-gray-50 p-4">
+                                <p className="text-[10px] font-medium uppercase tracking-wider text-gray-400">ETA</p>
+                                <p className="mt-2 text-xl font-bold text-gray-900">{etaLabel}</p>
                             </div>
-                            <div className="rounded-2xl border border-emerald-100 bg-emerald-50/90 p-4">
-                                <p className="text-[10px] font-black uppercase tracking-[0.18em] text-emerald-700">Distance</p>
-                                <p className="mt-2 text-xl font-black text-emerald-950">{distanceLabel}</p>
+                            <div className="rounded-xl bg-gray-50 p-4">
+                                <p className="text-[10px] font-medium uppercase tracking-wider text-gray-400">Distance</p>
+                                <p className="mt-2 text-xl font-bold text-gray-900">{distanceLabel}</p>
                             </div>
-                            <div className="rounded-2xl border border-amber-100 bg-amber-50/90 p-4">
-                                <p className="text-[10px] font-black uppercase tracking-[0.18em] text-amber-700">Stage</p>
-                                <p className="mt-2 text-base font-black text-amber-950">{visual.label}</p>
+                            <div className="rounded-xl bg-gray-50 p-4">
+                                <p className="text-[10px] font-medium uppercase tracking-wider text-gray-400">Stage</p>
+                                <p className="mt-2 text-base font-bold text-gray-900">{visual.label}</p>
                             </div>
                             <div className="rounded-2xl border border-slate-200 bg-white p-4">
                                 <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">Worker</p>
@@ -1103,7 +1103,7 @@ const ClientLiveRequestTracker: React.FC<ClientLiveRequestTrackerProps> = ({ lea
                             <button
                                 type="button"
                                 onClick={() => setIsMapExpanded((prev) => !prev)}
-                                className="rounded-2xl border border-bird-blue/15 bg-bird-blue/10 px-4 py-3 text-sm font-black text-bird-blue transition hover:bg-bird-blue hover:text-white"
+                                className="rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm font-medium text-gray-700 transition hover:bg-gray-50"
                             >
                                 {isMapExpanded ? 'Collapse map' : 'Expand map'}
                             </button>
@@ -1114,7 +1114,7 @@ const ClientLiveRequestTracker: React.FC<ClientLiveRequestTrackerProps> = ({ lea
                                         onClick={() => setCameraMode('balanced')}
                                         className={`rounded-xl px-3 py-2 text-xs font-black transition ${
                                             cameraMode === 'balanced'
-                                                ? 'bg-bird-blue text-white shadow-sm'
+                                                ? 'bg-gray-900 text-white'
                                                 : 'text-slate-600 hover:bg-slate-100'
                                         }`}
                                     >
@@ -1125,7 +1125,7 @@ const ClientLiveRequestTracker: React.FC<ClientLiveRequestTrackerProps> = ({ lea
                                         onClick={() => setCameraMode('close')}
                                         className={`rounded-xl px-3 py-2 text-xs font-black transition ${
                                             cameraMode === 'close'
-                                                ? 'bg-bird-blue text-white shadow-sm'
+                                                ? 'bg-gray-900 text-white'
                                                 : 'text-slate-600 hover:bg-slate-100'
                                         }`}
                                     >
@@ -1133,7 +1133,7 @@ const ClientLiveRequestTracker: React.FC<ClientLiveRequestTrackerProps> = ({ lea
                                     </button>
                                 </div>
                             </div>
-                            <div className="rounded-full border border-emerald-100 bg-emerald-50 px-3 py-2 text-[11px] font-black uppercase tracking-[0.18em] text-emerald-700">
+                            <div className="rounded-full bg-gray-100 px-3 py-1.5 text-[11px] font-medium uppercase tracking-wider text-gray-500">
                                 {request.status === 'paid' ? 'Live route' : request.status === 'done' ? 'Finished' : 'Stand by'}
                             </div>
                         </div>
