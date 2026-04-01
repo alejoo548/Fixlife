@@ -404,7 +404,7 @@ const PaymentCheckoutPage: React.FC<PaymentCheckoutPageProps> = ({ requestId, on
                     <button
                         type="button"
                         onClick={() => setCheckoutStage('form')}
-                        className="rounded-2xl bg-bird-blue px-6 py-3 text-sm font-black text-white shadow-[0_16px_34px_rgba(29,78,216,0.24)] hover:bg-bird-darkBlue"
+                        className="rounded-2xl bg-bird-blue px-6 py-3 text-sm font-black text-slate-900 shadow-[0_16px_34px_rgba(29,78,216,0.24)] hover:bg-bird-darkBlue"
                     >
                         Try again
                     </button>
@@ -457,10 +457,10 @@ const PaymentCheckoutPage: React.FC<PaymentCheckoutPageProps> = ({ requestId, on
                 </div>
                 {loading ? (
                     <div className="grid gap-6 lg:grid-cols-[1.05fr_1.25fr]">
-                        <div className="relative min-h-[560px] overflow-hidden rounded-[36px] bg-gradient-to-br from-[#1d4ed8] via-[#2563eb] to-[#0ea5e9] p-8 text-white shadow-[0_30px_80px_rgba(37,99,235,0.3)]">
-                            <div className="absolute -right-16 -top-16 h-48 w-48 rounded-full bg-white/10 blur-2xl" />
+                        <div className="relative min-h-[560px] overflow-hidden rounded-[36px] bg-gradient-to-br from-[#1d4ed8] via-[#2563eb] to-[#0ea5e9] p-8 text-slate-900 shadow-[0_30px_80px_rgba(37,99,235,0.3)]">
+                            <div className="absolute -right-16 -top-16 h-48 w-48 rounded-full bg-white blur-2xl" />
                             <div className="absolute -bottom-20 -left-8 h-52 w-52 rounded-full bg-cyan-300/15 blur-3xl" />
-                            <div className="inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-3 py-2 text-white/95 backdrop-blur">
+                            <div className="inline-flex items-center gap-2 rounded-full border border-gray-200 bg-white px-3 py-2 text-slate-900/95 backdrop-blur">
                                 <div className="h-3.5 w-3.5 rounded-full border-2 border-white/25 border-t-white animate-spin" />
                                 <span className="text-[11px] font-black uppercase tracking-[0.18em]">Preparing checkout</span>
                             </div>
@@ -470,14 +470,14 @@ const PaymentCheckoutPage: React.FC<PaymentCheckoutPageProps> = ({ requestId, on
                                     <br />
                                     payment
                                 </p>
-                                <p className="mt-4 text-xl font-semibold text-blue-50">
+                                <p className="mt-4 text-xl font-semibold text-slate-500">
                                     We are loading your booking details and payment options.
                                 </p>
                             </div>
                         </div>
-                        <div className="min-h-[560px] rounded-[36px] border border-white/70 bg-white/90 p-8 shadow-[0_24px_60px_rgba(15,23,42,0.12)] backdrop-blur">
+                        <div className="min-h-[560px] rounded-[36px] border border-gray-100 bg-white p-8 shadow-[0_24px_60px_rgba(15,23,42,0.12)] backdrop-blur">
                             <div className="rounded-[28px] border border-slate-200 bg-slate-50 p-6">
-                                <div className="inline-flex items-center gap-2 rounded-full border border-bird-blue/10 bg-bird-blue/10 px-3 py-1 text-[11px] font-black uppercase tracking-[0.18em] text-bird-blue">
+                                <div className="inline-flex items-center gap-2 rounded-full border border-bird-blue/10 bg-bird-blue/10 px-3 py-1 text-[11px] font-black uppercase tracking-[0.18em] text-slate-900">
                                     <span className="h-2 w-2 rounded-full bg-bird-blue animate-pulse" />
                                     Loading booking summary
                                 </div>
@@ -502,7 +502,7 @@ const PaymentCheckoutPage: React.FC<PaymentCheckoutPageProps> = ({ requestId, on
                         <button
                             type="button"
                             onClick={onBack}
-                            className="mt-6 inline-flex items-center justify-center rounded-2xl bg-bird-blue px-6 py-3 text-sm font-black text-white shadow-[0_16px_34px_rgba(29,78,216,0.24)] hover:bg-bird-darkBlue"
+                            className="mt-6 inline-flex items-center justify-center rounded-2xl bg-bird-blue px-6 py-3 text-sm font-black text-slate-900 shadow-[0_16px_34px_rgba(29,78,216,0.24)] hover:bg-bird-darkBlue"
                         >
                             Return to Fixlife
                         </button>
@@ -512,9 +512,9 @@ const PaymentCheckoutPage: React.FC<PaymentCheckoutPageProps> = ({ requestId, on
                         <motion.div
                             initial={{ opacity: 0, x: -20 }}
                             animate={{ opacity: 1, x: 0 }}
-                            className="relative overflow-hidden rounded-[36px] bg-gradient-to-br from-[#1d4ed8] via-[#2563eb] to-[#0ea5e9] p-8 text-white shadow-[0_30px_80px_rgba(37,99,235,0.34)]"
+                            className="relative overflow-hidden rounded-[36px] bg-gradient-to-br from-[#1d4ed8] via-[#2563eb] to-[#0ea5e9] p-8 text-slate-900 shadow-[0_30px_80px_rgba(37,99,235,0.34)]"
                         >
-                            <div className="absolute -right-16 -top-16 h-48 w-48 rounded-full bg-white/10 blur-2xl" />
+                            <div className="absolute -right-16 -top-16 h-48 w-48 rounded-full bg-white blur-2xl" />
                             <div className="absolute -bottom-20 -left-8 h-52 w-52 rounded-full bg-cyan-300/15 blur-3xl" />
 
                             <p className="text-[54px] font-black uppercase leading-[0.9] tracking-tight sm:text-[70px]">
@@ -522,9 +522,9 @@ const PaymentCheckoutPage: React.FC<PaymentCheckoutPageProps> = ({ requestId, on
                                 <br />
                                 card
                             </p>
-                            <p className="mt-4 text-2xl font-semibold text-blue-50">without leaving Fixlife</p>
+                            <p className="mt-4 text-2xl font-semibold text-slate-500">without leaving Fixlife</p>
 
-                            <div className="mt-10 rounded-[30px] border border-white/15 bg-white/10 p-6 backdrop-blur-md">
+                            <div className="mt-10 rounded-[30px] border border-white/15 bg-white p-6 backdrop-blur-md">
                                 <p className="text-[11px] font-black uppercase tracking-[0.24em] text-blue-100">Current request</p>
                                 <h2 className="mt-3 text-4xl font-black">{request.service_name}</h2>
                                 <p className="mt-3 line-clamp-3 text-sm text-blue-100">{request.description}</p>
@@ -545,7 +545,7 @@ const PaymentCheckoutPage: React.FC<PaymentCheckoutPageProps> = ({ requestId, on
                             <motion.div
                                 initial={{ opacity: 0, x: 20 }}
                                 animate={{ opacity: 1, x: 0 }}
-                                className="rounded-[36px] border border-white/70 bg-white/90 p-6 shadow-[0_24px_60px_rgba(15,23,42,0.12)] backdrop-blur sm:p-8"
+                                className="rounded-[36px] border border-gray-100 bg-white p-6 shadow-[0_24px_60px_rgba(15,23,42,0.12)] backdrop-blur sm:p-8"
                             >
                                 <div className="flex flex-wrap items-start justify-between gap-4">
                                     <div>
@@ -629,7 +629,7 @@ const PaymentCheckoutPage: React.FC<PaymentCheckoutPageProps> = ({ requestId, on
                                                     background: '#0070ba',
                                                 })
                                             }
-                                            className="mt-5 w-full rounded-2xl bg-[#0070ba] px-4 py-3 text-sm font-black text-white shadow-[0_14px_28px_rgba(0,112,186,0.22)]"
+                                            className="mt-5 w-full rounded-2xl bg-[#0070ba] px-4 py-3 text-sm font-black text-slate-900 shadow-[0_14px_28px_rgba(0,112,186,0.22)]"
                                         >
                                             Pay with PayPal
                                         </button>
@@ -758,7 +758,7 @@ const PaymentCheckoutPage: React.FC<PaymentCheckoutPageProps> = ({ requestId, on
                                             type="button"
                                             onClick={() => void handleCardPayment()}
                                             disabled={isPaying || isAlreadyPaid}
-                                            className="w-full rounded-[24px] bg-bird-blue px-5 py-4 text-sm font-black text-white shadow-[0_18px_36px_rgba(29,78,216,0.24)] transition hover:bg-bird-darkBlue disabled:cursor-not-allowed disabled:opacity-60"
+                                            className="w-full rounded-[24px] bg-bird-blue px-5 py-4 text-sm font-black text-slate-900 shadow-[0_18px_36px_rgba(29,78,216,0.24)] transition hover:bg-bird-darkBlue disabled:cursor-not-allowed disabled:opacity-60"
                                         >
                                             {isAlreadyPaid
                                                 ? 'Payment already secured'

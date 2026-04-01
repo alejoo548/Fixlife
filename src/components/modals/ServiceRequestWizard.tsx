@@ -182,7 +182,7 @@ const InlineTrackerFallback: React.FC = () => (
     <div className="rounded-[28px] border border-bird-blue/10 bg-white/95 p-4 shadow-[0_18px_38px_rgba(15,23,42,0.05)]">
         <div className="flex items-center gap-3">
             <div className="h-3.5 w-3.5 rounded-full border-2 border-bird-blue/20 border-t-bird-blue animate-spin" />
-            <p className="text-[11px] font-black uppercase tracking-[0.18em] text-bird-blue">Preparing live tracker</p>
+            <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-900">Preparing live tracker</p>
         </div>
     </div>
 );
@@ -538,7 +538,7 @@ const renderSavedPlaceActionIcon = (
 
 const getSavedPlaceActionClassName = (action: 'use' | 'rename' | 'delete') => {
     if (action === 'use') {
-        return 'border-bird-blue/20 bg-bird-blue/10 text-bird-blue hover:bg-bird-blue hover:text-white hover:shadow-[0_12px_24px_rgba(29,78,216,0.18)]';
+        return 'border-bird-blue/20 bg-bird-blue/10 text-slate-900 hover:bg-bird-blue hover:text-white hover:shadow-[0_12px_24px_rgba(29,78,216,0.18)]';
     }
     if (action === 'rename') {
         return 'border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-400 hover:border-amber-400 hover:text-white hover:shadow-[0_12px_24px_rgba(245,158,11,0.22)]';
@@ -1551,7 +1551,7 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
         }
 
         return (
-            <div className="mt-2 rounded-xl border border-gray-200 bg-white shadow-lg overflow-hidden">
+            <div className="mt-2 rounded-2xl border-none bg-gray-50/80 hover:bg-gray-100 transition-colors shadow-lg overflow-hidden">
                 {suggestionsLoading ? (
                     <div className="px-4 py-3 text-sm font-medium text-gray-500">Searching places in El Salvador...</div>
                 ) : (
@@ -2953,12 +2953,12 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                 {!activeTrackedRequest && (
                     <div className="absolute top-4 right-4 md:left-[520px] md:top-4 z-[400] rounded-xl bg-white/95 border border-gray-200 shadow-xl px-4 py-3 pointer-events-auto hidden sm:block">
                     <p className="text-[11px] uppercase tracking-wider font-bold text-gray-500">Live Map</p>
-                    <p className="text-sm font-bold text-gray-900">
+                    <p className="text-[15px] font-bold text-slate-800">
                         {currentCoords
                             ? (data.location.trim() || `Lat ${currentCoords.lat.toFixed(4)}, Lng ${currentCoords.lng.toFixed(4)}`)
                             : 'Detect location to center'}
                     </p>
-                    <p className="text-xs text-bird-blue font-bold mt-1">
+                    <p className="text-xs text-slate-900 font-bold mt-1">
                         {nearbyWorkers.length} nearby pro(s) in {radiusKm} km
                     </p>
                     </div>
@@ -3021,160 +3021,52 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                 </div>
 
                 {/* Content */}
-                <div className="flex-1 overflow-y-auto custom-scrollbar relative">
+                <div className="flex-1 overflow-y-auto custom-scrollbar relative bg-gray-50/30">
                     <AnimatePresence mode="wait">
                         {step === 0 && (
                             <motion.div
                                 key="step0"
-                                initial={{ opacity: 0, x: 20 }}
-                                animate={{ opacity: 1, x: 0 }}
-                                exit={{ opacity: 0, x: -20 }}
-                                transition={{ duration: 0.3 }}
+                                initial={{ opacity: 0, y: 20 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                exit={{ opacity: 0, y: -20 }}
                                 className="p-6 pb-24"
                             >
-                                <motion.h1
-                                    initial={{ opacity: 0, y: 20 }}
-                                    animate={{ opacity: 1, y: 0 }}
-                                    className="text-3xl font-bold text-gray-900 mb-2"
-                                >
-                                    What do you need?
-                                </motion.h1>
-                                <motion.p
-                                    initial={{ opacity: 0, y: 20 }}
-                                    animate={{ opacity: 1, y: 0 }}
-                                    transition={{ delay: 0.1 }}
-                                    className="text-gray-600 mb-8 text-base"
-                                >
-                                    Choose a service and we'll find the perfect pro
-                                </motion.p>
-
-                                {servicesLoading && (
-                                    <div className="mb-5 inline-flex items-center gap-2 rounded-full border border-bird-blue/15 bg-bird-blue/5 px-3 py-2 text-[11px] font-black uppercase tracking-[0.16em] text-bird-blue">
-                                        <span className="h-2 w-2 rounded-full bg-bird-blue animate-pulse" />
-                                        Loading services
+                                <h1 className="text-3xl font-black text-slate-900 mb-1 tracking-tight">What do you need?</h1>
+                                <p className="text-slate-500 font-medium mb-6">Choose a service to continue</p>
+                                
+                                {servicesLoading ? (
+                                    <div className="flex justify-center py-8">
+                                        <div className="h-6 w-6 rounded-full border-2 border-bird-blue/20 border-t-bird-blue animate-spin" />
+                                    </div>
+                                ) : (
+                                    <div className="space-y-3">
+                                        {services.map((cat) => (
+                                            <motion.button
+                                                key={cat.id_service}
+                                                whileHover={{ scale: 1.01 }}
+                                                whileTap={{ scale: 0.98 }}
+                                                onClick={() => {
+                                                    setData({ ...data, category: cat.name });
+                                                    setStep(1);
+                                                }}
+                                                className="w-full flex items-center p-4 bg-white hover:bg-gray-50 rounded-2xl border border-gray-100 shadow-sm transition-all gap-4 text-left"
+                                            >
+                                                <div className="w-12 h-12 rounded-xl bg-gray-50 flex items-center justify-center shrink-0 border border-gray-100">
+                                                    {cat.icon ? <img src={cat.icon} alt={cat.name} className="w-6 h-6 object-contain" /> : <div className="w-6 h-6 bg-gray-200 rounded-full" />}
+                                                </div>
+                                                <div className="flex flex-col flex-1">
+                                                    <span className="font-bold text-gray-900 text-[15px]">{cat.name}</span>
+                                                    {cat.description && <span className="text-xs font-medium text-slate-500 line-clamp-1">{cat.description}</span>}
+                                                </div>
+                                                <div className="text-gray-300">
+                                                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
+                                                </div>
+                                            </motion.button>
+                                        ))}
                                     </div>
                                 )}
-
-                                {/* Service Categories */}
-                                <div className="grid grid-cols-2 gap-4 mb-8">
-                                    {services.length === 0 ? (
-                                        <div className="col-span-2 text-center text-sm text-gray-500 font-semibold py-8">
-                                            {servicesLoading ? 'Loading active services...' : 'No active services available.'}
-                                        </div>
-                                    ) : services.map((cat, i) => (
-                                        <motion.button
-                                            key={cat.id_service}
-                                            initial={{ opacity: 0, scale: 0.8 }}
-                                            animate={{ opacity: 1, scale: 1 }}
-                                            transition={{ delay: i * 0.1 }}
-                                            whileHover={{ scale: 1.05, y: -5 }}
-                                            whileTap={{ scale: 0.95 }}
-                                            onClick={() => {
-                                                setData({ ...data, category: cat.name });
-                                                setStep(1);
-                                            }}
-                                            className="group relative bg-gradient-to-br from-gray-50 to-white border-2 border-gray-200 rounded-2xl p-6 hover:border-bird-blue transition-all shadow-sm hover:shadow-xl"
-                                        >
-                                            <div className={`w-14 h-14 rounded-xl bg-white border border-gray-200 flex items-center justify-center text-gray-600 ${getColorClass(['blue', 'yellow', 'orange', 'green'][i % 4])} group-hover:text-white transition-all mb-4 shadow-sm`}>
-                                                <span className="text-2xl">
-                                                    {cat.icon && cat.icon.length <= 2 ? cat.icon : 'ðŸ§°'}
-                                                </span>
-                                            </div>
-                                            <h3 className="font-bold text-gray-900 text-lg mb-1 line-clamp-1">{cat.name}</h3>
-                                            <div className="flex items-center justify-between text-sm gap-2">
-                                                <span className="text-bird-blue font-bold text-xs uppercase tracking-wide">Available</span>
-                                                <span className="text-gray-500 text-xs">Tap to continue</span>
-                                            </div>
-                                        </motion.button>
-                                    ))}
-                                </div>
-
-                                {/* Recent Locations */}
-                                <motion.div
-                                    initial={{ opacity: 0, y: 20 }}
-                                    animate={{ opacity: 1, y: 0 }}
-                                    transition={{ delay: 0.5 }}
-                                >
-                                    <div className="mb-4 flex items-center justify-between gap-2">
-                                        <h3 className="text-sm font-bold text-gray-500 uppercase tracking-wider">Quick Access</h3>
-                                        {recentLocations.length > 0 && (
-                                            <button
-                                                type="button"
-                                                onClick={() => void clearRecentLocations()}
-                                                className="text-[11px] font-bold uppercase tracking-wide text-red-500 hover:text-red-600"
-                                            >
-                                                Clear recents
-                                            </button>
-                                        )}
-                                    </div>
-                                    {quickAccessLocations.length === 0 ? (
-                                        <div className="rounded-xl border border-dashed border-gray-300 bg-gray-50 px-4 py-4 text-sm text-gray-500">
-                                            Save places like <span className="font-bold text-gray-700">Home</span> or <span className="font-bold text-gray-700">Work</span> after resolving a location.
-                                        </div>
-                                    ) : (
-                                        <div className="space-y-3">
-                                            {quickAccessLocations.map((loc, i) => {
-                                                const distanceLabel = currentCoords && !sameCoords(currentCoords, loc)
-                                                    ? formatDistanceLabel(distanceKmBetween(currentCoords, loc))
-                                                    : sameCoords(currentCoords, loc)
-                                                        ? 'Current place'
-                                                        : null;
-
-                                                return (
-                                                <motion.button
-                                                    key={`${loc.kind}-${loc.label}-${i}`}
-                                                    initial={{ opacity: 0, x: -20 }}
-                                                    animate={{ opacity: 1, x: 0 }}
-                                                    transition={{ delay: 0.6 + i * 0.1 }}
-                                                    whileHover={{ x: 5 }}
-                                                    onClick={() => handleUseSavedLocation(loc, 1)}
-                                                    className="w-full flex items-center gap-4 p-4 rounded-xl bg-gray-50 border border-gray-200 hover:border-bird-blue hover:bg-bird-blue/5 transition-all text-left group"
-                                                >
-                                                    <div className="relative w-20 h-20 rounded-2xl overflow-hidden border border-gray-200 bg-white shrink-0">
-                                                        <img
-                                                            src={getPreviewTileUrl(loc.lat, loc.lng)}
-                                                            alt={loc.title}
-                                                            className="w-full h-full object-cover"
-                                                        />
-                                                        <div className="absolute inset-0 bg-gradient-to-t from-black/30 via-transparent to-white/10" />
-                                                        <div className="absolute left-1.5 top-1.5 rounded-lg bg-white/90 px-1.5 py-1 text-gray-600 shadow-sm">
-                                                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={loc.icon} />
-                                                            </svg>
-                                                        </div>
-                                                        <div className="absolute left-1/2 top-1/2 h-3.5 w-3.5 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-white bg-bird-blue shadow" />
-                                                    </div>
-                                                    <div className="flex-1 min-w-0">
-                                                        <div className="flex items-start justify-between gap-2">
-                                                            <div>
-                                                                <div className="text-sm font-bold text-gray-900">{loc.title}</div>
-                                                                <div className="mt-1 text-xs text-gray-500 truncate">{loc.label}</div>
-                                                            </div>
-                                                        </div>
-                                                        <div className="mt-2 text-[11px] font-semibold text-bird-blue">
-                                                            {distanceLabel || `${loc.lat.toFixed(4)}, ${loc.lng.toFixed(4)}`}
-                                                        </div>
-                                                        <div className="mt-2 flex items-center justify-between gap-2">
-                                                            {renderSavedPlaceActions(loc, { nextStep: 1, compact: true })}
-                                                            {loc.last_used_at ? (
-                                                                <span className="text-[11px] font-medium text-gray-400">
-                                                                    Used {new Date(loc.last_used_at).toLocaleDateString()}
-                                                                </span>
-                                                            ) : null}
-                                                        </div>
-                                                    </div>
-                                                    <svg className="w-5 h-5 text-gray-400 group-hover:text-bird-blue transition-colors shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                                                    </svg>
-                                                </motion.button>
-                                                );
-                                            })}
-                                        </div>
-                                    )}
-                                </motion.div>
                             </motion.div>
                         )}
-
                         {step === 1 && (
                             <motion.div
                                 key="step1"
@@ -3198,20 +3090,18 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                 <motion.h2
                                     initial={{ opacity: 0, y: 20 }}
                                     animate={{ opacity: 1, y: 0 }}
-                                    className="text-3xl font-bold text-gray-900 mb-6"
-                                >
-                                    Tell us more
+                                    className="text-2xl font-black text-slate-900 mb-4 tracking-tight">Request Details
                                 </motion.h2>
 
                                 {selectedServiceTitle && (
                                     <motion.div
                                         initial={{ opacity: 0, y: 12 }}
                                         animate={{ opacity: 1, y: 0 }}
-                                        className="mb-5 flex items-center justify-between gap-2 rounded-xl border border-bird-blue/20 bg-bird-blue/5 px-4 py-3"
+                                        className="mb-5 flex items-center justify-between gap-2 rounded-xl border border-b border-gray-100 pb-4 mb-4"
                                     >
                                         <div>
-                                            <p className="text-[11px] font-bold uppercase tracking-wider text-bird-blue">Selected Service</p>
-                                            <p className="text-sm font-bold text-gray-900">{selectedServiceTitle}</p>
+                                            <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400 text-[10px]">Selected Service</p>
+                                            <p className="text-[15px] font-bold text-slate-800">{selectedServiceTitle}</p>
                                         </div>
                                         <button
                                             type="button"
@@ -3252,7 +3142,7 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                                     type="button"
                                                     onClick={detectCurrentLocation}
                                                     disabled={geoLoading}
-                                                    className="text-xs font-bold px-3 py-1.5 rounded-lg border border-bird-blue/30 bg-bird-blue/10 text-bird-blue hover:bg-bird-blue/20 disabled:opacity-60"
+                                                    className="text-xs font-bold px-3 py-1.5 rounded-lg border border-bird-blue/30 bg-bird-blue/10 text-slate-900 hover:bg-bird-blue/20 disabled:opacity-60"
                                                 >
                                                     {geoLoading ? 'Detecting...' : 'Detect my location'}
                                                 </button>
@@ -3289,7 +3179,7 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                             <div className="mt-3 rounded-2xl border border-bird-blue/20 bg-bird-blue/5 p-4">
                                                 <div className="flex items-center justify-between gap-3">
                                                     <div>
-                                                        <p className="text-sm font-bold text-gray-900">Save this location</p>
+                                                        <p className="text-[15px] font-bold text-slate-800">Save this location</p>
                                                         <p className="mt-1 text-xs text-gray-500">
                                                             Register it once and reuse it in future requests.
                                                         </p>
@@ -3342,7 +3232,7 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                                             }}
                                                             className={`rounded-xl border px-3 py-2 text-xs font-bold transition ${
                                                                 saveLocationKind === kind
-                                                                    ? 'border-bird-blue bg-white text-bird-blue shadow-sm'
+                                                                    ? 'border-bird-blue bg-white text-slate-900 shadow-sm'
                                                                     : 'border-gray-200 bg-white text-gray-600 hover:border-bird-blue/40'
                                                             }`}
                                                         >
@@ -3386,7 +3276,7 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                                 <button
                                                     type="button"
                                                     onClick={() => setShowSavedPlacesModal(true)}
-                                                    className="rounded-xl border border-gray-200 bg-white px-3 py-2 text-xs font-bold text-bird-blue hover:border-bird-blue/40 hover:bg-bird-blue/5"
+                                                    className="rounded-2xl border-none bg-gray-50/80 hover:bg-gray-100 transition-colors px-3 py-2 text-xs font-bold text-slate-900 hover:border-bird-blue/40 hover:bg-bird-blue/5"
                                                 >
                                                     <span className="inline-flex items-center gap-2">
                                                         {renderLocationBadge('current', 'sm')}
@@ -3418,7 +3308,7 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                                         <button
                                                             type="button"
                                                             onClick={() => setShowSavedPlacesModal(true)}
-                                                            className="inline-flex items-center rounded-full border border-dashed border-gray-300 px-3 py-2 text-xs font-bold text-gray-500 hover:border-bird-blue hover:text-bird-blue"
+                                                            className="inline-flex items-center rounded-full border border-dashed border-gray-300 px-3 py-2 text-xs font-bold text-gray-500 hover:border-bird-blue hover:text-slate-900"
                                                         >
                                                             +{quickAccessLocations.length - savedPlacesPreview.length} more
                                                         </button>
@@ -3470,7 +3360,7 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                         </div>
                                         <label className="block cursor-pointer">
                                             <div className="w-full rounded-2xl border-2 border-dashed border-gray-300 bg-gradient-to-br from-white to-sky-50 hover:from-sky-50 hover:to-blue-50 hover:border-bird-blue transition p-4 text-center">
-                                                <div className="text-bird-blue text-3xl font-black leading-none">+</div>
+                                                <div className="text-slate-900 text-3xl font-black leading-none">+</div>
                                                 <div className="text-gray-900 font-black mt-1">Dropify Upload Zone</div>
                                                 <div className="text-xs text-gray-500">PNG/JPG/WEBP only, up to 5 images</div>
                                                 <span className="inline-block mt-2 bg-bird-blue text-white px-3 py-1.5 rounded-lg text-sm font-bold shadow">
@@ -3589,7 +3479,7 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                             {nearbyWorkers.slice(0, 5).map((worker) => (
                                                 <div key={worker.id_worker_profile} className="flex items-center justify-between rounded-lg bg-white border border-emerald-100 px-3 py-2">
                                                     <div className="min-w-0">
-                                                        <p className="text-sm font-bold text-gray-900 truncate">{worker.name}</p>
+                                                        <p className="text-[15px] font-bold text-slate-800 truncate">{worker.name}</p>
                                                         <p className="text-xs text-gray-500 truncate">{worker.bio || 'Available now'}</p>
                                                     </div>
                                                     <span className="text-xs font-bold text-emerald-700">
@@ -3625,7 +3515,7 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                                 <div className="mb-4 rounded-2xl border border-bird-blue/15 bg-gradient-to-r from-sky-50 via-white to-amber-50 p-4 shadow-sm">
                                                     <div className="flex items-start justify-between gap-3">
                                                         <div className="min-w-0">
-                                                            <p className="text-[11px] font-black uppercase tracking-[0.18em] text-bird-blue">Live service active</p>
+                                                            <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-900">Live service active</p>
                                                             <p className="mt-2 text-sm font-black text-slate-900 truncate">
                                                                 {activeTrackedRequest.service_name}
                                                             </p>
@@ -3673,14 +3563,14 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                             )}
 
                                             {historyLoading && myRequests.length > 0 && (
-                                                <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-bird-blue/15 bg-bird-blue/5 px-3 py-2 text-[11px] font-black uppercase tracking-[0.16em] text-bird-blue">
+                                                <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-bird-blue/15 bg-bird-blue/5 px-3 py-2 text-[11px] font-black uppercase tracking-[0.16em] text-slate-900">
                                                     <span className="h-2 w-2 rounded-full bg-bird-blue animate-pulse" />
                                                     Refreshing requests
                                                 </div>
                                             )}
 
                                             {historyLoading && myRequests.length === 0 ? (
-                                                <div className="inline-flex items-center gap-2 rounded-full border border-bird-blue/15 bg-bird-blue/5 px-3 py-2 text-[11px] font-black uppercase tracking-[0.16em] text-bird-blue">
+                                                <div className="inline-flex items-center gap-2 rounded-full border border-bird-blue/15 bg-bird-blue/5 px-3 py-2 text-[11px] font-black uppercase tracking-[0.16em] text-slate-900">
                                                     <span className="h-2 w-2 rounded-full bg-bird-blue animate-pulse" />
                                                     Loading requests
                                                 </div>
@@ -3738,7 +3628,7 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                                                             </div>
                                                                         )}
                                                                         <div className="min-w-0">
-                                                                            <p className="text-[10px] font-black uppercase tracking-[0.18em] text-bird-blue">Assigned pro</p>
+                                                                            <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-900">Assigned pro</p>
                                                                             <p className="mt-1 truncate text-sm font-black text-slate-900">{request.assigned_worker.name}</p>
                                                                             <p className="mt-1 truncate text-[11px] font-semibold text-slate-600">
                                                                                 {request.assigned_worker.phone_number || 'Phone visible in profile'}
@@ -3753,7 +3643,7 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                                                     <button
                                                                         type="button"
                                                                         onClick={() => void openWorkerProfileModal(request)}
-                                                                        className="shrink-0 rounded-xl border border-bird-blue/20 bg-white px-3 py-2 text-[11px] font-black text-bird-blue shadow-sm transition hover:border-bird-blue hover:bg-bird-blue hover:text-white"
+                                                                        className="shrink-0 rounded-xl border border-bird-blue/20 bg-white px-3 py-2 text-[11px] font-black text-slate-900 shadow-sm transition hover:border-bird-blue hover:bg-bird-blue hover:text-white"
                                                                     >
                                                                         View pro
                                                                     </button>
@@ -3761,7 +3651,7 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
 
                                                                 {pendingWorkerApproval && (
                                                                     <div className="mt-3 rounded-2xl border border-bird-blue/15 bg-white/90 p-3">
-                                                                        <p className="text-[11px] font-black uppercase tracking-[0.18em] text-bird-blue">Approve this pro</p>
+                                                                        <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-900">Approve this pro</p>
                                                                         <p className="mt-1 text-xs text-slate-600">
                                                                             Review the worker profile and portfolio first. If you approve this pro, the request moves to payment and the worker can get ready to head over.
                                                                         </p>
@@ -3976,7 +3866,7 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                                             </div>
                                                         )}
 
-                                                        <div className="mt-3 rounded-xl border border-gray-200 bg-white p-3">
+                                                        <div className="mt-3 rounded-2xl border-none bg-gray-50/80 hover:bg-gray-100 transition-colors p-3">
                                                             <div className="flex items-center justify-between">
                                                                 <p className="text-[11px] uppercase tracking-wider font-bold text-gray-500">Chat</p>
                                                                 <button
@@ -4086,7 +3976,7 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                                                     disabled={!canRate}
                                                                     className={`rounded-xl px-3 py-2 text-[11px] font-black transition ${
                                                                         canRate
-                                                                            ? 'border border-bird-blue/20 bg-white text-bird-blue shadow-sm hover:-translate-y-0.5 hover:border-bird-blue hover:bg-bird-blue hover:text-white'
+                                                                            ? 'border border-bird-blue/20 bg-white text-slate-900 shadow-sm hover:-translate-y-0.5 hover:border-bird-blue hover:bg-bird-blue hover:text-white'
                                                                             : 'border border-slate-200 bg-slate-100 text-slate-400 cursor-not-allowed'
                                                                     }`}
                                                                 >
@@ -4152,7 +4042,7 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                         <div className="rounded-3xl border border-bird-blue/10 bg-gradient-to-r from-sky-50 via-white to-amber-50 p-4">
                                             <div className="flex flex-wrap items-center justify-between gap-3">
                                                 <div>
-                                                    <p className="text-[11px] font-black uppercase tracking-[0.18em] text-bird-blue">Completed service</p>
+                                                    <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-900">Completed service</p>
                                                     <p className="mt-1 text-lg font-black text-slate-900">
                                                         {ratingModalRequest.service_name}
                                                     </p>
@@ -4194,7 +4084,7 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                                                         className={`flex h-11 w-11 items-center justify-center rounded-2xl border text-xl transition ${
                                                                             active
                                                                                 ? 'border-bird-yellow/30 bg-bird-yellow/15 text-bird-yellow shadow-sm'
-                                                                                : 'border-slate-200 bg-white text-slate-300 hover:border-bird-blue/20 hover:text-bird-blue'
+                                                                                : 'border-slate-200 bg-white text-slate-300 hover:border-bird-blue/20 hover:text-slate-900'
                                                                         }`}
                                                                     >
                                                                         {'★'}
@@ -4239,7 +4129,7 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                         {workerProfileRequest && hasPendingWorkerApproval(workerProfileRequest) ? (
                                             <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
                                                 <div className="min-w-0">
-                                                    <p className="text-[11px] font-black uppercase tracking-[0.18em] text-bird-blue">Approve this pro</p>
+                                                    <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-900">Approve this pro</p>
                                                     <p className="mt-1 text-sm text-slate-500">
                                                         Review the profile and portfolio, then confirm this worker to move the request to payment.
                                                     </p>
@@ -4336,7 +4226,7 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                                 <p className="mt-2 text-2xl font-black text-slate-950">{getRatingDraft(fixesSuccessRequest.id_request).punctuality}/5</p>
                                             </div>
                                             <div className="rounded-2xl border border-bird-blue/15 bg-bird-blue/10 px-4 py-4 text-center">
-                                                <p className="text-[11px] font-black uppercase tracking-[0.18em] text-bird-blue">Quality</p>
+                                                <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-900">Quality</p>
                                                 <p className="mt-2 text-2xl font-black text-slate-950">{getRatingDraft(fixesSuccessRequest.id_request).quality}/5</p>
                                             </div>
                                             <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-4 text-center">
@@ -4385,7 +4275,7 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                                 <button
                                                     type="button"
                                                     onClick={() => setShowSavedPlacesModal(false)}
-                                                    className="rounded-xl border border-gray-200 bg-white px-3 py-2 text-xs font-bold text-gray-500 hover:text-gray-700"
+                                                    className="rounded-2xl border-none bg-gray-50/80 hover:bg-gray-100 transition-colors px-3 py-2 text-xs font-bold text-gray-500 hover:text-gray-700"
                                                 >
                                                     Close
                                                 </button>
@@ -4428,7 +4318,7 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                                             className={`inline-flex items-center gap-2 rounded-full border px-3 py-2 text-xs font-bold transition ${
                                                                 savedPlacesFilter === option.key
                                                                     ? 'border-bird-blue bg-bird-blue text-white shadow-sm'
-                                                                    : 'border-gray-200 bg-white text-gray-600 hover:border-bird-blue/40 hover:text-bird-blue'
+                                                                    : 'border-gray-200 bg-white text-gray-600 hover:border-bird-blue/40 hover:text-slate-900'
                                                             }`}
                                                         >
                                                             <span>{option.label}</span>
@@ -4480,7 +4370,7 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                                                                     onClick={() => handleUseSavedLocation(location)}
                                                                                     className="min-w-0 flex-1 text-left"
                                                                                 >
-                                                                                    <p className="text-sm font-bold text-gray-900">{location.title}</p>
+                                                                                    <p className="text-[15px] font-bold text-slate-800">{location.title}</p>
                                                                                     <p className="mt-1 line-clamp-2 text-xs text-gray-500">{location.label}</p>
                                                                                     <p className={`mt-1 inline-flex rounded-full border px-2 py-1 text-[11px] font-semibold ${visual.chipClass}`}>
                                                                                         {distanceLabel || `${location.lat.toFixed(4)}, ${location.lng.toFixed(4)}`}
@@ -4526,7 +4416,7 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                                                                 onClick={() => handleUseSavedLocation(location)}
                                                                                 className="min-w-0 flex-1 text-left"
                                                                             >
-                                                                                <p className="truncate text-sm font-bold text-gray-900">{location.title}</p>
+                                                                                <p className="truncate text-[15px] font-bold text-slate-800">{location.title}</p>
                                                                                 <p className="mt-1 truncate text-xs text-gray-500">{location.label}</p>
                                                                                 <p className={`mt-1 inline-flex rounded-full border px-2 py-1 text-[11px] font-semibold ${visual.chipClass}`}>
                                                                                     {distanceLabel || `${location.lat.toFixed(4)}, ${location.lng.toFixed(4)}`}
@@ -4648,7 +4538,7 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                                         </span>
                                                     </div>
                                                     <div className="mt-3 flex flex-wrap items-center gap-2">
-                                                        <span className="rounded-full bg-white/90 px-3 py-1 text-[11px] font-black uppercase tracking-[0.16em] text-bird-blue shadow-sm">
+                                                        <span className="rounded-full bg-white/90 px-3 py-1 text-[11px] font-black uppercase tracking-[0.16em] text-slate-900 shadow-sm">
                                                             {selectedWorkerProfile?.completed_jobs ?? 0} jobs completed
                                                         </span>
                                                         <span className="rounded-full bg-slate-950/15 px-3 py-1 text-[11px] font-black text-white backdrop-blur">
@@ -4765,7 +4655,7 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                                             selectedWorkerProfile?.services_offered.map((serviceName) => (
                                                                 <span
                                                                     key={serviceName}
-                                                                    className="rounded-full border border-bird-blue/15 bg-bird-blue/10 px-3 py-1 text-[11px] font-black text-bird-blue"
+                                                                    className="rounded-full border border-bird-blue/15 bg-bird-blue/10 px-3 py-1 text-[11px] font-black text-slate-900"
                                                                 >
                                                                     {serviceName}
                                                                 </span>
@@ -4784,12 +4674,12 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                         <div className="p-6">
                                             <div className="mb-4 flex items-center justify-between gap-3">
                                                 <div>
-                                                    <p className="text-[11px] font-black uppercase tracking-[0.18em] text-bird-blue">Portfolio</p>
+                                                    <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-900">Portfolio</p>
                                                     <h4 className="mt-1 text-xl font-black text-slate-900">Recent work from this pro</h4>
                                                     <p className="mt-1 text-sm text-slate-500">Review real uploads before you approve this worker.</p>
                                                 </div>
                                                 <div className="flex items-center gap-2">
-                                                    <span className="rounded-full border border-bird-blue/15 bg-bird-blue/10 px-3 py-1 text-[11px] font-black text-bird-blue">
+                                                    <span className="rounded-full border border-bird-blue/15 bg-bird-blue/10 px-3 py-1 text-[11px] font-black text-slate-900">
                                                         {(workerProfileData?.portfolio || []).length} photo(s)
                                                     </span>
                                                     {workerProfileLoading && (
@@ -4830,7 +4720,7 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                                                 <div className="h-full w-full bg-slate-100" />
                                                             )}
                                                             <div className="absolute inset-x-0 top-0 z-10 flex items-center justify-between p-4">
-                                                                <span className="rounded-full bg-white/92 px-3 py-1 text-[11px] font-black uppercase tracking-[0.18em] text-bird-blue shadow-sm">
+                                                                <span className="rounded-full bg-white/92 px-3 py-1 text-[11px] font-black uppercase tracking-[0.18em] text-slate-900 shadow-sm">
                                                                     Portfolio modal
                                                                 </span>
                                                                 <span className="rounded-full bg-slate-950/70 px-3 py-1 text-[11px] font-black text-white backdrop-blur">
@@ -5135,7 +5025,7 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                         <div className="rounded-2xl border border-amber-100 bg-amber-50/70 p-4">
                                             <p className="text-sm font-bold text-slate-900">Are you sure you want to remove this location?</p>
                                             <p className="mt-2 text-sm text-slate-600">{pendingDeleteLocation.label}</p>
-                                            <div className="mt-3 inline-flex rounded-full border border-bird-blue/20 bg-bird-blue/10 px-3 py-1 text-[11px] font-bold text-bird-blue">
+                                            <div className="mt-3 inline-flex rounded-full border border-bird-blue/20 bg-bird-blue/10 px-3 py-1 text-[11px] font-bold text-slate-900">
                                                 {pendingDeleteLocation.lat.toFixed(4)}, {pendingDeleteLocation.lng.toFixed(4)}
                                             </div>
                                         </div>
@@ -5146,7 +5036,7 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                                 onClick={() => closeDeleteSavedLocationPrompt(true)}
                                                 whileHover={{ y: -2, scale: 1.01 }}
                                                 whileTap={{ scale: 0.98 }}
-                                                className="inline-flex items-center justify-center gap-2 rounded-2xl border border-bird-blue/20 bg-bird-blue/10 px-4 py-3 text-sm font-black text-bird-blue transition hover:bg-bird-blue hover:text-white"
+                                                className="inline-flex items-center justify-center gap-2 rounded-2xl border border-bird-blue/20 bg-bird-blue/10 px-4 py-3 text-sm font-black text-slate-900 transition hover:bg-bird-blue hover:text-white"
                                             >
                                                 {renderSavedPlaceActionIcon('use')}
                                                 Keep place
@@ -5378,7 +5268,7 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                                 <button
                                                     type="button"
                                                     onClick={() => setPaymentModalRequest(null)}
-                                                    className="rounded-xl border border-gray-200 bg-white px-3 py-2 text-xs font-bold text-gray-500 hover:text-gray-700"
+                                                    className="rounded-2xl border-none bg-gray-50/80 hover:bg-gray-100 transition-colors px-3 py-2 text-xs font-bold text-gray-500 hover:text-gray-700"
                                                 >
                                                     Cerrar
                                                 </button>
