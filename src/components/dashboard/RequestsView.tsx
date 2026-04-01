@@ -744,6 +744,19 @@ export const RequestsView: React.FC<RequestsViewProps> = ({ isOnline, mobileView
         at: now,
       };
 
+      const buildStraightLineFallback = () => {
+        const straightDistanceKm = haversineKm(workerCoords!, {
+          lat: selectedRequest!.latitude!,
+          lng: selectedRequest!.longitude!,
+        });
+        const estimatedDurationMin = straightDistanceKm * 2.4;
+        const points: [number, number][] = [
+          [workerCoords!.lat, workerCoords!.lng],
+          [selectedRequest!.latitude!, selectedRequest!.longitude!],
+        ];
+        return { points, distanceKm: straightDistanceKm, durationMin: estimatedDurationMin };
+      };
+
       try {
         const params = new URLSearchParams({
           overview: 'full',
@@ -754,14 +767,27 @@ export const RequestsView: React.FC<RequestsViewProps> = ({ isOnline, mobileView
           `https://router.project-osrm.org/route/v1/driving/` +
           `${workerCoords.lng},${workerCoords.lat};${selectedRequest.longitude},${selectedRequest.latitude}?${params.toString()}`;
 
-        const res = await fetch(url, { signal: controller.signal });
-        const payload = await res.json();
+        const timeoutId = setTimeout(() => controller.abort(), 6000);
+        let res: Response;
+        try {
+          res = await fetch(url, { signal: controller.signal });
+        } finally {
+          clearTimeout(timeoutId);
+        }
+
+        let payload: any;
+        try {
+          payload = await res.json();
+        } catch {
+          // OSRM returned non-JSON (HTML error page) – use fallback
+          setRoutePreview(buildStraightLineFallback());
+          return;
+        }
+
         const route = payload?.routes?.[0];
 
         if (!res.ok || !route?.geometry?.coordinates?.length) {
-          setRoutePreview(null);
-          setLiveRouteMetrics(null);
-          setRouteError('Could not draw route preview.');
+          setRoutePreview(buildStraightLineFallback());
           return;
         }
 
@@ -798,14 +824,14 @@ export const RequestsView: React.FC<RequestsViewProps> = ({ isOnline, mobileView
           durationMin: exactDurationMin,
         });
       } catch (error: any) {
-        if (error?.name === 'AbortError') return;
-        setRoutePreview(null);
-        setLiveRouteMetrics(null);
-        setRouteError('Route preview unavailable right now.');
-      } finally {
-        if (!controller.signal.aborted) {
-          setRouteLoading(false);
+        if (error?.name === 'AbortError') {
+          // Timeout or manual abort – use straight-line fallback
+          setRoutePreview(buildStraightLineFallback());
+          return;
         }
+        setRoutePreview(buildStraightLineFallback());
+      } finally {
+          setRouteLoading(false);
       }
     };
 
