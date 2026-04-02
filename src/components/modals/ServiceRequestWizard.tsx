@@ -3030,6 +3030,10 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                     <div className="flex justify-center py-8">
                                         <div className="h-6 w-6 rounded-full border-2 border-bird-blue/20 border-t-bird-blue animate-spin" />
                                     </div>
+                                ) : services.length === 0 ? (
+                                    <div className="rounded-2xl border border-dashed border-gray-200 bg-white px-4 py-6 text-center text-sm font-medium text-gray-500">
+                                        No active services available.
+                                    </div>
                                 ) : (
                                     <div className="space-y-3">
                                         {services.map((cat) => (
@@ -3044,7 +3048,17 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                                 className="w-full flex items-center p-4 bg-white hover:bg-gray-50 rounded-2xl border border-gray-100 shadow-sm transition-all gap-4 text-left"
                                             >
                                                 <div className="w-12 h-12 rounded-xl bg-gray-50 flex items-center justify-center shrink-0 border border-gray-100">
-                                                    {cat.icon ? <img src={cat.icon} alt={cat.name} className="w-6 h-6 object-contain" /> : <div className="w-6 h-6 bg-gray-200 rounded-full" />}
+                                                    {cat.icon ? (
+                                                        /^(https?:|data:image\/|\/)/i.test(cat.icon) ? (
+                                                            <img src={cat.icon} alt={cat.name} className="w-6 h-6 object-contain" />
+                                                        ) : (
+                                                            <span className="text-2xl leading-none">
+                                                                {cat.icon.length <= 2 ? cat.icon : '🧰'}
+                                                            </span>
+                                                        )
+                                                    ) : (
+                                                        <div className="w-6 h-6 bg-gray-200 rounded-full" />
+                                                    )}
                                                 </div>
                                                 <div className="flex flex-col flex-1">
                                                     <span className="font-bold text-gray-900 text-[15px]">{cat.name}</span>

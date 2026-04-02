@@ -148,3 +148,117 @@ export const sendPasswordResetEmail = async (to: string, otp: string, name: stri
     return false;
   }
 };
+
+type PaymentInvoiceInput = {
+  to: string;
+  customerName: string;
+  requestId: number;
+  serviceName: string;
+  amount: number;
+  platformFee: number;
+  workerPayout: number;
+  checkoutReference: string;
+  invoiceNumber: string;
+  provider: string;
+  paidAt: Date;
+};
+
+export const sendPaymentInvoiceEmail = async (input: PaymentInvoiceInput) => {
+  const paidDate = input.paidAt.toLocaleString('es-SV', { hour12: true });
+  const subtotal = Number(Math.max(input.amount - input.platformFee, 0).toFixed(2));
+  const mailOptions = {
+    from: '"Fixlife Billing" <fixlifeworks@gmail.com>',
+    to: input.to,
+    subject: `Factura Electronica Fixlife - ${input.invoiceNumber}`,
+    html: `
+      <div style="font-family: Arial, sans-serif; max-width: 680px; margin: 0 auto; border: 1px solid #e5e7eb; border-radius: 10px; overflow: hidden;">
+        <div style="background: linear-gradient(135deg, #003087, #0070ba); padding: 22px; color: white;">
+          <h2 style="margin: 0; font-size: 24px;">Factura Electronica</h2>
+          <p style="margin: 8px 0 0; opacity: 0.92;">Fixlife payment receipt</p>
+        </div>
+        <div style="padding: 22px; color: #111827;">
+          <p>Hola ${input.customerName},</p>
+          <p>Tu pago ha sido procesado con exito. Aqui tienes el comprobante electronico de tu servicio:</p>
+          <div style="margin: 16px 0; padding: 14px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px;">
+            <p style="margin: 0 0 6px;"><strong>Factura:</strong> ${input.invoiceNumber}</p>
+            <p style="margin: 0 0 6px;"><strong>Solicitud:</strong> #${input.requestId}</p>
+            <p style="margin: 0 0 6px;"><strong>Servicio:</strong> ${input.serviceName}</p>
+            <p style="margin: 0 0 6px;"><strong>Referencia:</strong> ${input.checkoutReference}</p>
+            <p style="margin: 0 0 6px;"><strong>Metodo:</strong> ${input.provider.toUpperCase()}</p>
+            <p style="margin: 0;"><strong>Fecha:</strong> ${paidDate}</p>
+          </div>
+          <table style="width: 100%; border-collapse: collapse; margin-top: 10px;">
+            <tr>
+              <td style="padding: 10px 0; border-bottom: 1px solid #e5e7eb;">Subtotal del servicio</td>
+              <td style="padding: 10px 0; border-bottom: 1px solid #e5e7eb; text-align: right;"><strong>$${subtotal.toFixed(2)}</strong></td>
+            </tr>
+            <tr>
+              <td style="padding: 10px 0; border-bottom: 1px solid #e5e7eb;">Comision Fixlife</td>
+              <td style="padding: 10px 0; border-bottom: 1px solid #e5e7eb; text-align: right;"><strong>$${input.platformFee.toFixed(2)}</strong></td>
+            </tr>
+            <tr>
+              <td style="padding: 10px 0;">Total pagado</td>
+              <td style="padding: 10px 0; text-align: right; font-size: 18px;"><strong>$${input.amount.toFixed(2)}</strong></td>
+            </tr>
+          </table>
+          <p style="font-size: 13px; color: #4b5563; margin-top: 14px;">Pago neto para el trabajador: $${input.workerPayout.toFixed(2)}.</p>
+          <p style="margin-top: 18px;">Gracias por usar Fixlife.</p>
+        </div>
+      </div>
+    `,
+  };
+
+  try {
+    const info = await transporter.sendMail(mailOptions);
+    console.log('Payment invoice email sent: %s', info.messageId);
+    return true;
+  } catch (error) {
+    console.error('Error sending payment invoice email:', error);
+    return false;
+  }
+};
+
+type WorkerPaymentNoticeInput = {
+  to: string;
+  workerName: string;
+  requestId: number;
+  serviceName: string;
+  amount: number;
+  checkoutReference: string;
+};
+
+export const sendWorkerPaymentSecuredEmail = async (input: WorkerPaymentNoticeInput) => {
+  const mailOptions = {
+    from: '"Fixlife Payments" <fixlifeworks@gmail.com>',
+    to: input.to,
+    subject: `Pago confirmado para tu servicio #${input.requestId}`,
+    html: `
+      <div style="font-family: Arial, sans-serif; max-width: 640px; margin: 0 auto; border: 1px solid #e5e7eb; border-radius: 10px; overflow: hidden;">
+        <div style="background-color: #059669; padding: 20px; text-align: center;">
+          <h2 style="color: #ffffff; margin: 0;">Pago completado con exito</h2>
+        </div>
+        <div style="padding: 22px; color: #111827;">
+          <p>Hola ${input.workerName},</p>
+          <p>El pago de tu reciente servicio se ha efectuado y completado con exito.</p>
+          <div style="margin: 16px 0; padding: 14px; background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px;">
+            <p style="margin: 0 0 6px;"><strong>Solicitud:</strong> #${input.requestId}</p>
+            <p style="margin: 0 0 6px;"><strong>Servicio:</strong> ${input.serviceName}</p>
+            <p style="margin: 0 0 6px;"><strong>Monto asegurado:</strong> $${input.amount.toFixed(2)}</p>
+            <p style="margin: 0;"><strong>Referencia:</strong> ${input.checkoutReference}</p>
+          </div>
+          <p style="font-size: 13px; color: #4b5563;">Ya puedes continuar con la atencion del servicio desde tu panel profesional.</p>
+          <p>Equipo Fixlife</p>
+        </div>
+      </div>
+    `,
+  };
+
+  try {
+    const info = await transporter.sendMail(mailOptions);
+    console.log('Worker payment secured email sent: %s', info.messageId);
+    return true;
+  } catch (error) {
+    console.error('Error sending worker payment secured email:', error);
+    return false;
+  }
+};
