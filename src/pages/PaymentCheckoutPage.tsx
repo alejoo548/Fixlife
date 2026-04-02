@@ -138,13 +138,6 @@ const PaymentCheckoutPage: React.FC<PaymentCheckoutPageProps> = ({ requestId, on
     const [checkoutMessage, setCheckoutMessage] = useState('');
     const [successCountdown, setSuccessCountdown] = useState(4);
     const paypalReturnHandledRef = useRef(false);
-    const [paymentForm, setPaymentForm] = useState({
-        fullName: '',
-        email: '',
-        phone: '',
-        city: '',
-        country: 'El Salvador',
-    });
 
     const amount = useMemo(() => getChargeAmount(request), [request]);
     const locationMeta = useMemo(() => getLocationMeta(request?.location_text || ''), [request?.location_text]);
@@ -186,16 +179,6 @@ const PaymentCheckoutPage: React.FC<PaymentCheckoutPageProps> = ({ requestId, on
             return;
         }
 
-        const authUser = getAuthUser();
-        const authName = readString(authUser?.name);
-        const authEmail = readString(authUser?.email);
-
-        setPaymentForm((prev) => ({
-            ...prev,
-            fullName: authName || prev.fullName,
-            email: authEmail || prev.email,
-        }));
-
         const fetchCheckoutRequest = async () => {
             try {
                 const res = await fetch(API_ENDPOINTS.services.myRequests, {
@@ -220,11 +203,6 @@ const PaymentCheckoutPage: React.FC<PaymentCheckoutPageProps> = ({ requestId, on
                 }
 
                 setRequest(matchedRequest);
-                setPaymentForm((prev) => ({
-                    ...prev,
-                    city: prev.city || getLocationMeta(matchedRequest.location_text).city,
-                    country: 'El Salvador',
-                }));
             } catch {
                 notyf.error('Network error loading checkout.');
                 setRequest(null);
@@ -255,11 +233,8 @@ const PaymentCheckoutPage: React.FC<PaymentCheckoutPageProps> = ({ requestId, on
             const authEmail = readString(authUser?.email);
 
             const payer = {
-                full_name: authName || paymentForm.fullName.trim() || 'Fixlife Client',
-                email: authEmail || paymentForm.email.trim() || '',
-                phone: paymentForm.phone.trim() || 'N/A',
-                city: paymentForm.city.trim() || locationMeta.city,
-                country: paymentForm.country.trim() || locationMeta.country,
+                full_name: authName || 'Fixlife Client',
+                email: authEmail || '',
             };
 
             const payRes = await fetch(API_ENDPOINTS.services.confirmPayment(request.id_request), {
@@ -386,8 +361,8 @@ const PaymentCheckoutPage: React.FC<PaymentCheckoutPageProps> = ({ requestId, on
                     return_url: `${window.location.origin}/checkout/${request.id_request}?paypal=success`,
                     cancel_url: `${window.location.origin}/checkout/${request.id_request}?paypal=cancel`,
                     payer: {
-                        full_name: authName || paymentForm.fullName.trim() || '',
-                        email: authEmail || paymentForm.email.trim() || '',
+                        full_name: authName || '',
+                        email: authEmail || '',
                     },
                 }),
             });
@@ -515,297 +490,105 @@ const PaymentCheckoutPage: React.FC<PaymentCheckoutPageProps> = ({ requestId, on
     );
 
     return (
-        <div className="min-h-screen bg-gradient-to-br from-sky-50 via-amber-50 to-orange-50 px-4 py-6 sm:px-6 lg:px-10">
-            <div className="mx-auto max-w-[1380px]">
-                <div className="mb-6 flex items-center justify-between gap-4">
-                    <button
-                        type="button"
-                        onClick={onBack}
-                        className="inline-flex items-center gap-2 rounded-2xl border border-white/70 bg-white/80 px-4 py-3 text-sm font-bold text-slate-700 shadow-[0_12px_32px_rgba(15,23,42,0.08)] backdrop-blur"
-                    >
-                        <span className="text-lg leading-none">&larr;</span>
-                        Back to requests
-                    </button>
-                    <div className="rounded-2xl border border-white/70 bg-white/80 px-4 py-3 text-right shadow-[0_12px_32px_rgba(15,23,42,0.08)] backdrop-blur">
-                        <p className="text-[11px] font-black uppercase tracking-[0.24em] text-slate-400">Checkout</p>
-                        <p className="mt-1 text-sm font-bold text-slate-700">Secure payment inside Fixlife</p>
-                    </div>
-                </div>
+        <div className="min-h-screen bg-slate-50 px-4 py-8 sm:px-6 lg:px-10 flex items-center justify-center">
+            <div className="w-full max-w-lg">
+                <button
+                    type="button"
+                    onClick={onBack}
+                    className="mb-8 inline-flex items-center gap-2 text-sm font-bold text-slate-500 hover:text-slate-900 transition-colors"
+                >
+                    <span className="text-lg leading-none">&larr;</span>
+                    Back
+                </button>
+
                 {loading ? (
-                    <div className="grid gap-6 lg:grid-cols-[1.05fr_1.25fr]">
-                        <div className="relative min-h-[560px] overflow-hidden rounded-[36px] bg-gradient-to-br from-[#1d4ed8] via-[#2563eb] to-[#0ea5e9] p-8 text-slate-900 shadow-[0_30px_80px_rgba(37,99,235,0.3)]">
-                            <div className="absolute -right-16 -top-16 h-48 w-48 rounded-full bg-white blur-2xl" />
-                            <div className="absolute -bottom-20 -left-8 h-52 w-52 rounded-full bg-cyan-300/15 blur-3xl" />
-                            <div className="inline-flex items-center gap-2 rounded-full border border-gray-200 bg-white px-3 py-2 text-slate-900/95 backdrop-blur">
-                                <div className="h-3.5 w-3.5 rounded-full border-2 border-white/25 border-t-white animate-spin" />
-                                <span className="text-[11px] font-black uppercase tracking-[0.18em]">Preparing checkout</span>
-                            </div>
-                            <div className="mt-10 max-w-md">
-                                <p className="text-[52px] font-black uppercase leading-[0.9] tracking-tight sm:text-[66px]">
-                                    Secure
-                                    <br />
-                                    payment
-                                </p>
-                                <p className="mt-4 text-xl font-semibold text-slate-500">
-                                    We are loading your booking details and payment options.
-                                </p>
-                            </div>
-                        </div>
-                        <div className="min-h-[560px] rounded-[36px] border border-gray-100 bg-white p-8 shadow-[0_24px_60px_rgba(15,23,42,0.12)] backdrop-blur">
-                            <div className="rounded-[28px] border border-slate-200 bg-slate-50 p-6">
-                                <div className="inline-flex items-center gap-2 rounded-full border border-bird-blue/10 bg-bird-blue/10 px-3 py-1 text-[11px] font-black uppercase tracking-[0.18em] text-slate-900">
-                                    <span className="h-2 w-2 rounded-full bg-bird-blue animate-pulse" />
-                                    Loading booking summary
-                                </div>
-                                <div className="mt-6 grid gap-3">
-                                    <div className="h-14 rounded-3xl bg-white shadow-sm" />
-                                    <div className="h-14 rounded-3xl bg-white shadow-sm" />
-                                    <div className="grid grid-cols-2 gap-3">
-                                        <div className="h-16 rounded-3xl bg-white shadow-sm" />
-                                        <div className="h-16 rounded-3xl bg-white shadow-sm" />
-                                    </div>
-                                    <div className="h-12 rounded-2xl bg-white shadow-sm" />
-                                    <div className="h-12 rounded-2xl bg-white shadow-sm" />
-                                </div>
-                            </div>
-                        </div>
+                    <div className="rounded-[32px] bg-white p-8 shadow-sm border border-slate-100 flex flex-col items-center justify-center min-h-[400px]">
+                         <div className="h-8 w-8 rounded-full border-4 border-slate-100 border-t-bird-blue animate-spin" />
+                         <p className="mt-4 text-sm font-semibold text-slate-500">Loading secure checkout...</p>
                     </div>
                 ) : !request ? (
-                    <div className="rounded-[32px] border border-white/70 bg-white/85 p-10 text-center shadow-[0_24px_60px_rgba(15,23,42,0.12)] backdrop-blur">
-                        <p className="text-[11px] font-black uppercase tracking-[0.24em] text-slate-400">Checkout unavailable</p>
-                        <h1 className="mt-3 text-3xl font-black text-slate-900">We could not find that request</h1>
-                        <p className="mt-3 text-sm text-slate-500">Go back to your request history and open checkout again from a pending payment request.</p>
+                    <div className="rounded-[32px] bg-white p-10 text-center shadow-sm border border-slate-100">
+                        <p className="text-[11px] font-black uppercase tracking-[0.24em] text-slate-400">Error</p>
+                        <h1 className="mt-3 text-2xl font-black text-slate-900">Request not found</h1>
+                        <p className="mt-2 text-sm text-slate-500">We couldn't load the details for this payment.</p>
                         <button
                             type="button"
                             onClick={onBack}
-                            className="mt-6 inline-flex items-center justify-center rounded-2xl bg-bird-blue px-6 py-3 text-sm font-black text-slate-900 shadow-[0_16px_34px_rgba(29,78,216,0.24)] hover:bg-bird-darkBlue"
+                            className="mt-6 rounded-2xl bg-bird-blue px-6 py-3 text-sm font-black text-slate-900 hover:bg-bird-darkBlue transition"
                         >
-                            Return to Fixlife
+                            Go back
                         </button>
                     </div>
-                ) : (
-                    <div className="grid gap-6 lg:grid-cols-[1.05fr_1.25fr]">
-                        <motion.div
-                            initial={{ opacity: 0, x: -20 }}
-                            animate={{ opacity: 1, x: 0 }}
-                            className="relative overflow-hidden rounded-[36px] bg-gradient-to-br from-[#1d4ed8] via-[#2563eb] to-[#0ea5e9] p-8 text-slate-900 shadow-[0_30px_80px_rgba(37,99,235,0.34)]"
-                        >
-                            <div className="absolute -right-16 -top-16 h-48 w-48 rounded-full bg-white blur-2xl" />
-                            <div className="absolute -bottom-20 -left-8 h-52 w-52 rounded-full bg-cyan-300/15 blur-3xl" />
-
-                            <p className="text-[54px] font-black uppercase leading-[0.9] tracking-tight sm:text-[70px]">
-                                Pay with
-                                <br />
-                                {paymentMethod === 'paypal' ? 'PayPal' : 'Wompi'}
-                            </p>
-                            <p className="mt-4 text-2xl font-semibold text-slate-500">
-                                {paymentMethod === 'paypal' ? 'secure checkout inside Fixlife' : 'coming soon in Fixlife'}
-                            </p>
-
-                            <div className="mt-10 rounded-[30px] border border-white/15 bg-white p-6 backdrop-blur-md">
-                                <p className="text-[11px] font-black uppercase tracking-[0.24em] text-blue-100">Current request</p>
-                                <h2 className="mt-3 text-4xl font-black">{request.service_name}</h2>
-                                <p className="mt-3 line-clamp-3 text-sm text-blue-100">{request.description}</p>
-                                <div className="mt-6 grid gap-3 sm:grid-cols-2">
-                                    <div className="rounded-[22px] bg-white/12 px-4 py-4">
-                                        <p className="text-[11px] font-black uppercase tracking-[0.18em] text-blue-100">Amount</p>
-                                        <p className="mt-2 text-4xl font-black">${amount.toFixed(2)}</p>
-                                    </div>
-                                    <div className="rounded-[22px] bg-white/12 px-4 py-4">
-                                        <p className="text-[11px] font-black uppercase tracking-[0.18em] text-blue-100">Status</p>
-                                        <p className="mt-2 text-3xl font-black leading-tight">{getStatusCopy(request.status)}</p>
-                                    </div>
+                ) : checkoutStage === 'form' ? (
+                    <motion.div
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        className="rounded-[32px] bg-white shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-slate-100 overflow-hidden"
+                    >
+                        <div className="p-8 pb-6 border-b border-slate-100">
+                            <p className="text-[11px] font-black uppercase tracking-[0.24em] text-slate-400 text-center">Secure Payment</p>
+                            <h1 className="mt-4 text-3xl font-black text-slate-900 text-center">Fixlife Checkout</h1>
+                            <p className="mt-2 text-sm text-slate-500 text-center">{request.service_name}</p>
+                            
+                            <div className="mt-8 flex justify-center">
+                                <div className="text-center">
+                                    <span className="text-5xl font-black text-slate-950">${amount.toFixed(2)}</span>
+                                    <span className="ml-1 text-sm font-bold text-slate-400">USD</span>
                                 </div>
                             </div>
-                        </motion.div>
+                        </div>
 
-                        {checkoutStage === 'form' ? (
-                            <motion.div
-                                initial={{ opacity: 0, x: 20 }}
-                                animate={{ opacity: 1, x: 0 }}
-                                className="rounded-[36px] border border-gray-100 bg-white p-6 shadow-[0_24px_60px_rgba(15,23,42,0.12)] backdrop-blur sm:p-8"
-                            >
-                                <div className="flex flex-wrap items-start justify-between gap-4">
-                                    <div>
-                                        <p className="text-[11px] font-black uppercase tracking-[0.24em] text-slate-400">Payment form</p>
-                                        <h1 className="mt-2 text-3xl font-black text-slate-900">Reserve your worker</h1>
-                                        <p className="mt-2 text-sm text-slate-500">{locationMeta.primary} - {locationMeta.secondary}</p>
-                                    </div>
-                                    <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
-                                        <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">Charge summary</p>
-                                        <p className="mt-2 text-4xl font-black text-slate-950">${amount.toFixed(2)}</p>
-                                    </div>
-                                </div>
+                        <div className="p-8 bg-slate-50/50">
+                            <p className="text-[12px] font-bold text-slate-500 mb-4 text-center">Choose your payment method</p>
+                            
+                            <div className="space-y-3">
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        setPaymentMethod('paypal');
+                                        void handleSecurePayment('paypal');
+                                    }}
+                                    disabled={isPaying || isAlreadyPaid}
+                                    className="w-full relative group flex items-center justify-center gap-3 rounded-2xl bg-[#FFC439] px-6 py-4 transition hover:bg-[#F4BB33] disabled:opacity-50 disabled:cursor-not-allowed"
+                                >
+                                    {isPaying && paymentMethod === 'paypal' ? (
+                                        <div className="h-5 w-5 rounded-full border-2 border-slate-800/20 border-t-slate-800 animate-spin" />
+                                    ) : (
+                                        <svg viewBox="0 0 124 33" className="h-6" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                            <path d="M46.211 32.748c-5.748 0-8.815-2.617-9.351-7.85l-1.32-12.87c-.126-1.229.83-2.28 2.068-2.28h5.365c1.11 0 2.05.815 2.19 1.916l.89 7.027c.22 1.745 1.71 3.064 3.47 3.064h2.793c2.906 0 4.398-1.571 4.887-4.482l1.32-7.855c.16-1.047-1.12-2.116-2.58-2.116h-4.321c-1.238 0-2.095-1.051-1.96-2.28l.261-2.298c.135-1.23 1.258-2.28 2.496-2.28h11.96c5.748 0 8.816 2.618 9.352 7.854.34 3.32-.47 6.471-2.215 8.922-2.482 3.486-6.865 5.528-11.832 5.528H46.211z" fill="#003087"/>
+                                            <path d="M85.731 32.748c-5.748 0-8.816-2.617-9.352-7.85l-1.319-12.87c-.126-1.229.83-2.28 2.068-2.28h5.365c1.11 0 2.05.815 2.19 1.916l.89 7.027c.22 1.745 1.71 3.064 3.47 3.064h2.793c2.906 0 4.398-1.571 4.887-4.482l1.32-7.855c.16-1.047-1.12-2.116-2.58-2.116h-4.322c-1.238 0-2.095-1.051-1.96-2.28l.262-2.298c.135-1.23 1.258-2.28 2.496-2.28h11.96c5.748 0 8.816 2.618 9.352 7.854.34 3.32-.471 6.471-2.215 8.922-2.482 3.486-6.865 5.528-11.832 5.528H85.731z" fill="#009CDE"/>
+                                            <path d="M22.06 1.836c.219-1.047 1.119-1.836 2.188-1.836h14.072c4.01 0 7.234 1.122 9.07 3.197 1.91 2.146 2.5 5.58 1.62 9.467-.93 4.29-3.23 7.404-6.42 8.953-2.73 1.34-6.32 1.855-10.74 1.855H28.43c-1.07 0-1.97.79-2.19 1.836l-1.92 9.176c-.16 1.046-1.07 1.835-2.14 1.835H15.93c-1.39 0-2.43-1.27-2.18-2.646L22.06 1.836z" fill="#003087"/>
+                                            <path d="M12.98 1.836c.219-1.047 1.12-1.836 2.19-1.836H29.24c4.01 0 7.235 1.122 9.071 3.197 1.91 2.146 2.5 5.58 1.62 9.467-1.36 6.284-5.914 10.808-13.87 10.808H21.5c-1.07 0-1.97.79-2.19 1.836l-1.92 9.176c-.16 1.046-1.07 1.835-2.14 1.835H8.99c-1.39 0-2.43-1.27-2.18-2.646L12.98 1.836z" fill="#009CDE"/>
+                                        </svg>
+                                    )}
+                                </button>
 
-                                <div className="mt-6 grid gap-3 md:grid-cols-2">
-                                    <button
-                                        type="button"
-                                        onClick={() => {
-                                            setPaymentMethod('paypal');
-                                            void handleSecurePayment('paypal');
-                                        }}
-                                        className={`rounded-[26px] border px-5 py-5 text-left transition ${
-                                            paymentMethod === 'paypal'
-                                                ? 'border-[#0070ba] bg-[#eef7ff] shadow-[0_16px_34px_rgba(0,112,186,0.14)]'
-                                                : 'border-slate-200 bg-white hover:border-[#0070ba]/40'
-                                        }`}
-                                    >
-                                        <div className="flex items-center justify-between gap-3">
-                                            <div>
-                                                <p className="text-2xl font-black text-[#003087]">PayPal</p>
-                                                <p className="mt-1 text-xs font-semibold text-slate-500">Live payment method in Fixlife right now.</p>
-                                            </div>
-                                            <span className="rounded-full bg-emerald-100 px-3 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-emerald-700">
-                                                Active
-                                            </span>
-                                        </div>
-                                    </button>
+                                <button
+                                    type="button"
+                                    onClick={() => setPaymentMethod('wompi')}
+                                    disabled={isPaying || isAlreadyPaid || paymentMethod === 'wompi'}
+                                    className="w-full relative group flex items-center justify-center gap-2 rounded-2xl bg-[#000000] px-6 py-4 transition hover:bg-[#111111] disabled:opacity-30 disabled:cursor-not-allowed"
+                                >
+                                    <span className="text-lg font-black text-white tracking-tight">wompi.</span>
+                                </button>
+                            </div>
 
-                                    <button
-                                        type="button"
-                                        onClick={() => setPaymentMethod('wompi')}
-                                        className={`rounded-[26px] border px-5 py-5 text-left transition ${
-                                            paymentMethod === 'wompi'
-                                                ? 'border-[#5d3fd3] bg-[#f4f1ff] shadow-[0_16px_34px_rgba(93,63,211,0.16)]'
-                                                : 'border-slate-200 bg-white hover:border-[#5d3fd3]/40'
-                                        }`}
-                                    >
-                                        <div className="flex items-center justify-between gap-3">
-                                            <div>
-                                                <p className="text-xl font-black text-slate-900">Wompi</p>
-                                                <p className="mt-1 text-xs font-semibold text-slate-500">Planned next. UI ready, activation pending.</p>
-                                            </div>
-                                            <span className="rounded-full bg-amber-100 px-3 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-amber-700">
-                                                Soon
-                                            </span>
-                                        </div>
-                                    </button>
-                                </div>
-
-                                <div className="mt-6 grid gap-3 md:grid-cols-3">
-                                    <div className="rounded-2xl border border-sky-100 bg-sky-50/90 px-4 py-4">
-                                        <p className="text-[10px] font-black uppercase tracking-[0.18em] text-sky-700">Protected</p>
-                                        <p className="mt-2 text-sm font-black text-sky-950">Funds stay secured until the job is confirmed.</p>
-                                    </div>
-                                    <div className="rounded-2xl border border-emerald-100 bg-emerald-50/90 px-4 py-4">
-                                        <p className="text-[10px] font-black uppercase tracking-[0.18em] text-emerald-700">Tracked</p>
-                                        <p className="mt-2 text-sm font-black text-emerald-950">Your worker unlocks route tracking after payment.</p>
-                                    </div>
-                                    <div className="rounded-2xl border border-amber-100 bg-amber-50/90 px-4 py-4">
-                                        <p className="text-[10px] font-black uppercase tracking-[0.18em] text-amber-700">Support</p>
-                                        <p className="mt-2 text-sm font-black text-amber-950">Fixlife keeps the request linked to this checkout.</p>
-                                    </div>
-                                </div>
-
-                                <div className="mt-6 space-y-5">
-                                    <div className="rounded-[28px] border border-slate-200 bg-slate-50 p-5">
-                                        <div className="flex flex-wrap items-center justify-between gap-4">
-                                            <div>
-                                                <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">Payment summary</p>
-                                                <p className="mt-2 text-4xl font-black text-slate-950">${amount.toFixed(2)}</p>
-                                            </div>
-                                            <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-black text-emerald-700">
-                                                {isAlreadyPaid ? 'Already secured' : 'Secure hold'}
-                                            </div>
-                                        </div>
-                                        <p className="mt-3 text-sm text-slate-500">
-                                            {paymentMethod === 'paypal'
-                                                ? 'PayPal secures this payment now and sends your electronic invoice automatically.'
-                                                : 'Wompi integration is coming next. Keep this option selected to preview the future flow.'}
-                                        </p>
-                                        <div className="mt-4 rounded-[24px] border border-white/80 bg-white/90 p-4 shadow-sm">
-                                            <div className="flex items-center justify-between gap-3 text-sm">
-                                                <span className="font-semibold text-slate-500">Service subtotal</span>
-                                                <span className="font-black text-slate-900">${subtotal.toFixed(2)}</span>
-                                            </div>
-                                            <div className="mt-3 flex items-center justify-between gap-3 text-sm">
-                                                <span className="font-semibold text-slate-500">Fixlife secure hold</span>
-                                                <span className="font-black text-slate-900">${serviceFee.toFixed(2)}</span>
-                                            </div>
-                                            <div className="mt-4 flex items-center justify-between gap-3 border-t border-slate-100 pt-4">
-                                                <span className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">Total</span>
-                                                <span className="text-2xl font-black text-slate-950">${amount.toFixed(2)}</span>
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    <div className="grid gap-4 md:grid-cols-2">
-                                        <label className="text-xs font-bold text-slate-600">
-                                            Full name
-                                            <input
-                                                type="text"
-                                                value={paymentForm.fullName}
-                                                onChange={(e) => setPaymentForm((prev) => ({ ...prev, fullName: e.target.value }))}
-                                                className="mt-1.5 w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm text-slate-900 focus:border-bird-blue focus:outline-none"
-                                                placeholder="Claudia Lopez"
-                                            />
-                                        </label>
-                                        <label className="text-xs font-bold text-slate-600">
-                                            Email
-                                            <input
-                                                type="email"
-                                                value={paymentForm.email}
-                                                onChange={(e) => setPaymentForm((prev) => ({ ...prev, email: e.target.value }))}
-                                                className="mt-1.5 w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm text-slate-900 focus:border-bird-blue focus:outline-none"
-                                                placeholder="claudia@email.com"
-                                            />
-                                        </label>
-                                        <label className="text-xs font-bold text-slate-600">
-                                            Phone
-                                            <input
-                                                type="text"
-                                                value={paymentForm.phone}
-                                                onChange={(e) => setPaymentForm((prev) => ({ ...prev, phone: e.target.value }))}
-                                                className="mt-1.5 w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm text-slate-900 focus:border-bird-blue focus:outline-none"
-                                                placeholder="+503 7000 0000"
-                                            />
-                                        </label>
-                                        <label className="text-xs font-bold text-slate-600">
-                                            City
-                                            <input
-                                                type="text"
-                                                value={paymentForm.city}
-                                                onChange={(e) => setPaymentForm((prev) => ({ ...prev, city: e.target.value }))}
-                                                className="mt-1.5 w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm text-slate-900 focus:border-bird-blue focus:outline-none"
-                                                placeholder="Santa Tecla"
-                                            />
-                                        </label>
-                                    </div>
-
-                                    <label className="text-xs font-bold text-slate-600">
-                                        Country
-                                        <select
-                                            value={paymentForm.country}
-                                            onChange={(e) => setPaymentForm((prev) => ({ ...prev, country: e.target.value }))}
-                                            className="mt-1.5 w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm text-slate-900 focus:border-bird-blue focus:outline-none"
-                                        >
-                                            <option value="El Salvador">El Salvador</option>
-                                            <option value="Guatemala">Guatemala</option>
-                                            <option value="Honduras">Honduras</option>
-                                            <option value="Mexico">Mexico</option>
-                                        </select>
-                                    </label>
-
-                                    <button
-                                        type="button"
-                                        onClick={() => void handleSecurePayment()}
-                                        disabled={isPaying || isAlreadyPaid || paymentMethod === 'wompi'}
-                                        className="w-full rounded-[24px] bg-bird-blue px-5 py-4 text-sm font-black text-slate-900 shadow-[0_18px_36px_rgba(29,78,216,0.24)] transition hover:bg-bird-darkBlue disabled:cursor-not-allowed disabled:opacity-60"
-                                    >
-                                        {isAlreadyPaid
-                                            ? 'Payment already secured'
-                                            : isPaying
-                                                ? 'Processing payment...'
-                                                : paymentMethod === 'paypal'
-                                                    ? 'Pay with PayPal and secure booking'
-                                                    : 'Wompi coming soon'}
-                                    </button>
-                                </div>
-                            </motion.div>
-                        ) : (
-                            renderFinalStage()
-                        )}
-                    </div>
+                            {isAlreadyPaid && (
+                                <p className="mt-4 text-center text-sm font-bold text-emerald-600">
+                                    Payment already secured for this request.
+                                </p>
+                            )}
+                            
+                            <div className="mt-6 flex items-center justify-center gap-2 opacity-50">
+                                <svg className="h-4 w-4 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                                </svg>
+                                <span className="text-xs font-semibold text-slate-500">Payments are secure and encrypted</span>
+                            </div>
+                        </div>
+                    </motion.div>
+                ) : (
+                    renderFinalStage()
                 )}
             </div>
         </div>
@@ -813,3 +596,4 @@ const PaymentCheckoutPage: React.FC<PaymentCheckoutPageProps> = ({ requestId, on
 };
 
 export default PaymentCheckoutPage;
+
