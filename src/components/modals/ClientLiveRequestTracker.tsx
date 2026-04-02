@@ -209,19 +209,24 @@ const focusRouteViewport = (
 ) => {
     const validPoints = points.filter(([lat, lng]) => Number.isFinite(lat) && Number.isFinite(lng));
     if (!map || !L || validPoints.length === 0) return;
-    points = validPoints;
+    
+    // We override points with validPoints but let's make doubly sure for Leaflet bounds
+    const cleanPoints = validPoints.map(([lat, lng]) => [Number(lat), Number(lng)] as [number, number]);
 
     const isDesktop = typeof window !== 'undefined' ? window.innerWidth >= 1024 : true;
-    const firstPoint = points[0];
-    const lastPoint = points[points.length - 1];
+    const firstPoint = cleanPoints[0];
+    const lastPoint = cleanPoints[cleanPoints.length - 1];
     const latSpan = Math.abs(firstPoint[0] - lastPoint[0]);
     const lngSpan = Math.abs(firstPoint[1] - lastPoint[1]);
-    const routeKm = polylineDistanceKm(points);
+    const routeKm = polylineDistanceKm(cleanPoints);
     const isVeryShortRoute = latSpan < 0.0018 && lngSpan < 0.0018;
 
     if (isVeryShortRoute) {
         const centerLat = (firstPoint[0] + lastPoint[0]) / 2;
         const centerLng = (firstPoint[1] + lastPoint[1]) / 2;
+        
+        if (!Number.isFinite(centerLat) || !Number.isFinite(centerLng)) return;
+
         const closeZoom =
             cameraMode === 'close'
                 ? routeKm < 0.12
@@ -238,38 +243,56 @@ const focusRouteViewport = (
                     : isDesktop
                       ? 16
                       : 15;
-        map.flyTo([centerLat, centerLng], closeZoom, {
-            animate: true,
-            duration: 0.45,
-        });
+        try {
+            map.flyTo([centerLat, centerLng], closeZoom, {
+                animate: false,
+                duration: 0,
+            });
+        } catch (error) {
+            console.warn('Leaflet flyTo error gracefully handled:', error);
+        }
         return;
     }
 
-    const bounds = L.polyline(points).getBounds().pad(
-        isLiveRoute ? (cameraMode === 'close' ? 0.0015 : 0.004) : 0.05
-    );
-    const fitOptions = isDesktop
-        ? {
-              paddingTopLeft: cameraMode === 'close' ? [18, 18] : [36, 36],
-              paddingBottomRight: cameraMode === 'close' ? [18, 24] : [36, 48],
-              maxZoom: isLiveRoute ? (cameraMode === 'close' ? 19 : 18) : 16,
-              animate: true,
-              duration: 0.45,
-          }
-        : {
-              paddingTopLeft: cameraMode === 'close' ? [12, 16] : [18, 24],
-              paddingBottomRight: cameraMode === 'close' ? [12, 18] : [18, 30],
-              maxZoom: isLiveRoute ? (cameraMode === 'close' ? 18 : 17) : 15,
-              animate: true,
-              duration: 0.45,
-          };
+    try {
+        const bounds = L.polyline(cleanPoints).getBounds();
+        if (!bounds || !bounds.isValid()) return;
+        
+        const mapSize = map.getSize();
+        if (!mapSize || mapSize.x === 0 || mapSize.y === 0) {
+            // Container size is 0 (e.g., rendering during animation), skip bounds calculation to avoid NaN
+            return;
+        }
 
-    if (typeof map.flyToBounds === 'function') {
-        map.flyToBounds(bounds, fitOptions);
-        return;
+        const paddedBounds = bounds.pad(
+            isLiveRoute ? (cameraMode === 'close' ? 0.0015 : 0.004) : 0.05
+        );
+        
+        const fitOptions = isDesktop
+            ? {
+                  paddingTopLeft: cameraMode === 'close' ? [18, 18] : [36, 36],
+                  paddingBottomRight: cameraMode === 'close' ? [18, 24] : [36, 48],
+                  maxZoom: isLiveRoute ? (cameraMode === 'close' ? 19 : 18) : 16,
+                  animate: false,
+                  duration: 0,
+              }
+            : {
+                  paddingTopLeft: cameraMode === 'close' ? [12, 16] : [18, 24],
+                  paddingBottomRight: cameraMode === 'close' ? [12, 18] : [18, 30],
+                  maxZoom: isLiveRoute ? (cameraMode === 'close' ? 18 : 17) : 15,
+                  animate: false,
+                  duration: 0,
+              };
+
+        if (typeof map.flyToBounds === 'function') {
+            map.flyToBounds(paddedBounds, fitOptions);
+            return;
+        }
+
+        map.fitBounds(paddedBounds, fitOptions);
+    } catch (error) {
+        console.warn('Leaflet fitBounds error gracefully handled:', error);
     }
-
-    map.fitBounds(bounds, fitOptions);
 };
 
 const buildRouteDistanceProfile = (points: [number, number][]) => {
@@ -743,6 +766,11 @@ const ClientLiveRequestTracker: React.FC<ClientLiveRequestTrackerProps> = ({ lea
         const L = window.L;
         const map = mapInstanceRef.current;
         const routePoints = visibleRoutePoints && visibleRoutePoints.length >= 2 ? visibleRoutePoints : routePreview.points;
+        const cleanRoutePoints = routePoints
+            .filter(p => p && Number.isFinite(p[0]) && Number.isFinite(p[1]))
+            .map(p => [Number(p[0]), Number(p[1])] as [number, number]);
+
+        if (cleanRoutePoints.length < 2) return;
 
         if (routeGlowRef.current) {
             try {
@@ -761,28 +789,32 @@ const ClientLiveRequestTracker: React.FC<ClientLiveRequestTrackerProps> = ({ lea
             routeLineRef.current = null;
         }
 
-        routeGlowRef.current = L.polyline(routePoints, {
-            color: '#3b82f6',
-            weight: 12,
-            opacity: 0.15,
-            lineCap: 'round',
-            lineJoin: 'round',
-            className: 'worker-route-glow',
-        }).addTo(map);
+        try {
+            routeGlowRef.current = L.polyline(cleanRoutePoints, {
+                color: '#3b82f6',
+                weight: 12,
+                opacity: 0.15,
+                lineCap: 'round',
+                lineJoin: 'round',
+                className: 'worker-route-glow',
+            }).addTo(map);
 
-        routeLineRef.current = L.polyline(routePoints, {
-            color: '#1d4ed8',
-            weight: 4,
-            opacity: 0.8,
-            lineCap: 'round',
-            lineJoin: 'round',
-            dashArray: '10 8',
-            className: 'worker-route-line worker-route-live',
-        }).addTo(map);
+            routeLineRef.current = L.polyline(cleanRoutePoints, {
+                color: '#1d4ed8',
+                weight: 4,
+                opacity: 0.8,
+                lineCap: 'round',
+                lineJoin: 'round',
+                dashArray: '10 8',
+                className: 'worker-route-line worker-route-live',
+            }).addTo(map);
 
-        if (lastFitRequestIdRef.current !== request.id_request) {
-            focusRouteViewport(map, L, routePoints, isLiveRoute, cameraMode);
-            lastFitRequestIdRef.current = request.id_request;
+            if (lastFitRequestIdRef.current !== request.id_request) {
+                focusRouteViewport(map, L, cleanRoutePoints, isLiveRoute, cameraMode);
+                lastFitRequestIdRef.current = request.id_request;
+            }
+        } catch (error) {
+            console.warn('Leaflet polyline creation error:', error);
         }
     }, [cameraMode, isLiveRoute, request.id_request, routePreview, visibleRoutePoints]);
 
@@ -797,6 +829,8 @@ const ClientLiveRequestTracker: React.FC<ClientLiveRequestTrackerProps> = ({ lea
 
     useEffect(() => {
         if (!mapInstanceRef.current || !window.L || !destinationCoords) return;
+        if (!Number.isFinite(destinationCoords.lat) || !Number.isFinite(destinationCoords.lng)) return;
+        
         const L = window.L;
         const map = mapInstanceRef.current;
 
@@ -814,6 +848,8 @@ const ClientLiveRequestTracker: React.FC<ClientLiveRequestTrackerProps> = ({ lea
 
     useEffect(() => {
         if (!mapInstanceRef.current || !window.L || !displayedWorkerCoords) return;
+        if (!Number.isFinite(displayedWorkerCoords.lat) || !Number.isFinite(displayedWorkerCoords.lng)) return;
+        
         const L = window.L;
         const map = mapInstanceRef.current;
 

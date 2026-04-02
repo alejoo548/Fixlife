@@ -3929,7 +3929,11 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                                             {canConfirmCompletion && (
                                                                 <button
                                                                     type="button"
-                                                                    onClick={() => handleClientCompletion(request)}
+                                                                    onClick={(e) => {
+                                                                        e.stopPropagation();
+                                                                        e.preventDefault();
+                                                                        handleClientCompletion(request);
+                                                                    }}
                                                                     disabled={completionBusyId === request.id_request}
                                                                     className="w-full sm:w-auto px-4 py-2.5 rounded-xl bg-blue-600 text-white text-[13px] font-bold hover:bg-blue-700 disabled:opacity-50 transition-colors shadow-sm"
                                                                 >
@@ -5081,7 +5085,7 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                 initial={{ opacity: 0 }}
                                 animate={{ opacity: 1 }}
                                 exit={{ opacity: 0 }}
-                                className="absolute inset-0 z-40 bg-slate-950/35 backdrop-blur-[3px] flex items-center justify-center p-4"
+                                className="fixed inset-0 z-[100] bg-slate-950/35 backdrop-blur-[3px] flex items-center justify-center p-4"
                             >
                                 <motion.div
                                     initial={{ opacity: 0, scale: 0.96, y: 12 }}

@@ -2594,7 +2594,7 @@ export const confirmRequestPayment = async (req: AuthRequest, res: Response): Pr
          sr.budget,
          sr.final_budget,
          sr.assigned_worker_profile,
-         s.service_name,
+         s.name AS service_name,
          cu.name AS client_name,
          cu.lastname AS client_lastname,
          cu.email AS client_email,
