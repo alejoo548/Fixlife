@@ -1437,6 +1437,18 @@ const buildInvoiceNumber = (idRequest: number) => {
   return `INV-FX-${idRequest}-${stamp}`;
 };
 
+const sanitizeRedirectUrl = (value: unknown, fallback: string) => {
+  const raw = String(value || '').trim();
+  if (!raw) return fallback;
+  try {
+    const parsed = new URL(raw);
+    if (!['http:', 'https:'].includes(parsed.protocol)) return fallback;
+    return parsed.toString();
+  } catch {
+    return fallback;
+  }
+};
+
 const getPaypalBaseUrl = () =>
   String(process.env.PAYPAL_MODE || 'sandbox').toLowerCase() === 'live'
     ? 'https://api-m.paypal.com'
@@ -1478,6 +1490,8 @@ const createPaypalOrder = async (input: {
   checkoutReference: string;
   payerName: string;
   payerEmail: string;
+  returnUrl: string;
+  cancelUrl: string;
 }) => {
   const accessToken = await getPaypalAccessToken();
   const response = await fetch(`${getPaypalBaseUrl()}/v2/checkout/orders`, {
@@ -1507,6 +1521,8 @@ const createPaypalOrder = async (input: {
       application_context: {
         shipping_preference: 'NO_SHIPPING',
         user_action: 'PAY_NOW',
+        return_url: input.returnUrl,
+        cancel_url: input.cancelUrl,
       },
     }),
   });
@@ -2427,6 +2443,8 @@ export const createRequestPaymentCheckout = async (req: AuthRequest, res: Respon
     const paymentMethod = normalizePaymentMethod(req.body?.payment_method);
     const payerFullName = sanitizePaymentValue(req.body?.payer?.full_name, 120);
     const payerEmail = sanitizePaymentValue(req.body?.payer?.email, 140);
+    const returnUrlInput = sanitizePaymentValue(req.body?.return_url, 500);
+    const cancelUrlInput = sanitizePaymentValue(req.body?.cancel_url, 500);
     if (!idRequest) {
       res.status(400).json({ error: 'Invalid request id.' });
       return;
@@ -2468,6 +2486,10 @@ export const createRequestPaymentCheckout = async (req: AuthRequest, res: Respon
 
     const { amount, platformFee, workerPayout } = getPaymentBreakdown(getRequestChargeAmount(requestRow));
     const checkoutReference = buildCheckoutReference(idRequest);
+    const defaultReturnUrl = `http://localhost:3000/checkout/${idRequest}?paypal=success`;
+    const defaultCancelUrl = `http://localhost:3000/checkout/${idRequest}?paypal=cancel`;
+    const returnUrl = sanitizeRedirectUrl(returnUrlInput, defaultReturnUrl);
+    const cancelUrl = sanitizeRedirectUrl(cancelUrlInput, defaultCancelUrl);
 
     let paypalOrderId: string | null = null;
     let paypalApproveUrl: string | null = null;
@@ -2485,6 +2507,8 @@ export const createRequestPaymentCheckout = async (req: AuthRequest, res: Respon
           checkoutReference,
           payerName: payerFullName,
           payerEmail,
+          returnUrl,
+          cancelUrl,
         });
         paypalOrderId = order.orderId;
         paypalApproveUrl = order.approveUrl;
@@ -2562,10 +2586,6 @@ export const confirmRequestPayment = async (req: AuthRequest, res: Response): Pr
       res.status(409).json({ error: 'Wompi checkout will be available soon. Please complete this payment with PayPal.' });
       return;
     }
-    if (!payerFullName || !payerEmail || !payerPhone || !payerCity || !payerCountry) {
-      res.status(400).json({ error: 'Missing payer details for invoice generation.' });
-      return;
-    }
 
     await connection.beginTransaction();
 
@@ -2610,7 +2630,7 @@ export const confirmRequestPayment = async (req: AuthRequest, res: Response): Pr
     }
 
     const [paymentRows] = await connection.execute<RowDataPacket[]>(
-      `SELECT id_payment, payment_status, amount, checkout_reference, provider_payment_id
+      `SELECT id_payment, provider, payment_status, amount, platform_fee, worker_payout, checkout_reference, provider_payment_id
        FROM service_request_payments
        WHERE id_request = ?
        LIMIT 1
@@ -2629,6 +2649,25 @@ export const confirmRequestPayment = async (req: AuthRequest, res: Response): Pr
       (paymentRows.length > 0 && paymentRows[0].provider_payment_id
         ? String(paymentRows[0].provider_payment_id)
         : '');
+
+    if (paymentRows.length > 0 && String(paymentRows[0].payment_status || '').toLowerCase() === 'paid') {
+      await connection.rollback();
+      res.json({
+        success: true,
+        message: 'Payment already confirmed.',
+        id_request: idRequest,
+        payment: {
+          provider: String(paymentRows[0].provider || paymentMethod || 'paypal'),
+          amount: Number(paymentRows[0].amount || amount),
+          platform_fee: Number(paymentRows[0].platform_fee || platformFee),
+          worker_payout: Number(paymentRows[0].worker_payout || workerPayout),
+          status: 'paid',
+          checkout_reference: String(paymentRows[0].checkout_reference || checkoutReferenceForPayment),
+        },
+        request_status: 'paid',
+      });
+      return;
+    }
 
     if (paymentMethod === 'paypal') {
       if (!paypalOrderId) {
@@ -2698,7 +2737,7 @@ export const confirmRequestPayment = async (req: AuthRequest, res: Response): Pr
     const clientEmail = sanitizePaymentValue(requestRow.client_email, 140) || payerEmail;
     const workerEmail = sanitizePaymentValue(requestRow.worker_email, 140);
     const paidAt = new Date();
-    const customerName = [clientFirstName, clientLastName].filter(Boolean).join(' ').trim() || payerFullName;
+    const customerName = [clientFirstName, clientLastName].filter(Boolean).join(' ').trim() || payerFullName || 'Fixlife customer';
     const workerName = [workerFirstName, workerLastName].filter(Boolean).join(' ').trim() || 'Pro worker';
 
     await createUserNotification({

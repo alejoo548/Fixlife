@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
 import { Notyf } from 'notyf';
 import 'notyf/notyf.min.css';
@@ -64,6 +64,7 @@ const getLocationMeta = (label: string) => {
 };
 
 const readString = (value: unknown) => (typeof value === 'string' ? value.trim() : '');
+const getPaypalPayerStorageKey = (idRequest: number) => `fixlife_paypal_payer_${idRequest}`;
 
 const renderStageIcon = (stage: CheckoutStage) => {
     if (stage === 'success') {
@@ -137,6 +138,7 @@ const PaymentCheckoutPage: React.FC<PaymentCheckoutPageProps> = ({ requestId, on
     const [checkoutStage, setCheckoutStage] = useState<CheckoutStage>('form');
     const [checkoutMessage, setCheckoutMessage] = useState('');
     const [successCountdown, setSuccessCountdown] = useState(4);
+    const paypalReturnHandledRef = useRef(false);
     const [paymentForm, setPaymentForm] = useState({
         fullName: '',
         email: '',
@@ -240,6 +242,116 @@ const PaymentCheckoutPage: React.FC<PaymentCheckoutPageProps> = ({ requestId, on
         setCheckoutMessage(message);
     };
 
+    const handlePaypalReturnConfirmation = async (paypalOrderId: string) => {
+        const token = getToken();
+        if (!token || !request) {
+            moveToErrorStage('Your session expired before PayPal confirmation could finish.');
+            return;
+        }
+
+        setIsPaying(true);
+        try {
+            const storageKey = getPaypalPayerStorageKey(request.id_request);
+            const savedPayerRaw = window.sessionStorage.getItem(storageKey);
+            let savedPayer: Record<string, string> | null = null;
+            if (savedPayerRaw) {
+                try {
+                    savedPayer = JSON.parse(savedPayerRaw) as Record<string, string>;
+                } catch {
+                    savedPayer = null;
+                }
+            }
+
+            const payer = {
+                full_name: readString(savedPayer?.fullName) || paymentForm.fullName.trim() || 'Fixlife Client',
+                email: readString(savedPayer?.email) || paymentForm.email.trim() || '',
+                phone: readString(savedPayer?.phone) || paymentForm.phone.trim() || 'N/A',
+                city: readString(savedPayer?.city) || paymentForm.city.trim() || locationMeta.city,
+                country: readString(savedPayer?.country) || paymentForm.country.trim() || locationMeta.country,
+            };
+
+            const payRes = await fetch(API_ENDPOINTS.services.confirmPayment(request.id_request), {
+                method: 'POST',
+                headers: {
+                    Authorization: `Bearer ${token}`,
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    payment_method: 'paypal',
+                    paypal_order_id: paypalOrderId,
+                    payer,
+                }),
+            });
+            const payPayload = await payRes.json();
+            if (!payRes.ok || !payPayload?.success) {
+                const message = payPayload?.error || 'Could not confirm PayPal payment.';
+                notyf.error(message);
+                moveToErrorStage(message);
+                return;
+            }
+
+            setRequest((prev) =>
+                prev
+                    ? {
+                          ...prev,
+                          status: 'paid',
+                          payment: {
+                              provider: payPayload?.payment?.provider || 'paypal',
+                              checkout_reference: payPayload?.payment?.checkout_reference || prev.payment?.checkout_reference || null,
+                              amount: Number(payPayload?.payment?.amount || amount),
+                              status: 'paid',
+                              paid_at: new Date().toISOString(),
+                          },
+                      }
+                    : prev
+            );
+
+            window.sessionStorage.removeItem(storageKey);
+            window.history.replaceState({}, '', `/checkout/${request.id_request}`);
+            setCheckoutStage('success');
+            setCheckoutMessage('PayPal payment secured successfully. Your electronic invoice was sent to your email.');
+            notyf.success('PayPal payment confirmed. Your pro can now start the job.');
+        } catch {
+            notyf.error('Network error confirming PayPal payment.');
+            moveToErrorStage('The connection dropped while we were confirming your PayPal payment. Please retry.');
+        } finally {
+            setIsPaying(false);
+        }
+    };
+
+    useEffect(() => {
+        if (loading || !requestId || !request) return;
+
+        const params = new URLSearchParams(window.location.search);
+        const paypalState = readString(params.get('paypal')).toLowerCase();
+        if (!paypalState) return;
+
+        if (paypalState === 'cancel') {
+            if (!paypalReturnHandledRef.current) {
+                notyf.open({
+                    type: 'info',
+                    message: 'PayPal payment was cancelled. You can retry when ready.',
+                    background: '#1d4ed8',
+                });
+            }
+            paypalReturnHandledRef.current = true;
+            window.history.replaceState({}, '', `/checkout/${request.id_request}`);
+            return;
+        }
+
+        if (paypalState === 'success') {
+            const tokenFromUrl = readString(params.get('token'));
+            if (!tokenFromUrl) {
+                moveToErrorStage('PayPal returned without an order token. Please try payment again.');
+                window.history.replaceState({}, '', `/checkout/${request.id_request}`);
+                return;
+            }
+            if (paypalReturnHandledRef.current || isAlreadyPaid) return;
+            paypalReturnHandledRef.current = true;
+            void handlePaypalReturnConfirmation(tokenFromUrl);
+        }
+    }, [loading, requestId, request, isAlreadyPaid]);
+
     const handleSecurePayment = async () => {
         const token = getToken();
         if (!token || !request) {
@@ -288,6 +400,8 @@ const PaymentCheckoutPage: React.FC<PaymentCheckoutPageProps> = ({ requestId, on
                 },
                 body: JSON.stringify({
                     payment_method: paymentMethod,
+                    return_url: `${window.location.origin}/checkout/${request.id_request}?paypal=success`,
+                    cancel_url: `${window.location.origin}/checkout/${request.id_request}?paypal=cancel`,
                     payer: {
                         full_name: paymentForm.fullName.trim(),
                         email: paymentForm.email.trim(),
@@ -304,55 +418,25 @@ const PaymentCheckoutPage: React.FC<PaymentCheckoutPageProps> = ({ requestId, on
                 moveToErrorStage(message);
                 return;
             }
-
-            const payRes = await fetch(API_ENDPOINTS.services.confirmPayment(request.id_request), {
-                method: 'POST',
-                headers: {
-                    Authorization: `Bearer ${token}`,
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    payment_method: paymentMethod,
-                    paypal_order_id: checkoutPayload?.checkout?.provider_payment_id || null,
-                    payer: {
-                        full_name: paymentForm.fullName.trim(),
-                        email: paymentForm.email.trim(),
-                        phone: paymentForm.phone.trim(),
-                        city: paymentForm.city.trim(),
-                        country: paymentForm.country.trim(),
-                    },
-                }),
-            });
-            const payPayload = await payRes.json();
-            if (!payRes.ok || !payPayload?.success) {
-                const message = payPayload?.error || 'Could not confirm payment.';
-                notyf.error(message);
-                moveToErrorStage(message);
+            const approvalUrl = readString(checkoutPayload?.checkout?.approval_url);
+            if (!approvalUrl) {
+                moveToErrorStage('PayPal did not return an approval link. Please try again.');
                 return;
             }
 
-            setRequest((prev) =>
-                prev
-                    ? {
-                          ...prev,
-                          status: 'paid',
-                          payment: {
-                              provider: checkoutPayload?.checkout?.provider || 'paypal',
-                              checkout_reference:
-                                  payPayload?.payment?.checkout_reference ||
-                                  checkoutPayload?.checkout?.checkout_reference ||
-                                  null,
-                              amount,
-                              status: 'paid',
-                              paid_at: new Date().toISOString(),
-                          },
-                      }
-                    : prev
+            window.sessionStorage.setItem(
+                getPaypalPayerStorageKey(request.id_request),
+                JSON.stringify({
+                    fullName: paymentForm.fullName.trim(),
+                    email: paymentForm.email.trim(),
+                    phone: paymentForm.phone.trim(),
+                    city: paymentForm.city.trim(),
+                    country: paymentForm.country.trim(),
+                })
             );
 
-            setCheckoutStage('success');
-            setCheckoutMessage('PayPal payment secured successfully. Your electronic invoice was sent to your email.');
-            notyf.success('PayPal payment secured. Your pro can now start the job.');
+            window.location.href = approvalUrl;
+            return;
         } catch {
             notyf.error('Network error processing payment.');
             moveToErrorStage('The connection dropped while we were processing the payment. You can retry safely.');
