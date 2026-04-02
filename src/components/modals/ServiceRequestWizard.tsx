@@ -3009,14 +3009,6 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
 
                     <div className="flex items-center gap-3">
                         <NotificationCenter token={getToken()} variant="panel" />
-                        <div className="text-right hidden sm:block">
-                            <div className="text-[10px] text-gray-500 uppercase tracking-wider font-bold">Balance</div>
-                            <div className="text-sm font-bold text-bird-orange">$120.50</div>
-                        </div>
-                        <motion.div
-                            whileHover={{ scale: 1.1, rotate: 5 }}
-                            className="w-10 h-10 rounded-full bg-gradient-to-br from-bird-blue to-bird-darkBlue border-2 border-white shadow-lg cursor-pointer"
-                        />
                     </div>
                 </div>
 
@@ -3355,17 +3347,18 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                         transition={{ delay: 0.25 }}
                                     >
                                         <div className="flex items-center justify-between mb-2">
-                                            <label className="block text-sm font-bold text-gray-700">Problem Images (max 5)</label>
-                                            <span className="text-xs font-bold text-gray-500">{problemFiles.length}/5</span>
+                                            <label className="block text-sm font-bold text-slate-900">Problem Images (max 5)</label>
+                                            <span className="text-xs font-bold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full">{problemFiles.length}/5</span>
                                         </div>
                                         <label className="block cursor-pointer">
-                                            <div className="w-full rounded-2xl border-2 border-dashed border-gray-200 bg-gray-50 hover:bg-gray-100 hover:border-gray-300 transition p-4 text-center">
-                                                <div className="text-slate-900 text-3xl font-black leading-none">+</div>
-                                                <div className="text-gray-900 font-black mt-1">Dropify Upload Zone</div>
-                                                <div className="text-xs text-gray-500">PNG/JPG/WEBP only, up to 5 images</div>
-                                                <span className="inline-block mt-2 bg-bird-blue text-white px-3 py-1.5 rounded-lg text-sm font-bold shadow">
-                                                    Dropify Select Files
-                                                </span>
+                                            <div className="w-full rounded-2xl border-2 border-dashed border-slate-200 bg-slate-50 hover:bg-slate-100 hover:border-slate-300 transition-all duration-200 p-6 text-center group">
+                                                <div className="w-12 h-12 rounded-full bg-white shadow-sm border border-slate-100 flex items-center justify-center mx-auto mb-3 group-hover:scale-110 transition-transform">
+                                                    <svg className="w-5 h-5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+                                                    </svg>
+                                                </div>
+                                                <div className="text-slate-900 font-bold text-[15px]">Upload Photos</div>
+                                                <div className="text-[13px] text-slate-500 mt-1">PNG, JPG, WEBP</div>
                                             </div>
                                             <input
                                                 type="file"
@@ -3377,18 +3370,27 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                         </label>
 
                                         {problemPreviewUrls.length > 0 && (
-                                            <div className="grid grid-cols-3 gap-3 mt-3">
+                                            <div className="grid grid-cols-3 gap-3 mt-4">
                                                 {problemPreviewUrls.map((url, index) => (
-                                                    <div key={url} className="relative rounded-xl overflow-hidden border border-gray-200 bg-gray-100">
-                                                        <img src={url} alt={`Problem ${index + 1}`} className="w-full h-20 object-cover" />
-                                                        <button
-                                                            type="button"
-                                                            onClick={() => removeProblemImage(index)}
-                                                            className="absolute top-1 right-1 text-[10px] font-bold px-2 py-1 rounded-md bg-black/70 text-white hover:bg-red-600"
-                                                        >
-                                                            Remove
-                                                        </button>
-                                                    </div>
+                                                    <motion.div 
+                                                        initial={{ opacity: 0, scale: 0.9 }}
+                                                        animate={{ opacity: 1, scale: 1 }}
+                                                        key={url} 
+                                                        className="relative rounded-xl overflow-hidden border border-slate-200 shadow-sm group aspect-square"
+                                                    >
+                                                        <img src={url} alt={`Problem ${index + 1}`} className="w-full h-full object-cover" />
+                                                        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                                                            <button
+                                                                type="button"
+                                                                onClick={(e) => { e.preventDefault(); removeProblemImage(index); }}
+                                                                className="w-8 h-8 rounded-full bg-white/20 hover:bg-red-500 text-white flex items-center justify-center backdrop-blur-sm transition-colors"
+                                                            >
+                                                                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
+                                                                </svg>
+                                                            </button>
+                                                        </div>
+                                                    </motion.div>
                                                 ))}
                                             </div>
                                         )}
@@ -3399,15 +3401,15 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                         animate={{ opacity: 1, y: 0 }}
                                         transition={{ delay: 0.3 }}
                                     >
-                                        <label className="block text-sm font-bold text-gray-700 mb-2">Your budget</label>
-                                        <div className="relative">
-                                            <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-900 font-bold text-lg">$</span>
+                                        <label className="block text-sm font-bold text-slate-900 mb-2">Your budget</label>
+                                        <div className="relative group">
+                                            <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-lg group-focus-within:text-slate-900 transition-colors">$</span>
                                             <input
                                                 type="number"
                                                 min="1"
                                                 step="0.01"
                                                 placeholder="0"
-                                                className="w-full bg-gray-100 border-none rounded-xl py-3 pl-10 pr-16 text-gray-900 font-bold text-lg focus:outline-none focus:ring-2 focus:ring-gray-300 transition-all placeholder-gray-400"
+                                                className="w-full bg-slate-50 border-2 border-transparent focus:bg-white rounded-xl py-4 pl-10 pr-16 text-slate-900 font-bold text-lg outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 transition-all placeholder-slate-300 shadow-sm"
                                                 value={data.price}
                                                 onChange={(e) => {
                                                     const nextValue = e.target.value;
@@ -3424,51 +3426,51 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                                     setData({ ...data, price: nextValue });
                                                 }}
                                             />
-                                            <span className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-500 text-sm font-medium">USD</span>
+                                            <span className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 text-sm font-bold bg-white px-2 py-1 rounded-md shadow-sm border border-slate-100">USD</span>
                                         </div>
-                                        <p className="text-xs text-gray-500 mt-2">Suggested: $40 - $80</p>
+                                        <div className="flex items-center gap-2 mt-3">
+                                            <svg className="w-4 h-4 text-emerald-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                            </svg>
+                                            <p className="text-xs font-semibold text-slate-500">Suggested budget: <span className="text-slate-700">$40 - $80</span></p>
+                                        </div>
                                     </motion.div>
                                 </div>
 
-                                <motion.button
-                                    initial={{ opacity: 0, y: 20 }}
-                                    animate={{ opacity: 1, y: 0 }}
-                                    transition={{ delay: 0.4 }}
-                                    whileHover={{ scale: 1.02 }}
-                                    whileTap={{ scale: 0.98 }}
-                                    onClick={async () => {
-                                        setIsSearching(true);
-                                        await fetchNearbyPros();
-                                        setTimeout(() => setIsSearching(false), 700);
-                                    }}
-                                    disabled={!data.price || !data.location.trim() || resolvingLocation}
-                                    className="w-full mt-6 py-3.5 rounded-2xl bg-gray-900 text-white font-semibold text-[15px] hover:bg-black transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-                                >
-                                    <span>Find a Pro</span>
-                                    <motion.svg
-                                        animate={{ x: [0, 5, 0] }}
-                                        transition={{ duration: 1.5, repeat: Infinity }}
-                                        className="w-5 h-5"
-                                        fill="none"
-                                        viewBox="0 0 24 24"
-                                        stroke="currentColor"
+                                <div className="mt-8 space-y-3 sticky bottom-0 bg-gradient-to-t from-white via-white to-transparent pt-4 pb-2 z-10">
+                                    <motion.button
+                                        initial={{ opacity: 0, y: 20 }}
+                                        animate={{ opacity: 1, y: 0 }}
+                                        transition={{ delay: 0.4 }}
+                                        whileHover={{ scale: 1.01 }}
+                                        whileTap={{ scale: 0.99 }}
+                                        onClick={async () => {
+                                            setIsSearching(true);
+                                            await fetchNearbyPros();
+                                            setTimeout(() => setIsSearching(false), 700);
+                                        }}
+                                        disabled={!data.price || !data.location.trim() || resolvingLocation}
+                                        className="w-full py-4 rounded-xl bg-slate-900 text-white font-bold text-[15px] hover:bg-black transition-all disabled:opacity-50 disabled:hover:bg-slate-900 flex items-center justify-center gap-3 shadow-lg shadow-slate-900/20"
                                     >
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" />
-                                    </motion.svg>
-                                </motion.button>
+                                        <span>Find a Pro</span>
+                                        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" />
+                                        </svg>
+                                    </motion.button>
 
-                                <motion.button
-                                    initial={{ opacity: 0, y: 20 }}
-                                    animate={{ opacity: 1, y: 0 }}
-                                    transition={{ delay: 0.45 }}
-                                    whileHover={{ scale: 1.01 }}
-                                    whileTap={{ scale: 0.98 }}
-                                    onClick={submitServiceRequest}
-                                    disabled={isSubmittingRequest || !isAuthenticated() || !data.price || !data.location.trim() || problemFiles.length === 0 || resolvingLocation}
-                                    className="w-full mt-2.5 py-3.5 rounded-2xl bg-white border-2 border-gray-900 text-gray-900 font-semibold text-[15px] hover:bg-gray-50 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-                                >
-                                    {!isAuthenticated() ? 'Login Required' : isSubmittingRequest ? 'Submitting...' : 'Submit Request'}
-                                </motion.button>
+                                    <motion.button
+                                        initial={{ opacity: 0, y: 20 }}
+                                        animate={{ opacity: 1, y: 0 }}
+                                        transition={{ delay: 0.45 }}
+                                        whileHover={{ scale: 1.01 }}
+                                        whileTap={{ scale: 0.99 }}
+                                        onClick={submitServiceRequest}
+                                        disabled={isSubmittingRequest || !isAuthenticated() || !data.price || !data.location.trim() || problemFiles.length === 0 || resolvingLocation}
+                                        className="w-full py-4 rounded-xl bg-white border-2 border-slate-200 text-slate-700 font-bold text-[15px] hover:bg-slate-50 hover:border-slate-300 hover:text-slate-900 transition-all disabled:opacity-50 disabled:bg-white"
+                                    >
+                                        {!isAuthenticated() ? 'Login Required' : isSubmittingRequest ? 'Submitting...' : 'Submit Request'}
+                                    </motion.button>
+                                </div>
 
                                 {nearbyWorkers.length > 0 && (
                                     <div className="mt-4 rounded-xl border border-gray-100 bg-white p-3">
@@ -3512,14 +3514,14 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                             </div>
 
                                             {activeTrackedRequest && (
-                                                <div className="mb-3 rounded-2xl border border-gray-200 bg-white p-4">
+                                                <div className="mb-3 rounded-[2rem] border border-slate-200/50 bg-white p-4 shadow-sm">
                                                     <div className="flex items-start justify-between gap-3">
                                                         <div className="min-w-0">
-                                                            <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-900">Live service active</p>
-                                                            <p className="mt-2 text-sm font-black text-slate-900 truncate">
+                                                            <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">Live service active</p>
+                                                            <p className="mt-1 text-base font-black text-slate-900 truncate">
                                                                 {activeTrackedRequest.service_name}
                                                             </p>
-                                                            <p className="mt-1 text-xs text-slate-500 line-clamp-2">
+                                                            <p className="text-xs font-medium text-slate-500 line-clamp-1">
                                                                 {activeTrackedRequest.location_text}
                                                             </p>
                                                         </div>
@@ -3527,29 +3529,29 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                                             {statusLabel(activeTrackedRequest.status, activeTrackedRequest)}
                                                         </span>
                                                     </div>
-                                                    <div className="mt-3 grid grid-cols-3 gap-2">
-                                                        <div className="rounded-lg bg-gray-50 border border-gray-100 px-3 py-2">
-                                                            <p className="text-[10px] font-black uppercase tracking-[0.16em] text-gray-500">ETA</p>
-                                                            <p className="mt-1 text-sm font-black text-gray-900">
+                                                    <div className="mt-4 grid grid-cols-3 gap-2">
+                                                        <div className="rounded-xl bg-slate-50 border border-slate-100 p-3">
+                                                            <p className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">ETA</p>
+                                                            <p className="mt-0.5 text-sm font-black text-slate-900">
                                                                 {activeTrackedRequest.status === 'done' ? '0 min' : 'Live'}
                                                             </p>
                                                         </div>
-                                                        <div className="rounded-xl border border-emerald-100 bg-emerald-50 px-3 py-2">
-                                                            <p className="text-[10px] font-black uppercase tracking-[0.16em] text-emerald-700">Worker</p>
-                                                            <p className="mt-1 truncate text-sm font-black text-gray-900">
+                                                        <div className="rounded-xl border border-blue-100 bg-blue-50/50 p-3">
+                                                            <p className="text-[10px] font-black uppercase tracking-[0.16em] text-blue-600">Worker</p>
+                                                            <p className="mt-0.5 truncate text-sm font-black text-slate-900">
                                                                 {activeTrackedRequest.assigned_worker?.name || 'Assigned'}
                                                             </p>
                                                         </div>
-                                                        <div className="rounded-lg bg-gray-50 border border-gray-100 px-3 py-2">
-                                                            <p className="text-[10px] font-black uppercase tracking-[0.16em] text-amber-700">Track</p>
-                                                            <p className="mt-1 text-sm font-black text-gray-900">On map</p>
+                                                        <div className="rounded-xl bg-slate-50 border border-slate-100 p-3">
+                                                            <p className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">Track</p>
+                                                            <p className="mt-0.5 text-sm font-black text-slate-900">On map</p>
                                                         </div>
                                                     </div>
                                                 </div>
                                             )}
 
                                             {activeTrackedRequest && (
-                                                <div className="mb-4 md:hidden">
+                                                <div className="mb-4 md:hidden relative h-[400px] w-full rounded-[2rem] overflow-hidden shadow-sm">
                                                     <TrackerErrorBoundary>
                                                         <Suspense fallback={<InlineTrackerFallback />}>
                                                             <ClientLiveRequestTracker
@@ -3570,14 +3572,14 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                             )}
 
                                             {historyLoading && myRequests.length === 0 ? (
-                                                <div className="inline-flex items-center gap-2 rounded-full border border-gray-200 bg-gray-50 px-3 py-1.5 text-[11px] font-medium uppercase tracking-wider text-gray-500">
-                                                    <span className="h-2 w-2 rounded-full bg-bird-blue animate-pulse" />
+                                                <div className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-[11px] font-medium uppercase tracking-wider text-slate-500">
+                                                    <span className="h-2 w-2 rounded-full bg-blue-500 animate-pulse" />
                                                     Loading requests
                                                 </div>
                                             ) : !historyLoading && myRequests.length === 0 ? (
-                                                <div className="text-sm text-gray-500">No requests yet.</div>
+                                                <div className="text-sm font-semibold text-slate-500 bg-slate-50 border border-slate-100 rounded-xl p-4 text-center">No requests yet.</div>
                                             ) : (
-                                                <div className="space-y-3 max-h-72 overflow-y-auto pr-1">
+                                                <div className="space-y-4 max-h-[600px] overflow-y-auto pr-2 custom-scrollbar">
                                             {myRequests.map((request) => {
                                                 const pendingCounter = hasPendingCounter(request);
                                                 const pendingWorkerApproval = hasPendingWorkerApproval(request);
@@ -3589,88 +3591,127 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                                 const canConfirmCompletion = requestStatus === 'awaiting_confirmation';
                                                 const paymentStatus = String(request.payment?.status || '').toLowerCase();
                                                 const timelineState = getClientTimelineState(request);
+                                                const isTrackingActive = activeTrackedRequest?.id_request === request.id_request;
 
                                                 return (
-                                                    <div key={request.id_request} className="rounded-2xl border border-gray-200 bg-white p-4">
-                                                        <div className="flex items-start justify-between gap-2">
+                                                    <div key={request.id_request} className={`rounded-[1.5rem] border bg-white p-5 transition-all shadow-sm hover:shadow-md ${isTrackingActive ? 'border-blue-300 ring-4 ring-blue-50' : 'border-slate-200'}`}>
+                                                        <div className="flex items-start justify-between gap-3 mb-4">
                                                             <div className="min-w-0">
-                                                                <p className="text-sm font-black text-gray-900 truncate">#{request.id_request} - {request.service_name}</p>
-                                                                <p className="text-xs text-gray-600 mt-1 line-clamp-2">{request.description}</p>
+                                                                <div className="flex items-center gap-2 mb-1.5">
+                                                                    <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Req #{request.id_request}</span>
+                                                                    <span className="w-1 h-1 rounded-full bg-slate-300"></span>
+                                                                    <span className="text-[10px] font-bold text-slate-500">{new Date(request.created_at).toLocaleDateString()}</span>
+                                                                </div>
+                                                                <h3 className="text-lg font-black text-slate-900 truncate leading-tight">{request.service_name}</h3>
                                                             </div>
-                                                            <div className="flex flex-col items-end gap-1 shrink-0">
-                                                                <span className={`text-[11px] font-bold px-2 py-1 rounded-full border ${statusBadgeClasses(request.status)}`}>
+                                                            <div className="flex flex-col items-end gap-1.5 shrink-0">
+                                                                <span className={`text-[10px] font-black uppercase tracking-[0.1em] px-2.5 py-1 rounded-full border ${statusBadgeClasses(request.status)}`}>
                                                                     {statusLabel(request.status, request)}
                                                                 </span>
                                                                 {counterBadge(request)}
                                                             </div>
                                                         </div>
 
-                                                        <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-gray-500">
-                                                            <span>${Number(request.budget || 0).toFixed(2)}</span>
-                                                            <span>{new Date(request.created_at).toLocaleString()}</span>
-                                                            {request.assigned_worker?.name && <span>Worker: {request.assigned_worker.name}</span>}
-                                                            {request.payment?.checkout_reference && <span>Ref: {request.payment.checkout_reference}</span>}
+                                                        {isTrackingActive && (
+                                                            <div className="mb-4 rounded-xl bg-blue-50 border border-blue-200/60 p-4">
+                                                                <div className="flex items-center gap-3">
+                                                                    <div className="relative flex items-center justify-center shrink-0 w-8 h-8">
+                                                                        <div className="absolute inset-0 rounded-full bg-blue-400 opacity-20 blur-[2px] animate-pulse"></div>
+                                                                        <div className="h-2.5 w-2.5 rounded-full bg-blue-500 relative z-10 animate-ping"></div>
+                                                                    </div>
+                                                                    <div className="min-w-0 flex-1">
+                                                                        <p className="text-xs font-black text-slate-900">Live Tracking Active</p>
+                                                                        <p className="text-[11px] font-medium text-slate-600 truncate">Check the main map to see your pro's location</p>
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                        )}
+
+                                                        <p className="text-sm text-slate-600 mb-4 bg-slate-50 p-3 rounded-xl border border-slate-100">
+                                                            {request.description}
+                                                        </p>
+
+                                                        <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-2 text-xs font-semibold text-slate-500 mb-4">
+                                                            <div className="flex items-center gap-1.5">
+                                                                <svg className="w-4 h-4 text-slate-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                                                                <span>{new Date(request.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                                                            </div>
+                                                            {request.payment?.checkout_reference && (
+                                                                <div className="flex items-center gap-1.5 min-w-0">
+                                                                    <svg className="w-4 h-4 text-slate-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+                                                                    <span className="truncate">Ref: {request.payment.checkout_reference}</span>
+                                                                </div>
+                                                            )}
                                                         </div>
 
                                                         {request.assigned_worker && (
-                                                            <div className="mt-3 rounded-xl border border-gray-100 bg-gray-50 p-3">
-                                                                <div className="flex items-start justify-between gap-3">
-                                                                    <div className="flex min-w-0 items-start gap-3">
+                                                            <div className="mt-4 rounded-2xl border border-slate-100 bg-slate-50 p-4">
+                                                                <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
+                                                                    <div className="flex items-start gap-3 min-w-0 w-full sm:w-auto">
                                                                         {request.assigned_worker.profile_image_url ? (
                                                                             <img
                                                                                 src={request.assigned_worker.profile_image_url}
                                                                                 alt={request.assigned_worker.name}
-                                                                                className="h-12 w-12 rounded-2xl object-cover ring-2 ring-white shadow-sm"
+                                                                                className="h-12 w-12 shrink-0 rounded-2xl object-cover ring-2 ring-white shadow-sm"
                                                                             />
                                                                         ) : (
-                                                                            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-bird-blue text-sm font-black text-white shadow-sm">
+                                                                            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-bird-blue text-sm font-black text-white shadow-sm">
                                                                                 {getInitials(request.assigned_worker.name)}
                                                                             </div>
                                                                         )}
-                                                                        <div className="min-w-0">
-                                                                            <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-900">Assigned pro</p>
-                                                                            <p className="mt-1 truncate text-sm font-black text-slate-900">{request.assigned_worker.name}</p>
-                                                                            <p className="mt-1 truncate text-[11px] font-semibold text-slate-600">
-                                                                                {request.assigned_worker.phone_number || 'Phone visible in profile'}
-                                                                            </p>
-                                                                            {request.assigned_worker.bio && (
-                                                                                <p className="mt-1 line-clamp-2 text-[11px] text-slate-500">
-                                                                                    {request.assigned_worker.bio}
+                                                                        <div className="min-w-0 flex-1">
+                                                                            <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">Assigned pro</p>
+                                                                            <p className="mt-0.5 truncate text-base font-black text-slate-900">{request.assigned_worker.name}</p>
+                                                                            <div className="flex items-center gap-1.5 mt-1">
+                                                                                <svg className="w-3.5 h-3.5 text-emerald-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" /></svg>
+                                                                                <p className="truncate text-[11px] font-bold text-slate-600">
+                                                                                    {request.assigned_worker.phone_number || 'Visible in profile'}
                                                                                 </p>
-                                                                            )}
+                                                                            </div>
                                                                         </div>
                                                                     </div>
                                                                     <button
                                                                         type="button"
                                                                         onClick={() => void openWorkerProfileModal(request)}
-                                                                        className="shrink-0 rounded-xl border border-bird-blue/20 bg-white px-3 py-2 text-[11px] font-black text-slate-900 shadow-sm transition hover:border-bird-blue hover:bg-bird-blue hover:text-white"
+                                                                        className="w-full sm:w-auto shrink-0 rounded-xl border-2 border-slate-200 bg-white px-3 py-2.5 sm:py-2 text-[11px] font-black text-slate-900 shadow-sm transition hover:border-slate-900 hover:bg-slate-900 hover:text-white text-center"
                                                                     >
-                                                                        View pro
+                                                                        View profile
                                                                     </button>
                                                                 </div>
 
+                                                                {request.assigned_worker.bio && (
+                                                                    <p className="mt-3 line-clamp-2 text-xs font-medium text-slate-500 bg-white/50 p-2.5 rounded-lg border border-slate-100">
+                                                                        "{request.assigned_worker.bio}"
+                                                                    </p>
+                                                                )}
+
                                                                 {pendingWorkerApproval && (
-                                                                    <div className="mt-3 rounded-2xl border border-bird-blue/15 bg-white/90 p-3">
-                                                                        <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-900">Approve this pro</p>
-                                                                        <p className="mt-1 text-xs text-slate-600">
-                                                                            Review the worker profile and portfolio first. If you approve this pro, the request moves to payment and the worker can get ready to head over.
+                                                                    <div className="mt-3 rounded-xl border border-blue-200 bg-blue-50/50 p-3.5">
+                                                                        <div className="flex items-center gap-2 mb-1.5">
+                                                                            <span className="flex h-5 w-5 items-center justify-center rounded-full bg-blue-100 text-blue-600">
+                                                                                <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>
+                                                                            </span>
+                                                                            <p className="text-xs font-black uppercase tracking-widest text-slate-900">Action Required</p>
+                                                                        </div>
+                                                                        <p className="text-[13px] font-medium text-slate-600 mb-3">
+                                                                            Review the profile and portfolio. Approve to move to payment, or decline to find another pro.
                                                                         </p>
-                                                                        <div className="mt-3 grid grid-cols-2 gap-2">
+                                                                        <div className="grid grid-cols-2 gap-2">
                                                                             <button
                                                                                 type="button"
                                                                                 disabled={workerApprovalBusyId === request.id_request}
                                                                                 onClick={() => handleWorkerApprovalDecision(request, 'decline')}
-                                                                                className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-[11px] font-black text-red-600 transition hover:bg-red-100 disabled:opacity-50"
+                                                                                className="rounded-xl border-2 border-red-200 bg-white px-4 py-2.5 text-xs font-bold text-red-600 transition hover:bg-red-50 disabled:opacity-50 text-center"
                                                                             >
-                                                                                {workerApprovalBusyId === request.id_request ? 'Saving...' : 'Decline worker'}
+                                                                                {workerApprovalBusyId === request.id_request ? 'Saving...' : 'Decline'}
                                                                             </button>
                                                                             <button
                                                                                 type="button"
                                                                                 disabled={workerApprovalBusyId === request.id_request}
                                                                                 onClick={() => handleWorkerApprovalDecision(request, 'accept')}
-                                                                                className="rounded-xl bg-gray-900 px-3 py-2 text-[11px] font-semibold text-white transition hover:bg-black disabled:opacity-40"
+                                                                                className="rounded-xl bg-slate-900 px-4 py-2.5 text-xs font-bold text-white transition hover:bg-black disabled:opacity-50 shadow-md text-center"
                                                                             >
-                                                                                {workerApprovalBusyId === request.id_request ? 'Saving...' : 'Accept worker'}
+                                                                                {workerApprovalBusyId === request.id_request ? 'Saving...' : 'Approve Pro'}
                                                                             </button>
                                                                         </div>
                                                                     </div>
@@ -3727,14 +3768,17 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                                         )}
 
                                                         {(canPayNow || request.payment) && (
-                                                            <div className="mt-3 rounded-xl border border-gray-100 bg-gray-50 p-3">
+                                                            <div className="mt-4 rounded-2xl border border-slate-100 bg-slate-50 p-4">
                                                                 <div className="flex items-start justify-between gap-2">
                                                                     <div>
-                                                                        <p className="text-[11px] uppercase tracking-wider font-medium text-gray-400">Payment</p>
-                                                                        <p className="mt-1 text-sm font-bold text-gray-900">
-                                                                            {request.payment?.amount != null ? `$${Number(request.payment.amount).toFixed(2)}` : `$${Number(request.final_budget ?? request.budget ?? 0).toFixed(2)}`}
-                                                                        </p>
-                                                                        <p className="text-[11px] text-cyan-900/80 mt-1">
+                                                                        <p className="text-[10px] uppercase tracking-[0.18em] font-black text-slate-400">Payment Status</p>
+                                                                        <div className="mt-1 flex items-baseline gap-2">
+                                                                            <span className="text-xl font-black text-slate-900">
+                                                                                {request.payment?.amount != null ? `$${Number(request.payment.amount).toFixed(2)}` : `$${Number(request.final_budget ?? request.budget ?? 0).toFixed(2)}`}
+                                                                            </span>
+                                                                            <span className="text-xs font-bold text-slate-500 uppercase">USD</span>
+                                                                        </div>
+                                                                        <p className="text-xs font-medium text-slate-600 mt-2">
                                                                             {paymentStatus === 'released'
                                                                                 ? 'Funds released to the worker.'
                                                                                 : paymentStatus === 'paid'
@@ -3745,12 +3789,12 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                                                         </p>
                                                                     </div>
                                                                     {request.payment && (
-                                                                        <span className={`text-[10px] font-bold px-2 py-1 rounded-full border ${
+                                                                        <span className={`text-[10px] font-black uppercase tracking-wider px-3 py-1.5 rounded-full border ${
                                                                             paymentStatus === 'released'
                                                                                 ? 'bg-emerald-100 text-emerald-700 border-emerald-200'
                                                                                 : paymentStatus === 'paid'
                                                                                     ? 'bg-blue-100 text-blue-700 border-blue-200'
-                                                                                    : 'bg-white text-cyan-700 border-cyan-200'
+                                                                                    : 'bg-white text-slate-700 border-slate-200'
                                                                         }`}>
                                                                             {paymentStatus || 'pending'}
                                                                         </span>
@@ -3761,53 +3805,54 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                                                         type="button"
                                                                         onClick={() => handleSecurePayment(request)}
                                                                         disabled={paymentBusyId === request.id_request}
-                                                                        className="mt-3 w-full py-3 rounded-xl bg-gray-900 text-white text-sm font-semibold hover:bg-black disabled:opacity-40 transition-colors"
+                                                                        className="mt-4 w-full py-3.5 rounded-xl bg-slate-900 text-white text-[13px] font-bold hover:bg-black disabled:opacity-40 transition-colors shadow-md"
                                                                     >
-                                                                        {paymentBusyId === request.id_request ? 'Processing Payment...' : 'Secure Payment'}
+                                                                        {paymentBusyId === request.id_request ? 'Processing...' : 'Secure Payment via Checkout'}
                                                                     </button>
                                                                 )}
                                                             </div>
                                                         )}
 
-                                                        <div className="mt-2 grid grid-cols-3 gap-2 text-[11px]">
-                                                            <div className="rounded-lg border border-slate-200 bg-slate-50 px-2 py-1.5">
-                                                                <p className="text-[10px] uppercase font-bold text-slate-500">Initial</p>
-                                                                <p className="font-black text-slate-800">${Number(request.initial_budget ?? request.budget ?? 0).toFixed(2)}</p>
+                                                        <div className="mt-4 grid grid-cols-3 gap-3">
+                                                            <div className="rounded-xl border border-slate-100 bg-white p-3 shadow-sm">
+                                                                <p className="text-[10px] uppercase font-black tracking-widest text-slate-400">Initial</p>
+                                                                <p className="font-black text-slate-800 mt-0.5">${Number(request.initial_budget ?? request.budget ?? 0).toFixed(2)}</p>
                                                             </div>
-                                                            <div className="rounded-lg border border-amber-200 bg-amber-50 px-2 py-1.5">
-                                                                <p className="text-[10px] uppercase font-bold text-amber-700">Counter</p>
-                                                                <p className="font-black text-amber-800">
+                                                            <div className="rounded-xl border border-amber-100 bg-amber-50 p-3 shadow-sm">
+                                                                <p className="text-[10px] uppercase font-black tracking-widest text-amber-600">Counter</p>
+                                                                <p className="font-black text-amber-800 mt-0.5">
                                                                     {request.proposed_budget != null ? `$${request.proposed_budget.toFixed(2)}` : '--'}
                                                                 </p>
                                                             </div>
-                                                            <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-2 py-1.5">
-                                                                <p className="text-[10px] uppercase font-bold text-emerald-700">Final</p>
-                                                                <p className="font-black text-emerald-800">
+                                                            <div className="rounded-xl border border-emerald-100 bg-emerald-50 p-3 shadow-sm">
+                                                                <p className="text-[10px] uppercase font-black tracking-widest text-emerald-600">Final</p>
+                                                                <p className="font-black text-emerald-800 mt-0.5">
                                                                     {request.final_budget != null ? `$${request.final_budget.toFixed(2)}` : '--'}
                                                                 </p>
                                                             </div>
                                                         </div>
 
-                                                        <div className="mt-3 rounded-xl border border-gray-100 bg-gray-50/50 p-3">
-                                                            <div className="mb-2 flex items-center justify-between">
+                                                        <div className="mt-4 rounded-2xl border border-slate-100 bg-slate-50 p-4">
+                                                            <div className="mb-4 flex items-center justify-between">
                                                                 <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">Service timeline</p>
-                                                                <span className="text-[10px] font-semibold text-slate-400">
-                                                                    {requestStatus === 'pending' ? 'Waiting for a worker match' : 'Live progress'}
+                                                                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 bg-white px-2 py-1 rounded-md border border-slate-200">
+                                                                    {requestStatus === 'pending' ? 'Waiting for pro' : 'Live track'}
                                                                 </span>
                                                             </div>
-                                                            <div className="grid grid-cols-3 gap-x-2 gap-y-3 sm:grid-cols-6">
+                                                            <div className="grid grid-cols-3 gap-x-2 gap-y-4 sm:grid-cols-6 relative">
+                                                                {/* Optional connecting line could go here */}
                                                                 {timelineSteps.map((step) => {
                                                                     const done = timelineState[step.key];
                                                                     return (
-                                                                        <div key={`${request.id_request}-${step.key}`} className="flex flex-col items-center text-center">
-                                                                            <span className={`flex h-8 w-8 items-center justify-center rounded-full border text-[11px] font-black ${
+                                                                        <div key={`${request.id_request}-${step.key}`} className="flex flex-col items-center text-center relative z-10">
+                                                                            <span className={`flex h-7 w-7 items-center justify-center rounded-full border-2 text-[10px] font-black transition-colors ${
                                                                                 done
-                                                                                    ? 'border-bird-blue bg-bird-blue text-white shadow-[0_10px_18px_rgba(37,99,235,0.2)]'
-                                                                                    : 'border-slate-200 bg-slate-100 text-slate-400'
+                                                                                    ? 'border-blue-500 bg-blue-500 text-white shadow-md'
+                                                                                    : 'border-slate-200 bg-white text-slate-300'
                                                                             }`}>
-                                                                                {done ? 'âœ“' : 'â€¢'}
+                                                                                {done ? '✓' : ''}
                                                                             </span>
-                                                                            <span className={`mt-1 text-[10px] font-bold leading-tight ${
+                                                                            <span className={`mt-2 text-[9px] font-bold uppercase tracking-wide leading-tight px-1 ${
                                                                                 done ? 'text-slate-700' : 'text-slate-400'
                                                                             }`}>
                                                                                 {step.label}
@@ -3819,56 +3864,69 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                                         </div>
 
                                                         {request.proposed_budget != null && (
-                                                            <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50/60 p-3">
-                                                                <p className="text-[11px] uppercase tracking-wider font-bold text-amber-700">Counter offer</p>
-                                                                <p className="text-sm font-black text-amber-800 mt-1">Counter offer: ${request.proposed_budget.toFixed(2)}</p>
+                                                            <div className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 p-4">
+                                                                <div className="flex items-center gap-2 mb-2">
+                                                                    <span className="flex h-5 w-5 items-center justify-center rounded-full bg-amber-200 text-amber-700">
+                                                                        <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                                                                    </span>
+                                                                    <p className="text-[11px] uppercase tracking-[0.15em] font-black text-amber-700">Counter offer received</p>
+                                                                </div>
+                                                                <p className="text-xl font-black text-amber-900 mt-1">${request.proposed_budget.toFixed(2)}</p>
                                                                 {request.counter_message && (
-                                                                    <p className="text-xs text-amber-900/80 mt-1">Message: {request.counter_message}</p>
+                                                                    <p className="text-sm font-medium text-amber-800/80 mt-2 bg-white/50 p-2.5 rounded-lg border border-amber-100">
+                                                                        "{request.counter_message}"
+                                                                    </p>
                                                                 )}
 
                                                                 {pendingCounter && (
-                                                                    <div className="mt-3 grid grid-cols-2 gap-2">
+                                                                    <div className="mt-4 grid grid-cols-2 gap-3">
                                                                         <button
                                                                             type="button"
                                                                             disabled={counterBusyId === request.id_request}
                                                                             onClick={() => handleCounterDecision(request, 'decline')}
-                                                                            className="py-2 rounded-lg bg-white border border-red-200 text-red-600 font-bold text-xs hover:bg-red-50 disabled:opacity-50"
+                                                                            className="py-3 rounded-xl bg-white border-2 border-red-200 text-red-600 font-bold text-[13px] hover:bg-red-50 disabled:opacity-50 transition-colors"
                                                                         >
-                                                                            Decline
+                                                                            Decline Offer
                                                                         </button>
                                                                         <button
                                                                             type="button"
                                                                             disabled={counterBusyId === request.id_request}
                                                                             onClick={() => handleCounterDecision(request, 'accept')}
-                                                                            className="py-2 rounded-lg bg-emerald-500 text-white font-bold text-xs hover:bg-emerald-600 disabled:opacity-50"
+                                                                            className="py-3 rounded-xl bg-slate-900 border-2 border-slate-900 text-white font-bold text-[13px] hover:bg-black disabled:opacity-50 transition-colors shadow-md"
                                                                         >
-                                                                            Accept Counter
+                                                                            Accept Offer
                                                                         </button>
                                                                     </div>
                                                                 )}
                                                             </div>
                                                         )}
 
-                                                        {canConfirmCompletion && (
-                                                            <div className="mt-3 rounded-xl border border-violet-200 bg-violet-50/70 p-3">
-                                                                <p className="text-[11px] uppercase tracking-wider font-bold text-violet-700">Finish service</p>
-                                                                <p className="mt-1 text-xs text-violet-900/80">
-                                                                    The worker marked the job as done. Confirm it to release the payment and unlock the review.
-                                                                </p>
+                                                        <div className="mt-4 pt-4 border-t border-slate-100 flex flex-wrap items-center justify-between gap-3">
+                                                            {canCancel && (
+                                                                <button
+                                                                    type="button"
+                                                                    disabled={cancelBusyId === request.id_request}
+                                                                    onClick={() => handleCancelRequest(request)}
+                                                                    className="rounded-xl border border-red-100 bg-white px-4 py-2.5 text-xs font-bold text-red-500 hover:bg-red-50 hover:text-red-600 disabled:opacity-50 transition-colors"
+                                                                >
+                                                                    {cancelBusyId === request.id_request ? 'Cancelling...' : 'Cancel Request'}
+                                                                </button>
+                                                            )}
+                                                            {canConfirmCompletion && (
                                                                 <button
                                                                     type="button"
                                                                     onClick={() => handleClientCompletion(request)}
                                                                     disabled={completionBusyId === request.id_request}
-                                                                    className="mt-3 w-full py-2 rounded-lg bg-violet-600 text-white text-xs font-bold hover:bg-violet-700 disabled:opacity-50"
+                                                                    className="w-full sm:w-auto px-4 py-2.5 rounded-xl bg-blue-600 text-white text-[13px] font-bold hover:bg-blue-700 disabled:opacity-50 transition-colors shadow-sm"
                                                                 >
                                                                     {completionBusyId === request.id_request ? 'Confirming...' : 'Confirm Completion'}
                                                                 </button>
-                                                            </div>
-                                                        )}
+                                                            )}
+                                                        </div>
 
-                                                        <div className="mt-3 rounded-2xl border-none bg-gray-50/80 hover:bg-gray-100 transition-colors p-3">
+                                                        <div className="mt-4 rounded-2xl border-none bg-slate-50 hover:bg-slate-100 transition-colors p-4">
                                                             <div className="flex items-center justify-between">
-                                                                <p className="text-[11px] uppercase tracking-wider font-bold text-gray-500">Chat</p>
+                                                                <p className="text-[11px] uppercase tracking-widest font-black text-slate-500">Chat</p>
                                                                 <button
                                                                     type="button"
                                                                     onClick={async () => {
@@ -3882,43 +3940,43 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                                                         }
                                                                     }}
                                                                     disabled={!canUseChat}
-                                                                    className="text-[11px] font-bold px-2 py-1 rounded-md border border-gray-200 bg-gray-50 hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
+                                                                    className="text-xs font-bold px-4 py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors shadow-sm"
                                                                 >
                                                                     {openChatRequestId === request.id_request ? 'Hide Chat' : 'Open Chat'}
                                                                 </button>
                                                             </div>
                                                             {!canUseChat && (
-                                                                <p className="mt-2 text-[11px] font-semibold text-amber-700">
+                                                                <p className="mt-2 text-xs font-semibold text-slate-500">
                                                                     Chat unlocks after you approve the worker.
                                                                 </p>
                                                             )}
 
                                                             {openChatRequestId === request.id_request && (
-                                                                <div className="mt-2 space-y-2">
-                                                                    <div className="max-h-48 overflow-y-auto rounded-xl border border-gray-200 bg-slate-50 p-3 space-y-3 flex flex-col">
+                                                                <div className="mt-4 space-y-3">
+                                                                    <div className="max-h-60 overflow-y-auto rounded-xl border border-slate-200 bg-white p-4 space-y-4 flex flex-col">
                                                                         {(chatByRequest[request.id_request] || []).length === 0 ? (
-                                                                            <p className="text-xs text-gray-500 font-medium text-center py-4">No messages yet. Say hi!</p>
+                                                                            <p className="text-sm text-slate-500 font-medium text-center py-6">No messages yet. Say hi!</p>
                                                                         ) : (
                                                                             <AnimatePresence>
                                                                                 {(chatByRequest[request.id_request] || []).map((msg) => {
                                                                                     const isMe = msg.sender_role === 'client';
                                                                                     return (
                                                                                         <motion.div 
-                                                                                            initial={{ opacity: 0, scale: 0.9, y: 10 }}
+                                                                                            initial={{ opacity: 0, scale: 0.95, y: 10 }}
                                                                                             animate={{ opacity: 1, scale: 1, y: 0 }}
                                                                                             key={msg.id_message} 
-                                                                                            className={`max-w-[85%] rounded-2xl px-3.5 py-2.5 text-xs shadow-sm flex flex-col ${isMe ? 'self-end bg-gradient-to-br from-bird-blue to-blue-600 text-white rounded-tr-sm' : 'self-start bg-white border border-gray-200 text-slate-800 rounded-tl-sm'}`}
+                                                                                            className={`max-w-[85%] rounded-[1.25rem] px-4 py-3 text-sm shadow-sm flex flex-col ${isMe ? 'self-end bg-slate-900 text-white rounded-tr-sm' : 'self-start bg-slate-100 text-slate-800 rounded-tl-sm'}`}
                                                                                         >
-                                                                                            <p className={`font-bold text-[9px] uppercase tracking-wider mb-1 ${isMe ? 'text-blue-100' : 'text-gray-500'}`}>
+                                                                                            <p className={`font-bold text-[10px] uppercase tracking-wider mb-1 ${isMe ? 'text-slate-400' : 'text-slate-500'}`}>
                                                                                                 {isMe ? 'You' : 'Pro'}
                                                                                             </p>
-                                                                                            {msg.message && <p className="text-[13px] leading-relaxed">{msg.message}</p>}
+                                                                                            {msg.message && <p className="leading-relaxed">{msg.message}</p>}
                                                                                             {msg.image_url && (
-                                                                                                <a href={msg.image_url} target="_blank" rel="noreferrer" className="mt-2 block rounded-lg overflow-hidden border border-black/10">
-                                                                                                    <img src={msg.image_url} alt="Chat attachment" className="max-h-32 object-cover hover:scale-105 transition-transform" />
+                                                                                                <a href={msg.image_url} target="_blank" rel="noreferrer" className="mt-2 block rounded-xl overflow-hidden border border-black/10 shadow-sm">
+                                                                                                    <img src={msg.image_url} alt="Chat attachment" className="max-h-40 w-full object-cover hover:scale-105 transition-transform" />
                                                                                                 </a>
                                                                                             )}
-                                                                                            <p className={`text-[9px] text-right mt-1 ${isMe ? 'text-blue-200' : 'text-gray-400'}`}>
+                                                                                            <p className={`text-[10px] text-right mt-1.5 ${isMe ? 'text-slate-400' : 'text-slate-400'}`}>
                                                                                                 {new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                                                                                             </p>
                                                                                         </motion.div>
@@ -3928,66 +3986,73 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                                                         )}
                                                                     </div>
 
-                                                                    <div className="grid grid-cols-[1fr_auto] gap-2">
-                                                                        <input
-                                                                            type="text"
-                                                                            value={chatMessage[request.id_request] || ''}
-                                                                            onChange={(e) => setChatMessage((prev) => ({ ...prev, [request.id_request]: e.target.value }))}
-                                                                            placeholder="Write message..."
-                                                                            className="px-2.5 py-2 rounded-lg border border-gray-200 text-xs"
-                                                                        />
+                                                                    <div className="flex gap-2">
+                                                                        <div className="relative flex-1">
+                                                                            <input
+                                                                                type="text"
+                                                                                value={chatMessage[request.id_request] || ''}
+                                                                                onChange={(e) => setChatMessage((prev) => ({ ...prev, [request.id_request]: e.target.value }))}
+                                                                                placeholder="Write a message..."
+                                                                                className="w-full pl-4 pr-10 py-3 rounded-xl border border-slate-200 text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 outline-none transition-all shadow-sm"
+                                                                            />
+                                                                            <label className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 cursor-pointer transition-colors">
+                                                                                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+                                                                                <input
+                                                                                    type="file"
+                                                                                    accept="image/png,image/jpeg,image/jpg,image/webp"
+                                                                                    onChange={(e) => setChatImage((prev) => ({ ...prev, [request.id_request]: e.target.files?.[0] || null }))}
+                                                                                    className="hidden"
+                                                                                />
+                                                                            </label>
+                                                                        </div>
                                                                         <button
                                                                             type="button"
                                                                             onClick={() => sendRequestChat(request.id_request)}
                                                                             disabled={chatBusyId === request.id_request}
-                                                                            className="px-3 py-2 rounded-lg bg-bird-blue text-white text-xs font-bold disabled:opacity-50"
+                                                                            className="px-5 py-3 rounded-xl bg-slate-900 text-white text-sm font-bold disabled:opacity-50 hover:bg-black transition-colors shadow-md"
                                                                         >
                                                                             Send
                                                                         </button>
                                                                     </div>
-                                                                    <div className="flex items-center gap-2">
-                                                                        <input
-                                                                            type="file"
-                                                                            accept="image/png,image/jpeg,image/jpg,image/webp"
-                                                                            onChange={(e) => setChatImage((prev) => ({ ...prev, [request.id_request]: e.target.files?.[0] || null }))}
-                                                                            className="text-[10px]"
-                                                                        />
-                                                                        {chatImage[request.id_request] && (
-                                                                            <span className="text-[10px] text-gray-500 truncate">{chatImage[request.id_request]?.name}</span>
-                                                                        )}
-                                                                    </div>
+                                                                    {chatImage[request.id_request] && (
+                                                                        <div className="flex items-center gap-2 px-3 py-2 bg-slate-100 rounded-lg text-xs font-semibold text-slate-600">
+                                                                            <svg className="w-4 h-4 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" /></svg>
+                                                                            <span className="truncate max-w-[200px]">{chatImage[request.id_request]?.name}</span>
+                                                                            <button type="button" onClick={() => setChatImage(prev => ({ ...prev, [request.id_request]: null }))} className="ml-auto text-slate-400 hover:text-red-500">×</button>
+                                                                        </div>
+                                                                    )}
                                                                 </div>
                                                             )}
                                                         </div>
 
-                                                        <div className="mt-3 rounded-2xl border border-bird-yellow/25 bg-gradient-to-r from-amber-50 via-white to-sky-50 p-3">
+                                                        <div className="mt-4 rounded-2xl border border-blue-200/50 bg-blue-50/30 p-4">
                                                             <div className="flex items-center justify-between gap-3">
                                                                 <div>
-                                                                    <p className="text-[11px] font-black uppercase tracking-[0.18em] text-bird-orange">Fixes</p>
+                                                                    <p className="text-[11px] font-black uppercase tracking-[0.18em] text-blue-600">Fixes & Rating</p>
                                                                     <p className="mt-1 text-xs font-semibold text-slate-600">
                                                                         {canRate
-                                                                            ? 'The job is complete. You can now leave your star review.'
-                                                                            : 'Fixes unlock after the completed job is confirmed.'}
+                                                                            ? 'The job is complete. You can now leave your review.'
+                                                                            : 'Review unlocks after the job is finished.'}
                                                                     </p>
                                                                 </div>
                                                                 <button
                                                                     type="button"
                                                                     onClick={() => canRate && setRatingModalRequest(request)}
                                                                     disabled={!canRate}
-                                                                    className={`rounded-xl px-3 py-2 text-[11px] font-black transition ${
+                                                                    className={`rounded-xl px-4 py-2.5 text-xs font-bold transition-all shadow-sm ${
                                                                         canRate
-                                                                            ? 'border border-bird-blue/20 bg-white text-slate-900 shadow-sm hover:-translate-y-0.5 hover:border-bird-blue hover:bg-bird-blue hover:text-white'
+                                                                            ? 'border-2 border-blue-600 bg-white text-blue-600 hover:bg-blue-600 hover:text-white'
                                                                             : 'border border-slate-200 bg-slate-100 text-slate-400 cursor-not-allowed'
                                                                     }`}
                                                                 >
-                                                                    {canRate ? 'Open Fixes' : 'Locked'}
+                                                                    {canRate ? 'Review Pro' : 'Locked'}
                                                                 </button>
                                                             </div>
                                                             <div className="mt-3 flex items-center gap-1.5">
                                                                 {Array.from({ length: 5 }).map((_, index) => (
                                                                     <span
                                                                         key={`fix-preview-${request.id_request}-${index}`}
-                                                                        className={`text-lg ${canRate ? 'text-bird-yellow' : 'text-slate-300'}`}
+                                                                        className={`text-lg ${canRate ? 'text-amber-400 drop-shadow-sm' : 'text-slate-200'}`}
                                                                     >
                                                                         {'★'}
                                                                     </span>
@@ -4493,310 +4558,168 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                 initial={{ opacity: 0 }}
                                 animate={{ opacity: 1 }}
                                 exit={{ opacity: 0 }}
-                                className="absolute inset-0 z-40 bg-slate-950/35 backdrop-blur-[3px] flex items-center justify-center p-4"
+                                onClick={closeWorkerProfileModal}
+                                className="fixed inset-0 z-[9999] bg-slate-950/60 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-6"
                             >
                                 <motion.div
-                                    initial={{ opacity: 0, scale: 0.96, y: 12 }}
-                                    animate={{ opacity: 1, scale: 1, y: 0 }}
-                                    exit={{ opacity: 0, scale: 0.96, y: 12 }}
-                                    transition={{ type: 'spring', damping: 24, stiffness: 260 }}
-                                    className="flex max-h-[90vh] w-full max-w-4xl flex-col overflow-hidden rounded-[30px] border border-gray-200 bg-white shadow-2xl"
+                                    initial={{ opacity: 0, y: 60, scale: 0.97 }}
+                                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                                    exit={{ opacity: 0, y: 60, scale: 0.97 }}
+                                    transition={{ type: 'spring', damping: 28, stiffness: 280 }}
+                                    onClick={(e) => e.stopPropagation()}
+                                    className="flex w-full max-w-2xl max-h-[92vh] sm:max-h-[88vh] flex-col overflow-hidden rounded-t-[2rem] sm:rounded-[2rem] bg-white shadow-2xl"
                                 >
-                                    <div className="bg-gradient-to-r from-bird-blue via-sky-500 to-yellow-300 px-6 py-5">
-                                        <div className="flex items-center justify-between gap-3">
-                                            <div className="flex items-center gap-4">
-                                                {selectedWorkerProfile?.profile_image_url ? (
-                                                    <img
-                                                        src={selectedWorkerProfile.profile_image_url}
-                                                        alt={selectedWorkerProfile.name}
-                                                        className="h-16 w-16 rounded-3xl object-cover ring-2 ring-white shadow-md"
-                                                    />
-                                                ) : (
-                                                    <div className="flex h-16 w-16 items-center justify-center rounded-3xl bg-white/20 text-2xl font-black text-white">
-                                                        {getInitials(selectedWorkerProfile?.name || 'Pro')}
-                                                    </div>
-                                                )}
-                                                <div className="text-white">
-                                                    <p className="text-[11px] font-black uppercase tracking-[0.2em] text-white/80">Worker profile</p>
-                                                    <h3 className="mt-1 text-2xl font-black">
-                                                        {selectedWorkerProfile?.name || 'Assigned pro'}
-                                                    </h3>
-                                                    <p className="mt-1 text-sm text-white/85">
-                                                        Review the pro before accepting or continuing with this request.
-                                                    </p>
-                                                    <div className="mt-3 flex items-center gap-3">
-                                                        <div className="flex items-center gap-2 rounded-full bg-white/92 px-3 py-1.5 shadow-sm">
-                                                            {renderStarSummary(selectedWorkerProfile?.rating_average ?? null)}
-                                                            <span className="text-[11px] font-black text-slate-900">
-                                                                {selectedWorkerProfile?.rating_average != null
-                                                                    ? `${selectedWorkerProfile.rating_average.toFixed(1)} / 5`
-                                                                    : 'No Fixes yet'}
-                                                            </span>
-                                                        </div>
-                                                        <span className="text-[11px] font-bold text-white/85">
-                                                            {selectedWorkerProfile?.rating_count ?? 0} review(s)
-                                                        </span>
-                                                    </div>
-                                                    <div className="mt-3 flex flex-wrap items-center gap-2">
-                                                        <span className="rounded-full bg-white/90 px-3 py-1 text-[11px] font-black uppercase tracking-[0.16em] text-slate-900 shadow-sm">
-                                                            {selectedWorkerProfile?.completed_jobs ?? 0} jobs completed
-                                                        </span>
-                                                        <span className="rounded-full bg-slate-950/15 px-3 py-1 text-[11px] font-black text-white backdrop-blur">
-                                                            {selectedWorkerProfile?.rating_average != null
-                                                                ? `${selectedWorkerProfile.rating_average.toFixed(1)} Fixes`
-                                                                : 'No Fixes yet'}
-                                                        </span>
-                                                        <span className={`rounded-full px-3 py-1 text-[11px] font-black uppercase tracking-[0.14em] ${
-                                                            selectedWorkerProfile?.is_online
-                                                                ? 'bg-emerald-50 text-emerald-700'
-                                                                : 'bg-white/15 text-white'
-                                                        }`}>
-                                                            {selectedWorkerProfile?.is_online ? 'Online now' : 'Offline'}
-                                                        </span>
-                                                        {workerProfileLoading && (
-                                                            <span className="inline-flex items-center gap-2 rounded-full bg-white/15 px-3 py-1 text-[11px] font-black text-white">
-                                                                <span className="h-2 w-2 rounded-full bg-white animate-pulse" />
-                                                                Refreshing
-                                                            </span>
-                                                        )}
-                                                    </div>
-                                                    <div className="mt-4 grid gap-2 sm:grid-cols-4">
-                                                        <div className="rounded-2xl border border-white/20 bg-white/12 px-3 py-2 backdrop-blur">
-                                                            <p className="text-[10px] font-black uppercase tracking-[0.16em] text-white/70">Fixes</p>
-                                                            <p className="mt-1 text-lg font-black text-white">
-                                                                {selectedWorkerProfile?.rating_average != null
-                                                                    ? selectedWorkerProfile.rating_average.toFixed(1)
-                                                                    : '--'}
-                                                            </p>
-                                                        </div>
-                                                        <div className="rounded-2xl border border-white/20 bg-white/12 px-3 py-2 backdrop-blur">
-                                                            <p className="text-[10px] font-black uppercase tracking-[0.16em] text-white/70">Reviews</p>
-                                                            <p className="mt-1 text-lg font-black text-white">{selectedWorkerProfile?.rating_count ?? 0}</p>
-                                                        </div>
-                                                        <div className="rounded-2xl border border-white/20 bg-white/12 px-3 py-2 backdrop-blur">
-                                                            <p className="text-[10px] font-black uppercase tracking-[0.16em] text-white/70">Completed</p>
-                                                            <p className="mt-1 text-lg font-black text-white">{selectedWorkerProfile?.completed_jobs ?? 0}</p>
-                                                        </div>
-                                                        <div className="rounded-2xl border border-white/20 bg-white/12 px-3 py-2 backdrop-blur">
-                                                            <p className="text-[10px] font-black uppercase tracking-[0.16em] text-white/70">Services</p>
-                                                            <p className="mt-1 text-lg font-black text-white">{selectedWorkerProfile?.services_offered?.length ?? 0}</p>
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                            <button
-                                                type="button"
-                                                onClick={closeWorkerProfileModal}
-                                                className="rounded-full border border-white/30 bg-white/10 px-3 py-1.5 text-xs font-black uppercase tracking-wide text-white hover:bg-white/20"
-                                            >
-                                                Close
-                                            </button>
-                                        </div>
+                                    {/* Drag handle (mobile) */}
+                                    <div className="flex justify-center pt-3 pb-1 sm:hidden shrink-0">
+                                        <div className="w-10 h-1.5 rounded-full bg-slate-200" />
                                     </div>
 
-                                    <div className="flex-1 overflow-y-auto">
-                                        <div className="grid gap-0 lg:grid-cols-[0.92fr_1.08fr]">
-                                        <div className="border-b border-gray-100 bg-slate-50/80 p-6 lg:border-b-0 lg:border-r">
-                                            <div className="space-y-4">
-                                                <div className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
-                                                    <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">About this pro</p>
-                                                    <p className="mt-2 text-xl font-black text-slate-900">
-                                                        {selectedWorkerProfile?.name || 'Assigned pro'}
-                                                    </p>
-                                                    <p className="mt-2 text-sm leading-6 text-slate-600">
-                                                        {selectedWorkerProfile?.bio || 'This pro has not added a bio yet, but you can still review the uploaded work below.'}
-                                                    </p>
+                                    {/* Header */}
+                                    <div className="relative bg-slate-900 px-6 py-7 shrink-0 overflow-hidden">
+                                        <div className="absolute inset-0 bg-gradient-to-br from-slate-800 to-slate-950" />
+                                        <button
+                                            type="button"
+                                            onClick={closeWorkerProfileModal}
+                                            className="absolute top-4 right-4 z-10 flex h-9 w-9 items-center justify-center rounded-full bg-white/10 hover:bg-white/20 text-white transition-colors"
+                                        >
+                                            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                            </svg>
+                                        </button>
+                                        <div className="relative z-10 flex items-center gap-4">
+                                            {selectedWorkerProfile?.profile_image_url ? (
+                                                <img
+                                                    src={selectedWorkerProfile.profile_image_url}
+                                                    alt={selectedWorkerProfile.name}
+                                                    className="h-16 w-16 shrink-0 rounded-2xl object-cover ring-2 ring-white/20 shadow-lg"
+                                                />
+                                            ) : (
+                                                <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl bg-white/15 text-xl font-black text-white ring-2 ring-white/10">
+                                                    {getInitials(selectedWorkerProfile?.name || 'Pro')}
                                                 </div>
-
-                                                <div className="grid gap-3 sm:grid-cols-2">
-                                                    <div className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
-                                                        <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">Phone</p>
-                                                        <p className="mt-2 text-base font-black text-slate-900">
-                                                            {selectedWorkerProfile?.phone_number || 'Not shared yet'}
-                                                        </p>
-                                                    </div>
-                                                    <div className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
-                                                        <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">Experience</p>
-                                                        <p className="mt-2 text-base font-black text-slate-900">
-                                                            {selectedWorkerProfile?.experience_label || 'Experience not available'}
-                                                        </p>
-                                                    </div>
-                                                    <div className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
-                                                        <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">Fixes</p>
-                                                        <div className="mt-2 flex items-center gap-3">
-                                                            {renderStarSummary(selectedWorkerProfile?.rating_average ?? null)}
-                                                            <div>
-                                                                <p className="text-base font-black text-slate-900">
-                                                                    {selectedWorkerProfile?.rating_average != null
-                                                                        ? `${selectedWorkerProfile.rating_average.toFixed(1)} average`
-                                                                        : 'No Fixes yet'}
-                                                                </p>
-                                                                <p className="text-[11px] font-semibold text-slate-500">
-                                                                    {selectedWorkerProfile?.completed_jobs ?? 0} completed jobs
-                                                                </p>
-                                                            </div>
-                                                        </div>
-                                                    </div>
-                                                </div>
-
-                                                <div className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
-                                                    <div className="flex items-center justify-between gap-3">
-                                                        <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">Services offered</p>
-                                                        <span className={`rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-[0.18em] ${
-                                                            selectedWorkerProfile?.is_online
-                                                                ? 'border border-emerald-200 bg-emerald-50 text-emerald-700'
-                                                                : 'border border-slate-200 bg-slate-100 text-slate-600'
-                                                        }`}>
-                                                            {selectedWorkerProfile?.is_online ? 'Online' : 'Offline'}
-                                                        </span>
-                                                    </div>
-                                                    <div className="mt-3 flex flex-wrap gap-2">
-                                                        {(selectedWorkerProfile?.services_offered || []).length > 0 ? (
-                                                            selectedWorkerProfile?.services_offered.map((serviceName) => (
-                                                                <span
-                                                                    key={serviceName}
-                                                                    className="rounded-full border border-bird-blue/15 bg-bird-blue/10 px-3 py-1 text-[11px] font-black text-slate-900"
-                                                                >
-                                                                    {serviceName}
-                                                                </span>
-                                                            ))
-                                                        ) : (
-                                                            <span className="rounded-full border border-slate-200 bg-slate-100 px-3 py-1 text-[11px] font-bold text-slate-500">
-                                                                Services not listed yet
-                                                            </span>
-                                                        )}
-                                                    </div>
-                                                </div>
-
-                                            </div>
-                                        </div>
-
-                                        <div className="p-6">
-                                            <div className="mb-4 flex items-center justify-between gap-3">
-                                                <div>
-                                                    <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-900">Portfolio</p>
-                                                    <h4 className="mt-1 text-xl font-black text-slate-900">Recent work from this pro</h4>
-                                                    <p className="mt-1 text-sm text-slate-500">Review real uploads before you approve this worker.</p>
-                                                </div>
-                                                <div className="flex items-center gap-2">
-                                                    <span className="rounded-full border border-bird-blue/15 bg-bird-blue/10 px-3 py-1 text-[11px] font-black text-slate-900">
-                                                        {(workerProfileData?.portfolio || []).length} photo(s)
-                                                    </span>
-                                                    {workerProfileLoading && (
-                                                        <span className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-[11px] font-black text-slate-500">
-                                                            <span className="h-2 w-2 rounded-full bg-bird-blue animate-pulse" />
-                                                            Syncing
+                                            )}
+                                            <div className="min-w-0 flex-1">
+                                                <div className="flex items-center gap-2 mb-1">
+                                                    <span className="text-[10px] font-black uppercase tracking-widest text-blue-400">Verified Pro</span>
+                                                    {selectedWorkerProfile?.is_online && (
+                                                        <span className="flex items-center gap-1 text-[10px] font-bold text-emerald-400">
+                                                            <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                                                            Online
                                                         </span>
                                                     )}
                                                 </div>
+                                                <h3 className="text-xl font-black text-white truncate">
+                                                    {selectedWorkerProfile?.name || 'Assigned Pro'}
+                                                </h3>
+                                                <div className="flex items-center gap-2 mt-1.5">
+                                                    {renderStarSummary(selectedWorkerProfile?.rating_average ?? null)}
+                                                    <span className="text-xs font-bold text-slate-400">
+                                                        {selectedWorkerProfile?.rating_average != null
+                                                            ? `${selectedWorkerProfile.rating_average.toFixed(1)} · ${selectedWorkerProfile.rating_count} reviews`
+                                                            : 'New Pro'}
+                                                    </span>
+                                                </div>
                                             </div>
+                                        </div>
 
-                                            {workerPortfolio.length === 0 ? (
-                                                <div className="rounded-3xl border border-dashed border-slate-200 bg-slate-50 px-5 py-10 text-center">
-                                                    <p className="text-sm font-bold text-slate-700">
-                                                        {workerProfileLoading ? 'Loading portfolio...' : 'No portfolio photos uploaded yet.'}
-                                                    </p>
-                                                    <p className="mt-2 text-sm text-slate-500">
-                                                        {workerProfileLoading
-                                                            ? 'We are refreshing the worker uploads for you.'
-                                                            : 'You can still use the worker bio and phone details above before deciding.'}
-                                                    </p>
+                                        {/* Stats row */}
+                                        <div className="relative z-10 mt-5 grid grid-cols-3 gap-3">
+                                            {[
+                                                { label: 'Jobs', value: selectedWorkerProfile?.completed_jobs ?? 0 },
+                                                { label: 'Experience', value: selectedWorkerProfile?.years_of_experience != null ? `${selectedWorkerProfile.years_of_experience}y` : '--' },
+                                                { label: 'Rating', value: selectedWorkerProfile?.rating_average != null ? selectedWorkerProfile.rating_average.toFixed(1) : '--' },
+                                            ].map((stat) => (
+                                                <div key={stat.label} className="rounded-xl bg-white/8 border border-white/10 px-3 py-2.5 text-center backdrop-blur-sm">
+                                                    <p className="text-base font-black text-white">{stat.value}</p>
+                                                    <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mt-0.5">{stat.label}</p>
                                                 </div>
-                                            ) : (
-                                                <div className="space-y-4">
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => setIsWorkerPortfolioFullscreen(true)}
-                                                        className="group w-full overflow-hidden rounded-[30px] border border-slate-200 bg-white text-left shadow-sm transition hover:-translate-y-0.5 hover:border-bird-blue/30 hover:shadow-xl"
-                                                    >
-                                                        <div className="relative aspect-[1.22/1] overflow-hidden bg-slate-900">
-                                                            {activeWorkerPortfolioPhoto?.image_url ? (
-                                                                <img
-                                                                    src={activeWorkerPortfolioPhoto.image_url}
-                                                                    alt={activeWorkerPortfolioPhoto.description || 'Portfolio work'}
-                                                                    className="h-full w-full object-cover transition duration-500 group-hover:scale-[1.03]"
-                                                                />
-                                                            ) : (
-                                                                <div className="h-full w-full bg-slate-100" />
-                                                            )}
-                                                            <div className="absolute inset-x-0 top-0 z-10 flex items-center justify-between p-4">
-                                                                <span className="rounded-full bg-white/92 px-3 py-1 text-[11px] font-black uppercase tracking-[0.18em] text-slate-900 shadow-sm">
-                                                                    Portfolio modal
-                                                                </span>
-                                                                <span className="rounded-full bg-slate-950/70 px-3 py-1 text-[11px] font-black text-white backdrop-blur">
-                                                                    {activeWorkerPortfolioIndex + 1} / {workerPortfolio.length}
-                                                                </span>
-                                                            </div>
-                                                            <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-slate-950/90 via-slate-950/45 to-transparent px-5 pb-5 pt-16 text-white">
-                                                                <p className="text-base font-black">
-                                                                    {activeWorkerPortfolioPhoto?.description || 'Recent portfolio work'}
-                                                                </p>
-                                                                <div className="mt-3 flex flex-wrap items-center gap-2 text-[11px] font-bold text-white/80">
-                                                                    <span className="rounded-full border border-white/20 bg-white/10 px-3 py-1">
-                                                                        {activeWorkerPortfolioPhoto?.uploaded_at
-                                                                            ? new Date(activeWorkerPortfolioPhoto.uploaded_at).toLocaleDateString()
-                                                                            : 'Recently uploaded'}
-                                                                    </span>
-                                                                    <span className="rounded-full border border-white/20 bg-white/10 px-3 py-1">
-                                                                        Double tap, pinch, swipe
-                                                                    </span>
-                                                                </div>
-                                                            </div>
-                                                        </div>
-                                                    </button>
-
-                                                    <div className="rounded-[28px] border border-slate-200 bg-slate-50/80 p-4 shadow-sm">
-                                                        <div className="flex flex-wrap items-start justify-between gap-3">
-                                                            <div>
-                                                                <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">Open the full portfolio</p>
-                                                                <p className="mt-2 text-sm leading-6 text-slate-600">
-                                                                    Browse this worker&apos;s uploads in a dedicated modal with swipe, pinch-to-zoom,
-                                                                    profile details, and image notes.
-                                                                </p>
-                                                            </div>
-                                                            <button
-                                                                type="button"
-                                                                onClick={() => setIsWorkerPortfolioFullscreen(true)}
-                                                                className="rounded-2xl bg-bird-blue px-4 py-3 text-sm font-black text-white shadow-lg shadow-bird-blue/20 transition hover:-translate-y-0.5 hover:bg-bird-blue/95"
-                                                            >
-                                                                Open portfolio
-                                                            </button>
-                                                        </div>
-
-                                                        {workerPortfolio.length > 1 && (
-                                                            <div className="mt-4 grid grid-cols-4 gap-3">
-                                                                {workerPortfolio.map((item, index) => (
-                                                                    <button
-                                                                        key={item.id_photo}
-                                                                        type="button"
-                                                                        onClick={() => {
-                                                                            setWorkerPortfolioIndex(index);
-                                                                            setIsWorkerPortfolioFullscreen(true);
-                                                                        }}
-                                                                        className={`group overflow-hidden rounded-2xl border transition ${
-                                                                            index === activeWorkerPortfolioIndex
-                                                                                ? 'border-bird-blue bg-bird-blue/5 shadow-md'
-                                                                                : 'border-slate-200 bg-white hover:border-bird-blue/35'
-                                                                        }`}
-                                                                    >
-                                                                        {item.image_url ? (
-                                                                            <img
-                                                                                src={item.image_url}
-                                                                                alt={item.description || 'Portfolio thumbnail'}
-                                                                                className="aspect-square w-full object-cover transition duration-300 group-hover:scale-[1.03]"
-                                                                            />
-                                                                        ) : (
-                                                                            <div className="aspect-square w-full bg-slate-100" />
-                                                                        )}
-                                                                    </button>
-                                                                ))}
-                                                            </div>
-                                                        )}
-                                                    </div>
-                                                </div>
-                                            )}
+                                            ))}
                                         </div>
                                     </div>
+
+                                    {/* Body */}
+                                    <div className="flex-1 overflow-y-auto bg-white">
+                                        {workerProfileLoading ? (
+                                            <div className="flex items-center justify-center gap-3 py-16">
+                                                <div className="h-5 w-5 rounded-full border-2 border-slate-200 border-t-slate-700 animate-spin" />
+                                                <p className="text-sm font-bold text-slate-500">Loading profile...</p>
+                                            </div>
+                                        ) : (
+                                            <div className="divide-y divide-slate-100">
+                                                {/* Bio */}
+                                                {selectedWorkerProfile?.bio && (
+                                                    <div className="px-6 py-5">
+                                                        <p className="text-[11px] font-black uppercase tracking-widest text-slate-400 mb-2">About</p>
+                                                        <p className="text-sm leading-relaxed text-slate-700">{selectedWorkerProfile.bio}</p>
+                                                    </div>
+                                                )}
+
+                                                {/* Info row */}
+                                                <div className="px-6 py-5 grid grid-cols-2 gap-4">
+                                                    <div>
+                                                        <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">Phone</p>
+                                                        <p className="text-sm font-bold text-slate-900">{selectedWorkerProfile?.phone_number || 'Hidden'}</p>
+                                                    </div>
+                                                    <div>
+                                                        <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">Level</p>
+                                                        <p className="text-sm font-bold text-slate-900">{selectedWorkerProfile?.experience_label || '—'}</p>
+                                                    </div>
+                                                </div>
+
+                                                {/* Services */}
+                                                {(selectedWorkerProfile?.services_offered || []).length > 0 && (
+                                                    <div className="px-6 py-5">
+                                                        <p className="text-[11px] font-black uppercase tracking-widest text-slate-400 mb-3">Services</p>
+                                                        <div className="flex flex-wrap gap-2">
+                                                            {selectedWorkerProfile!.services_offered.map((s) => (
+                                                                <span key={s} className="rounded-xl bg-slate-100 border border-slate-200 px-3 py-1.5 text-xs font-bold text-slate-700">
+                                                                    {s}
+                                                                </span>
+                                                            ))}
+                                                        </div>
+                                                    </div>
+                                                )}
+
+                                                {/* Portfolio */}
+                                                <div className="px-6 py-5">
+                                                    <div className="flex items-center justify-between mb-4">
+                                                        <p className="text-[11px] font-black uppercase tracking-widest text-slate-400">Portfolio</p>
+                                                        <span className="text-[10px] font-bold text-slate-500 bg-slate-100 px-2.5 py-1 rounded-full">{workerPortfolio.length} photos</span>
+                                                    </div>
+                                                    {workerPortfolio.length === 0 ? (
+                                                        <div className="border-2 border-dashed border-slate-200 rounded-2xl p-8 flex flex-col items-center text-center">
+                                                            <svg className="w-8 h-8 text-slate-300 mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+                                                            <p className="text-sm font-bold text-slate-500">No portfolio yet</p>
+                                                        </div>
+                                                    ) : (
+                                                        <div className="grid grid-cols-3 gap-2 pb-2">
+                                                            {workerPortfolio.slice(0, 6).map((item, index) => (
+                                                                <button
+                                                                    key={item.id_photo}
+                                                                    type="button"
+                                                                    onClick={() => { setWorkerPortfolioIndex(index); setIsWorkerPortfolioFullscreen(true); }}
+                                                                    className="group relative aspect-square overflow-hidden rounded-xl bg-slate-100 border border-slate-200"
+                                                                >
+                                                                    <img src={item.image_url || ''} alt="" className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105" />
+                                                                    <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center">
+                                                                        <svg className="w-6 h-6 text-white opacity-0 group-hover:opacity-100 transition-opacity drop-shadow" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v3m0 0v3m0-3h3m-3 0H7" /></svg>
+                                                                    </div>
+                                                                </button>
+                                                            ))}
+                                                            {workerPortfolio.length > 6 && (
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => { setWorkerPortfolioIndex(6); setIsWorkerPortfolioFullscreen(true); }}
+                                                                    className="aspect-square rounded-xl bg-slate-900 text-white text-sm font-black flex items-center justify-center hover:bg-black transition-colors"
+                                                                >
+                                                                    +{workerPortfolio.length - 6}
+                                                                </button>
+                                                            )}
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        )}
                                     </div>
                                 </motion.div>
                             </motion.div>

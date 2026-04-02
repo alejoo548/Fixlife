@@ -370,11 +370,6 @@ export const Navbar: React.FC<NavbarProps> = ({
                 )}
               </div>
             ))}
-            <div className="flex flex-col gap-3">
-              <button onClick={handleBookingClick} className="text-xl font-bold text-gray-900 text-left">
-                Book Service
-              </button>
-            </div>
           </div>
 
           <div className="mt-auto pt-8 border-t border-gray-200 flex flex-col gap-4">
