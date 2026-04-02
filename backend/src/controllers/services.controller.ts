@@ -6,6 +6,7 @@ import fs from 'fs';
 import path from 'path';
 import { createUserNotification } from '../utils/notifications';
 import { getWorkerBonusPayouts, getWorkerRewardsSettings, syncWorkerBonusPayouts } from '../utils/workerRewards';
+import { sendPaymentInvoiceEmail, sendWorkerPaymentSecuredEmail } from '../utils/email';
 
 type ServiceCardRow = RowDataPacket & {
   id_card: number;
@@ -1422,6 +1423,20 @@ const getPaymentBreakdown = (amount: number) => {
   return { amount: normalizedAmount, platformFee, workerPayout };
 };
 
+const normalizePaymentMethod = (value: unknown) => {
+  const method = String(value || '').trim().toLowerCase();
+  if (method === 'paypal') return 'paypal';
+  if (method === 'wompi') return 'wompi';
+  return 'paypal';
+};
+
+const sanitizePaymentValue = (value: unknown, max = 120) => String(value ?? '').trim().slice(0, max);
+
+const buildInvoiceNumber = (idRequest: number) => {
+  const stamp = Date.now().toString().slice(-8);
+  return `INV-FX-${idRequest}-${stamp}`;
+};
+
 export const createServiceRequest = async (req: AuthRequest, res: Response): Promise<void> => {
   const files = ((req.files as Express.Multer.File[]) || []).slice(0, 5);
 
@@ -2295,8 +2310,13 @@ export const createRequestPaymentCheckout = async (req: AuthRequest, res: Respon
     await ensureServiceRequestTables();
 
     const idRequest = Number(req.params.idRequest);
+    const paymentMethod = normalizePaymentMethod(req.body?.payment_method);
     if (!idRequest) {
       res.status(400).json({ error: 'Invalid request id.' });
+      return;
+    }
+    if (paymentMethod === 'wompi') {
+      res.status(409).json({ error: 'Wompi will be enabled soon. Please use PayPal for now.' });
       return;
     }
 
@@ -2336,7 +2356,7 @@ export const createRequestPaymentCheckout = async (req: AuthRequest, res: Respon
     await connection.execute(
       `INSERT INTO service_request_payments
        (id_request, provider, checkout_reference, amount, platform_fee, worker_payout, payment_status)
-       VALUES (?, 'sandbox', ?, ?, ?, ?, 'pending')
+       VALUES (?, ?, ?, ?, ?, ?, 'pending')
        ON DUPLICATE KEY UPDATE
          provider = VALUES(provider),
          checkout_reference = VALUES(checkout_reference),
@@ -2345,7 +2365,7 @@ export const createRequestPaymentCheckout = async (req: AuthRequest, res: Respon
          worker_payout = VALUES(worker_payout),
          payment_status = CASE WHEN payment_status = 'paid' THEN payment_status ELSE 'pending' END,
          updated_at = CURRENT_TIMESTAMP`,
-      [idRequest, checkoutReference, amount, platformFee, workerPayout]
+      [idRequest, paymentMethod, checkoutReference, amount, platformFee, workerPayout]
     );
 
     await connection.commit();
@@ -2354,7 +2374,7 @@ export const createRequestPaymentCheckout = async (req: AuthRequest, res: Respon
       message: 'Checkout session created.',
       checkout: {
         id_request: idRequest,
-        provider: 'sandbox',
+        provider: paymentMethod,
         checkout_reference: checkoutReference,
         amount,
         platform_fee: platformFee,
@@ -2382,17 +2402,49 @@ export const confirmRequestPayment = async (req: AuthRequest, res: Response): Pr
     await ensureServiceRequestTables();
 
     const idRequest = Number(req.params.idRequest);
+    const paymentMethod = normalizePaymentMethod(req.body?.payment_method);
+    const payerFullName = sanitizePaymentValue(req.body?.payer?.full_name, 120);
+    const payerEmail = sanitizePaymentValue(req.body?.payer?.email, 140);
+    const payerPhone = sanitizePaymentValue(req.body?.payer?.phone, 40);
+    const payerCity = sanitizePaymentValue(req.body?.payer?.city, 80);
+    const payerCountry = sanitizePaymentValue(req.body?.payer?.country, 80);
+    const paypalOrderId = sanitizePaymentValue(req.body?.paypal_order_id, 120);
     if (!idRequest) {
       res.status(400).json({ error: 'Invalid request id.' });
+      return;
+    }
+    if (paymentMethod === 'wompi') {
+      res.status(409).json({ error: 'Wompi checkout will be available soon. Please complete this payment with PayPal.' });
+      return;
+    }
+    if (!payerFullName || !payerEmail || !payerPhone || !payerCity || !payerCountry) {
+      res.status(400).json({ error: 'Missing payer details for invoice generation.' });
       return;
     }
 
     await connection.beginTransaction();
 
     const [requestRows] = await connection.execute<RowDataPacket[]>(
-      `SELECT id_request, id_user, status, budget, final_budget, assigned_worker_profile
-       FROM service_requests
-       WHERE id_request = ? AND id_user = ?
+      `SELECT
+         sr.id_request,
+         sr.id_user,
+         sr.status,
+         sr.budget,
+         sr.final_budget,
+         sr.assigned_worker_profile,
+         s.service_name,
+         cu.name AS client_name,
+         cu.lastname AS client_lastname,
+         cu.email AS client_email,
+         wu.name AS worker_name,
+         wu.lastname AS worker_lastname,
+         wu.email AS worker_email
+       FROM service_requests sr
+       INNER JOIN services s ON s.id_service = sr.id_service
+       INNER JOIN users cu ON cu.id_user = sr.id_user
+       LEFT JOIN worker_profiles wp ON wp.id_worker_profile = sr.assigned_worker_profile
+       LEFT JOIN users wu ON wu.id_user = wp.id_user
+       WHERE sr.id_request = ? AND sr.id_user = ?
        LIMIT 1
        FOR UPDATE`,
       [idRequest, userId]
@@ -2413,7 +2465,7 @@ export const confirmRequestPayment = async (req: AuthRequest, res: Response): Pr
     }
 
     const [paymentRows] = await connection.execute<RowDataPacket[]>(
-      `SELECT id_payment, payment_status, amount
+      `SELECT id_payment, payment_status, amount, checkout_reference
        FROM service_request_payments
        WHERE id_request = ?
        LIMIT 1
@@ -2423,12 +2475,17 @@ export const confirmRequestPayment = async (req: AuthRequest, res: Response): Pr
 
     const { amount, platformFee, workerPayout } = getPaymentBreakdown(getRequestChargeAmount(requestRow));
 
+    const checkoutReferenceForPayment =
+      paymentRows.length > 0 && paymentRows[0].checkout_reference
+        ? String(paymentRows[0].checkout_reference)
+        : buildCheckoutReference(idRequest);
+
     if (paymentRows.length === 0) {
       await connection.execute(
         `INSERT INTO service_request_payments
-         (id_request, provider, checkout_reference, amount, platform_fee, worker_payout, payment_status, paid_at)
-         VALUES (?, 'sandbox', ?, ?, ?, ?, 'paid', CURRENT_TIMESTAMP)`,
-        [idRequest, buildCheckoutReference(idRequest), amount, platformFee, workerPayout]
+         (id_request, provider, checkout_reference, provider_payment_id, amount, platform_fee, worker_payout, payment_status, paid_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, 'paid', CURRENT_TIMESTAMP)`,
+        [idRequest, paymentMethod, checkoutReferenceForPayment, paypalOrderId || null, amount, platformFee, workerPayout]
       );
     } else {
       if (String(paymentRows[0].payment_status || '').toLowerCase() === 'paid') {
@@ -2439,14 +2496,16 @@ export const confirmRequestPayment = async (req: AuthRequest, res: Response): Pr
 
       await connection.execute(
         `UPDATE service_request_payments
-         SET amount = ?,
+         SET provider = ?,
+             provider_payment_id = COALESCE(?, provider_payment_id),
+             amount = ?,
              platform_fee = ?,
              worker_payout = ?,
              payment_status = 'paid',
              paid_at = CURRENT_TIMESTAMP,
              updated_at = CURRENT_TIMESTAMP
          WHERE id_request = ?`,
-        [amount, platformFee, workerPayout, idRequest]
+        [paymentMethod, paypalOrderId || null, amount, platformFee, workerPayout, idRequest]
       );
     }
 
@@ -2464,6 +2523,18 @@ export const confirmRequestPayment = async (req: AuthRequest, res: Response): Pr
     const workerUserId = await getWorkerUserIdByProfileId(
       requestRow.assigned_worker_profile != null ? Number(requestRow.assigned_worker_profile) : null
     );
+    const serviceName = sanitizePaymentValue(requestRow.service_name, 150) || 'Fixlife service';
+    const checkoutReference = checkoutReferenceForPayment;
+    const invoiceNumber = buildInvoiceNumber(idRequest);
+    const clientFirstName = sanitizePaymentValue(requestRow.client_name, 80);
+    const clientLastName = sanitizePaymentValue(requestRow.client_lastname, 80);
+    const workerFirstName = sanitizePaymentValue(requestRow.worker_name, 80);
+    const workerLastName = sanitizePaymentValue(requestRow.worker_lastname, 80);
+    const clientEmail = sanitizePaymentValue(requestRow.client_email, 140) || payerEmail;
+    const workerEmail = sanitizePaymentValue(requestRow.worker_email, 140);
+    const paidAt = new Date();
+    const customerName = [clientFirstName, clientLastName].filter(Boolean).join(' ').trim() || payerFullName;
+    const workerName = [workerFirstName, workerLastName].filter(Boolean).join(' ').trim() || 'Pro worker';
 
     await createUserNotification({
       userId,
@@ -2482,7 +2553,7 @@ export const confirmRequestPayment = async (req: AuthRequest, res: Response): Pr
         userId: workerUserId,
         eventType: 'payment_secured',
         title: 'Client payment secured',
-        message: `Request #${idRequest} is now paid. You can head to the client.`,
+        message: `The payment of your recent service was completed successfully for request #${idRequest}.`,
         tone: 'success',
         requestId: idRequest,
         actionUrl: '/pro-dashboard',
@@ -2491,16 +2562,45 @@ export const confirmRequestPayment = async (req: AuthRequest, res: Response): Pr
       });
     }
 
+    if (clientEmail) {
+      void sendPaymentInvoiceEmail({
+        to: clientEmail,
+        customerName,
+        requestId: idRequest,
+        serviceName,
+        amount,
+        platformFee,
+        workerPayout,
+        checkoutReference,
+        invoiceNumber,
+        provider: paymentMethod,
+        paidAt,
+      });
+    }
+
+    if (workerEmail) {
+      void sendWorkerPaymentSecuredEmail({
+        to: workerEmail,
+        workerName,
+        requestId: idRequest,
+        serviceName,
+        amount: workerPayout,
+        checkoutReference,
+      });
+    }
+
     res.json({
       success: true,
       message: 'Payment confirmed. Funds are secured for this request.',
       id_request: idRequest,
       payment: {
-        provider: 'sandbox',
+        provider: paymentMethod,
         amount,
         platform_fee: platformFee,
         worker_payout: workerPayout,
         status: 'paid',
+        checkout_reference: checkoutReference,
+        invoice_number: invoiceNumber,
       },
       request_status: 'paid',
     });

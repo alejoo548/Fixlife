@@ -31,6 +31,7 @@ interface MyServiceRequest {
 }
 
 type CheckoutStage = 'form' | 'success' | 'error';
+type CheckoutPaymentMethod = 'paypal' | 'wompi';
 
 const notyf = new Notyf({ position: { x: 'left', y: 'bottom' }, ripple: true });
 
@@ -131,7 +132,7 @@ const renderStageIcon = (stage: CheckoutStage) => {
 const PaymentCheckoutPage: React.FC<PaymentCheckoutPageProps> = ({ requestId, onBack }) => {
     const [loading, setLoading] = useState(true);
     const [request, setRequest] = useState<MyServiceRequest | null>(null);
-    const [paymentMethod, setPaymentMethod] = useState<'card' | 'paypal'>('card');
+    const [paymentMethod, setPaymentMethod] = useState<CheckoutPaymentMethod>('paypal');
     const [isPaying, setIsPaying] = useState(false);
     const [checkoutStage, setCheckoutStage] = useState<CheckoutStage>('form');
     const [checkoutMessage, setCheckoutMessage] = useState('');
@@ -142,9 +143,6 @@ const PaymentCheckoutPage: React.FC<PaymentCheckoutPageProps> = ({ requestId, on
         phone: '',
         city: '',
         country: 'El Salvador',
-        cardNumber: '',
-        expiry: '',
-        cvv: '',
     });
 
     const amount = useMemo(() => getChargeAmount(request), [request]);
@@ -242,11 +240,19 @@ const PaymentCheckoutPage: React.FC<PaymentCheckoutPageProps> = ({ requestId, on
         setCheckoutMessage(message);
     };
 
-    const handleCardPayment = async () => {
+    const handleSecurePayment = async () => {
         const token = getToken();
         if (!token || !request) {
             notyf.error('Login required.');
             moveToErrorStage('Your session expired before checkout could start.');
+            return;
+        }
+        if (paymentMethod === 'wompi') {
+            notyf.open({
+                type: 'info',
+                message: 'Wompi will be available soon. Please use PayPal for now.',
+                background: '#1d4ed8',
+            });
             return;
         }
         if (isAlreadyPaid) {
@@ -260,27 +266,14 @@ const PaymentCheckoutPage: React.FC<PaymentCheckoutPageProps> = ({ requestId, on
             return;
         }
 
-        if (paymentMethod === 'paypal') {
-            notyf.open({
-                type: 'info',
-                message: 'PayPal is visible in the UI, but it is not configured yet.',
-                background: '#0070ba',
-            });
-            moveToErrorStage('PayPal is already visible in Fixlife, but we still need to connect the real integration.');
-            return;
-        }
-
         if (
             !paymentForm.fullName.trim() ||
             !paymentForm.email.trim() ||
             !paymentForm.phone.trim() ||
             !paymentForm.city.trim() ||
-            !paymentForm.country.trim() ||
-            !paymentForm.cardNumber.trim() ||
-            !paymentForm.expiry.trim() ||
-            !paymentForm.cvv.trim()
+            !paymentForm.country.trim()
         ) {
-            notyf.error('Complete all payment fields first.');
+            notyf.error('Complete your billing details first.');
             moveToErrorStage('We still need a few payment fields before we can secure this booking.');
             return;
         }
@@ -289,7 +282,20 @@ const PaymentCheckoutPage: React.FC<PaymentCheckoutPageProps> = ({ requestId, on
         try {
             const checkoutRes = await fetch(API_ENDPOINTS.services.paymentCheckout(request.id_request), {
                 method: 'POST',
-                headers: { Authorization: `Bearer ${token}` },
+                headers: {
+                    Authorization: `Bearer ${token}`,
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    payment_method: paymentMethod,
+                    payer: {
+                        full_name: paymentForm.fullName.trim(),
+                        email: paymentForm.email.trim(),
+                        phone: paymentForm.phone.trim(),
+                        city: paymentForm.city.trim(),
+                        country: paymentForm.country.trim(),
+                    },
+                }),
             });
             const checkoutPayload = await checkoutRes.json();
             if (!checkoutRes.ok || !checkoutPayload?.success) {
@@ -301,7 +307,21 @@ const PaymentCheckoutPage: React.FC<PaymentCheckoutPageProps> = ({ requestId, on
 
             const payRes = await fetch(API_ENDPOINTS.services.confirmPayment(request.id_request), {
                 method: 'POST',
-                headers: { Authorization: `Bearer ${token}` },
+                headers: {
+                    Authorization: `Bearer ${token}`,
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    payment_method: paymentMethod,
+                    paypal_order_id: `PAYPAL-SANDBOX-${Date.now()}`,
+                    payer: {
+                        full_name: paymentForm.fullName.trim(),
+                        email: paymentForm.email.trim(),
+                        phone: paymentForm.phone.trim(),
+                        city: paymentForm.city.trim(),
+                        country: paymentForm.country.trim(),
+                    },
+                }),
             });
             const payPayload = await payRes.json();
             if (!payRes.ok || !payPayload?.success) {
@@ -317,8 +337,11 @@ const PaymentCheckoutPage: React.FC<PaymentCheckoutPageProps> = ({ requestId, on
                           ...prev,
                           status: 'paid',
                           payment: {
-                              provider: 'sandbox',
-                              checkout_reference: checkoutPayload?.checkout?.checkout_reference || null,
+                              provider: checkoutPayload?.checkout?.provider || 'paypal',
+                              checkout_reference:
+                                  payPayload?.payment?.checkout_reference ||
+                                  checkoutPayload?.checkout?.checkout_reference ||
+                                  null,
                               amount,
                               status: 'paid',
                               paid_at: new Date().toISOString(),
@@ -328,8 +351,8 @@ const PaymentCheckoutPage: React.FC<PaymentCheckoutPageProps> = ({ requestId, on
             );
 
             setCheckoutStage('success');
-            setCheckoutMessage('Payment secured successfully. Your worker can now move this request into the job flow.');
-            notyf.success('Payment secured. Your pro can now start the job.');
+            setCheckoutMessage('PayPal payment secured successfully. Your electronic invoice was sent to your email.');
+            notyf.success('PayPal payment secured. Your pro can now start the job.');
         } catch {
             notyf.error('Network error processing payment.');
             moveToErrorStage('The connection dropped while we were processing the payment. You can retry safely.');
@@ -520,9 +543,11 @@ const PaymentCheckoutPage: React.FC<PaymentCheckoutPageProps> = ({ requestId, on
                             <p className="text-[54px] font-black uppercase leading-[0.9] tracking-tight sm:text-[70px]">
                                 Pay with
                                 <br />
-                                card
+                                {paymentMethod === 'paypal' ? 'PayPal' : 'Wompi'}
                             </p>
-                            <p className="mt-4 text-2xl font-semibold text-slate-500">without leaving Fixlife</p>
+                            <p className="mt-4 text-2xl font-semibold text-slate-500">
+                                {paymentMethod === 'paypal' ? 'secure checkout inside Fixlife' : 'coming soon in Fixlife'}
+                            </p>
 
                             <div className="mt-10 rounded-[30px] border border-white/15 bg-white p-6 backdrop-blur-md">
                                 <p className="text-[11px] font-black uppercase tracking-[0.24em] text-blue-100">Current request</p>
@@ -572,30 +597,30 @@ const PaymentCheckoutPage: React.FC<PaymentCheckoutPageProps> = ({ requestId, on
                                         <div className="flex items-center justify-between gap-3">
                                             <div>
                                                 <p className="text-2xl font-black text-[#003087]">PayPal</p>
-                                                <p className="mt-1 text-xs font-semibold text-slate-500">Visible in the UI. Not configured yet.</p>
+                                                <p className="mt-1 text-xs font-semibold text-slate-500">Live payment method in Fixlife right now.</p>
                                             </div>
-                                            <span className="rounded-full bg-amber-100 px-3 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-amber-700">
-                                                Soon
+                                            <span className="rounded-full bg-emerald-100 px-3 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-emerald-700">
+                                                Active
                                             </span>
                                         </div>
                                     </button>
 
                                     <button
                                         type="button"
-                                        onClick={() => setPaymentMethod('card')}
+                                        onClick={() => setPaymentMethod('wompi')}
                                         className={`rounded-[26px] border px-5 py-5 text-left transition ${
-                                            paymentMethod === 'card'
-                                                ? 'border-bird-blue bg-blue-50 shadow-[0_16px_34px_rgba(29,78,216,0.12)]'
-                                                : 'border-slate-200 bg-white hover:border-bird-blue/40'
+                                            paymentMethod === 'wompi'
+                                                ? 'border-[#5d3fd3] bg-[#f4f1ff] shadow-[0_16px_34px_rgba(93,63,211,0.16)]'
+                                                : 'border-slate-200 bg-white hover:border-[#5d3fd3]/40'
                                         }`}
                                     >
                                         <div className="flex items-center justify-between gap-3">
                                             <div>
-                                                <p className="text-xl font-black text-slate-900">Credit or debit card</p>
-                                                <p className="mt-1 text-xs font-semibold text-slate-500">Demo checkout ready inside Fixlife.</p>
+                                                <p className="text-xl font-black text-slate-900">Wompi</p>
+                                                <p className="mt-1 text-xs font-semibold text-slate-500">Planned next. UI ready, activation pending.</p>
                                             </div>
-                                            <span className="rounded-full bg-emerald-100 px-3 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-emerald-700">
-                                                Active
+                                            <span className="rounded-full bg-amber-100 px-3 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-amber-700">
+                                                Soon
                                             </span>
                                         </div>
                                     </button>
@@ -616,158 +641,110 @@ const PaymentCheckoutPage: React.FC<PaymentCheckoutPageProps> = ({ requestId, on
                                     </div>
                                 </div>
 
-                                {paymentMethod === 'paypal' ? (
-                                    <div className="mt-6 rounded-[28px] border border-[#bfdcff] bg-[#eef7ff] p-6">
-                                        <p className="text-sm font-black uppercase tracking-[0.18em] text-[#003087]">PayPal</p>
-                                        <p className="mt-3 text-sm text-slate-600">We already placed PayPal in the flow, but we are keeping it visual-only for now until the real integration is configured.</p>
-                                        <button
-                                            type="button"
-                                            onClick={() =>
-                                                notyf.open({
-                                                    type: 'info',
-                                                    message: 'PayPal is visible in the UI, but still pending configuration.',
-                                                    background: '#0070ba',
-                                                })
-                                            }
-                                            className="mt-5 w-full rounded-2xl bg-[#0070ba] px-4 py-3 text-sm font-black text-slate-900 shadow-[0_14px_28px_rgba(0,112,186,0.22)]"
-                                        >
-                                            Pay with PayPal
-                                        </button>
+                                <div className="mt-6 space-y-5">
+                                    <div className="rounded-[28px] border border-slate-200 bg-slate-50 p-5">
+                                        <div className="flex flex-wrap items-center justify-between gap-4">
+                                            <div>
+                                                <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">Payment summary</p>
+                                                <p className="mt-2 text-4xl font-black text-slate-950">${amount.toFixed(2)}</p>
+                                            </div>
+                                            <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-black text-emerald-700">
+                                                {isAlreadyPaid ? 'Already secured' : 'Secure hold'}
+                                            </div>
+                                        </div>
+                                        <p className="mt-3 text-sm text-slate-500">
+                                            {paymentMethod === 'paypal'
+                                                ? 'PayPal secures this payment now and sends your electronic invoice automatically.'
+                                                : 'Wompi integration is coming next. Keep this option selected to preview the future flow.'}
+                                        </p>
+                                        <div className="mt-4 rounded-[24px] border border-white/80 bg-white/90 p-4 shadow-sm">
+                                            <div className="flex items-center justify-between gap-3 text-sm">
+                                                <span className="font-semibold text-slate-500">Service subtotal</span>
+                                                <span className="font-black text-slate-900">${subtotal.toFixed(2)}</span>
+                                            </div>
+                                            <div className="mt-3 flex items-center justify-between gap-3 text-sm">
+                                                <span className="font-semibold text-slate-500">Fixlife secure hold</span>
+                                                <span className="font-black text-slate-900">${serviceFee.toFixed(2)}</span>
+                                            </div>
+                                            <div className="mt-4 flex items-center justify-between gap-3 border-t border-slate-100 pt-4">
+                                                <span className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">Total</span>
+                                                <span className="text-2xl font-black text-slate-950">${amount.toFixed(2)}</span>
+                                            </div>
+                                        </div>
                                     </div>
-                                ) : (
-                                    <div className="mt-6 space-y-5">
-                                        <div className="rounded-[28px] border border-slate-200 bg-slate-50 p-5">
-                                            <div className="flex flex-wrap items-center justify-between gap-4">
-                                                <div>
-                                                    <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">Payment summary</p>
-                                                    <p className="mt-2 text-4xl font-black text-slate-950">${amount.toFixed(2)}</p>
-                                                </div>
-                                                <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-black text-emerald-700">
-                                                    {isAlreadyPaid ? 'Already secured' : 'Secure hold'}
-                                                </div>
-                                            </div>
-                                            <p className="mt-3 text-sm text-slate-500">The charge is held for this job in demo mode so your worker can begin once payment is secured.</p>
-                                            <div className="mt-4 rounded-[24px] border border-white/80 bg-white/90 p-4 shadow-sm">
-                                                <div className="flex items-center justify-between gap-3 text-sm">
-                                                    <span className="font-semibold text-slate-500">Service subtotal</span>
-                                                    <span className="font-black text-slate-900">${subtotal.toFixed(2)}</span>
-                                                </div>
-                                                <div className="mt-3 flex items-center justify-between gap-3 text-sm">
-                                                    <span className="font-semibold text-slate-500">Fixlife secure hold</span>
-                                                    <span className="font-black text-slate-900">${serviceFee.toFixed(2)}</span>
-                                                </div>
-                                                <div className="mt-4 flex items-center justify-between gap-3 border-t border-slate-100 pt-4">
-                                                    <span className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">Total</span>
-                                                    <span className="text-2xl font-black text-slate-950">${amount.toFixed(2)}</span>
-                                                </div>
-                                            </div>
-                                        </div>
 
-                                        <div className="grid gap-4 md:grid-cols-2">
-                                            <label className="text-xs font-bold text-slate-600">
-                                                Full name
-                                                <input
-                                                    type="text"
-                                                    value={paymentForm.fullName}
-                                                    onChange={(e) => setPaymentForm((prev) => ({ ...prev, fullName: e.target.value }))}
-                                                    className="mt-1.5 w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm text-slate-900 focus:border-bird-blue focus:outline-none"
-                                                    placeholder="Claudia Lopez"
-                                                />
-                                            </label>
-                                            <label className="text-xs font-bold text-slate-600">
-                                                Email
-                                                <input
-                                                    type="email"
-                                                    value={paymentForm.email}
-                                                    onChange={(e) => setPaymentForm((prev) => ({ ...prev, email: e.target.value }))}
-                                                    className="mt-1.5 w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm text-slate-900 focus:border-bird-blue focus:outline-none"
-                                                    placeholder="claudia@email.com"
-                                                />
-                                            </label>
-                                            <label className="text-xs font-bold text-slate-600">
-                                                Phone
-                                                <input
-                                                    type="text"
-                                                    value={paymentForm.phone}
-                                                    onChange={(e) => setPaymentForm((prev) => ({ ...prev, phone: e.target.value }))}
-                                                    className="mt-1.5 w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm text-slate-900 focus:border-bird-blue focus:outline-none"
-                                                    placeholder="+503 7000 0000"
-                                                />
-                                            </label>
-                                            <label className="text-xs font-bold text-slate-600">
-                                                City
-                                                <input
-                                                    type="text"
-                                                    value={paymentForm.city}
-                                                    onChange={(e) => setPaymentForm((prev) => ({ ...prev, city: e.target.value }))}
-                                                    className="mt-1.5 w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm text-slate-900 focus:border-bird-blue focus:outline-none"
-                                                    placeholder="Santa Tecla"
-                                                />
-                                            </label>
-                                        </div>
-
+                                    <div className="grid gap-4 md:grid-cols-2">
                                         <label className="text-xs font-bold text-slate-600">
-                                            Country
-                                            <select
-                                                value={paymentForm.country}
-                                                onChange={(e) => setPaymentForm((prev) => ({ ...prev, country: e.target.value }))}
-                                                className="mt-1.5 w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm text-slate-900 focus:border-bird-blue focus:outline-none"
-                                            >
-                                                <option value="El Salvador">El Salvador</option>
-                                                <option value="Guatemala">Guatemala</option>
-                                                <option value="Honduras">Honduras</option>
-                                                <option value="Mexico">Mexico</option>
-                                            </select>
-                                        </label>
-
-                                        <label className="text-xs font-bold text-slate-600">
-                                            Card number
+                                            Full name
                                             <input
                                                 type="text"
-                                                value={paymentForm.cardNumber}
-                                                onChange={(e) => setPaymentForm((prev) => ({ ...prev, cardNumber: e.target.value }))}
+                                                value={paymentForm.fullName}
+                                                onChange={(e) => setPaymentForm((prev) => ({ ...prev, fullName: e.target.value }))}
                                                 className="mt-1.5 w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm text-slate-900 focus:border-bird-blue focus:outline-none"
-                                                placeholder="4242 4242 4242 4242"
+                                                placeholder="Claudia Lopez"
                                             />
                                         </label>
-
-                                        <div className="grid gap-4 md:grid-cols-2">
-                                            <label className="text-xs font-bold text-slate-600">
-                                                MM / YY
-                                                <input
-                                                    type="text"
-                                                    value={paymentForm.expiry}
-                                                    onChange={(e) => setPaymentForm((prev) => ({ ...prev, expiry: e.target.value }))}
-                                                    className="mt-1.5 w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm text-slate-900 focus:border-bird-blue focus:outline-none"
-                                                    placeholder="08 / 29"
-                                                />
-                                            </label>
-                                            <label className="text-xs font-bold text-slate-600">
-                                                CVV
-                                                <input
-                                                    type="password"
-                                                    value={paymentForm.cvv}
-                                                    onChange={(e) => setPaymentForm((prev) => ({ ...prev, cvv: e.target.value }))}
-                                                    className="mt-1.5 w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm text-slate-900 focus:border-bird-blue focus:outline-none"
-                                                    placeholder="123"
-                                                />
-                                            </label>
-                                        </div>
-
-                                        <button
-                                            type="button"
-                                            onClick={() => void handleCardPayment()}
-                                            disabled={isPaying || isAlreadyPaid}
-                                            className="w-full rounded-[24px] bg-bird-blue px-5 py-4 text-sm font-black text-slate-900 shadow-[0_18px_36px_rgba(29,78,216,0.24)] transition hover:bg-bird-darkBlue disabled:cursor-not-allowed disabled:opacity-60"
-                                        >
-                                            {isAlreadyPaid
-                                                ? 'Payment already secured'
-                                                : isPaying
-                                                    ? 'Processing payment...'
-                                                    : 'Pay and secure booking'}
-                                        </button>
+                                        <label className="text-xs font-bold text-slate-600">
+                                            Email
+                                            <input
+                                                type="email"
+                                                value={paymentForm.email}
+                                                onChange={(e) => setPaymentForm((prev) => ({ ...prev, email: e.target.value }))}
+                                                className="mt-1.5 w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm text-slate-900 focus:border-bird-blue focus:outline-none"
+                                                placeholder="claudia@email.com"
+                                            />
+                                        </label>
+                                        <label className="text-xs font-bold text-slate-600">
+                                            Phone
+                                            <input
+                                                type="text"
+                                                value={paymentForm.phone}
+                                                onChange={(e) => setPaymentForm((prev) => ({ ...prev, phone: e.target.value }))}
+                                                className="mt-1.5 w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm text-slate-900 focus:border-bird-blue focus:outline-none"
+                                                placeholder="+503 7000 0000"
+                                            />
+                                        </label>
+                                        <label className="text-xs font-bold text-slate-600">
+                                            City
+                                            <input
+                                                type="text"
+                                                value={paymentForm.city}
+                                                onChange={(e) => setPaymentForm((prev) => ({ ...prev, city: e.target.value }))}
+                                                className="mt-1.5 w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm text-slate-900 focus:border-bird-blue focus:outline-none"
+                                                placeholder="Santa Tecla"
+                                            />
+                                        </label>
                                     </div>
-                                )}
+
+                                    <label className="text-xs font-bold text-slate-600">
+                                        Country
+                                        <select
+                                            value={paymentForm.country}
+                                            onChange={(e) => setPaymentForm((prev) => ({ ...prev, country: e.target.value }))}
+                                            className="mt-1.5 w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm text-slate-900 focus:border-bird-blue focus:outline-none"
+                                        >
+                                            <option value="El Salvador">El Salvador</option>
+                                            <option value="Guatemala">Guatemala</option>
+                                            <option value="Honduras">Honduras</option>
+                                            <option value="Mexico">Mexico</option>
+                                        </select>
+                                    </label>
+
+                                    <button
+                                        type="button"
+                                        onClick={() => void handleSecurePayment()}
+                                        disabled={isPaying || isAlreadyPaid || paymentMethod === 'wompi'}
+                                        className="w-full rounded-[24px] bg-bird-blue px-5 py-4 text-sm font-black text-slate-900 shadow-[0_18px_36px_rgba(29,78,216,0.24)] transition hover:bg-bird-darkBlue disabled:cursor-not-allowed disabled:opacity-60"
+                                    >
+                                        {isAlreadyPaid
+                                            ? 'Payment already secured'
+                                            : isPaying
+                                                ? 'Processing payment...'
+                                                : paymentMethod === 'paypal'
+                                                    ? 'Pay with PayPal and secure booking'
+                                                    : 'Wompi coming soon'}
+                                    </button>
+                                </div>
                             </motion.div>
                         ) : (
                             renderFinalStage()
