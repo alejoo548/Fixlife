@@ -38,6 +38,7 @@ interface TrackableRequest {
 interface ClientLiveRequestTrackerProps {
     leafletReady: boolean;
     request: TrackableRequest;
+    onClose?: () => void;
 }
 
 type TrackerStage =
@@ -206,7 +207,9 @@ const focusRouteViewport = (
     isLiveRoute: boolean,
     cameraMode: CameraMode = 'balanced'
 ) => {
-    if (!map || !L || !points.length) return;
+    const validPoints = points.filter(([lat, lng]) => Number.isFinite(lat) && Number.isFinite(lng));
+    if (!map || !L || validPoints.length === 0) return;
+    points = validPoints;
 
     const isDesktop = typeof window !== 'undefined' ? window.innerWidth >= 1024 : true;
     const firstPoint = points[0];
@@ -400,25 +403,26 @@ const stageVisual = (stage: TrackerStage) => {
 const createTrackerIcon = (L: any, kind: 'worker' | 'client') =>
     L.divIcon({
         className: 'client-live-tracker-icon',
-        iconSize: [34, 34],
-        iconAnchor: [17, 17],
+        iconSize: [40, 40],
+        iconAnchor: [20, 20],
         html:
             kind === 'worker'
                 ? `
-                    <div style="position:relative;width:34px;height:34px;">
-                        <div style="position:absolute;inset:0;border-radius:999px;background:rgba(56,189,248,.18);animation:pulse-glow 1.9s ease-in-out infinite;"></div>
-                        <div style="position:absolute;inset:5px;border-radius:999px;background:#0ea5e9;border:3px solid #ffffff;box-shadow:0 10px 24px rgba(14,165,233,.35);"></div>
+                    <div style="position:relative;width:40px;height:40px;display:flex;align-items:center;justify-content:center;">
+                        <div style="position:absolute;inset:0;border-radius:999px;background:rgba(59,130,246,0.15);animation:pulse-glow 2s ease-in-out infinite;"></div>
+                        <div style="position:absolute;inset:4px;border-radius:999px;background:rgba(59,130,246,0.3);"></div>
+                        <div style="position:relative;width:20px;height:20px;border-radius:999px;background:#2563eb;border:2.5px solid #ffffff;box-shadow:0 8px 16px rgba(37,99,235,0.4);"></div>
                     </div>
                   `
                 : `
-                    <div style="position:relative;width:34px;height:34px;">
-                        <div style="position:absolute;inset:0;border-radius:999px;background:rgba(251,191,36,.20);animation:pulse-glow 2.1s ease-in-out infinite;"></div>
-                        <div style="position:absolute;left:50%;top:2px;transform:translateX(-50%);width:24px;height:24px;border-radius:999px 999px 999px 0;background:#f59e0b;border:3px solid #ffffff;box-shadow:0 12px 22px rgba(245,158,11,.32);rotate:-45deg;"></div>
+                    <div style="position:relative;width:40px;height:40px;display:flex;align-items:center;justify-content:center;">
+                        <div style="position:absolute;inset:0;border-radius:999px;background:rgba(15,23,42,0.1);animation:pulse-glow 2s ease-in-out infinite;"></div>
+                        <div style="position:relative;width:18px;height:18px;border-radius:2px;background:#0f172a;border:2.5px solid #ffffff;box-shadow:0 8px 16px rgba(15,23,42,0.3);transform:rotate(45deg);"></div>
                     </div>
                   `,
     });
 
-const ClientLiveRequestTracker: React.FC<ClientLiveRequestTrackerProps> = ({ leafletReady, request }) => {
+const ClientLiveRequestTracker: React.FC<ClientLiveRequestTrackerProps> = ({ leafletReady, request, onClose }) => {
     const mapContainerRef = useRef<HTMLDivElement | null>(null);
     const mapInstanceRef = useRef<any>(null);
     const routeGlowRef = useRef<any>(null);
@@ -758,21 +762,21 @@ const ClientLiveRequestTracker: React.FC<ClientLiveRequestTrackerProps> = ({ lea
         }
 
         routeGlowRef.current = L.polyline(routePoints, {
-            color: '#93c5fd',
-            weight: 14,
-            opacity: 0.22,
+            color: '#3b82f6',
+            weight: 12,
+            opacity: 0.15,
             lineCap: 'round',
             lineJoin: 'round',
             className: 'worker-route-glow',
         }).addTo(map);
 
         routeLineRef.current = L.polyline(routePoints, {
-            color: '#2563eb',
-            weight: 6,
-            opacity: 0.94,
+            color: '#1d4ed8',
+            weight: 4,
+            opacity: 0.8,
             lineCap: 'round',
             lineJoin: 'round',
-            dashArray: '14 10',
+            dashArray: '10 8',
             className: 'worker-route-line worker-route-live',
         }).addTo(map);
 
@@ -917,231 +921,123 @@ const ClientLiveRequestTracker: React.FC<ClientLiveRequestTrackerProps> = ({ lea
     const distanceLabel = routeLoading ? 'Updating' : `${(metrics?.distanceKm ?? routePreview?.distanceKm ?? 0).toFixed(1)} km`;
 
     return (
-        <>
-            <AnimatePresence>
-                {isMapExpanded && (
-                    <>
-                        <motion.div
-                            initial={{ opacity: 0 }}
-                            animate={{ opacity: 1 }}
-                            exit={{ opacity: 0 }}
-                            className="fixed inset-0 z-[60] bg-slate-950/45 backdrop-blur-[4px]"
-                            onClick={() => setIsMapExpanded(false)}
-                        />
-                    </>
-                )}
-            </AnimatePresence>
+        <div className={`relative h-full min-h-[400px] w-full overflow-hidden rounded-[2rem] shadow-2xl bg-slate-100 border border-slate-200/50 ${isMapExpanded ? 'fixed inset-4 z-[70]' : ''}`}>
+            {/* Map Background */}
+            <div ref={mapContainerRef} className="absolute inset-0 z-0" />
+            
+            {/* Subtle Gradient Overlays for better readability of floating elements */}
+            <div className="pointer-events-none absolute inset-x-0 top-0 h-40 bg-gradient-to-b from-black/20 to-transparent z-10" />
+            <div className="pointer-events-none absolute inset-x-0 bottom-0 h-64 bg-gradient-to-t from-black/10 to-transparent z-10" />
 
-            <div className="overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-lg">
-            <div className="border-b border-gray-100 bg-white px-5 py-4">
-                <div className="flex flex-wrap items-start justify-between gap-3">
-                    <div>
-                        <div className="inline-flex items-center gap-2 rounded-full bg-gray-100 px-3 py-1 text-[10px] font-medium uppercase tracking-wider text-gray-500">
-                            <span className="h-2 w-2 rounded-full bg-green-500 animate-pulse" />
-                            Client tracker
+            {!leafletReady && (
+                <div className="absolute right-6 top-6 z-20 h-3 w-3 rounded-full bg-blue-500 animate-pulse shadow-[0_0_12px_rgba(59,130,246,0.8)]" />
+            )}
+
+            {/* Top Floating Header */}
+            <div className="absolute top-4 left-4 right-4 sm:top-6 sm:left-6 sm:right-6 z-20 flex flex-col sm:flex-row sm:items-start justify-between gap-3 pointer-events-none">
+                <div className="flex items-center justify-between w-full sm:w-auto gap-3">
+                    {onClose && (
+                        <motion.button
+                            initial={{ y: -20, opacity: 0 }}
+                            animate={{ y: 0, opacity: 1 }}
+                            onClick={onClose}
+                            className="pointer-events-auto h-10 w-10 sm:h-12 sm:w-12 shrink-0 flex items-center justify-center bg-white/95 backdrop-blur-md rounded-full shadow-lg border border-white/60 text-slate-700 hover:text-slate-900 transition-colors"
+                        >
+                            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M15 19l-7-7 7-7" />
+                            </svg>
+                        </motion.button>
+                    )}
+
+                    {/* Status Pill */}
+                    <motion.div 
+                        initial={{ y: -20, opacity: 0 }}
+                        animate={{ y: 0, opacity: 1 }}
+                        className="pointer-events-auto flex-1 sm:flex-none flex items-center gap-3 sm:gap-4 bg-white/95 backdrop-blur-md px-4 sm:px-5 py-2.5 sm:py-3.5 rounded-full sm:rounded-[1.25rem] shadow-lg border border-white/60"
+                    >
+                        <div className="relative flex items-center justify-center shrink-0">
+                            <div className={`absolute inset-0 rounded-full blur-md opacity-40 ${visual.toneClass.includes('emerald') || visual.toneClass.includes('green') ? 'bg-emerald-500' : 'bg-blue-500'}`}></div>
+                            <div className="h-2 w-2 sm:h-2.5 sm:w-2.5 rounded-full bg-blue-500 relative z-10 animate-pulse"></div>
                         </div>
-                        <h3 className="mt-3 text-xl font-black text-slate-950">{workerName} is handling this request</h3>
-                        <p className="mt-1 max-w-xl text-sm text-slate-500">{visual.note}</p>
-                    </div>
-                    <div className={`rounded-full border px-3 py-2 text-[11px] font-black uppercase tracking-[0.18em] shadow-sm ${visual.toneClass}`}>
-                        {visual.label}
-                    </div>
+                        <div className="min-w-0">
+                            <p className="text-[9px] sm:text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 leading-none mb-1 sm:mb-1.5">Status</p>
+                            <p className="text-xs sm:text-sm font-black text-slate-900 leading-none truncate">{visual.label}</p>
+                        </div>
+                    </motion.div>
                 </div>
+
+                {/* Right controls (e.g. Expand Map if needed, or Request ID) */}
+                <motion.div 
+                    initial={{ y: -20, opacity: 0 }}
+                    animate={{ y: 0, opacity: 1 }}
+                    className="pointer-events-auto self-end sm:self-auto bg-white/95 backdrop-blur-md px-3 sm:px-4 py-2 sm:py-3 rounded-xl sm:rounded-2xl shadow-lg border border-white/60 text-right"
+                >
+                    <p className="text-[9px] sm:text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 leading-none mb-1 sm:mb-1.5">Request</p>
+                    <p className="text-xs sm:text-sm font-black text-slate-900 leading-none">#{request.id_request}</p>
+                </motion.div>
             </div>
 
-            <div className="grid gap-0">
-                <div
-                    className={
-                        isMapExpanded
-                            ? 'fixed inset-4 z-[70] min-h-0 overflow-hidden rounded-[32px] border border-white/70 bg-slate-100 shadow-[0_32px_90px_rgba(15,23,42,0.22)]'
-                            : 'relative min-h-[340px] bg-slate-100'
-                    }
+            {/* Bottom Floating Card (Uber Style) */}
+            <div className="absolute bottom-4 left-4 right-4 sm:bottom-6 sm:left-6 sm:right-6 z-20 pointer-events-none flex justify-center">
+                <motion.div 
+                    initial={{ y: 40, opacity: 0 }}
+                    animate={{ y: 0, opacity: 1 }}
+                    className="pointer-events-auto w-full max-w-md bg-white rounded-[2rem] shadow-[0_20px_60px_-15px_rgba(0,0,0,0.3)] p-6 border border-slate-100 relative overflow-hidden"
                 >
-                    <div ref={mapContainerRef} className={isMapExpanded ? 'absolute inset-0 rounded-[32px]' : 'absolute inset-0'} />
-                    <div className="pointer-events-none absolute inset-0">
-                        <div className="absolute inset-x-0 top-0 h-28 bg-gradient-to-b from-white/70 via-white/10 to-transparent" />
-                        <div className="absolute inset-y-0 left-0 w-20 bg-gradient-to-r from-white/35 via-white/10 to-transparent" />
-                        <div className="absolute inset-y-0 right-0 w-16 bg-gradient-to-l from-white/25 via-white/5 to-transparent" />
-                    </div>
-                    {!leafletReady && (
-                        <div className="absolute right-4 top-4 h-2.5 w-2.5 rounded-full bg-bird-blue/40 animate-pulse" />
-                    )}
-
-                    <div className="absolute left-4 top-4 right-4 flex items-start justify-between gap-3">
-                        <div className="rounded-2xl border border-white/70 bg-white/92 px-3 py-2 shadow-lg backdrop-blur">
-                            <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">Destination</p>
-                            <p className="mt-1 max-w-[210px] text-xs font-semibold text-slate-700 line-clamp-2">{request.location_text}</p>
-                        </div>
-                        <div className="rounded-2xl border border-white/70 bg-white/92 px-3 py-2 text-right shadow-lg backdrop-blur">
-                            <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">Request</p>
-                            <p className="mt-1 text-xs font-black text-slate-900">#{request.id_request}</p>
-                        </div>
-                    </div>
-
-                    {isMapExpanded && (
-                        <div className="absolute right-4 top-4 z-20 flex items-center gap-2">
-                            <div className="hidden rounded-full border border-white/70 bg-white/92 p-1 shadow-lg backdrop-blur md:flex">
-                                <button
-                                    type="button"
-                                    onClick={() => setCameraMode('balanced')}
-                                    className={`rounded-full px-3 py-2 text-[11px] font-black transition ${
-                                        cameraMode === 'balanced'
-                                            ? 'bg-gray-900 text-white'
-                                            : 'text-slate-600 hover:bg-slate-100'
-                                    }`}
-                                >
-                                    Balanced
-                                </button>
-                                <button
-                                    type="button"
-                                    onClick={() => setCameraMode('close')}
-                                    className={`rounded-full px-3 py-2 text-[11px] font-black transition ${
-                                        cameraMode === 'close'
-                                            ? 'bg-gray-900 text-white'
-                                            : 'text-slate-600 hover:bg-slate-100'
-                                    }`}
-                                >
-                                    Close Follow
-                                </button>
-                            </div>
-                            <span className="rounded-full bg-white/90 px-3 py-1.5 text-[10px] font-medium uppercase tracking-wider text-gray-600 shadow-lg backdrop-blur">
-                                Expanded map
-                            </span>
-                            <button
-                                type="button"
-                                onClick={() => setIsMapExpanded(false)}
-                                className="rounded-full border border-white/70 bg-white/92 px-3 py-2 text-[11px] font-black text-slate-700 shadow-lg backdrop-blur hover:bg-white"
-                            >
-                                Close
-                            </button>
-                        </div>
-                    )}
-
-                    <div
-                        className={`absolute z-10 rounded-[26px] border border-white/75 bg-white/92 shadow-[0_18px_45px_rgba(15,23,42,0.12)] backdrop-blur-xl transition-all ${
-                            isMapExpanded
-                                ? 'bottom-4 left-1/2 w-[min(340px,calc(100%-32px))] -translate-x-1/2 p-3'
-                                : 'bottom-4 left-4 right-4 p-4'
-                        }`}
-                    >
-                        <div className="flex items-start justify-between gap-3">
-                            <div className="min-w-0">
-                                <p className="text-[10px] font-medium uppercase tracking-wider text-gray-400">Worker on route</p>
-                                <h4 className={`mt-2 truncate font-black text-slate-950 ${isMapExpanded ? 'text-base' : 'text-lg'}`}>{workerName}</h4>
-                                <p className={`mt-1 truncate text-slate-500 ${isMapExpanded ? 'text-xs' : 'text-sm'}`}>{request.service_name}</p>
-                            </div>
-                            <span className={`rounded-full border px-3 py-1 text-[10px] font-black uppercase tracking-[0.18em] ${visual.toneClass}`}>
-                                {visual.label}
-                            </span>
-                        </div>
-                        <div className={`mt-3 grid gap-2 ${isMapExpanded ? 'grid-cols-3' : 'grid-cols-3'}`}>
-                            <div className="rounded-xl bg-gray-50 px-3 py-2">
-                                <p className="text-[10px] font-medium uppercase tracking-wider text-gray-400">ETA</p>
-                                <p className="mt-1 text-sm font-bold text-gray-900">{etaLabel}</p>
-                            </div>
-                            <div className="rounded-xl bg-gray-50 px-3 py-2">
-                                <p className="text-[10px] font-medium uppercase tracking-wider text-gray-400">Distance</p>
-                                <p className="mt-1 text-sm font-bold text-gray-900">{distanceLabel}</p>
-                            </div>
-                            <div className="rounded-xl bg-gray-50 px-3 py-2">
-                                <p className="text-[10px] font-medium uppercase tracking-wider text-gray-400">Route</p>
-                                <p className="mt-1 text-sm font-bold text-gray-900">
-                                    {request.status === 'paid' ? 'Live demo' : request.status === 'done' ? 'Finished' : 'Stand by'}
-                                </p>
-                            </div>
-                        </div>
-                        {isMapExpanded && (
-                            <div className="mt-3 flex items-center justify-between gap-2 text-[11px] font-bold text-slate-500">
-                                <span className="truncate">Following your worker in real time</span>
-                                <button
-                                    type="button"
-                                    onClick={() => setCameraMode((prev) => (prev === 'close' ? 'balanced' : 'close'))}
-                                    className="shrink-0 rounded-full bg-gray-100 px-3 py-1 text-[10px] font-medium uppercase tracking-wider text-gray-600"
-                                >
-                                    {cameraMode === 'close' ? 'Close follow' : 'Balanced'}
-                                </button>
-                            </div>
-                        )}
-                    </div>
-                </div>
-
-                <div className="bg-white px-5 py-5 lg:px-6">
-                    <div className="rounded-2xl border border-gray-100 bg-white p-5">
-                        <div className="flex items-start justify-between gap-3">
-                            <div className="min-w-0">
-                                <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">Request summary</p>
-                                <h4 className="mt-2 truncate text-xl font-black text-slate-950">{request.service_name}</h4>
-                                <p className="mt-2 text-sm leading-6 text-slate-500 line-clamp-2">{request.location_text}</p>
-                            </div>
-                            <span className="shrink-0 rounded-full bg-gray-100 px-3 py-1 text-[11px] font-medium text-gray-500">
-                                #{request.id_request}
-                            </span>
-                        </div>
-
-                        <div className="mt-5 grid grid-cols-2 gap-3 xl:grid-cols-4">
-                            <div className="rounded-xl bg-gray-50 p-4">
-                                <p className="text-[10px] font-medium uppercase tracking-wider text-gray-400">ETA</p>
-                                <p className="mt-2 text-xl font-bold text-gray-900">{etaLabel}</p>
-                            </div>
-                            <div className="rounded-xl bg-gray-50 p-4">
-                                <p className="text-[10px] font-medium uppercase tracking-wider text-gray-400">Distance</p>
-                                <p className="mt-2 text-xl font-bold text-gray-900">{distanceLabel}</p>
-                            </div>
-                            <div className="rounded-xl bg-gray-50 p-4">
-                                <p className="text-[10px] font-medium uppercase tracking-wider text-gray-400">Stage</p>
-                                <p className="mt-2 text-base font-bold text-gray-900">{visual.label}</p>
-                            </div>
-                            <div className="rounded-2xl border border-slate-200 bg-white p-4">
-                                <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">Worker</p>
-                                <p className="mt-2 text-base font-black text-slate-900">
-                                    {request.assigned_worker?.is_online ? 'Online now' : 'Assigned'}
-                                </p>
-                            </div>
-                        </div>
-
-                        <div className="mt-4 flex flex-wrap items-center gap-3">
-                            <button
-                                type="button"
-                                onClick={() => setIsMapExpanded((prev) => !prev)}
-                                className="rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm font-medium text-gray-700 transition hover:bg-gray-50"
-                            >
-                                {isMapExpanded ? 'Collapse map' : 'Expand map'}
-                            </button>
-                            <div className="rounded-2xl border border-slate-200 bg-white p-1 shadow-sm">
-                                <div className="grid grid-cols-2 gap-1">
-                                    <button
-                                        type="button"
-                                        onClick={() => setCameraMode('balanced')}
-                                        className={`rounded-xl px-3 py-2 text-xs font-black transition ${
-                                            cameraMode === 'balanced'
-                                                ? 'bg-gray-900 text-white'
-                                                : 'text-slate-600 hover:bg-slate-100'
-                                        }`}
-                                    >
-                                        Balanced
-                                    </button>
-                                    <button
-                                        type="button"
-                                        onClick={() => setCameraMode('close')}
-                                        className={`rounded-xl px-3 py-2 text-xs font-black transition ${
-                                            cameraMode === 'close'
-                                                ? 'bg-gray-900 text-white'
-                                                : 'text-slate-600 hover:bg-slate-100'
-                                        }`}
-                                    >
-                                        Close Follow
-                                    </button>
+                    {/* Drag handle decoration */}
+                    <div className="absolute top-3 left-1/2 -translate-x-1/2 w-12 h-1.5 bg-gray-200 rounded-full" />
+                    
+                    {/* Main Worker Info & ETA */}
+                    <div className="mt-2 flex items-center justify-between">
+                        <div className="flex items-center gap-4 min-w-0">
+                            <div className="w-14 h-14 shrink-0 rounded-full bg-gradient-to-tr from-blue-600 to-blue-400 p-[2px] shadow-md">
+                                <div className="w-full h-full rounded-full bg-white border-2 border-white flex items-center justify-center overflow-hidden">
+                                    <span className="text-blue-600 font-black text-xl">
+                                        {workerName.charAt(0).toUpperCase()}
+                                    </span>
                                 </div>
                             </div>
-                            <div className="rounded-full bg-gray-100 px-3 py-1.5 text-[11px] font-medium uppercase tracking-wider text-gray-500">
-                                {request.status === 'paid' ? 'Live route' : request.status === 'done' ? 'Finished' : 'Stand by'}
+                            <div className="min-w-0">
+                                <h3 className="text-lg font-black text-slate-900 truncate">{workerName}</h3>
+                                <p className="text-sm font-semibold text-slate-500 truncate">{request.service_name}</p>
                             </div>
                         </div>
+                        <div className="text-right shrink-0 pl-4 border-l border-slate-100 ml-4">
+                            <div className="text-2xl font-black text-slate-900 tracking-tight">{etaLabel}</div>
+                            <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-0.5">ETA</div>
+                        </div>
                     </div>
-                </div>
-                </div>
+
+                    <div className="mt-5 grid grid-cols-2 gap-3">
+                        <div className="bg-slate-50 rounded-2xl p-3.5 border border-slate-100">
+                            <div className="flex items-center gap-2 mb-1">
+                                <svg className="w-4 h-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" /></svg>
+                                <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Distance</p>
+                            </div>
+                            <p className="text-sm font-bold text-slate-900">{distanceLabel}</p>
+                        </div>
+                        <div className="bg-slate-50 rounded-2xl p-3.5 border border-slate-100">
+                            <div className="flex items-center gap-2 mb-1">
+                                <svg className="w-4 h-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.243-4.243a8 8 0 1111.314 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+                                <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Dest.</p>
+                            </div>
+                            <p className="text-xs font-bold text-slate-900 truncate">{request.location_text.split(',')[0]}</p>
+                        </div>
+                    </div>
+
+                    <div className="mt-5 flex gap-3">
+                        <button
+                            type="button"
+                            onClick={() => setCameraMode(prev => prev === 'close' ? 'balanced' : 'close')}
+                            className="flex-1 bg-slate-900 hover:bg-black text-white font-bold text-sm py-3.5 rounded-xl transition-colors shadow-md flex items-center justify-center gap-2"
+                        >
+                            <svg className="w-4 h-4 opacity-70" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
+                            {cameraMode === 'close' ? 'View Route' : 'Follow Worker'}
+                        </button>
+                    </div>
+                </motion.div>
             </div>
-        </>
+        </div>
     );
 };
 
