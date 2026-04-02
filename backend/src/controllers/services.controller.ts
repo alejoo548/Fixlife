@@ -1488,43 +1488,49 @@ const getPaypalAccessToken = async () => {
 const createPaypalOrder = async (input: {
   amount: number;
   checkoutReference: string;
-  payerName: string;
-  payerEmail: string;
+  payerName?: string;
+  payerEmail?: string;
   returnUrl: string;
   cancelUrl: string;
 }) => {
   const accessToken = await getPaypalAccessToken();
+  const orderPayload: any = {
+    intent: 'CAPTURE',
+    purchase_units: [
+      {
+        reference_id: input.checkoutReference,
+        description: 'Fixlife service payment',
+        amount: {
+          currency_code: 'USD',
+          value: input.amount.toFixed(2),
+        },
+      },
+    ],
+    application_context: {
+      shipping_preference: 'NO_SHIPPING',
+      user_action: 'PAY_NOW',
+      return_url: input.returnUrl,
+      cancel_url: input.cancelUrl,
+    },
+  };
+
+  if (String(input.payerEmail || '').trim()) {
+    const firstName = String(input.payerName || '').trim().split(' ')[0] || 'Fixlife';
+    orderPayload.payer = {
+      name: {
+        given_name: firstName,
+      },
+      email_address: String(input.payerEmail).trim(),
+    };
+  }
+
   const response = await fetch(`${getPaypalBaseUrl()}/v2/checkout/orders`, {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${accessToken}`,
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify({
-      intent: 'CAPTURE',
-      purchase_units: [
-        {
-          reference_id: input.checkoutReference,
-          description: 'Fixlife service payment',
-          amount: {
-            currency_code: 'USD',
-            value: input.amount.toFixed(2),
-          },
-        },
-      ],
-      payer: {
-        name: {
-          given_name: input.payerName.split(' ')[0] || input.payerName,
-        },
-        email_address: input.payerEmail,
-      },
-      application_context: {
-        shipping_preference: 'NO_SHIPPING',
-        user_action: 'PAY_NOW',
-        return_url: input.returnUrl,
-        cancel_url: input.cancelUrl,
-      },
-    }),
+    body: JSON.stringify(orderPayload),
   });
 
   const payload = await response.json();
@@ -2495,18 +2501,12 @@ export const createRequestPaymentCheckout = async (req: AuthRequest, res: Respon
     let paypalApproveUrl: string | null = null;
 
     if (paymentMethod === 'paypal') {
-      if (!payerFullName || !payerEmail) {
-        await connection.rollback();
-        res.status(400).json({ error: 'PayPal checkout needs payer name and email.' });
-        return;
-      }
-
       try {
         const order = await createPaypalOrder({
           amount,
           checkoutReference,
-          payerName: payerFullName,
-          payerEmail,
+          payerName: payerFullName || undefined,
+          payerEmail: payerEmail || undefined,
           returnUrl,
           cancelUrl,
         });
@@ -2574,9 +2574,6 @@ export const confirmRequestPayment = async (req: AuthRequest, res: Response): Pr
     const paymentMethod = normalizePaymentMethod(req.body?.payment_method);
     const payerFullName = sanitizePaymentValue(req.body?.payer?.full_name, 120);
     const payerEmail = sanitizePaymentValue(req.body?.payer?.email, 140);
-    const payerPhone = sanitizePaymentValue(req.body?.payer?.phone, 40);
-    const payerCity = sanitizePaymentValue(req.body?.payer?.city, 80);
-    const payerCountry = sanitizePaymentValue(req.body?.payer?.country, 80);
     const paypalOrderIdFromBody = sanitizePaymentValue(req.body?.paypal_order_id, 120);
     if (!idRequest) {
       res.status(400).json({ error: 'Invalid request id.' });

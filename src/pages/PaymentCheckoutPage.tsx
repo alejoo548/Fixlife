@@ -64,7 +64,6 @@ const getLocationMeta = (label: string) => {
 };
 
 const readString = (value: unknown) => (typeof value === 'string' ? value.trim() : '');
-const getPaypalPayerStorageKey = (idRequest: number) => `fixlife_paypal_payer_${idRequest}`;
 
 const renderStageIcon = (stage: CheckoutStage) => {
     if (stage === 'success') {
@@ -251,23 +250,16 @@ const PaymentCheckoutPage: React.FC<PaymentCheckoutPageProps> = ({ requestId, on
 
         setIsPaying(true);
         try {
-            const storageKey = getPaypalPayerStorageKey(request.id_request);
-            const savedPayerRaw = window.sessionStorage.getItem(storageKey);
-            let savedPayer: Record<string, string> | null = null;
-            if (savedPayerRaw) {
-                try {
-                    savedPayer = JSON.parse(savedPayerRaw) as Record<string, string>;
-                } catch {
-                    savedPayer = null;
-                }
-            }
+            const authUser = getAuthUser();
+            const authName = readString(authUser?.name);
+            const authEmail = readString(authUser?.email);
 
             const payer = {
-                full_name: readString(savedPayer?.fullName) || paymentForm.fullName.trim() || 'Fixlife Client',
-                email: readString(savedPayer?.email) || paymentForm.email.trim() || '',
-                phone: readString(savedPayer?.phone) || paymentForm.phone.trim() || 'N/A',
-                city: readString(savedPayer?.city) || paymentForm.city.trim() || locationMeta.city,
-                country: readString(savedPayer?.country) || paymentForm.country.trim() || locationMeta.country,
+                full_name: authName || paymentForm.fullName.trim() || 'Fixlife Client',
+                email: authEmail || paymentForm.email.trim() || '',
+                phone: paymentForm.phone.trim() || 'N/A',
+                city: paymentForm.city.trim() || locationMeta.city,
+                country: paymentForm.country.trim() || locationMeta.country,
             };
 
             const payRes = await fetch(API_ENDPOINTS.services.confirmPayment(request.id_request), {
@@ -306,7 +298,6 @@ const PaymentCheckoutPage: React.FC<PaymentCheckoutPageProps> = ({ requestId, on
                     : prev
             );
 
-            window.sessionStorage.removeItem(storageKey);
             window.history.replaceState({}, '', `/checkout/${request.id_request}`);
             setCheckoutStage('success');
             setCheckoutMessage('PayPal payment secured successfully. Your electronic invoice was sent to your email.');
@@ -352,14 +343,14 @@ const PaymentCheckoutPage: React.FC<PaymentCheckoutPageProps> = ({ requestId, on
         }
     }, [loading, requestId, request, isAlreadyPaid]);
 
-    const handleSecurePayment = async () => {
+    const handleSecurePayment = async (selectedMethod: CheckoutPaymentMethod = paymentMethod) => {
         const token = getToken();
         if (!token || !request) {
             notyf.error('Login required.');
             moveToErrorStage('Your session expired before checkout could start.');
             return;
         }
-        if (paymentMethod === 'wompi') {
+        if (selectedMethod === 'wompi') {
             notyf.open({
                 type: 'info',
                 message: 'Wompi will be available soon. Please use PayPal for now.',
@@ -378,20 +369,12 @@ const PaymentCheckoutPage: React.FC<PaymentCheckoutPageProps> = ({ requestId, on
             return;
         }
 
-        if (
-            !paymentForm.fullName.trim() ||
-            !paymentForm.email.trim() ||
-            !paymentForm.phone.trim() ||
-            !paymentForm.city.trim() ||
-            !paymentForm.country.trim()
-        ) {
-            notyf.error('Complete your billing details first.');
-            moveToErrorStage('We still need a few payment fields before we can secure this booking.');
-            return;
-        }
-
         setIsPaying(true);
         try {
+            const authUser = getAuthUser();
+            const authName = readString(authUser?.name);
+            const authEmail = readString(authUser?.email);
+
             const checkoutRes = await fetch(API_ENDPOINTS.services.paymentCheckout(request.id_request), {
                 method: 'POST',
                 headers: {
@@ -399,15 +382,12 @@ const PaymentCheckoutPage: React.FC<PaymentCheckoutPageProps> = ({ requestId, on
                     'Content-Type': 'application/json',
                 },
                 body: JSON.stringify({
-                    payment_method: paymentMethod,
+                    payment_method: selectedMethod,
                     return_url: `${window.location.origin}/checkout/${request.id_request}?paypal=success`,
                     cancel_url: `${window.location.origin}/checkout/${request.id_request}?paypal=cancel`,
                     payer: {
-                        full_name: paymentForm.fullName.trim(),
-                        email: paymentForm.email.trim(),
-                        phone: paymentForm.phone.trim(),
-                        city: paymentForm.city.trim(),
-                        country: paymentForm.country.trim(),
+                        full_name: authName || paymentForm.fullName.trim() || '',
+                        email: authEmail || paymentForm.email.trim() || '',
                     },
                 }),
             });
@@ -423,17 +403,6 @@ const PaymentCheckoutPage: React.FC<PaymentCheckoutPageProps> = ({ requestId, on
                 moveToErrorStage('PayPal did not return an approval link. Please try again.');
                 return;
             }
-
-            window.sessionStorage.setItem(
-                getPaypalPayerStorageKey(request.id_request),
-                JSON.stringify({
-                    fullName: paymentForm.fullName.trim(),
-                    email: paymentForm.email.trim(),
-                    phone: paymentForm.phone.trim(),
-                    city: paymentForm.city.trim(),
-                    country: paymentForm.country.trim(),
-                })
-            );
 
             window.location.href = approvalUrl;
             return;
@@ -671,7 +640,10 @@ const PaymentCheckoutPage: React.FC<PaymentCheckoutPageProps> = ({ requestId, on
                                 <div className="mt-6 grid gap-3 md:grid-cols-2">
                                     <button
                                         type="button"
-                                        onClick={() => setPaymentMethod('paypal')}
+                                        onClick={() => {
+                                            setPaymentMethod('paypal');
+                                            void handleSecurePayment('paypal');
+                                        }}
                                         className={`rounded-[26px] border px-5 py-5 text-left transition ${
                                             paymentMethod === 'paypal'
                                                 ? 'border-[#0070ba] bg-[#eef7ff] shadow-[0_16px_34px_rgba(0,112,186,0.14)]'
