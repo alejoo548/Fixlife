@@ -313,7 +313,7 @@ const PaymentCheckoutPage: React.FC<PaymentCheckoutPageProps> = ({ requestId, on
                 },
                 body: JSON.stringify({
                     payment_method: paymentMethod,
-                    paypal_order_id: `PAYPAL-SANDBOX-${Date.now()}`,
+                    paypal_order_id: checkoutPayload?.checkout?.provider_payment_id || null,
                     payer: {
                         full_name: paymentForm.fullName.trim(),
                         email: paymentForm.email.trim(),

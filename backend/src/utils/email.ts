@@ -3,14 +3,14 @@ import nodemailer from 'nodemailer';
 const transporter = nodemailer.createTransport({
   service: 'gmail',
   auth: {
-    user: 'fixlifeworks@gmail.com',
-    pass: 'annk vbyh ppne ssfy',
+    user: process.env.EMAIL_USER || '',
+    pass: process.env.EMAIL_PASS || '',
   },
 });
 
 export const sendVerificationEmail = async (to: string, otp: string, name: string) => {
   const mailOptions = {
-    from: '"Fixlife Support" <fixlifeworks@gmail.com>',
+    from: `"Fixlife Support" <${process.env.EMAIL_USER || 'no-reply@fixlife.local'}>`,
     to,
     subject: 'Your Fixlife Verification Code',
     html: `
@@ -45,7 +45,7 @@ export const sendVerificationEmail = async (to: string, otp: string, name: strin
 
 export const sendEmailChangeToken = async (to: string, otp: string, name: string) => {
   const mailOptions = {
-    from: '"Fixlife Support" <fixlifeworks@gmail.com>',
+    from: `"Fixlife Support" <${process.env.EMAIL_USER || 'no-reply@fixlife.local'}>`,
     to,
     subject: 'Fixlife - Verify Your New Email',
     html: `
@@ -85,7 +85,7 @@ export const sendProfileChangeNotice = async (
 ) => {
   const changeItems = changes.map((change) => `<li>${change}</li>`).join('');
   const mailOptions = {
-    from: '"Fixlife Security" <fixlifeworks@gmail.com>',
+    from: `"Fixlife Security" <${process.env.EMAIL_USER || 'no-reply@fixlife.local'}>`,
     to,
     subject: 'Fixlife Account Changes Detected',
     html: `
@@ -116,7 +116,7 @@ export const sendProfileChangeNotice = async (
 
 export const sendPasswordResetEmail = async (to: string, otp: string, name: string) => {
   const mailOptions = {
-    from: '"Fixlife Support" <fixlifeworks@gmail.com>',
+    from: `"Fixlife Support" <${process.env.EMAIL_USER || 'no-reply@fixlife.local'}>`,
     to,
     subject: 'Reset Your Fixlife Password',
     html: `
@@ -167,7 +167,7 @@ export const sendPaymentInvoiceEmail = async (input: PaymentInvoiceInput) => {
   const paidDate = input.paidAt.toLocaleString('es-SV', { hour12: true });
   const subtotal = Number(Math.max(input.amount - input.platformFee, 0).toFixed(2));
   const mailOptions = {
-    from: '"Fixlife Billing" <fixlifeworks@gmail.com>',
+    from: `"Fixlife Billing" <${process.env.EMAIL_USER || 'no-reply@fixlife.local'}>`,
     to: input.to,
     subject: `Factura Electronica Fixlife - ${input.invoiceNumber}`,
     html: `
@@ -229,7 +229,7 @@ type WorkerPaymentNoticeInput = {
 
 export const sendWorkerPaymentSecuredEmail = async (input: WorkerPaymentNoticeInput) => {
   const mailOptions = {
-    from: '"Fixlife Payments" <fixlifeworks@gmail.com>',
+    from: `"Fixlife Payments" <${process.env.EMAIL_USER || 'no-reply@fixlife.local'}>`,
     to: input.to,
     subject: `Pago confirmado para tu servicio #${input.requestId}`,
     html: `
