@@ -1437,6 +1437,120 @@ const buildInvoiceNumber = (idRequest: number) => {
   return `INV-FX-${idRequest}-${stamp}`;
 };
 
+const getPaypalBaseUrl = () =>
+  String(process.env.PAYPAL_MODE || 'sandbox').toLowerCase() === 'live'
+    ? 'https://api-m.paypal.com'
+    : 'https://api-m.sandbox.paypal.com';
+
+const getPaypalCredentials = () => {
+  const clientId = String(process.env.PAYPAL_CLIENT_ID || '').trim();
+  const clientSecret = String(process.env.PAYPAL_CLIENT_SECRET || '').trim();
+  return { clientId, clientSecret };
+};
+
+const getPaypalAccessToken = async () => {
+  const { clientId, clientSecret } = getPaypalCredentials();
+  if (!clientId || !clientSecret) {
+    throw new Error('PayPal credentials are missing on the server.');
+  }
+
+  const auth = Buffer.from(`${clientId}:${clientSecret}`).toString('base64');
+  const response = await fetch(`${getPaypalBaseUrl()}/v1/oauth2/token`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Basic ${auth}`,
+      'Content-Type': 'application/x-www-form-urlencoded',
+    },
+    body: 'grant_type=client_credentials',
+  });
+
+  const payload = await response.json();
+  if (!response.ok || !payload?.access_token) {
+    const message = payload?.error_description || payload?.error || 'Could not authenticate with PayPal.';
+    throw new Error(String(message));
+  }
+
+  return String(payload.access_token);
+};
+
+const createPaypalOrder = async (input: {
+  amount: number;
+  checkoutReference: string;
+  payerName: string;
+  payerEmail: string;
+}) => {
+  const accessToken = await getPaypalAccessToken();
+  const response = await fetch(`${getPaypalBaseUrl()}/v2/checkout/orders`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      intent: 'CAPTURE',
+      purchase_units: [
+        {
+          reference_id: input.checkoutReference,
+          description: 'Fixlife service payment',
+          amount: {
+            currency_code: 'USD',
+            value: input.amount.toFixed(2),
+          },
+        },
+      ],
+      payer: {
+        name: {
+          given_name: input.payerName.split(' ')[0] || input.payerName,
+        },
+        email_address: input.payerEmail,
+      },
+      application_context: {
+        shipping_preference: 'NO_SHIPPING',
+        user_action: 'PAY_NOW',
+      },
+    }),
+  });
+
+  const payload = await response.json();
+  if (!response.ok || !payload?.id) {
+    const message = payload?.message || payload?.name || 'PayPal order creation failed.';
+    throw new Error(String(message));
+  }
+
+  const approveUrl = Array.isArray(payload?.links)
+    ? payload.links.find((link: any) => String(link?.rel || '').toLowerCase() === 'approve')?.href || null
+    : null;
+
+  return {
+    orderId: String(payload.id),
+    approveUrl: approveUrl ? String(approveUrl) : null,
+  };
+};
+
+const capturePaypalOrder = async (paypalOrderId: string) => {
+  const accessToken = await getPaypalAccessToken();
+  const response = await fetch(`${getPaypalBaseUrl()}/v2/checkout/orders/${encodeURIComponent(paypalOrderId)}/capture`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      'Content-Type': 'application/json',
+    },
+  });
+
+  const payload = await response.json();
+  if (!response.ok) {
+    const message = payload?.details?.[0]?.description || payload?.message || payload?.name || 'PayPal capture failed.';
+    throw new Error(String(message));
+  }
+
+  const status = String(payload?.status || '').toUpperCase();
+  if (status !== 'COMPLETED') {
+    throw new Error(`PayPal capture returned status ${status || 'UNKNOWN'}.`);
+  }
+
+  return payload;
+};
+
 export const createServiceRequest = async (req: AuthRequest, res: Response): Promise<void> => {
   const files = ((req.files as Express.Multer.File[]) || []).slice(0, 5);
 
@@ -2311,6 +2425,8 @@ export const createRequestPaymentCheckout = async (req: AuthRequest, res: Respon
 
     const idRequest = Number(req.params.idRequest);
     const paymentMethod = normalizePaymentMethod(req.body?.payment_method);
+    const payerFullName = sanitizePaymentValue(req.body?.payer?.full_name, 120);
+    const payerEmail = sanitizePaymentValue(req.body?.payer?.email, 140);
     if (!idRequest) {
       res.status(400).json({ error: 'Invalid request id.' });
       return;
@@ -2353,19 +2469,46 @@ export const createRequestPaymentCheckout = async (req: AuthRequest, res: Respon
     const { amount, platformFee, workerPayout } = getPaymentBreakdown(getRequestChargeAmount(requestRow));
     const checkoutReference = buildCheckoutReference(idRequest);
 
+    let paypalOrderId: string | null = null;
+    let paypalApproveUrl: string | null = null;
+
+    if (paymentMethod === 'paypal') {
+      if (!payerFullName || !payerEmail) {
+        await connection.rollback();
+        res.status(400).json({ error: 'PayPal checkout needs payer name and email.' });
+        return;
+      }
+
+      try {
+        const order = await createPaypalOrder({
+          amount,
+          checkoutReference,
+          payerName: payerFullName,
+          payerEmail,
+        });
+        paypalOrderId = order.orderId;
+        paypalApproveUrl = order.approveUrl;
+      } catch (paypalError: any) {
+        await connection.rollback();
+        res.status(502).json({ error: paypalError?.message || 'Could not initialize PayPal checkout.' });
+        return;
+      }
+    }
+
     await connection.execute(
       `INSERT INTO service_request_payments
-       (id_request, provider, checkout_reference, amount, platform_fee, worker_payout, payment_status)
-       VALUES (?, ?, ?, ?, ?, ?, 'pending')
+       (id_request, provider, checkout_reference, provider_payment_id, amount, platform_fee, worker_payout, payment_status)
+       VALUES (?, ?, ?, ?, ?, ?, ?, 'pending')
        ON DUPLICATE KEY UPDATE
          provider = VALUES(provider),
          checkout_reference = VALUES(checkout_reference),
+         provider_payment_id = VALUES(provider_payment_id),
          amount = VALUES(amount),
          platform_fee = VALUES(platform_fee),
          worker_payout = VALUES(worker_payout),
          payment_status = CASE WHEN payment_status = 'paid' THEN payment_status ELSE 'pending' END,
          updated_at = CURRENT_TIMESTAMP`,
-      [idRequest, paymentMethod, checkoutReference, amount, platformFee, workerPayout]
+      [idRequest, paymentMethod, checkoutReference, paypalOrderId, amount, platformFee, workerPayout]
     );
 
     await connection.commit();
@@ -2375,6 +2518,8 @@ export const createRequestPaymentCheckout = async (req: AuthRequest, res: Respon
       checkout: {
         id_request: idRequest,
         provider: paymentMethod,
+        provider_payment_id: paypalOrderId,
+        approval_url: paypalApproveUrl,
         checkout_reference: checkoutReference,
         amount,
         platform_fee: platformFee,
@@ -2408,7 +2553,7 @@ export const confirmRequestPayment = async (req: AuthRequest, res: Response): Pr
     const payerPhone = sanitizePaymentValue(req.body?.payer?.phone, 40);
     const payerCity = sanitizePaymentValue(req.body?.payer?.city, 80);
     const payerCountry = sanitizePaymentValue(req.body?.payer?.country, 80);
-    const paypalOrderId = sanitizePaymentValue(req.body?.paypal_order_id, 120);
+    const paypalOrderIdFromBody = sanitizePaymentValue(req.body?.paypal_order_id, 120);
     if (!idRequest) {
       res.status(400).json({ error: 'Invalid request id.' });
       return;
@@ -2465,7 +2610,7 @@ export const confirmRequestPayment = async (req: AuthRequest, res: Response): Pr
     }
 
     const [paymentRows] = await connection.execute<RowDataPacket[]>(
-      `SELECT id_payment, payment_status, amount, checkout_reference
+      `SELECT id_payment, payment_status, amount, checkout_reference, provider_payment_id
        FROM service_request_payments
        WHERE id_request = ?
        LIMIT 1
@@ -2479,6 +2624,26 @@ export const confirmRequestPayment = async (req: AuthRequest, res: Response): Pr
       paymentRows.length > 0 && paymentRows[0].checkout_reference
         ? String(paymentRows[0].checkout_reference)
         : buildCheckoutReference(idRequest);
+    const paypalOrderId =
+      paypalOrderIdFromBody ||
+      (paymentRows.length > 0 && paymentRows[0].provider_payment_id
+        ? String(paymentRows[0].provider_payment_id)
+        : '');
+
+    if (paymentMethod === 'paypal') {
+      if (!paypalOrderId) {
+        await connection.rollback();
+        res.status(400).json({ error: 'Missing PayPal order id for capture.' });
+        return;
+      }
+      try {
+        await capturePaypalOrder(paypalOrderId);
+      } catch (paypalError: any) {
+        await connection.rollback();
+        res.status(502).json({ error: paypalError?.message || 'PayPal capture failed.' });
+        return;
+      }
+    }
 
     if (paymentRows.length === 0) {
       await connection.execute(
