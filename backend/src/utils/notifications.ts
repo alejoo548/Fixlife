@@ -131,7 +131,7 @@ export const listUserNotifications = async (
      ${where}
      ORDER BY created_at DESC
      LIMIT ?`,
-    [userId, String(limit)]
+    [userId, limit]
   );
 
   const [summaryRows] = await pool.execute<RowDataPacket[]>(
