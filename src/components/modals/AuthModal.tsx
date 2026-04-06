@@ -192,7 +192,7 @@ if (!emailRegex.test(formData.email)) {
         onClick={onClose}
       />
 
-      <div className="hidden md:flex relative w-[850px] h-[520px] bg-white rounded-3xl shadow-2xl overflow-hidden text-gray-900 ring-1 ring-gray-200 animate-zoom-in">
+      <div className="hidden md:flex relative w-full max-w-[850px] h-[520px] bg-white rounded-3xl shadow-2xl overflow-hidden text-gray-900 ring-1 ring-gray-200 animate-zoom-in">
 
         <div
           className={`absolute top-0 bottom-0 left-0 w-1/2 bg-gradient-to-br from-bird-blue to-bird-darkBlue z-20 ${transitionClass}`}

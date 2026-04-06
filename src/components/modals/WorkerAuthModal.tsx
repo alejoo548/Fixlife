@@ -371,7 +371,7 @@ export const WorkerAuthModal: React.FC<WorkerAuthModalProps> = ({ isOpen, onClos
       />
 
       {/* DESKTOP VERSION */}
-      <div className="hidden md:flex relative w-[850px] h-[580px] bg-white rounded-3xl shadow-2xl overflow-hidden text-gray-900 ring-1 ring-gray-200 animate-zoom-in">
+      <div className="hidden md:flex relative w-full max-w-[850px] h-[580px] bg-white rounded-3xl shadow-2xl overflow-hidden text-gray-900 ring-1 ring-gray-200 animate-zoom-in">
 
         <div
           className={`absolute top-0 bottom-0 left-0 w-1/2 bg-gradient-to-br from-bird-orange to-bird-gold z-20 ${transitionClass}`}
