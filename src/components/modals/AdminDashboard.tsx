@@ -12,6 +12,8 @@ import { API_ENDPOINTS } from '../../config/api';
 import { Notyf } from 'notyf';
 import 'notyf/notyf.min.css';
 import { clearAuthSession, getAuthUser, getToken as getSessionToken, isAuthenticated } from '../../utils/session';
+import { DashboardThemeToggle } from '../common/DashboardThemeToggle';
+import { useDashboardTheme } from '../../hooks/useDashboardTheme';
 import {
   DEFAULT_HERO_SLIDES,
   fetchHeroSlides,
@@ -148,6 +150,7 @@ const DEFAULT_TRAFFIC_DATA = [
 ];
 
 export const AdminDashboard: React.FC<AdminDashboardProps> = ({ isOpen, onClose }) => {
+  const { theme, isDark, toggleTheme } = useDashboardTheme('admin');
   const [activeTab, setActiveTab] = useState('Overview');
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
@@ -994,6 +997,32 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ isOpen, onClose 
     const entities = Array.from(new Set(adminActivity.map((item) => item.entity))).sort();
     return ['all', ...entities];
   }, [adminActivity]);
+
+  const adminChartTheme = useMemo(
+    () => ({
+      grid: isDark ? 'rgba(71, 85, 105, 0.45)' : '#E5E7EB',
+      tick: isDark ? '#94A3B8' : '#6B7280',
+      cursor: isDark ? 'rgba(30, 41, 59, 0.72)' : '#F3F4F6',
+      tooltip: {
+        borderRadius: '16px',
+        border: isDark ? '1px solid rgba(71, 85, 105, 0.55)' : 'none',
+        backgroundColor: isDark ? 'rgba(15, 23, 42, 0.96)' : 'rgba(255, 255, 255, 0.96)',
+        color: isDark ? '#E2E8F0' : '#0F172A',
+        boxShadow: isDark
+          ? '0 18px 40px rgba(2, 6, 23, 0.45)'
+          : '0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1)',
+      },
+      legendStyle: {
+        color: isDark ? '#CBD5E1' : '#475569',
+        paddingTop: '20px',
+      } as React.CSSProperties,
+      itemStyle: {
+        fontWeight: 'bold',
+        color: isDark ? '#E2E8F0' : '#0F172A',
+      } as React.CSSProperties,
+    }),
+    [isDark]
+  );
 
   // ─── RENDER: Services Tab ──────────────────────────────────────────────
   const renderServicesTab = () => (
@@ -2206,12 +2235,14 @@ const renderRequestsHistoryTab = () => {
           <div className="flex-1 w-full min-h-0">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={serviceCategoryStats} margin={{ top: 10, right: 0, left: -25, bottom: 0 }} barSize={14}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E5E7EB" />
-                <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: '#6B7280', fontSize: 12 }} dy={10} />
-                <YAxis axisLine={false} tickLine={false} tick={{ fill: '#6B7280', fontSize: 12 }} />
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={adminChartTheme.grid} />
+                <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: adminChartTheme.tick, fontSize: 12 }} dy={10} />
+                <YAxis axisLine={false} tickLine={false} tick={{ fill: adminChartTheme.tick, fontSize: 12 }} />
                 <Tooltip 
-                  cursor={{ fill: '#F3F4F6' }}
-                  contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)' }}
+                  cursor={{ fill: adminChartTheme.cursor }}
+                  contentStyle={adminChartTheme.tooltip}
+                  itemStyle={adminChartTheme.itemStyle}
+                  labelStyle={{ color: adminChartTheme.tooltip.color }}
                 />
                 <Bar dataKey="value" name="Share" fill="#0090FF" radius={[6, 6, 0, 0]} />
               </BarChart>
@@ -2252,12 +2283,13 @@ const renderRequestsHistoryTab = () => {
                     <stop offset="95%" stopColor="#0090FF" stopOpacity={0}/>
                   </linearGradient>
                 </defs>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E5E7EB" />
-                <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: '#6B7280', fontSize: 12 }} dy={10} />
-                <YAxis axisLine={false} tickLine={false} tick={{ fill: '#6B7280', fontSize: 12 }} />
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={adminChartTheme.grid} />
+                <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: adminChartTheme.tick, fontSize: 12 }} dy={10} />
+                <YAxis axisLine={false} tickLine={false} tick={{ fill: adminChartTheme.tick, fontSize: 12 }} />
                 <Tooltip 
-                  contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1)' }}
-                  itemStyle={{ fontWeight: 'bold' }}
+                  contentStyle={adminChartTheme.tooltip}
+                  itemStyle={adminChartTheme.itemStyle}
+                  labelStyle={{ color: adminChartTheme.tooltip.color }}
                 />
                 <Area type="monotone" name="Completed" dataKey="value" stroke="#0090FF" strokeWidth={3} fillOpacity={1} fill="url(#completedFill)" />
               </AreaChart>
@@ -2283,12 +2315,14 @@ const renderRequestsHistoryTab = () => {
           <div className="flex-1 w-full min-h-0">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={popularLocations} layout="vertical" margin={{ top: 0, right: 10, left: 10, bottom: 0 }} barSize={10}>
-                <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#E5E7EB" />
-                <XAxis type="number" axisLine={false} tickLine={false} tick={{ fill: '#6B7280', fontSize: 12 }} />
-                <YAxis type="category" dataKey="name" axisLine={false} tickLine={false} tick={{ fill: '#6B7280', fontSize: 12 }} width={90} />
+                <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke={adminChartTheme.grid} />
+                <XAxis type="number" axisLine={false} tickLine={false} tick={{ fill: adminChartTheme.tick, fontSize: 12 }} />
+                <YAxis type="category" dataKey="name" axisLine={false} tickLine={false} tick={{ fill: adminChartTheme.tick, fontSize: 12 }} width={90} />
                 <Tooltip 
-                  cursor={{ fill: '#F3F4F6' }}
-                  contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)' }}
+                  cursor={{ fill: adminChartTheme.cursor }}
+                  contentStyle={adminChartTheme.tooltip}
+                  itemStyle={adminChartTheme.itemStyle}
+                  labelStyle={{ color: adminChartTheme.tooltip.color }}
                 />
                 <Bar dataKey="value" name="Requests" fill="#FFC20E" radius={[0, 6, 6, 0]} />
               </BarChart>
@@ -2329,14 +2363,15 @@ const renderRequestsHistoryTab = () => {
                     <stop offset="95%" stopColor="#FFC20E" stopOpacity={0}/>
                   </linearGradient>
                 </defs>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E5E7EB" />
-                <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fill: '#6B7280', fontSize: 12}} dy={10} />
-                <YAxis axisLine={false} tickLine={false} tick={{fill: '#6B7280', fontSize: 12}} tickFormatter={(value) => `$${value}`} />
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={adminChartTheme.grid} />
+                <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fill: adminChartTheme.tick, fontSize: 12}} dy={10} />
+                <YAxis axisLine={false} tickLine={false} tick={{fill: adminChartTheme.tick, fontSize: 12}} tickFormatter={(value) => `$${value}`} />
                 <Tooltip 
-                  contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1)' }}
-                  itemStyle={{ fontWeight: 'bold' }}
+                  contentStyle={adminChartTheme.tooltip}
+                  itemStyle={adminChartTheme.itemStyle}
+                  labelStyle={{ color: adminChartTheme.tooltip.color }}
                 />
-                <Legend iconType="circle" wrapperStyle={{ paddingTop: '20px' }} />
+                <Legend iconType="circle" wrapperStyle={adminChartTheme.legendStyle} />
                 <Area type="monotone" name="Actual Revenue" dataKey="uv" stroke="#0090FF" strokeWidth={3} fillOpacity={1} fill="url(#colorUv)" />
                 <Area type="monotone" name="Projected" dataKey="pv" stroke="#FFC20E" strokeWidth={3} fillOpacity={1} fill="url(#colorPv)" />
               </AreaChart>
@@ -2357,14 +2392,16 @@ const renderRequestsHistoryTab = () => {
           <div className="flex-1 w-full min-h-0">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={dashboardStats?.trafficData || DEFAULT_TRAFFIC_DATA} margin={{ top: 10, right: 0, left: -25, bottom: 0 }} barSize={12}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E5E7EB" />
-                <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fill: '#6B7280', fontSize: 12}} dy={10} />
-                <YAxis axisLine={false} tickLine={false} tick={{fill: '#6B7280', fontSize: 12}} />
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={adminChartTheme.grid} />
+                <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fill: adminChartTheme.tick, fontSize: 12}} dy={10} />
+                <YAxis axisLine={false} tickLine={false} tick={{fill: adminChartTheme.tick, fontSize: 12}} />
                 <Tooltip 
-                  cursor={{fill: '#F3F4F6'}}
-                  contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)' }}
+                  cursor={{fill: adminChartTheme.cursor}}
+                  contentStyle={adminChartTheme.tooltip}
+                  itemStyle={adminChartTheme.itemStyle}
+                  labelStyle={{ color: adminChartTheme.tooltip.color }}
                 />
-                <Legend iconType="circle" wrapperStyle={{ paddingTop: '20px' }} />
+                <Legend iconType="circle" wrapperStyle={adminChartTheme.legendStyle} />
                 <Bar dataKey="Users" fill="#0090FF" radius={[4, 4, 0, 0]} />
                 <Bar dataKey="Pros" fill="#FF8000" radius={[4, 4, 0, 0]} />
               </BarChart>
@@ -2827,7 +2864,11 @@ const renderRequestsHistoryTab = () => {
   };
 
   return (
-    <div className="fixed inset-0 z-[100] flex bg-gray-50/90 backdrop-blur-xl overflow-hidden text-gray-900 font-sans">
+    <div
+      className={`dashboard-theme dashboard-shell dashboard-theme--admin fixed inset-0 z-[100] flex overflow-hidden font-sans text-gray-900 backdrop-blur-xl ${isDark ? 'dashboard-theme-dark' : 'dashboard-theme-light'} bg-gray-50/90`}
+      data-dashboard-theme={theme}
+      style={{ colorScheme: theme }}
+    >
       
       {/* Decorative Background */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none z-0">
@@ -3008,7 +3049,12 @@ const renderRequestsHistoryTab = () => {
             </div>
           </div>
 
-          <div className="flex items-center gap-4 md:gap-6">
+          <div className="flex items-center gap-3 md:gap-4">
+            <DashboardThemeToggle
+              theme={theme}
+              onToggle={toggleTheme}
+              className="min-w-0 bg-white/90 text-slate-700 shadow-[0_16px_30px_rgba(15,23,42,0.08)]"
+            />
             <div className="relative hidden md:block group">
               <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-bird-blue transition-colors" size={18} />
               <input 

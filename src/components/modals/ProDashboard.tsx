@@ -4,6 +4,8 @@ import { ProSidebar } from './ProSidebar';
 import { API_URL } from '../../config/api';
 import { clearAuthSession, getAuthUser, getToken as getSessionToken, isAuthenticated, updateStoredAuthUser } from '../../utils/session';
 import { NotificationCenter } from '../common/NotificationCenter';
+import { DashboardThemeToggle } from '../common/DashboardThemeToggle';
+import { useDashboardTheme } from '../../hooks/useDashboardTheme';
 
 const RequestsView = lazy(() =>
    import('../dashboard/RequestsView').then((module) => ({
@@ -47,6 +49,7 @@ const DashboardPanelFallback: React.FC<{ label?: string }> = ({ label = 'Loading
 );
 
 export const ProDashboard: React.FC<ProDashboardProps> = ({ isOpen, onClose, onSignOut }) => {
+   const { theme, isDark, toggleTheme } = useDashboardTheme('worker');
    const [isOnline, setIsOnline] = useState(false);
    const [activeTab, setActiveTab] = useState('requests');
    const [mobileView, setMobileView] = useState<'list' | 'map'>('list');
@@ -150,7 +153,9 @@ export const ProDashboard: React.FC<ProDashboardProps> = ({ isOpen, onClose, onS
          initial={{ opacity: 0 }}
          animate={{ opacity: 1 }}
          exit={{ opacity: 0 }}
-         className="fixed inset-0 z-40 bg-gradient-to-br from-sky-50 via-amber-50 to-orange-50 font-sans overflow-hidden"
+         className={`dashboard-theme dashboard-shell dashboard-theme--worker fixed inset-0 z-40 overflow-hidden font-sans ${isDark ? 'dashboard-theme-dark' : 'dashboard-theme-light'} bg-gradient-to-br from-sky-50 via-amber-50 to-orange-50`}
+         data-dashboard-theme={theme}
+         style={{ colorScheme: theme }}
       >
          {/* Background decorations */}
          <motion.div
@@ -247,7 +252,12 @@ export const ProDashboard: React.FC<ProDashboardProps> = ({ isOpen, onClose, onS
                   </div>
                </div>
 
-               <div className="flex items-center gap-3">
+               <div className="flex items-center gap-2 md:gap-3">
+                  <DashboardThemeToggle
+                     theme={theme}
+                     onToggle={toggleTheme}
+                     className="min-w-0 bg-white/90 text-slate-700 shadow-[0_14px_30px_rgba(15,23,42,0.08)]"
+                  />
                   <NotificationCenter token={token} variant="panel" />
                   <motion.div
                      initial={{ scale: 0, opacity: 0 }}
