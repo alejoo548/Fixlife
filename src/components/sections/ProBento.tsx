@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { isAuthenticated } from '../../utils/session';
 
 interface ProBentoProps {
   onOpenPro?: () => void;
@@ -171,6 +172,7 @@ export const ProBento: React.FC<ProBentoProps> = ({ onOpenPro, onOpenWorkerAuth 
             ))}
           </motion.div>
 
+          {!isAuthenticated() && (
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             whileInView={{ opacity: 1, y: 0 }}
@@ -198,6 +200,7 @@ export const ProBento: React.FC<ProBentoProps> = ({ onOpenPro, onOpenWorkerAuth 
               Pro Sign In
             </motion.button>
           </motion.div>
+          )}
         </motion.div>
 
         {/* Right content - Profile card */}
