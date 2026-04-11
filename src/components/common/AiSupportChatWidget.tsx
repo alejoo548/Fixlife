@@ -4,6 +4,48 @@ import { MessageCircle, Send, Sparkles, X } from 'lucide-react';
 import { API_URL } from '../../config/api';
 import { getToken } from '../../utils/session';
 
+// ─── Bird mascot sprite animation ────────────────────────────────────────────
+const B_FRAME_W = 524;   // px per frame in the sprite sheet
+const B_FRAME_H = 450;
+const B_COLS    = 6;
+const B_TOTAL   = 36;    // 6 cols × 6 rows
+const B_DISP_H  = 76;    // rendered height (px)
+const B_SCALE   = B_DISP_H / B_FRAME_H;
+const B_DISP_W  = Math.round(B_FRAME_W * B_SCALE);
+const B_SHT_W   = Math.round(3144 * B_SCALE);
+const B_SHT_H   = Math.round(2700 * B_SCALE);
+
+const BirdMascot: React.FC<{ hovered: boolean }> = ({ hovered }) => {
+  const [frame, setFrame] = useState(0);
+
+  useEffect(() => {
+    const ms = hovered ? 55 : 110;
+    const id = setInterval(() => setFrame(f => (f + 1) % B_TOTAL), ms);
+    return () => clearInterval(id);
+  }, [hovered]);
+
+  const col = frame % B_COLS;
+  const row = Math.floor(frame / B_COLS);
+
+  return (
+    <div
+      aria-hidden="true"
+      style={{
+        width:              B_DISP_W,
+        height:             B_DISP_H,
+        backgroundImage:    'url(/bird-sprite.png)',
+        backgroundSize:     `${B_SHT_W}px ${B_SHT_H}px`,
+        backgroundPosition: `${-col * B_FRAME_W * B_SCALE}px ${-row * B_FRAME_H * B_SCALE}px`,
+        backgroundRepeat:   'no-repeat',
+        imageRendering:     'auto',
+        pointerEvents:      'none',
+        flexShrink:         0,
+      }}
+    />
+  );
+};
+// ─────────────────────────────────────────────────────────────────────────────
+
 interface ChatMessage {
   id: string;
   role: 'user' | 'assistant';
@@ -31,6 +73,7 @@ const TypingDots: React.FC = () => (
 
 export const AiSupportChatWidget: React.FC = () => {
   const [isOpen, setIsOpen] = useState(false);
+  const [buttonHovered, setButtonHovered] = useState(false);
   const [inputValue, setInputValue] = useState('');
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -328,6 +371,30 @@ export const AiSupportChatWidget: React.FC = () => {
         )}
       </AnimatePresence>
 
+      {/* Bird + button row */}
+      <div
+        className="flex items-end gap-2"
+        onMouseEnter={() => setButtonHovered(true)}
+        onMouseLeave={() => setButtonHovered(false)}
+        onTouchStart={() => setButtonHovered(true)}
+        onTouchEnd={() => setButtonHovered(false)}
+      >
+        {/* Bird mascot — visible only when chat is closed */}
+        <AnimatePresence>
+          {!isOpen && (
+            <motion.div
+              key="bird-mascot"
+              initial={{ opacity: 0, x: 18, scale: 0.5 }}
+              animate={{ opacity: 1, x: 0, scale: 1 }}
+              exit={{ opacity: 0, x: 18, scale: 0.5 }}
+              transition={{ type: 'spring', stiffness: 320, damping: 22 }}
+              style={{ alignSelf: 'flex-end', marginBottom: '2px' }}
+            >
+              <BirdMascot hovered={buttonHovered} />
+            </motion.div>
+          )}
+        </AnimatePresence>
+
       {/* Floating button — Aceternity hover-border-gradient style */}
       <motion.div
         whileHover={{ scale: 1.06, y: -3 }}
@@ -404,6 +471,7 @@ export const AiSupportChatWidget: React.FC = () => {
           </button>
         </div>
       </motion.div>
+      </div>{/* end bird + button row */}
     </div>
   );
 };
