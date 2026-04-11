@@ -9,7 +9,7 @@ const B_FRAME_W = 524;   // px per frame in the sprite sheet
 const B_FRAME_H = 450;
 const B_COLS    = 6;
 const B_TOTAL   = 36;    // 6 cols × 6 rows
-const B_DISP_H  = 90;    // rendered height (px)
+const B_DISP_H  = 96;    // rendered height (px)
 const B_SCALE   = B_DISP_H / B_FRAME_H;
 const B_DISP_W  = Math.round(B_FRAME_W * B_SCALE);
 const B_SHT_W   = Math.round(3144 * B_SCALE);
@@ -19,9 +19,15 @@ const BirdMascot: React.FC<{ hovered: boolean }> = ({ hovered }) => {
   const [frame, setFrame] = useState(0);
 
   useEffect(() => {
-    const ms = hovered ? 55 : 110;
-    const id = setInterval(() => setFrame(f => (f + 1) % B_TOTAL), ms);
+    // Static when idle — only animate on hover/touch
+    if (!hovered) return;
+    const id = setInterval(() => setFrame(f => (f + 1) % B_TOTAL), 60);
     return () => clearInterval(id);
+  }, [hovered]);
+
+  // Reset to frame 0 when hover ends so it always rests on the same pose
+  useEffect(() => {
+    if (!hovered) setFrame(0);
   }, [hovered]);
 
   const col = frame % B_COLS;
@@ -40,6 +46,7 @@ const BirdMascot: React.FC<{ hovered: boolean }> = ({ hovered }) => {
         imageRendering:     'auto',
         pointerEvents:      'none',
         flexShrink:         0,
+        filter:             'drop-shadow(0 6px 14px rgba(0,100,220,0.22))',
       }}
     />
   );
@@ -385,13 +392,13 @@ export const AiSupportChatWidget: React.FC = () => {
             <motion.div
               key="bird-mascot"
               className="absolute"
-              style={{ right: 'calc(100% + 6px)', bottom: 0, overflow: 'visible' }}
+              style={{ right: 'calc(100% + 10px)', bottom: -4, overflow: 'visible' }}
               initial={{ opacity: 0, scale: 0.4, x: 14 }}
               animate={{ opacity: 1, scale: 1, x: 0 }}
               exit={{ opacity: 0, scale: 0.4, x: 14 }}
-              whileHover={{ scale: 1.18, y: -8 }}
-              whileTap={{ scale: 0.92 }}
-              transition={{ type: 'spring', stiffness: 320, damping: 20 }}
+              whileHover={{ scale: 1.15, y: -10, rotate: -4 }}
+              whileTap={{ scale: 0.9, rotate: 4 }}
+              transition={{ type: 'spring', stiffness: 350, damping: 18 }}
             >
               <BirdMascot hovered={buttonHovered} />
             </motion.div>
