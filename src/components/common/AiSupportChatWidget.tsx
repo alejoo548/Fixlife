@@ -9,7 +9,7 @@ const B_FRAME_W = 524;   // px per frame in the sprite sheet
 const B_FRAME_H = 450;
 const B_COLS    = 6;
 const B_TOTAL   = 36;    // 6 cols × 6 rows
-const B_DISP_H  = 76;    // rendered height (px)
+const B_DISP_H  = 90;    // rendered height (px)
 const B_SCALE   = B_DISP_H / B_FRAME_H;
 const B_DISP_W  = Math.round(B_FRAME_W * B_SCALE);
 const B_SHT_W   = Math.round(3144 * B_SCALE);
@@ -371,24 +371,27 @@ export const AiSupportChatWidget: React.FC = () => {
         )}
       </AnimatePresence>
 
-      {/* Bird + button row */}
+      {/* Button wrapper — bird is absolutely positioned to its left */}
       <div
-        className="flex items-end gap-2"
+        className="relative"
         onMouseEnter={() => setButtonHovered(true)}
         onMouseLeave={() => setButtonHovered(false)}
         onTouchStart={() => setButtonHovered(true)}
         onTouchEnd={() => setButtonHovered(false)}
       >
-        {/* Bird mascot — visible only when chat is closed */}
+        {/* Bird mascot — absolute, left of button, always visible when chat closed */}
         <AnimatePresence>
           {!isOpen && (
             <motion.div
               key="bird-mascot"
-              initial={{ opacity: 0, x: 18, scale: 0.5 }}
-              animate={{ opacity: 1, x: 0, scale: 1 }}
-              exit={{ opacity: 0, x: 18, scale: 0.5 }}
-              transition={{ type: 'spring', stiffness: 320, damping: 22 }}
-              style={{ alignSelf: 'flex-end', marginBottom: '2px' }}
+              className="absolute"
+              style={{ right: 'calc(100% + 6px)', bottom: 0, overflow: 'visible' }}
+              initial={{ opacity: 0, scale: 0.4, x: 14 }}
+              animate={{ opacity: 1, scale: 1, x: 0 }}
+              exit={{ opacity: 0, scale: 0.4, x: 14 }}
+              whileHover={{ scale: 1.18, y: -8 }}
+              whileTap={{ scale: 0.92 }}
+              transition={{ type: 'spring', stiffness: 320, damping: 20 }}
             >
               <BirdMascot hovered={buttonHovered} />
             </motion.div>
@@ -471,7 +474,7 @@ export const AiSupportChatWidget: React.FC = () => {
           </button>
         </div>
       </motion.div>
-      </div>{/* end bird + button row */}
+      </div>{/* end button wrapper */}
     </div>
   );
 };
