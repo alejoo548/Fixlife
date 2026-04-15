@@ -172,7 +172,7 @@ export const ProBento: React.FC<ProBentoProps> = ({ onOpenPro, onOpenWorkerAuth 
             ))}
           </motion.div>
 
-          {!isAuthenticated() && (
+          {!isAuthenticated('worker') && (
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             whileInView={{ opacity: 1, y: 0 }}
