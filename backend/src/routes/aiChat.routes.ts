@@ -51,8 +51,9 @@ router.post('/ai/chat', aiChatLimiter, async (req: Request, res: Response) => {
     }
   }
 
-  const apiKey = process.env.GROQ_API_KEY;
-  if (!apiKey) {
+  const apiKey = String(process.env.GROQ_API_KEY || '').trim();
+  const hasPlaceholderKey = /^(your_groq_api_key_here|tu_api_key_aqui)$/i.test(apiKey);
+  if (!apiKey || hasPlaceholderKey) {
     res.status(500).json({ error: 'Groq API Key is not configured on the server.' });
     return;
   }

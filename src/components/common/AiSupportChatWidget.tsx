@@ -59,6 +59,13 @@ interface ChatMessage {
   content: string;
 }
 
+const createMessageId = () => {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID();
+  }
+  return `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+};
+
 const QUICK_PROMPTS = [
   'I need help booking a service',
   'How do I book a service?',
@@ -110,8 +117,8 @@ export const AiSupportChatWidget: React.FC = () => {
     setError(null);
     setInputValue('');
 
-    const userMsg: ChatMessage = { id: crypto.randomUUID(), role: 'user', content: trimmed };
-    const assistantId = crypto.randomUUID();
+    const userMsg: ChatMessage = { id: createMessageId(), role: 'user', content: trimmed };
+    const assistantId = createMessageId();
 
     setMessages((prev) => [...prev, userMsg, { id: assistantId, role: 'assistant', content: '' }]);
     setIsLoading(true);
@@ -120,6 +127,7 @@ export const AiSupportChatWidget: React.FC = () => {
     history.push({ role: 'user', content: trimmed });
 
     abortControllerRef.current = new AbortController();
+    const timeoutId = setTimeout(() => abortControllerRef.current?.abort(), 20000);
 
     try {
       const token = getToken();
@@ -150,6 +158,7 @@ export const AiSupportChatWidget: React.FC = () => {
       setError(err?.message || 'Could not connect to the assistant.');
       setMessages((prev) => prev.filter((msg) => msg.id !== assistantId));
     } finally {
+      clearTimeout(timeoutId);
       setIsLoading(false);
     }
   };
@@ -357,8 +366,7 @@ export const AiSupportChatWidget: React.FC = () => {
                     onChange={(e) => setInputValue(e.target.value)}
                     onKeyDown={handleKeyDown}
                     placeholder="Type a message..."
-                    disabled={isLoading}
-                    className="w-full resize-none bg-transparent px-2 py-1.5 text-sm text-slate-700 placeholder:text-slate-400/80 focus:outline-none disabled:opacity-50"
+                    className="w-full resize-none bg-transparent px-2 py-1.5 text-sm text-slate-700 placeholder:text-slate-400/80 focus:outline-none"
                     style={{ maxHeight: '80px' }}
                   />
                   <motion.button

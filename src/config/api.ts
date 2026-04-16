@@ -1,4 +1,11 @@
-export const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+const runtimeHost = typeof window !== 'undefined' ? window.location.hostname : 'localhost';
+const envApiUrl = String(import.meta.env.VITE_API_URL || '').trim();
+const isLocalEnvApi = /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/i.test(envApiUrl);
+const isRuntimeLocalhost = runtimeHost === 'localhost' || runtimeHost === '127.0.0.1';
+
+export const API_URL = envApiUrl && (!isLocalEnvApi || isRuntimeLocalhost)
+  ? envApiUrl
+  : `http://${runtimeHost}:8000`;
 
 export const API_ENDPOINTS = {
   auth: {

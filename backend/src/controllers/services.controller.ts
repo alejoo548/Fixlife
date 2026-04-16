@@ -27,6 +27,39 @@ let serviceCardsTableChecked = false;
 let workerGeoColumnsChecked = false;
 let serviceRequestsTablesChecked = false;
 let savedLocationsTableChecked = false;
+
+const DEFAULT_SERVICES = [
+  {
+    name: 'Plumbing',
+    description: 'Leak repairs, pipe installation, and sanitary maintenance.',
+    icon: '🔧',
+  },
+  {
+    name: 'Electrical Services',
+    description: 'Safe installations, wiring, panels, and short-circuit repairs.',
+    icon: '⚡',
+  },
+  {
+    name: 'Auto Mechanic',
+    description: 'Vehicle diagnostics, maintenance, and emergency assistance.',
+    icon: '🚗',
+  },
+  {
+    name: 'Carpentry',
+    description: 'Furniture repairs, custom woodwork, and installations.',
+    icon: '🪚',
+  },
+  {
+    name: 'Cleaning',
+    description: 'Deep cleaning, recurring home cleaning, and move-in/move-out service.',
+    icon: '🧼',
+  },
+  {
+    name: 'Painting',
+    description: 'Interior and exterior painting with professional finishing.',
+    icon: '🎨',
+  },
+] as const;
 type SalvadorLocalPlace = {
   label: string;
   lat: number;
@@ -154,6 +187,23 @@ const defaultImageForService = (serviceName: string) => {
   if (name.includes('clean')) return 'https://images.unsplash.com/photo-1581578731548-c64695cc6952?q=80&w=1400&auto=format&fit=crop';
   if (name.includes('mechan')) return 'https://images.unsplash.com/photo-1530046339160-71153320c072?q=80&w=1400&auto=format&fit=crop';
   return 'https://images.unsplash.com/photo-1562259949-e8e7689d7828?q=80&w=1400&auto=format&fit=crop';
+};
+
+const ensureDefaultServices = async () => {
+  const [rows] = await pool.execute<RowDataPacket[]>(
+    `SELECT COUNT(*) AS total FROM services`
+  );
+
+  const total = Number(rows[0]?.total || 0);
+  if (total > 0) return;
+
+  for (const service of DEFAULT_SERVICES) {
+    await pool.execute(
+      `INSERT INTO services (name, description, icon, is_active)
+       VALUES (?, ?, ?, 1)`,
+      [service.name, service.description, service.icon]
+    );
+  }
 };
 
 const buildAssetUrl = (req: Request, fileName: string | null) => {
@@ -548,6 +598,8 @@ const resolveRequestLocation = async (
 export const ensureServiceCardsTable = async () => {
   if (serviceCardsTableChecked) return;
 
+  await ensureDefaultServices();
+
   await pool.execute(`
     CREATE TABLE IF NOT EXISTS service_cards (
       id_card INT NOT NULL AUTO_INCREMENT,
@@ -622,6 +674,8 @@ export const ensureServiceCardsTable = async () => {
 
 export const getActiveServices = async (_req: Request, res: Response): Promise<void> => {
   try {
+    await ensureDefaultServices();
+
     const [rows] = await pool.execute<RowDataPacket[]>(
       `SELECT id_service, name, description, icon FROM services WHERE is_active = 1 ORDER BY name ASC`
     );
