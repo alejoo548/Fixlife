@@ -189,6 +189,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ isOpen, onClose 
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive'>('all');
 
   const [dashboardStats, setDashboardStats] = useState<any>(null);
+  const [statsServiceId, setStatsServiceId] = useState<'all' | string>('all');
   const [previewDoc, setPreviewDoc] = useState<{ url: string, name: string } | null>(null);
 
   const [heroSlidesDraft, setHeroSlidesDraft] = useState<HeroSlideContent[]>([]);
@@ -618,9 +619,12 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ isOpen, onClose 
   };
 
   // ─── Stats API ─────────────────────────────────────────────────────────
-  const fetchStats = async () => {
+  const fetchStats = async (serviceId: 'all' | string = 'all') => {
     try {
-      const res = await fetch(API_ENDPOINTS.admin.stats, {
+      const params = new URLSearchParams();
+      if (serviceId !== 'all') params.set('service_id', serviceId);
+      const url = params.toString() ? `${API_ENDPOINTS.admin.stats}?${params.toString()}` : API_ENDPOINTS.admin.stats;
+      const res = await fetch(url, {
         headers: { Authorization: `Bearer ${getToken()}` },
       });
       const data = await res.json();
@@ -629,7 +633,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ isOpen, onClose 
   };
 
   useEffect(() => {
-    fetchStats();
+    fetchStats(activeTab === 'Overview' ? statsServiceId : 'all');
+    if (activeTab === 'Overview') {
+      fetchServices();
+    }
     if (activeTab === 'Services' || activeTab === 'Homepage Cards') {
       fetchServices();
       fetchServiceCards();
@@ -655,7 +662,15 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ isOpen, onClose 
         }
       });
     }
-  }, [activeTab]);
+  }, [activeTab, statsServiceId]);
+
+  useEffect(() => {
+    if (activeTab !== 'Overview') return;
+    const id = window.setInterval(() => {
+      fetchStats(statsServiceId);
+    }, 30_000);
+    return () => window.clearInterval(id);
+  }, [activeTab, statsServiceId]);
 
   useEffect(() => {
     if (activeTab === 'Requests History') {
@@ -935,31 +950,47 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ isOpen, onClose 
     { title: "Services", value: dashboardStats ? String(dashboardStats.total_services) : "0", change: "", trending: "up", icon: Briefcase, color: "text-bird-yellow", bg: "bg-bird-yellow/10", line: "from-bird-yellow to-bird-gold" },
   ];
 
-  const serviceCategoryStats = [
-    { name: "Plumbing", value: 28 },
-    { name: "Electrical", value: 22 },
-    { name: "HVAC", value: 18 },
-    { name: "Carpentry", value: 14 },
-    { name: "Painting", value: 10 },
-  ];
+  const serviceCategoryStats = useMemo(() => {
+    const raw = Array.isArray(dashboardStats?.serviceCategoryStats) ? dashboardStats.serviceCategoryStats : [];
+    const normalized = raw
+      .map((item: any) => ({ name: String(item?.name || '').trim(), value: Number(item?.value || 0) }))
+      .filter((item: any) => item.name.length > 0);
+    return normalized.length > 0 ? normalized : [{ name: 'No data', value: 0 }];
+  }, [dashboardStats]);
 
-  const completedServicesWeekly = [
-    { name: "Mon", value: 120 },
-    { name: "Tue", value: 156 },
-    { name: "Wed", value: 142 },
-    { name: "Thu", value: 180 },
-    { name: "Fri", value: 210 },
-    { name: "Sat", value: 165 },
-    { name: "Sun", value: 132 },
-  ];
+  const completedServicesWeekly = useMemo(() => {
+    const raw = Array.isArray(dashboardStats?.completedServicesWeekly) ? dashboardStats.completedServicesWeekly : [];
+    const normalized = raw
+      .map((item: any) => ({ name: String(item?.name || '').trim(), value: Number(item?.value || 0) }))
+      .filter((item: any) => item.name.length > 0);
+    return normalized.length > 0 ? normalized : [{ name: 'Mon', value: 0 }];
+  }, [dashboardStats]);
 
-  const popularLocations = [
-    { name: "Downtown", value: 36 },
-    { name: "North Zone", value: 28 },
-    { name: "East Zone", value: 22 },
-    { name: "West Zone", value: 18 },
-    { name: "South Zone", value: 14 },
-  ];
+  const completedServicesWeeklyTotal = useMemo(() => {
+    return completedServicesWeekly.reduce((sum, item) => sum + (Number(item.value) || 0), 0);
+  }, [completedServicesWeekly]);
+
+  const completedServicesWeeklyDeltaText = useMemo(() => {
+    const prevTotal = Number(dashboardStats?.completedServicesPrevTotal || 0);
+    if (!Number.isFinite(prevTotal) || prevTotal <= 0) return null;
+    const pct = ((completedServicesWeeklyTotal - prevTotal) / prevTotal) * 100;
+    if (!Number.isFinite(pct)) return null;
+    const rounded = Math.round(pct);
+    const sign = rounded > 0 ? '+' : '';
+    return `${sign}${rounded}% vs last week`;
+  }, [dashboardStats, completedServicesWeeklyTotal]);
+
+  const popularLocations = useMemo(() => {
+    const raw = Array.isArray(dashboardStats?.popularLocations) ? dashboardStats.popularLocations : [];
+    const normalized = raw
+      .map((item: any) => {
+        const fullName = String(item?.name || '').trim();
+        const name = fullName.length > 18 ? `${fullName.slice(0, 18)}…` : fullName;
+        return { name, value: Number(item?.value || 0) };
+      })
+      .filter((item: any) => item.name.length > 0);
+    return normalized.length > 0 ? normalized : [{ name: 'No data', value: 0 }];
+  }, [dashboardStats]);
 
   const navItems = [
     { name: "Overview", icon: LayoutDashboard },
@@ -987,6 +1018,14 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ isOpen, onClose 
     );
     return uniqueServices.filter((svc) => !blocked.has(svc.id_service) && !!svc.is_active);
   }, [uniqueServices, serviceCards, editingCard]);
+
+  const selectedStatsServiceName = useMemo(() => {
+    if (statsServiceId === 'all') return null;
+    const found = services.find((svc) => String(svc.id_service) === String(statsServiceId));
+    return found?.name ? String(found.name) : null;
+  }, [statsServiceId, services]);
+
+  const statsServiceSuffix = statsServiceId === 'all' ? '' : ` (${selectedStatsServiceName || 'Selected'})`;
 
   const activityActionOptions = useMemo(() => {
     const actions = Array.from(new Set(adminActivity.map((item) => item.action))).sort();
@@ -2183,6 +2222,27 @@ const renderRequestsHistoryTab = () => {
 
   const renderOverviewTab = () => (
     <div className="space-y-8">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div>
+          <h2 className="text-2xl font-black text-gray-900">Overview</h2>
+          <p className="text-sm text-gray-500 font-medium">Platform statistics updated from the database</p>
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="text-xs font-bold text-gray-500">Service</span>
+          <select
+            value={statsServiceId}
+            onChange={(e) => setStatsServiceId(e.target.value === 'all' ? 'all' : e.target.value)}
+            className="bg-gray-50 border border-gray-200 text-gray-700 text-sm rounded-xl px-4 py-2 font-medium outline-none focus:ring-2 focus:ring-bird-blue/20"
+          >
+            <option value="all">All services</option>
+            {services.map((svc) => (
+              <option key={svc.id_service} value={String(svc.id_service)}>
+                {svc.name}
+              </option>
+            ))}
+          </select>
+        </div>
+      </div>
       {/* Stats Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
         {stats.map((stat, i) => (
@@ -2258,7 +2318,9 @@ const renderRequestsHistoryTab = () => {
         >
           <div className="flex items-start justify-between gap-4 mb-6">
             <div>
-              <h3 className="text-lg font-bold text-gray-900">Completed Services</h3>
+              <h3 className="text-lg font-bold text-gray-900">
+                Completed Services{statsServiceSuffix}
+              </h3>
               <p className="text-sm text-gray-500 font-medium">Weekly completion trend</p>
             </div>
             <div className="w-10 h-10 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center border border-emerald-100">
@@ -2267,8 +2329,10 @@ const renderRequestsHistoryTab = () => {
           </div>
           <div className="flex items-end justify-between gap-3 mb-4">
             <div>
-              <p className="text-3xl font-black text-gray-900">1,284</p>
-              <p className="text-xs font-semibold text-bird-blue">+12% vs last week</p>
+              <p className="text-3xl font-black text-gray-900">{completedServicesWeeklyTotal.toLocaleString()}</p>
+              {completedServicesWeeklyDeltaText && (
+                <p className="text-xs font-semibold text-bird-blue">{completedServicesWeeklyDeltaText}</p>
+              )}
             </div>
             <div className="px-3 py-1.5 rounded-full bg-bird-blue/10 text-bird-darkBlue text-xs font-bold border border-bird-blue/20">
               Last 7 days
@@ -2305,7 +2369,7 @@ const renderRequestsHistoryTab = () => {
         >
           <div className="flex items-start justify-between gap-4 mb-6">
             <div>
-              <h3 className="text-lg font-bold text-gray-900">Top Locations</h3>
+              <h3 className="text-lg font-bold text-gray-900">Top Locations{statsServiceSuffix}</h3>
               <p className="text-sm text-gray-500 font-medium">Areas with most requests</p>
             </div>
             <div className="w-10 h-10 rounded-2xl bg-bird-orange/10 text-bird-orange flex items-center justify-center border border-bird-orange/20">
@@ -2341,7 +2405,7 @@ const renderRequestsHistoryTab = () => {
         >
           <div className="flex justify-between items-end mb-6">
             <div>
-              <h3 className="text-xl font-bold text-gray-900">Revenue Overview</h3>
+              <h3 className="text-xl font-bold text-gray-900">Revenue Overview{statsServiceSuffix}</h3>
               <p className="text-sm text-gray-500 font-medium">Monthly generated income vs projected</p>
             </div>
             <select className="bg-gray-50 border border-gray-200 text-gray-700 text-sm rounded-xl px-4 py-2 font-medium outline-none focus:ring-2 focus:ring-bird-blue/20">
@@ -2352,7 +2416,7 @@ const renderRequestsHistoryTab = () => {
           </div>
           <div className="flex-1 w-full min-h-0">
             <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={DEFAULT_REVENUE_DATA} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+              <AreaChart data={dashboardStats?.revenueData || DEFAULT_REVENUE_DATA} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                 <defs>
                   <linearGradient id="colorUv" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="5%" stopColor="#0090FF" stopOpacity={0.3}/>

@@ -12,6 +12,7 @@ export const API_ENDPOINTS = {
     login: `${API_URL}/api/auth/login`,
     registerUser: `${API_URL}/api/auth/register-user`,
     registerWorker: `${API_URL}/api/auth/register/worker`,
+    google: `${API_URL}/api/auth/google`,
     verifyWorkerEmail: `${API_URL}/api/auth/verify-worker-email`,
     resendOtp: `${API_URL}/api/auth/resend-otp`,
     forgotPassword: `${API_URL}/api/auth/forgot-password`,

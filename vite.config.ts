@@ -16,11 +16,26 @@ export default defineConfig(({ mode }) => {
   return {
     server: {
       port: 3000,
+      strictPort: true,
       host: '0.0.0.0',
-      allowedHosts: true, // <--- ESTA ES LA LÍNEA NUEVA
+      allowedHosts: true,
+      // Disable HMR websocket in Docker+Windows to avoid intermittent ws resets.
+      hmr: false,
       watch: {
-        usePolling: true
-      }
+        usePolling: true,
+        ignored: [
+          '**/backend/**',
+          '**/docker/**',
+          '**/.git/**',
+          '**/dist/**',
+          '**/node_modules/**',
+        ],
+      },
+    },
+    optimizeDeps: {
+      // Avoid dependency scanner crashes in this workspace layout.
+      noDiscovery: true,
+      include: [],
     },
     plugins: [react()],
     build: {
@@ -42,12 +57,12 @@ export default defineConfig(({ mode }) => {
     },
     define: {
       'process.env.API_KEY': JSON.stringify(env.GEMINI_API_KEY),
-      'process.env.GEMINI_API_KEY': JSON.stringify(env.GEMINI_API_KEY)
+      'process.env.GEMINI_API_KEY': JSON.stringify(env.GEMINI_API_KEY),
     },
     resolve: {
       alias: {
         '@': path.resolve(__dirname, './src'),
-      }
-    }
+      },
+    },
   };
 });

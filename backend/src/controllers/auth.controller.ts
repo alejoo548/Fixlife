@@ -3,15 +3,46 @@ import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
 import fs from 'fs';
 import path from 'path';
+import crypto from 'crypto';
 import pool from '../config/db';
 import { ResultSetHeader, RowDataPacket } from 'mysql2';
 import { sendVerificationEmail, sendPasswordResetEmail } from '../utils/email';
 import { ensureUsersActiveColumn, ensureUsersPendingWorkerColumn } from '../utils/users';
 import { AuthRequest } from '../middlewares/auth.middleware';
+import { OAuth2Client } from 'google-auth-library';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'super_secret_jwt_key_for_development';
+const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || '';
+const RECAPTCHA_SECRET_KEY = process.env.RECAPTCHA_SECRET_KEY || '';
+const googleClient = GOOGLE_CLIENT_ID ? new OAuth2Client(GOOGLE_CLIENT_ID) : null;
 
 const sanitizeText = (value: unknown): string => String(value ?? '').trim();
+
+const verifyRecaptchaToken = async (token: string, remoteIp?: string) => {
+  try {
+    if (!RECAPTCHA_SECRET_KEY) {
+      return { success: false, error: 'Captcha is not configured on the server.' };
+    }
+
+    const params = new URLSearchParams();
+    params.set('secret', RECAPTCHA_SECRET_KEY);
+    params.set('response', token);
+    if (remoteIp) params.set('remoteip', remoteIp);
+
+    const response = await fetch('https://www.google.com/recaptcha/api/siteverify', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: params.toString(),
+    });
+
+    const data = (await response.json()) as any;
+    if (data?.success === true) return { success: true };
+    return { success: false, error: 'Captcha validation failed.' };
+  } catch (error: any) {
+    console.error('Error verifying captcha:', error);
+    return { success: false, error: 'Captcha verification error.' };
+  }
+};
 
 const isValidName = (value: string): boolean => {
   if (value.length < 2 || value.length > 60) return false;
@@ -355,7 +386,7 @@ export const verifyWorkerEmail = async (req: Request, res: Response): Promise<vo
 
 export const registerUser = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { name, lastname, email, phone_number, password, username } = req.body;
+    const { name, lastname, email, phone_number, password, username, captchaToken } = req.body;
 
     if (!name || !lastname || !email || !password) {
       res.status(400).json({ error: 'Missing required fields' });
@@ -390,6 +421,17 @@ export const registerUser = async (req: Request, res: Response): Promise<void> =
 
     if (!isValidPassword(String(password))) {
       res.status(400).json({ error: 'Password must be 8-128 chars and include at least 1 letter and 1 number' });
+      return;
+    }
+
+    if (!captchaToken) {
+      res.status(400).json({ error: 'Captcha is required' });
+      return;
+    }
+
+    const captchaResult = await verifyRecaptchaToken(String(captchaToken), req.ip);
+    if (!captchaResult.success) {
+      res.status(400).json({ error: captchaResult.error || 'Captcha validation failed' });
       return;
     }
 
@@ -542,6 +584,159 @@ export const login = async (req: Request, res: Response): Promise<void> => {
     });
   } catch (error: any) {
     console.error('Error in login:', error);
+    res.status(500).json({ error: error.message || 'Internal server error' });
+  }
+};
+
+export const googleLogin = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { credential } = req.body;
+
+    if (!credential) {
+      res.status(400).json({ error: 'Missing Google credential' });
+      return;
+    }
+
+    if (!googleClient || !GOOGLE_CLIENT_ID) {
+      res.status(500).json({ error: 'Google login is not configured' });
+      return;
+    }
+
+    await ensureUsersActiveColumn();
+    await ensureUsersPendingWorkerColumn();
+
+    const ticket = await googleClient.verifyIdToken({
+      idToken: credential,
+      audience: GOOGLE_CLIENT_ID,
+    });
+
+    const payload = ticket.getPayload();
+    const email = payload?.email ? String(payload.email).toLowerCase() : '';
+
+    if (!email) {
+      res.status(400).json({ error: 'Google account email is missing' });
+      return;
+    }
+
+    if (payload?.email_verified === false) {
+      res.status(400).json({ error: 'Google email is not verified' });
+      return;
+    }
+
+    const fullName = sanitizeText(payload?.name);
+    const fallbackName = fullName.split(' ')[0] || 'User';
+    const fallbackLast = fullName.split(' ').slice(1).join(' ') || 'Google';
+    const name = sanitizeText(payload?.given_name) || fallbackName;
+    const lastname = sanitizeText(payload?.family_name) || fallbackLast;
+
+    const connection = await pool.getConnection();
+
+    try {
+      await connection.beginTransaction();
+
+      const [users] = await connection.execute<RowDataPacket[]>(
+        `SELECT id_user, name, lastname, email, phone_number, rol, username, profile_image, is_active, pending_worker
+         FROM users WHERE email = ?`,
+        [email]
+      );
+
+      let userData: any;
+      let userId: number;
+      let userRole: string;
+      let pendingWorker: number;
+
+      if (users.length > 0) {
+        const user = users[0];
+        if (user.is_active === 0) {
+          await connection.rollback();
+          res.status(403).json({ error: 'Account is inactive. Contact support.' });
+          return;
+        }
+
+        userId = Number(user.id_user);
+        userRole = String(user.rol);
+        pendingWorker = user.pending_worker ? 1 : 0;
+
+        userData = {
+          id_user: userId,
+          name: user.name,
+          lastname: user.lastname,
+          email: user.email,
+          phone_number: user.phone_number,
+          rol: userRole,
+          username: user.username,
+          profile_image: user.profile_image,
+          pending_worker: pendingWorker,
+        };
+      } else {
+        const password_hash = await bcrypt.hash(crypto.randomBytes(32).toString('hex'), 12);
+
+        const [insertUserResult] = await connection.execute<ResultSetHeader>(
+          `INSERT INTO users
+           (name, lastname, email, phone_number, password_hash, rol, username, created_at)
+           VALUES (?, ?, ?, ?, ?, 'client', ?, NOW())`,
+          [name, lastname, email, null, password_hash, null]
+        );
+
+        userId = insertUserResult.insertId;
+        userRole = 'client';
+        pendingWorker = 0;
+
+        userData = {
+          id_user: userId,
+          name,
+          lastname,
+          email,
+          phone_number: null,
+          rol: userRole,
+          username: null,
+          pending_worker: pendingWorker,
+        };
+      }
+
+      await connection.execute('UPDATE users SET last_login = NOW() WHERE id_user = ?', [userId]);
+
+      if (userRole === 'worker' || pendingWorker === 1) {
+        const [workerProfiles] = await connection.execute<RowDataPacket[]>(
+          `SELECT id_worker_profile, bio, banner_image, dui_document, cert_document, is_verified
+           FROM worker_profiles WHERE id_user = ?`,
+          [userId]
+        );
+
+        if (workerProfiles.length > 0) {
+          const worker = workerProfiles[0];
+          userData.worker_profile = {
+            id_worker_profile: worker.id_worker_profile,
+            bio: worker.bio,
+            banner_image: worker.banner_image,
+            dui_document: worker.dui_document,
+            cert_document: worker.cert_document,
+            is_verified: Boolean(worker.is_verified),
+          };
+        }
+      }
+
+      await connection.commit();
+
+      const token = jwt.sign(
+        { user_id: userId, rol: userRole, pending_worker: pendingWorker },
+        JWT_SECRET,
+        { expiresIn: '7d' }
+      );
+
+      res.json({
+        success: true,
+        user: userData,
+        token,
+      });
+    } catch (error) {
+      await connection.rollback();
+      throw error;
+    } finally {
+      connection.release();
+    }
+  } catch (error: any) {
+    console.error('Error in googleLogin:', error);
     res.status(500).json({ error: error.message || 'Internal server error' });
   }
 };
