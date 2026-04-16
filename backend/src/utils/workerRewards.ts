@@ -302,6 +302,27 @@ const getCancelledCycleCounts = async (profileId: number) => {
   return map;
 };
 
+const restoreEligibleBonusPayouts = async (
+  profileId: number,
+  bonusType: 'commission' | 'royalty',
+  matchColumn: 'source_request_id' | 'cycle_key',
+  matchValues: Array<number | string>
+) => {
+  if (matchValues.length === 0) return;
+
+  await pool.execute(
+    `UPDATE worker_bonus_payouts
+     SET payout_status = 'scheduled',
+         paid_at = NULL,
+         updated_at = CURRENT_TIMESTAMP
+     WHERE id_worker_profile = ?
+       AND bonus_type = ?
+       AND payout_status = 'cancelled'
+       AND ${matchColumn} IN (${matchValues.map(() => '?').join(', ')})`,
+    [profileId, bonusType, ...matchValues]
+  );
+};
+
 const upsertCommissionBonus = async (
   profileId: number,
   settings: WorkerRewardsSettings,
@@ -312,20 +333,14 @@ const upsertCommissionBonus = async (
 ) => {
   const bonusAmount = Number((baseAmount * settings.commission_rate).toFixed(2));
   const payoutKey = `commission-request-${requestId}`;
+  const note = `Commission bonus at ${(settings.commission_rate * 100).toFixed(2)}% after ${settings.trial_min_completed_jobs} completed jobs`;
 
   await pool.execute(
     `INSERT INTO worker_bonus_payouts
        (id_worker_profile, source_request_id, cycle_key, payout_key, bonus_type, base_amount, bonus_amount, payout_status, scheduled_for, notes)
      VALUES (?, ?, ?, ?, 'commission', ?, ?, 'scheduled', ?, ?)
      ON DUPLICATE KEY UPDATE
-       base_amount = CASE WHEN payout_status = 'paid' THEN base_amount ELSE VALUES(base_amount) END,
-       bonus_amount = CASE WHEN payout_status = 'paid' THEN bonus_amount ELSE VALUES(bonus_amount) END,
-       cycle_key = CASE WHEN payout_status = 'paid' THEN cycle_key ELSE VALUES(cycle_key) END,
-       payout_key = CASE WHEN payout_status = 'paid' THEN payout_key ELSE VALUES(payout_key) END,
-       scheduled_for = CASE WHEN payout_status = 'paid' THEN scheduled_for ELSE VALUES(scheduled_for) END,
-       notes = CASE WHEN payout_status = 'paid' THEN notes ELSE VALUES(notes) END,
-       payout_status = CASE WHEN payout_status = 'paid' THEN payout_status ELSE 'scheduled' END,
-       paid_at = CASE WHEN payout_status = 'paid' THEN paid_at ELSE NULL END`,
+       id_worker_profile = id_worker_profile`,
     [
       profileId,
       requestId,
@@ -334,7 +349,7 @@ const upsertCommissionBonus = async (
       baseAmount,
       bonusAmount,
       toSqlDate(scheduledFor),
-      'Commission bonus',
+      note,
     ]
   );
 };
@@ -348,19 +363,14 @@ const upsertRoyaltyBonus = async (
 ) => {
   const bonusAmount = Number((baseAmount * settings.royalty_rate).toFixed(2));
   const payoutKey = `royalty-cycle-${profileId}-${cycleKey}`;
+  const note = `Royalty bonus at ${(settings.royalty_rate * 100).toFixed(2)}% with ${settings.royalty_min_jobs}+ jobs and ${settings.royalty_min_completion_rate.toFixed(1)}% completion`;
 
   await pool.execute(
     `INSERT INTO worker_bonus_payouts
        (id_worker_profile, source_request_id, cycle_key, payout_key, bonus_type, base_amount, bonus_amount, payout_status, scheduled_for, notes)
      VALUES (?, NULL, ?, ?, 'royalty', ?, ?, 'scheduled', ?, ?)
      ON DUPLICATE KEY UPDATE
-       base_amount = CASE WHEN payout_status = 'paid' THEN base_amount ELSE VALUES(base_amount) END,
-       bonus_amount = CASE WHEN payout_status = 'paid' THEN bonus_amount ELSE VALUES(bonus_amount) END,
-       payout_key = CASE WHEN payout_status = 'paid' THEN payout_key ELSE VALUES(payout_key) END,
-       scheduled_for = CASE WHEN payout_status = 'paid' THEN scheduled_for ELSE VALUES(scheduled_for) END,
-       notes = CASE WHEN payout_status = 'paid' THEN notes ELSE VALUES(notes) END,
-       payout_status = CASE WHEN payout_status = 'paid' THEN payout_status ELSE 'scheduled' END,
-       paid_at = CASE WHEN payout_status = 'paid' THEN paid_at ELSE NULL END`,
+       id_worker_profile = id_worker_profile`,
     [
       profileId,
       cycleKey,
@@ -368,7 +378,7 @@ const upsertRoyaltyBonus = async (
       baseAmount,
       bonusAmount,
       toSqlDate(scheduledFor),
-      'Royalty bonus',
+      note,
     ]
   );
 };
@@ -381,6 +391,7 @@ export const syncWorkerBonusPayouts = async (
   const settings = settingsInput || (await getWorkerRewardsSettings());
   const completedRequests = await getCompletedRequests(profileId);
   const cancelledCounts = await getCancelledCycleCounts(profileId);
+  const now = new Date();
 
   const eligibleCommissionRequestIds: number[] = [];
   const cycleStats = new Map<string, { completed_jobs: number; gross: number; cancelled_jobs: number }>();
@@ -413,29 +424,15 @@ export const syncWorkerBonusPayouts = async (
     );
   }
 
-  if (eligibleCommissionRequestIds.length > 0) {
-    await pool.execute(
-      `UPDATE worker_bonus_payouts
-       SET payout_status = 'cancelled', paid_at = NULL
-       WHERE id_worker_profile = ?
-         AND bonus_type = 'commission'
-         AND payout_status <> 'paid'
-         AND source_request_id NOT IN (${eligibleCommissionRequestIds.map(() => '?').join(', ')})`,
-      [profileId, ...eligibleCommissionRequestIds]
-    );
-  } else {
-    await pool.execute(
-      `UPDATE worker_bonus_payouts
-       SET payout_status = 'cancelled', paid_at = NULL
-       WHERE id_worker_profile = ?
-         AND bonus_type = 'commission'
-         AND payout_status <> 'paid'`,
-      [profileId]
-    );
-  }
+  await restoreEligibleBonusPayouts(profileId, 'commission', 'source_request_id', eligibleCommissionRequestIds);
 
   const eligibleRoyaltyCycleKeys: string[] = [];
   for (const [cycleKey, stats] of cycleStats.entries()) {
+    const scheduledFor = getCycleRoyaltyPayoutDate(cycleKey, settings.payout_weekday);
+    if (scheduledFor.getTime() > now.getTime()) {
+      continue;
+    }
+
     const closedJobs = stats.completed_jobs + (stats.cancelled_jobs || 0);
     const completionRate = closedJobs > 0 ? (stats.completed_jobs / closedJobs) * 100 : 0;
     if (
@@ -448,31 +445,12 @@ export const syncWorkerBonusPayouts = async (
         settings,
         cycleKey,
         stats.gross,
-        getCycleRoyaltyPayoutDate(cycleKey, settings.payout_weekday)
+        scheduledFor
       );
     }
   }
 
-  if (eligibleRoyaltyCycleKeys.length > 0) {
-    await pool.execute(
-      `UPDATE worker_bonus_payouts
-       SET payout_status = 'cancelled', paid_at = NULL
-       WHERE id_worker_profile = ?
-         AND bonus_type = 'royalty'
-         AND payout_status <> 'paid'
-         AND cycle_key NOT IN (${eligibleRoyaltyCycleKeys.map(() => '?').join(', ')})`,
-      [profileId, ...eligibleRoyaltyCycleKeys]
-    );
-  } else {
-    await pool.execute(
-      `UPDATE worker_bonus_payouts
-       SET payout_status = 'cancelled', paid_at = NULL
-       WHERE id_worker_profile = ?
-         AND bonus_type = 'royalty'
-         AND payout_status <> 'paid'`,
-      [profileId]
-    );
-  }
+  await restoreEligibleBonusPayouts(profileId, 'royalty', 'cycle_key', eligibleRoyaltyCycleKeys);
 
   return {
     settings,
@@ -504,7 +482,7 @@ export const markWorkerBonusPayoutAsPaid = async (idBonusPayout: number) => {
          paid_at = CURRENT_TIMESTAMP,
          updated_at = CURRENT_TIMESTAMP
      WHERE id_bonus_payout = ?
-       AND payout_status <> 'paid'`,
+       AND payout_status = 'scheduled'`,
     [idBonusPayout]
   );
 

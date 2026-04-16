@@ -1689,7 +1689,7 @@ export const updateWorkerRewardsProgram = async (req: AuthRequest, res: Response
 
     res.json({
       success: true,
-      message: 'Worker rewards program updated.',
+      message: 'Worker rewards program updated. Existing earned payouts were preserved.',
       settings: updatedSettings,
     });
   } catch (error: any) {
@@ -1725,7 +1725,7 @@ export const markWorkerBonusPayoutPaidController = async (req: AuthRequest, res:
     const payoutRow = rows[0];
     const updated = await markWorkerBonusPayoutAsPaid(idBonusPayout);
     if (!updated) {
-      res.status(404).json({ error: 'Bonus payout not found or already marked as paid.' });
+      res.status(404).json({ error: 'Bonus payout not found or not scheduled for payment.' });
       return;
     }
 

@@ -81,6 +81,12 @@ type LocationSuggestionResult = {
 const SERVICE_REQUEST_STATUS_ENUM =
   `ENUM('open', 'pending', 'payment_pending', 'paid', 'assigned', 'in_progress', 'awaiting_confirmation', 'done', 'cancelled')`;
 const SAVED_LOCATION_KIND_ENUM = `ENUM('home', 'work', 'favorite', 'recent')`;
+const DEFAULT_ALLOWED_REDIRECT_ORIGINS = [
+  'http://localhost:3000',
+  'http://127.0.0.1:3000',
+  'http://0.0.0.0:3000',
+];
+type SupportedPaymentMethod = 'paypal' | 'wompi';
 const CHAT_ENABLED_REQUEST_STATUSES = [
   'assigned',
   'payment_pending',
@@ -1407,6 +1413,8 @@ export const ensureServiceRequestTables = async () => {
       provider VARCHAR(50) NOT NULL DEFAULT 'sandbox',
       checkout_reference VARCHAR(64) NOT NULL,
       provider_payment_id VARCHAR(120) NULL,
+      provider_capture_id VARCHAR(120) NULL,
+      currency_code VARCHAR(8) NOT NULL DEFAULT 'USD',
       amount DECIMAL(10,2) NOT NULL DEFAULT 0.00,
       platform_fee DECIMAL(10,2) NOT NULL DEFAULT 0.00,
       worker_payout DECIMAL(10,2) NOT NULL DEFAULT 0.00,
@@ -1444,6 +1452,21 @@ export const ensureServiceRequestTables = async () => {
     );
   }
 
+  const [paymentCols] = await pool.execute<RowDataPacket[]>(
+    `SELECT COLUMN_NAME
+     FROM information_schema.columns
+     WHERE table_schema = DATABASE()
+       AND table_name = 'service_request_payments'
+       AND column_name IN ('provider_capture_id', 'currency_code')`
+  );
+  const paymentColSet = new Set(paymentCols.map((c: any) => String(c.COLUMN_NAME)));
+  if (!paymentColSet.has('provider_capture_id')) {
+    await pool.execute(`ALTER TABLE service_request_payments ADD COLUMN provider_capture_id VARCHAR(120) NULL AFTER provider_payment_id`);
+  }
+  if (!paymentColSet.has('currency_code')) {
+    await pool.execute(`ALTER TABLE service_request_payments ADD COLUMN currency_code VARCHAR(8) NOT NULL DEFAULT 'USD' AFTER provider_capture_id`);
+  }
+
   serviceRequestsTablesChecked = true;
 };
 
@@ -1477,11 +1500,12 @@ const getPaymentBreakdown = (amount: number) => {
   return { amount: normalizedAmount, platformFee, workerPayout };
 };
 
-const normalizePaymentMethod = (value: unknown) => {
+const parseRequestedPaymentMethod = (value: unknown): SupportedPaymentMethod | null => {
   const method = String(value || '').trim().toLowerCase();
+  if (!method) return null;
   if (method === 'paypal') return 'paypal';
   if (method === 'wompi') return 'wompi';
-  return 'paypal';
+  return null;
 };
 
 const sanitizePaymentValue = (value: unknown, max = 120) => String(value ?? '').trim().slice(0, max);
@@ -1491,17 +1515,46 @@ const buildInvoiceNumber = (idRequest: number) => {
   return `INV-FX-${idRequest}-${stamp}`;
 };
 
+const getAllowedRedirectOrigins = () => {
+  const origins = new Set<string>(DEFAULT_ALLOWED_REDIRECT_ORIGINS);
+
+  for (const rawGroup of [
+    process.env.ALLOWED_ORIGINS,
+    process.env.FRONTEND_ORIGIN,
+    process.env.FRONTEND_URL,
+    process.env.PUBLIC_APP_URL,
+  ]) {
+    for (const rawValue of String(rawGroup || '').split(',')) {
+      const candidate = rawValue.trim();
+      if (!candidate) continue;
+      try {
+        origins.add(new URL(candidate).origin);
+      } catch {
+        // Ignore malformed origins from env to keep defaults working.
+      }
+    }
+  }
+
+  return origins;
+};
+
 const sanitizeRedirectUrl = (value: unknown, fallback: string) => {
   const raw = String(value || '').trim();
   if (!raw) return fallback;
   try {
     const parsed = new URL(raw);
     if (!['http:', 'https:'].includes(parsed.protocol)) return fallback;
+    if (!getAllowedRedirectOrigins().has(parsed.origin)) return fallback;
     return parsed.toString();
   } catch {
     return fallback;
   }
 };
+
+const roundMoney = (value: number) => Number(Number(value || 0).toFixed(2));
+
+const amountsMatch = (left: number | null | undefined, right: number | null | undefined) =>
+  Math.abs(roundMoney(Number(left || 0)) - roundMoney(Number(right || 0))) < 0.01;
 
 const getPaypalBaseUrl = () =>
   String(process.env.PAYPAL_MODE || 'sandbox').toLowerCase() === 'live'
@@ -1625,6 +1678,49 @@ const capturePaypalOrder = async (paypalOrderId: string) => {
   }
 
   return payload;
+};
+
+const readPaypalCaptureSummary = (payload: any) => {
+  const purchaseUnit = Array.isArray(payload?.purchase_units) ? payload.purchase_units[0] : null;
+  const capture = Array.isArray(purchaseUnit?.payments?.captures) ? purchaseUnit.payments.captures[0] : null;
+  const amountBlock = capture?.amount || purchaseUnit?.amount || null;
+
+  return {
+    orderId: sanitizePaymentValue(payload?.id, 120),
+    orderStatus: String(payload?.status || '').toUpperCase(),
+    referenceId: sanitizePaymentValue(purchaseUnit?.reference_id, 64) || null,
+    captureId: sanitizePaymentValue(capture?.id, 120) || null,
+    captureStatus: String(capture?.status || '').toUpperCase() || null,
+    amount: amountBlock?.value != null ? roundMoney(Number(amountBlock.value)) : null,
+    currencyCode: amountBlock?.currency_code ? String(amountBlock.currency_code).toUpperCase() : null,
+  };
+};
+
+const assertPaypalCaptureMatchesRequest = (payload: any, expected: {
+  orderId: string;
+  checkoutReference: string;
+  amount: number;
+  currencyCode: string;
+}) => {
+  const summary = readPaypalCaptureSummary(payload);
+
+  if (!summary.orderId || summary.orderId !== expected.orderId) {
+    throw new Error('PayPal order mismatch detected.');
+  }
+  if (!summary.referenceId || summary.referenceId !== expected.checkoutReference) {
+    throw new Error('PayPal checkout reference mismatch detected.');
+  }
+  if (!summary.currencyCode || summary.currencyCode !== expected.currencyCode.toUpperCase()) {
+    throw new Error('PayPal currency mismatch detected.');
+  }
+  if (summary.amount == null || !amountsMatch(summary.amount, expected.amount)) {
+    throw new Error('PayPal amount mismatch detected.');
+  }
+  if (summary.captureStatus && summary.captureStatus !== 'COMPLETED') {
+    throw new Error(`PayPal capture returned capture status ${summary.captureStatus}.`);
+  }
+
+  return summary;
 };
 
 export const createServiceRequest = async (req: AuthRequest, res: Response): Promise<void> => {
@@ -1851,7 +1947,10 @@ export const getMyServiceRequests = async (req: AuthRequest, res: Response): Pro
          u2.profile_image AS worker_profile_image,
          srp.provider AS payment_provider,
          srp.checkout_reference,
+         srp.currency_code AS payment_currency_code,
          srp.amount AS payment_amount,
+         srp.platform_fee AS payment_platform_fee,
+         srp.worker_payout AS payment_worker_payout,
          srp.payment_status,
          srp.paid_at,
          srp.released_at,
@@ -1872,7 +1971,7 @@ export const getMyServiceRequests = async (req: AuthRequest, res: Response): Pro
        GROUP BY
          sr.id_request, sr.id_service, sr.description, sr.location_text, sr.latitude, sr.longitude,
          sr.initial_budget, sr.budget, sr.final_budget, sr.radius_km, sr.status, sr.created_at, s.name, s.icon, wp.id_worker_profile, wp.latitude, wp.longitude, wp.is_online, wp.bio, u2.name, u2.lastname, u2.phone_number, u2.profile_image,
-         srp.provider, srp.checkout_reference, srp.amount, srp.payment_status, srp.paid_at, srp.released_at,
+        srp.provider, srp.checkout_reference, srp.currency_code, srp.amount, srp.platform_fee, srp.worker_payout, srp.payment_status, srp.paid_at, srp.released_at,
          srw_assigned.proposed_budget, srw_assigned.counter_message, srw_assigned.counter_status
        ORDER BY sr.created_at DESC
        LIMIT 100`,
@@ -1915,7 +2014,10 @@ export const getMyServiceRequests = async (req: AuthRequest, res: Response): Pro
           ? {
               provider: row.payment_provider || 'sandbox',
               checkout_reference: row.checkout_reference || null,
+              currency_code: row.payment_currency_code || 'USD',
               amount: row.payment_amount != null ? Number(row.payment_amount) : getRequestChargeAmount(row),
+              platform_fee: row.payment_platform_fee != null ? Number(row.payment_platform_fee) : null,
+              worker_payout: row.payment_worker_payout != null ? Number(row.payment_worker_payout) : null,
               status: row.payment_status || 'pending',
               paid_at: row.paid_at || null,
               released_at: row.released_at || null,
@@ -2328,6 +2430,17 @@ const resolveRequestParticipant = async (idRequest: number, userId: number) => {
   return null;
 };
 
+const mapRequestChatRow = (req: Request, row: any) => ({
+  id_message: Number(row.id_message),
+  id_request: Number(row.id_request),
+  sender_role: row.sender_role,
+  id_user: Number(row.id_user),
+  id_worker_profile: row.id_worker_profile != null ? Number(row.id_worker_profile) : null,
+  message: row.message || null,
+  image_url: row.image_url ? `${req.protocol}://${req.get('host')}/uploads/${encodeURIComponent(row.image_url)}` : null,
+  created_at: row.created_at,
+});
+
 export const getRequestChat = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const userId = req.user?.user_id;
@@ -2353,27 +2466,28 @@ export const getRequestChat = async (req: AuthRequest, res: Response): Promise<v
       return;
     }
 
+    const afterId = Math.max(0, Number(req.query?.after_id || 0));
+
     const [rows] = await pool.execute<RowDataPacket[]>(
       `SELECT id_message, id_request, sender_role, id_user, id_worker_profile, message, image_url, created_at
        FROM service_request_chat_messages
        WHERE id_request = ?
+         AND (? = 0 OR id_message > ?)
        ORDER BY created_at ASC, id_message ASC
-       LIMIT 500`,
-      [idRequest]
+       LIMIT ?`,
+      [idRequest, afterId, afterId, afterId > 0 ? 200 : 500]
     );
+
+    const latestMessageId =
+      rows.length > 0
+        ? Number(rows[rows.length - 1].id_message)
+        : afterId;
 
     res.json({
       success: true,
-      chat: rows.map((row: any) => ({
-        id_message: Number(row.id_message),
-        id_request: Number(row.id_request),
-        sender_role: row.sender_role,
-        id_user: Number(row.id_user),
-        id_worker_profile: row.id_worker_profile != null ? Number(row.id_worker_profile) : null,
-        message: row.message || null,
-        image_url: row.image_url ? `${req.protocol}://${req.get('host')}/uploads/${encodeURIComponent(row.image_url)}` : null,
-        created_at: row.created_at,
-      })),
+      latest_message_id: latestMessageId,
+      incremental: afterId > 0,
+      chat: rows.map((row: any) => mapRequestChatRow(req, row)),
     });
   } catch (error: any) {
     console.error('Error in getRequestChat:', error);
@@ -2426,7 +2540,8 @@ export const postRequestChatMessage = async (req: AuthRequest, res: Response): P
       workerProfileId = rows.length > 0 ? Number(rows[0].id_worker_profile) : null;
     }
 
-    const inserts: any[] = [];
+    const uploads: string[] = [];
+    const insertedMessageIds: number[] = [];
     const firstImage = files[0] || null;
     const [insertResult] = await pool.execute<ResultSetHeader>(
       `INSERT INTO service_request_chat_messages
@@ -2435,17 +2550,33 @@ export const postRequestChatMessage = async (req: AuthRequest, res: Response): P
       [idRequest, participant.role, userId, workerProfileId, message, firstImage ? firstImage.filename : null]
     );
     const primaryMessageId = Number(insertResult.insertId || 0);
-    if (firstImage) inserts.push(firstImage.filename);
+    if (primaryMessageId) insertedMessageIds.push(primaryMessageId);
+    if (firstImage) uploads.push(firstImage.filename);
 
     for (let i = 1; i < files.length; i += 1) {
       const file = files[i];
-      await pool.execute(
+      const [extraInsert] = await pool.execute<ResultSetHeader>(
         `INSERT INTO service_request_chat_messages
          (id_request, sender_role, id_user, id_worker_profile, message, image_url)
          VALUES (?, ?, ?, ?, NULL, ?)`,
         [idRequest, participant.role, userId, workerProfileId, file.filename]
       );
-      inserts.push(file.filename);
+      const extraId = Number(extraInsert.insertId || 0);
+      if (extraId) insertedMessageIds.push(extraId);
+      uploads.push(file.filename);
+    }
+
+    let createdMessages: any[] = [];
+    if (insertedMessageIds.length > 0) {
+      const placeholders = insertedMessageIds.map(() => '?').join(', ');
+      const [createdRows] = await pool.execute<RowDataPacket[]>(
+        `SELECT id_message, id_request, sender_role, id_user, id_worker_profile, message, image_url, created_at
+         FROM service_request_chat_messages
+         WHERE id_message IN (${placeholders})
+         ORDER BY created_at ASC, id_message ASC`,
+        insertedMessageIds
+      );
+      createdMessages = createdRows.map((row: any) => mapRequestChatRow(req, row));
     }
 
     const recipientUserId =
@@ -2479,7 +2610,9 @@ export const postRequestChatMessage = async (req: AuthRequest, res: Response): P
       success: true,
       message: 'Chat message sent.',
       id_request: idRequest,
-      uploads: inserts.map((name) => `${req.protocol}://${req.get('host')}/uploads/${encodeURIComponent(name)}`),
+      latest_message_id: createdMessages[createdMessages.length - 1]?.id_message ?? primaryMessageId,
+      messages: createdMessages,
+      uploads: uploads.map((name) => `${req.protocol}://${req.get('host')}/uploads/${encodeURIComponent(name)}`),
     });
   } catch (error: any) {
     console.error('Error in postRequestChatMessage:', error);
@@ -2500,7 +2633,12 @@ export const createRequestPaymentCheckout = async (req: AuthRequest, res: Respon
     await ensureServiceRequestTables();
 
     const idRequest = Number(req.params.idRequest);
-    const paymentMethod = normalizePaymentMethod(req.body?.payment_method);
+    const requestedPaymentMethod = parseRequestedPaymentMethod(req.body?.payment_method);
+    if (req.body?.payment_method != null && !requestedPaymentMethod) {
+      res.status(400).json({ error: 'Unsupported payment method.' });
+      return;
+    }
+    const paymentMethod: SupportedPaymentMethod = requestedPaymentMethod || 'paypal';
     const payerFullName = sanitizePaymentValue(req.body?.payer?.full_name, 120);
     const payerEmail = sanitizePaymentValue(req.body?.payer?.email, 140);
     const returnUrlInput = sanitizePaymentValue(req.body?.return_url, 500);
@@ -2575,12 +2713,14 @@ export const createRequestPaymentCheckout = async (req: AuthRequest, res: Respon
 
     await connection.execute(
       `INSERT INTO service_request_payments
-       (id_request, provider, checkout_reference, provider_payment_id, amount, platform_fee, worker_payout, payment_status)
-       VALUES (?, ?, ?, ?, ?, ?, ?, 'pending')
+       (id_request, provider, checkout_reference, provider_payment_id, provider_capture_id, currency_code, amount, platform_fee, worker_payout, payment_status)
+       VALUES (?, ?, ?, ?, NULL, 'USD', ?, ?, ?, 'pending')
        ON DUPLICATE KEY UPDATE
          provider = VALUES(provider),
          checkout_reference = VALUES(checkout_reference),
          provider_payment_id = VALUES(provider_payment_id),
+         provider_capture_id = VALUES(provider_capture_id),
+         currency_code = VALUES(currency_code),
          amount = VALUES(amount),
          platform_fee = VALUES(platform_fee),
          worker_payout = VALUES(worker_payout),
@@ -2625,16 +2765,20 @@ export const confirmRequestPayment = async (req: AuthRequest, res: Response): Pr
     await ensureServiceRequestTables();
 
     const idRequest = Number(req.params.idRequest);
-    const paymentMethod = normalizePaymentMethod(req.body?.payment_method);
+    const requestedPaymentMethod = parseRequestedPaymentMethod(req.body?.payment_method);
+    if (req.body?.payment_method != null && !requestedPaymentMethod) {
+      res.status(400).json({ error: 'Unsupported payment method.' });
+      return;
+    }
     const payerFullName = sanitizePaymentValue(req.body?.payer?.full_name, 120);
     const payerEmail = sanitizePaymentValue(req.body?.payer?.email, 140);
     const paypalOrderIdFromBody = sanitizePaymentValue(req.body?.paypal_order_id, 120);
-    if (!idRequest) {
-      res.status(400).json({ error: 'Invalid request id.' });
+    if (requestedPaymentMethod === 'wompi') {
+      res.status(409).json({ error: 'Wompi checkout will be available soon. Please complete this payment with PayPal.' });
       return;
     }
-    if (paymentMethod === 'wompi') {
-      res.status(409).json({ error: 'Wompi checkout will be available soon. Please complete this payment with PayPal.' });
+    if (!idRequest) {
+      res.status(400).json({ error: 'Invalid request id.' });
       return;
     }
 
@@ -2681,7 +2825,7 @@ export const confirmRequestPayment = async (req: AuthRequest, res: Response): Pr
     }
 
     const [paymentRows] = await connection.execute<RowDataPacket[]>(
-      `SELECT id_payment, provider, payment_status, amount, platform_fee, worker_payout, checkout_reference, provider_payment_id
+      `SELECT id_payment, provider, payment_status, amount, platform_fee, worker_payout, checkout_reference, provider_payment_id, provider_capture_id, currency_code
        FROM service_request_payments
        WHERE id_request = ?
        LIMIT 1
@@ -2690,16 +2834,36 @@ export const confirmRequestPayment = async (req: AuthRequest, res: Response): Pr
     );
 
     const { amount, platformFee, workerPayout } = getPaymentBreakdown(getRequestChargeAmount(requestRow));
+    const storedPaymentRow = paymentRows.length > 0 ? paymentRows[0] : null;
+    const storedPaymentMethod = storedPaymentRow ? parseRequestedPaymentMethod(storedPaymentRow.provider) : null;
+    const paymentMethod: SupportedPaymentMethod = requestedPaymentMethod || storedPaymentMethod || 'paypal';
+
+    if (storedPaymentMethod && requestedPaymentMethod && storedPaymentMethod !== requestedPaymentMethod) {
+      await connection.rollback();
+      res.status(409).json({ error: 'Payment method mismatch for this checkout session.' });
+      return;
+    }
 
     const checkoutReferenceForPayment =
-      paymentRows.length > 0 && paymentRows[0].checkout_reference
-        ? String(paymentRows[0].checkout_reference)
+      storedPaymentRow && storedPaymentRow.checkout_reference
+        ? String(storedPaymentRow.checkout_reference)
         : buildCheckoutReference(idRequest);
-    const paypalOrderId =
-      paypalOrderIdFromBody ||
-      (paymentRows.length > 0 && paymentRows[0].provider_payment_id
-        ? String(paymentRows[0].provider_payment_id)
-        : '');
+    const storedPaypalOrderId =
+      storedPaymentRow && storedPaymentRow.provider_payment_id
+        ? String(storedPaymentRow.provider_payment_id)
+        : '';
+    if (storedPaypalOrderId && paypalOrderIdFromBody && storedPaypalOrderId !== paypalOrderIdFromBody) {
+      await connection.rollback();
+      res.status(409).json({ error: 'PayPal order mismatch for this checkout session.' });
+      return;
+    }
+
+    const paypalOrderId = storedPaypalOrderId || paypalOrderIdFromBody;
+    const expectedAmount = storedPaymentRow?.amount != null ? Number(storedPaymentRow.amount) : amount;
+    const expectedPlatformFee = storedPaymentRow?.platform_fee != null ? Number(storedPaymentRow.platform_fee) : platformFee;
+    const expectedWorkerPayout = storedPaymentRow?.worker_payout != null ? Number(storedPaymentRow.worker_payout) : workerPayout;
+    const expectedCurrencyCode = storedPaymentRow?.currency_code ? String(storedPaymentRow.currency_code).toUpperCase() : 'USD';
+    let providerCaptureId: string | null = storedPaymentRow?.provider_capture_id ? String(storedPaymentRow.provider_capture_id) : null;
 
     if (paymentRows.length > 0 && String(paymentRows[0].payment_status || '').toLowerCase() === 'paid') {
       await connection.rollback();
@@ -2709,11 +2873,12 @@ export const confirmRequestPayment = async (req: AuthRequest, res: Response): Pr
         id_request: idRequest,
         payment: {
           provider: String(paymentRows[0].provider || paymentMethod || 'paypal'),
-          amount: Number(paymentRows[0].amount || amount),
-          platform_fee: Number(paymentRows[0].platform_fee || platformFee),
-          worker_payout: Number(paymentRows[0].worker_payout || workerPayout),
+          amount: Number(paymentRows[0].amount || expectedAmount),
+          platform_fee: Number(paymentRows[0].platform_fee || expectedPlatformFee),
+          worker_payout: Number(paymentRows[0].worker_payout || expectedWorkerPayout),
           status: 'paid',
           checkout_reference: String(paymentRows[0].checkout_reference || checkoutReferenceForPayment),
+          currency_code: String(paymentRows[0].currency_code || expectedCurrencyCode),
         },
         request_status: 'paid',
       });
@@ -2727,7 +2892,14 @@ export const confirmRequestPayment = async (req: AuthRequest, res: Response): Pr
         return;
       }
       try {
-        await capturePaypalOrder(paypalOrderId);
+        const paypalCapture = await capturePaypalOrder(paypalOrderId);
+        const validatedCapture = assertPaypalCaptureMatchesRequest(paypalCapture, {
+          orderId: paypalOrderId,
+          checkoutReference: checkoutReferenceForPayment,
+          amount: expectedAmount,
+          currencyCode: expectedCurrencyCode,
+        });
+        providerCaptureId = validatedCapture.captureId || providerCaptureId;
       } catch (paypalError: any) {
         await connection.rollback();
         res.status(502).json({ error: paypalError?.message || 'PayPal capture failed.' });
@@ -2738,9 +2910,9 @@ export const confirmRequestPayment = async (req: AuthRequest, res: Response): Pr
     if (paymentRows.length === 0) {
       await connection.execute(
         `INSERT INTO service_request_payments
-         (id_request, provider, checkout_reference, provider_payment_id, amount, platform_fee, worker_payout, payment_status, paid_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, 'paid', CURRENT_TIMESTAMP)`,
-        [idRequest, paymentMethod, checkoutReferenceForPayment, paypalOrderId || null, amount, platformFee, workerPayout]
+         (id_request, provider, checkout_reference, provider_payment_id, provider_capture_id, currency_code, amount, platform_fee, worker_payout, payment_status, paid_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'paid', CURRENT_TIMESTAMP)`,
+        [idRequest, paymentMethod, checkoutReferenceForPayment, paypalOrderId || null, providerCaptureId, expectedCurrencyCode, expectedAmount, expectedPlatformFee, expectedWorkerPayout]
       );
     } else {
       if (String(paymentRows[0].payment_status || '').toLowerCase() === 'paid') {
@@ -2753,6 +2925,8 @@ export const confirmRequestPayment = async (req: AuthRequest, res: Response): Pr
         `UPDATE service_request_payments
          SET provider = ?,
              provider_payment_id = COALESCE(?, provider_payment_id),
+             provider_capture_id = COALESCE(?, provider_capture_id),
+             currency_code = ?,
              amount = ?,
              platform_fee = ?,
              worker_payout = ?,
@@ -2760,7 +2934,7 @@ export const confirmRequestPayment = async (req: AuthRequest, res: Response): Pr
              paid_at = CURRENT_TIMESTAMP,
              updated_at = CURRENT_TIMESTAMP
          WHERE id_request = ?`,
-        [paymentMethod, paypalOrderId || null, amount, platformFee, workerPayout, idRequest]
+        [paymentMethod, paypalOrderId || null, providerCaptureId, expectedCurrencyCode, expectedAmount, expectedPlatformFee, expectedWorkerPayout, idRequest]
       );
     }
 
@@ -2823,9 +2997,9 @@ export const confirmRequestPayment = async (req: AuthRequest, res: Response): Pr
         customerName,
         requestId: idRequest,
         serviceName,
-        amount,
-        platformFee,
-        workerPayout,
+        amount: expectedAmount,
+        platformFee: expectedPlatformFee,
+        workerPayout: expectedWorkerPayout,
         checkoutReference,
         invoiceNumber,
         provider: paymentMethod,
@@ -2839,7 +3013,7 @@ export const confirmRequestPayment = async (req: AuthRequest, res: Response): Pr
         workerName,
         requestId: idRequest,
         serviceName,
-        amount: workerPayout,
+        amount: expectedWorkerPayout,
         checkoutReference,
       });
     }
@@ -2850,11 +3024,12 @@ export const confirmRequestPayment = async (req: AuthRequest, res: Response): Pr
       id_request: idRequest,
       payment: {
         provider: paymentMethod,
-        amount,
-        platform_fee: platformFee,
-        worker_payout: workerPayout,
+        amount: expectedAmount,
+        platform_fee: expectedPlatformFee,
+        worker_payout: expectedWorkerPayout,
         status: 'paid',
         checkout_reference: checkoutReference,
+        currency_code: expectedCurrencyCode,
         invoice_number: invoiceNumber,
       },
       request_status: 'paid',
