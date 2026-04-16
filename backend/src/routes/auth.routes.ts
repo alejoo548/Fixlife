@@ -1,8 +1,17 @@
 import { Router } from 'express';
-import {
+import path from 'path';
+import { authLimiter } from '../middlewares/security.middleware';
+import { validate } from '../middlewares/validate.middleware';
+import { AuthSchema } from '../schemas/auth.schema';
+import { verifyToken } from '../middlewares/auth.middleware';
+import { uploadImageOnly } from '../middlewares/upload.middleware';
+
+const authController = require(path.join(__dirname, '../controllers/auth.controller'));
+const {
   registerWorker,
   registerUser,
   login,
+  googleLogin,
   verifyWorkerEmail,
   resendOtp,
   forgotPassword,
@@ -10,13 +19,8 @@ import {
   verifyResetToken,
   uploadProfileImage,
   removeProfileImage,
-  updateProfile
-} from '../controllers/auth.controller';
-import { authLimiter } from '../middlewares/security.middleware';
-import { validate } from '../middlewares/validate.middleware';
-import { AuthSchema } from '../schemas/auth.schema';
-import { verifyToken } from '../middlewares/auth.middleware';
-import { uploadImageOnly } from '../middlewares/upload.middleware';
+  updateProfile,
+} = authController;
 
 const router = Router();
 
@@ -25,6 +29,7 @@ router.post('/register-user', authLimiter, validate(AuthSchema.registerUser), re
 router.post('/verify-worker-email', authLimiter, validate(AuthSchema.verifyEmail), verifyWorkerEmail);
 router.post('/resend-otp', authLimiter, validate(AuthSchema.emailOnly), resendOtp);
 router.post('/login', authLimiter, validate(AuthSchema.login), login);
+router.post('/google', authLimiter, validate(AuthSchema.googleLogin), googleLogin);
 router.post('/forgot-password', authLimiter, validate(AuthSchema.emailOnly), forgotPassword);
 router.post('/reset-password', authLimiter, validate(AuthSchema.resetPassword), resetPassword);
 router.post('/verify-reset-token', authLimiter, validate(AuthSchema.verifyResetToken), verifyResetToken);
