@@ -171,6 +171,22 @@ const RATING_METRIC_LABELS: Record<RatingMetricKey, string> = {
 
 const notyf = new Notyf({ position: { x: 'left', y: 'bottom' }, ripple: true });
 const CHAT_POLL_MS = 3000;
+const getLatestChatMessageId = (messages: ChatMessage[]) =>
+    messages.length > 0 ? Number(messages[messages.length - 1].id_message || 0) : 0;
+
+const mergeChatMessages = (current: ChatMessage[], incoming: ChatMessage[]) => {
+    const byId = new Map<number, ChatMessage>();
+
+    for (const message of current) {
+        byId.set(Number(message.id_message), message);
+    }
+
+    for (const message of incoming) {
+        byId.set(Number(message.id_message), message);
+    }
+
+    return Array.from(byId.values()).sort((left, right) => Number(left.id_message || 0) - Number(right.id_message || 0));
+};
 const SAVED_LOCATIONS_KEY = 'fixlife.saved_locations.v1';
 const HOME_ICON = "M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6";
 const WORK_ICON = "M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4";
@@ -665,6 +681,7 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
     const lastToastRef = useRef<{ type: 'success' | 'error' | 'info'; message: string; at: number } | null>(null);
     const locationSuggestionTimerRef = useRef<number | null>(null);
     const previousRequestStatusesRef = useRef<Record<number, string>>({});
+    const clientChatEndRef = useRef<HTMLDivElement | null>(null);
     const workerPortfolioPinchRef = useRef<{ startDistance: number; startScale: number } | null>(null);
     const workerPortfolioTapRef = useRef<number>(0);
 
@@ -1265,9 +1282,9 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                     .map((item) =>
                         sameCoords(item, location)
                             ? {
-                                  ...item,
-                                  last_used_at: Date.now(),
-                              }
+                                ...item,
+                                last_used_at: Date.now(),
+                            }
                             : item
                     )
                     .sort((a, b) => Number(b.last_used_at || 0) - Number(a.last_used_at || 0));
@@ -2502,7 +2519,7 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
 
     const canUseRequestChat = (request: MyServiceRequest) => {
         const status = String(request.status || '').toLowerCase();
-        return ['payment_pending', 'paid', 'in_progress', 'awaiting_confirmation', 'done'].includes(status) && !!request.assigned_worker;
+        return ['assigned', 'payment_pending', 'paid', 'in_progress', 'awaiting_confirmation', 'done'].includes(status) && !!request.assigned_worker;
     };
 
     const getTimelineProgress = (request: MyServiceRequest) => {
@@ -2802,11 +2819,21 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
         requestConfirmRequestAction('cancel', request);
     };
 
-    const fetchRequestChat = async (idRequest: number, silent = false) => {
+    const fetchRequestChat = async (
+        idRequest: number,
+        options: { silent?: boolean; incremental?: boolean } = {}
+    ) => {
         const token = getToken();
         if (!token) return;
+        const silent = options.silent === true;
+        const currentChat = chatByRequest[idRequest] || [];
+        const afterId = options.incremental ? getLatestChatMessageId(currentChat) : 0;
+        const chatUrl =
+            afterId > 0
+                ? `${API_ENDPOINTS.services.requestChat(idRequest)}?after_id=${afterId}`
+                : API_ENDPOINTS.services.requestChat(idRequest);
         try {
-            const res = await fetch(API_ENDPOINTS.services.requestChat(idRequest), {
+            const res = await fetch(chatUrl, {
                 headers: { Authorization: `Bearer ${token}` },
             });
             const payload = await res.json();
@@ -2819,14 +2846,15 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
             const nextChat = Array.isArray(payload.chat) ? payload.chat : [];
             setChatByRequest((prev) => {
                 const currentChat = prev[idRequest] || [];
+                const mergedChat = afterId > 0 ? mergeChatMessages(currentChat, nextChat) : nextChat;
                 const currentLastId = currentChat[currentChat.length - 1]?.id_message ?? null;
-                const nextLastId = nextChat[nextChat.length - 1]?.id_message ?? null;
+                const nextLastId = mergedChat[mergedChat.length - 1]?.id_message ?? null;
 
-                if (currentChat.length === nextChat.length && currentLastId === nextLastId) {
+                if (currentChat.length === mergedChat.length && currentLastId === nextLastId) {
                     return prev;
                 }
 
-                return { ...prev, [idRequest]: nextChat };
+                return { ...prev, [idRequest]: mergedChat };
             });
         } catch {
             if (!silent) {
@@ -2864,7 +2892,15 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
 
             setChatMessage((prev) => ({ ...prev, [idRequest]: '' }));
             setChatImage((prev) => ({ ...prev, [idRequest]: null }));
-            await fetchRequestChat(idRequest, true);
+            const createdMessages = Array.isArray(payload?.messages) ? payload.messages : [];
+            if (createdMessages.length > 0) {
+                setChatByRequest((prev) => ({
+                    ...prev,
+                    [idRequest]: mergeChatMessages(prev[idRequest] || [], createdMessages),
+                }));
+            } else {
+                await fetchRequestChat(idRequest, { silent: true });
+            }
         } catch {
             showToast('error', 'Network error sending message.');
         } finally {
@@ -2884,11 +2920,16 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
         if (!canUseChat) return;
 
         const interval = window.setInterval(() => {
-            void fetchRequestChat(openChatRequestId, true);
+            void fetchRequestChat(openChatRequestId, { silent: true, incremental: true });
         }, CHAT_POLL_MS);
 
         return () => window.clearInterval(interval);
     }, [isOpen, openChatRequestId, myRequests]);
+
+    useEffect(() => {
+        if (!isOpen || !openChatRequestId) return;
+        clientChatEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
+    }, [isOpen, openChatRequestId, openChatRequestId ? (chatByRequest[openChatRequestId] || []).length : 0]);
 
     const submitRating = async (request: MyServiceRequest) => {
         const token = getToken();
@@ -3103,10 +3144,10 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                     <motion.div
                                         initial={{ opacity: 0, y: 12 }}
                                         animate={{ opacity: 1, y: 0 }}
-                                        className="mb-5 flex items-center justify-between gap-2 rounded-xl border border-b border-gray-100 pb-4 mb-4"
+                                        className="mb-4 flex items-center justify-between gap-2 rounded-xl border border-gray-100 pb-4"
                                     >
                                         <div>
-                                            <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400 text-[10px]">Selected Service</p>
+                                            <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400">Selected Service</p>
                                             <p className="text-[15px] font-bold text-slate-800">{selectedServiceTitle}</p>
                                         </div>
                                         <button
@@ -3954,7 +3995,7 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                                                             setOpenChatRequestId(null);
                                                                         } else {
                                                                             setOpenChatRequestId(request.id_request);
-                                                                            await fetchRequestChat(request.id_request);
+                                                                            await fetchRequestChat(request.id_request, { silent: true });
                                                                         }
                                                                     }}
                                                                     disabled={!canUseChat}
@@ -3965,7 +4006,7 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                                             </div>
                                                             {!canUseChat && (
                                                                 <p className="mt-2 text-xs font-semibold text-slate-500">
-                                                                    Chat unlocks after you approve the worker.
+                                                                    Chat unlocks once a pro is assigned to your request.
                                                                 </p>
                                                             )}
 
@@ -4002,6 +4043,7 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                                                                 })}
                                                                             </AnimatePresence>
                                                                         )}
+                                                                        <div ref={clientChatEndRef} />
                                                                     </div>
 
                                                                     <div className="flex gap-2">
@@ -4010,6 +4052,12 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                                                                 type="text"
                                                                                 value={chatMessage[request.id_request] || ''}
                                                                                 onChange={(e) => setChatMessage((prev) => ({ ...prev, [request.id_request]: e.target.value }))}
+                                                                                onKeyDown={(event) => {
+                                                                                    if (event.key === 'Enter' && !event.shiftKey) {
+                                                                                        event.preventDefault();
+                                                                                        void sendRequestChat(request.id_request);
+                                                                                    }
+                                                                                }}
                                                                                 placeholder="Write a message..."
                                                                                 className="w-full pl-4 pr-10 py-3 rounded-xl border border-slate-200 text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 outline-none transition-all shadow-sm"
                                                                             />
@@ -4036,7 +4084,13 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                                                         <div className="flex items-center gap-2 px-3 py-2 bg-slate-100 rounded-lg text-xs font-semibold text-slate-600">
                                                                             <svg className="w-4 h-4 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" /></svg>
                                                                             <span className="truncate max-w-[200px]">{chatImage[request.id_request]?.name}</span>
-                                                                            <button type="button" onClick={() => setChatImage(prev => ({ ...prev, [request.id_request]: null }))} className="ml-auto text-slate-400 hover:text-red-500">×</button>
+                                                                            <button
+                                                                                type="button"
+                                                                                onClick={() => setChatImage((prev) => ({ ...prev, [request.id_request]: null }))}
+                                                                                className="ml-auto text-slate-400 hover:text-red-500"
+                                                                            >
+                                                                                ×
+                                                                            </button>
                                                                         </div>
                                                                     )}
                                                                 </div>

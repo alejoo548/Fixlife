@@ -24,7 +24,10 @@ interface MyServiceRequest {
     payment?: {
         provider: string;
         checkout_reference: string | null;
+        currency_code?: string | null;
         amount: number;
+        platform_fee?: number | null;
+        worker_payout?: number | null;
         status: string;
         paid_at: string | null;
     } | null;
@@ -34,6 +37,7 @@ type CheckoutStage = 'form' | 'success' | 'error';
 type CheckoutPaymentMethod = 'paypal' | 'wompi';
 
 const notyf = new Notyf({ position: { x: 'left', y: 'bottom' }, ripple: true });
+const DEFAULT_PLATFORM_PROTECTION_RATE = 0.12;
 
 const getChargeAmount = (request: MyServiceRequest | null) =>
     Number(request?.final_budget ?? request?.proposed_budget ?? request?.budget ?? 0);
@@ -141,8 +145,21 @@ const PaymentCheckoutPage: React.FC<PaymentCheckoutPageProps> = ({ requestId, on
 
     const amount = useMemo(() => getChargeAmount(request), [request]);
     const locationMeta = useMemo(() => getLocationMeta(request?.location_text || ''), [request?.location_text]);
-    const serviceFee = useMemo(() => Number((amount * 0.08).toFixed(2)), [amount]);
-    const subtotal = useMemo(() => Number(Math.max(amount - serviceFee, 0).toFixed(2)), [amount, serviceFee]);
+    const displayCurrency = useMemo(() => readString(request?.payment?.currency_code).toUpperCase() || 'USD', [request?.payment?.currency_code]);
+    const platformFee = useMemo(() => {
+        if (request?.payment?.platform_fee != null) {
+            return Number(request.payment.platform_fee);
+        }
+
+        return Number((amount * DEFAULT_PLATFORM_PROTECTION_RATE).toFixed(2));
+    }, [amount, request?.payment?.platform_fee]);
+    const workerPayout = useMemo(() => {
+        if (request?.payment?.worker_payout != null) {
+            return Number(request.payment.worker_payout);
+        }
+
+        return Number(Math.max(amount - platformFee, 0).toFixed(2));
+    }, [amount, platformFee, request?.payment?.worker_payout]);
     const isAlreadyPaid = useMemo(
         () =>
             Boolean(
@@ -265,7 +282,10 @@ const PaymentCheckoutPage: React.FC<PaymentCheckoutPageProps> = ({ requestId, on
                           payment: {
                               provider: payPayload?.payment?.provider || 'paypal',
                               checkout_reference: payPayload?.payment?.checkout_reference || prev.payment?.checkout_reference || null,
+                              currency_code: payPayload?.payment?.currency_code || prev.payment?.currency_code || displayCurrency,
                               amount: Number(payPayload?.payment?.amount || amount),
+                              platform_fee: Number(payPayload?.payment?.platform_fee ?? prev.payment?.platform_fee ?? platformFee),
+                              worker_payout: Number(payPayload?.payment?.worker_payout ?? prev.payment?.worker_payout ?? workerPayout),
                               status: 'paid',
                               paid_at: new Date().toISOString(),
                           },
@@ -533,7 +553,7 @@ const PaymentCheckoutPage: React.FC<PaymentCheckoutPageProps> = ({ requestId, on
                             <div className="mt-8 flex justify-center">
                                 <div className="text-center">
                                     <span className="text-5xl font-black text-slate-950">${amount.toFixed(2)}</span>
-                                    <span className="ml-1 text-sm font-bold text-slate-400">USD</span>
+                                    <span className="ml-1 text-sm font-bold text-slate-400">{displayCurrency}</span>
                                 </div>
                             </div>
                         </div>
@@ -578,6 +598,25 @@ const PaymentCheckoutPage: React.FC<PaymentCheckoutPageProps> = ({ requestId, on
                                     Payment already secured for this request.
                                 </p>
                             )}
+
+                            <div className="mt-5 grid gap-3 rounded-[24px] border border-slate-200 bg-white/80 p-4 sm:grid-cols-3">
+                                <div>
+                                    <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">Protected now</p>
+                                    <p className="mt-2 text-lg font-black text-slate-950">
+                                        ${amount.toFixed(2)} <span className="text-xs font-bold text-slate-400">{displayCurrency}</span>
+                                    </p>
+                                </div>
+                                <div>
+                                    <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">Platform protection</p>
+                                    <p className="mt-2 text-lg font-black text-slate-950">${platformFee.toFixed(2)}</p>
+                                    <p className="mt-1 text-[11px] text-slate-500">Applied from the secured charge.</p>
+                                </div>
+                                <div>
+                                    <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">Pro release</p>
+                                    <p className="mt-2 text-lg font-black text-slate-950">${workerPayout.toFixed(2)}</p>
+                                    <p className="mt-1 text-[11px] text-slate-500">Released after the job is confirmed complete.</p>
+                                </div>
+                            </div>
                             
                             <div className="mt-6 flex items-center justify-center gap-2 opacity-50">
                                 <svg className="h-4 w-4 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
