@@ -80,6 +80,27 @@ interface SimulatedTrafficSummary {
 const notyf = new Notyf({ position: { x: 'left', y: 'bottom' }, ripple: true });
 const CHAT_POLL_MS = 3000;
 
+const getLatestChatMessageId = (messages: ChatMessage[]) =>
+  messages.length > 0 ? Number(messages[messages.length - 1].id_message || 0) : 0;
+
+const mergeChatMessages = (current: ChatMessage[], incoming: ChatMessage[]) => {
+  const byId = new Map<number, ChatMessage>();
+
+  for (const message of current) {
+    byId.set(Number(message.id_message), message);
+  }
+
+  for (const message of incoming) {
+    byId.set(Number(message.id_message), message);
+  }
+
+  return Array.from(byId.values()).sort((left, right) => {
+    const leftId = Number(left.id_message || 0);
+    const rightId = Number(right.id_message || 0);
+    return leftId - rightId;
+  });
+};
+
 const formatEta = (durationMin: number) => {
   if (!Number.isFinite(durationMin) || durationMin <= 0) return '--';
   if (durationMin < 60) return `${Math.ceil(durationMin)} min`;
@@ -511,6 +532,7 @@ export const RequestsView: React.FC<RequestsViewProps> = ({ isOnline, mobileView
   const routeAnimationFrameRef = useRef<number | null>(null);
   const routeAlertTimerRef = useRef<number | null>(null);
   const lastCameraFollowAtRef = useRef<number>(0);
+  const workerChatEndRef = useRef<HTMLDivElement | null>(null);
   const lastRouteFetchRef = useRef<{
     requestId: number | null;
     lat: number | null;
@@ -563,7 +585,7 @@ export const RequestsView: React.FC<RequestsViewProps> = ({ isOnline, mobileView
     );
   const canUseChatWithClient =
     !!selectedRequest &&
-    ['payment_pending', 'paid', 'in_progress', 'awaiting_confirmation', 'done'].includes(String(selectedRequest.request_status || '').toLowerCase()) &&
+    ['assigned', 'payment_pending', 'paid', 'in_progress', 'awaiting_confirmation', 'done'].includes(String(selectedRequest.request_status || '').toLowerCase()) &&
     String(selectedRequest.worker_status || '').toLowerCase() === 'accepted';
   const selectedLocationCompact = selectedRequest?.location_text
     ? selectedRequest.location_text.split(',').slice(0, 3).join(', ').trim()
@@ -1493,10 +1515,20 @@ export const RequestsView: React.FC<RequestsViewProps> = ({ isOnline, mobileView
     }
   };
 
-  const fetchRequestChat = async (idRequest: number, silent = false) => {
+  const fetchRequestChat = async (
+    idRequest: number,
+    options: { silent?: boolean; incremental?: boolean } = {}
+  ) => {
     if (!token) return;
+    const silent = options.silent === true;
+    const currentChat = chatByRequest[idRequest] || [];
+    const afterId = options.incremental ? getLatestChatMessageId(currentChat) : 0;
+    const chatUrl =
+      afterId > 0
+        ? `${API_ENDPOINTS.services.requestChat(idRequest)}?after_id=${afterId}`
+        : API_ENDPOINTS.services.requestChat(idRequest);
     try {
-      const res = await fetch(API_ENDPOINTS.services.requestChat(idRequest), {
+      const res = await fetch(chatUrl, {
         headers: { Authorization: `Bearer ${token}` },
       });
       const payload = await res.json();
@@ -1507,14 +1539,15 @@ export const RequestsView: React.FC<RequestsViewProps> = ({ isOnline, mobileView
       const nextChat = Array.isArray(payload.chat) ? payload.chat : [];
       setChatByRequest((prev) => {
         const currentChat = prev[idRequest] || [];
+        const mergedChat = afterId > 0 ? mergeChatMessages(currentChat, nextChat) : nextChat;
         const currentLastId = currentChat[currentChat.length - 1]?.id_message ?? null;
-        const nextLastId = nextChat[nextChat.length - 1]?.id_message ?? null;
+        const nextLastId = mergedChat[mergedChat.length - 1]?.id_message ?? null;
 
-        if (currentChat.length === nextChat.length && currentLastId === nextLastId) {
+        if (currentChat.length === mergedChat.length && currentLastId === nextLastId) {
           return prev;
         }
 
-        return { ...prev, [idRequest]: nextChat };
+        return { ...prev, [idRequest]: mergedChat };
       });
     } catch {
       if (!silent) notyf.error('Network error loading chat.');
@@ -1545,7 +1578,15 @@ export const RequestsView: React.FC<RequestsViewProps> = ({ isOnline, mobileView
       }
       setChatTextByRequest((prev) => ({ ...prev, [idRequest]: '' }));
       setChatImageByRequest((prev) => ({ ...prev, [idRequest]: null }));
-      await fetchRequestChat(idRequest, true);
+      const createdMessages = Array.isArray(payload?.messages) ? payload.messages : [];
+      if (createdMessages.length > 0) {
+        setChatByRequest((prev) => ({
+          ...prev,
+          [idRequest]: mergeChatMessages(prev[idRequest] || [], createdMessages),
+        }));
+      } else {
+        await fetchRequestChat(idRequest, { silent: true });
+      }
     } catch {
       notyf.error('Network error sending chat message.');
     } finally {
@@ -1594,27 +1635,34 @@ export const RequestsView: React.FC<RequestsViewProps> = ({ isOnline, mobileView
   useEffect(() => {
     if (!selectedRequest?.id_request) return;
     if (!canUseChatWithClient) return;
+    if (!chatPanelOpen) return;
     fetchRequestChat(selectedRequest.id_request);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedRequest?.id_request, token, canUseChatWithClient]);
+  }, [selectedRequest?.id_request, token, canUseChatWithClient, chatPanelOpen]);
 
   useEffect(() => {
     if (!selectedRequest?.id_request) return;
     if (!canUseChatWithClient) return;
+    if (!chatPanelOpen) return;
 
     const interval = window.setInterval(() => {
-      void fetchRequestChat(selectedRequest.id_request, true);
+      void fetchRequestChat(selectedRequest.id_request, { silent: true, incremental: true });
     }, CHAT_POLL_MS);
 
     return () => window.clearInterval(interval);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedRequest?.id_request, token, canUseChatWithClient]);
+  }, [selectedRequest?.id_request, token, canUseChatWithClient, chatPanelOpen]);
 
   useEffect(() => {
     if (!selectedRequest?.id_request || !canUseChatWithClient) {
       setChatPanelOpen(false);
     }
   }, [selectedRequest?.id_request, canUseChatWithClient]);
+
+  useEffect(() => {
+    if (!chatPanelOpen) return;
+    workerChatEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
+  }, [chatPanelOpen, selectedRequest?.id_request, selectedRequest ? (chatByRequest[selectedRequest.id_request] || []).length : 0]);
 
   useEffect(() => {
     setRoutePanelExpanded(false);
@@ -2064,7 +2112,7 @@ export const RequestsView: React.FC<RequestsViewProps> = ({ isOnline, mobileView
                   </button>
                 ) : (
                   <div className="flex items-center justify-center rounded-2xl bg-slate-100 px-3 py-3 text-center text-xs font-bold text-slate-600">
-                    {canUseChatWithClient ? 'Chat ready' : 'Chat unlocks after client approval'}
+                    {canUseChatWithClient ? 'Chat ready' : 'Chat unlocks once the request is assigned to you'}
                   </div>
                 )}
               </div>
@@ -2127,20 +2175,32 @@ export const RequestsView: React.FC<RequestsViewProps> = ({ isOnline, mobileView
                 </div>
 
                 <div className="mt-4 max-h-52 space-y-2 overflow-y-auto pr-1">
-                  {(chatByRequest[selectedRequest.id_request] || []).slice(-20).map((msg) => (
+                  {(chatByRequest[selectedRequest.id_request] || []).length === 0 ? (
+                    <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-4 py-6 text-center text-[11px] font-semibold text-slate-500">
+                      Chat ready. Send the first update to your client.
+                    </div>
+                  ) : (chatByRequest[selectedRequest.id_request] || []).slice(-30).map((msg) => (
                     <div
                       key={msg.id_message}
-                      className={`rounded-2xl px-3 py-2 text-[11px] ${msg.sender_role === 'worker' ? 'bg-bird-blue/10' : 'bg-emerald-100/70'}`}
+                      className={`rounded-2xl px-3 py-2 text-[11px] ${
+                        msg.sender_role === 'worker' ? 'bg-bird-blue/10' : 'bg-emerald-100/70'
+                      }`}
                     >
-                      <span className="mr-1 font-bold">{msg.sender_role === 'worker' ? 'You:' : 'Client:'}</span>
-                      {msg.message || ''}
+                      <div className="flex items-center justify-between gap-3">
+                        <span className="font-bold">{msg.sender_role === 'worker' ? 'You' : 'Client'}</span>
+                        <span className="text-[10px] font-medium text-slate-400">
+                          {new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                        </span>
+                      </div>
+                      {msg.message ? <p className="mt-1 leading-relaxed">{msg.message}</p> : null}
                       {msg.image_url && (
-                        <a href={msg.image_url} target="_blank" rel="noreferrer" className="ml-1 font-bold text-bird-blue underline">
-                          image
+                        <a href={msg.image_url} target="_blank" rel="noreferrer" className="mt-2 block overflow-hidden rounded-xl border border-white/70 shadow-sm">
+                          <img src={msg.image_url} alt="Chat attachment" className="max-h-40 w-full object-cover" />
                         </a>
                       )}
                     </div>
                   ))}
+                  <div ref={workerChatEndRef} />
                 </div>
 
                 <div className="mt-3 grid grid-cols-[1fr_auto] gap-2">
@@ -2148,6 +2208,12 @@ export const RequestsView: React.FC<RequestsViewProps> = ({ isOnline, mobileView
                     id={`worker-chat-input-${selectedRequest.id_request}`}
                     value={chatTextByRequest[selectedRequest.id_request] || ''}
                     onChange={(e) => setChatTextByRequest((prev) => ({ ...prev, [selectedRequest.id_request]: e.target.value }))}
+                    onKeyDown={(event) => {
+                      if (event.key === 'Enter' && !event.shiftKey) {
+                        event.preventDefault();
+                        void sendChat(selectedRequest.id_request);
+                      }
+                    }}
                     placeholder="Message..."
                     className="rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-xs focus:outline-none focus:ring-2 focus:ring-bird-blue/30"
                   />
@@ -2159,6 +2225,18 @@ export const RequestsView: React.FC<RequestsViewProps> = ({ isOnline, mobileView
                     Send
                   </button>
                 </div>
+                {chatImageByRequest[selectedRequest.id_request] && (
+                  <div className="mt-2 flex items-center gap-2 rounded-xl bg-slate-50 px-3 py-2 text-[11px] font-semibold text-slate-600">
+                    <span className="truncate">{chatImageByRequest[selectedRequest.id_request]?.name}</span>
+                    <button
+                      type="button"
+                      onClick={() => setChatImageByRequest((prev) => ({ ...prev, [selectedRequest.id_request]: null }))}
+                      className="ml-auto rounded-full bg-white px-2 py-0.5 text-[10px] font-black text-slate-500 transition hover:bg-slate-100"
+                    >
+                      Remove
+                    </button>
+                  </div>
+                )}
                 <input
                   type="file"
                   accept="image/png,image/jpeg,image/jpg,image/webp"

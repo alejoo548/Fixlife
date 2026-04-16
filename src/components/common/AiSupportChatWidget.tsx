@@ -72,6 +72,38 @@ const QUICK_PROMPTS = [
   'I have a problem with my account',
 ];
 
+const isSpanishText = (text: string): boolean => {
+  const sample = text.toLowerCase();
+  return /[áéíóúñ¿¡]/.test(sample) || /\b(hola|necesito|quiero|servicio|pago|cuenta|perfil|ayuda|problema)\b/.test(sample);
+};
+
+const buildAssistantFallbackReply = (text: string): string => {
+  const normalized = text.toLowerCase();
+  const inSpanish = isSpanishText(text);
+
+  if (/\b(book|booking|service|reservar|agendar|servicio)\b/.test(normalized)) {
+    return inSpanish
+      ? 'Para reservar, toca "Book a service", describe el trabajo y agrega tu ubicacion. Luego revisa profesionales cercanos y acepta la cotizacion que te convenga.'
+      : 'To book a service, tap "Book a service", describe the job, and add your location. Then review nearby pros and accept the quote that works best for you.';
+  }
+
+  if (/\b(account|profile|login|password|cuenta|perfil|contrasena|contraseña)\b/.test(normalized)) {
+    return inSpanish
+      ? 'Puedo orientarte con problemas de cuenta o perfil. Si el problema sigue, escribe a fixlifeworks@gmail.com y te ayudaran.'
+      : 'I can guide you with account or profile issues. If the problem continues, contact fixlifeworks@gmail.com for help.';
+  }
+
+  if (/\b(payment|paypal|pay|pago|reembolso|cobro)\b/.test(normalized)) {
+    return inSpanish
+      ? 'Los pagos se mantienen seguros durante el servicio y se liberan al confirmar la finalizacion. Si necesitas ayuda humana, escribe a fixlifeworks@gmail.com.'
+      : 'Payments are held securely during the service and released when completion is confirmed. If you need human help, contact fixlifeworks@gmail.com.';
+  }
+
+  return inSpanish
+    ? 'Ahora mismo estoy en modo de ayuda rapida, pero aun puedo orientarte con reservas, pagos y cuenta. Si quieres soporte humano, escribe a fixlifeworks@gmail.com.'
+    : 'I am in quick-help mode right now, but I can still guide you with bookings, payments, and account issues. If you need human support, contact fixlifeworks@gmail.com.';
+};
+
 const TypingDots: React.FC = () => (
   <div className="flex items-center gap-1 px-1 py-0.5">
     {[0, 1, 2].map((i) => (
@@ -155,8 +187,14 @@ export const AiSupportChatWidget: React.FC = () => {
       }
     } catch (err: any) {
       if (err?.name === 'AbortError') return;
-      setError(err?.message || 'Could not connect to the assistant.');
-      setMessages((prev) => prev.filter((msg) => msg.id !== assistantId));
+      setError(null);
+      setMessages((prev) =>
+        prev.map((msg) =>
+          msg.id === assistantId
+            ? { ...msg, content: buildAssistantFallbackReply(trimmed) }
+            : msg
+        ),
+      );
     } finally {
       clearTimeout(timeoutId);
       setIsLoading(false);
