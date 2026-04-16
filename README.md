@@ -1,477 +1,294 @@
-# 🏠 Fixlife - Home Services Platform
+# 🏠 Fixlife — Plataforma de servicios del hogar
 
 <img width="1024" height="1024" alt="Fixilogo" src="https://github.com/user-attachments/assets/4196b4fb-bc62-4ca1-ac24-3c69a22dce42" />
 
-Una plataforma web moderna para conectar usuarios con profesionales de servicios del hogar (plomería, electricidad, limpieza, etc.).
-
-## 🚀 Stack Tecnológico
-
-- **Frontend**: React 18 + Vite + Tailwind CSS + TypeScript + Framer Motion
-- **Backend**: Node.js + Express + TypeScript
-- **Base de Datos**: MySQL 8.0
-- **Gestión de BD**: phpMyAdmin
-- **Contenedorización**: Docker + Docker Compose
-- **Autenticación**: JWT (JSON Web Tokens)
-- **Email**: Nodemailer
-- **Seguridad**: Helmet, Rate Limiting, CORS
+Fixlife conecta clientes con profesionales (pros) para resolver servicios del hogar con flujo completo: solicitud, asignación, seguimiento, chat, pago y cierre.
 
 ---
 
-## 📋 Requisitos Previos
+## 🚀 Stack actual
 
-- Docker Desktop instalado y corriendo
-- Git
-- Puertos disponibles: 3000, 8000, 3307, 8080
+- Frontend: React 18 + Vite + TypeScript + Tailwind + Framer Motion
+- Backend: Node.js + Express + TypeScript
+- DB: MySQL 8 + phpMyAdmin
+- Seguridad: JWT, Helmet, rate limiting, validación Zod
+- IA: Groq (`/api/ai/chat`)
+- Infra: Docker + Docker Compose
 
 ---
 
-## 🎯 Guía de Inicio Rápido
+## ✅ Qué incluye hoy
 
-### 1. Clonar el Repositorio
+### Cliente
+- Registro/login, recuperación de contraseña y perfil.
+- Wizard de solicitud de servicio con imágenes, ubicación y presupuesto.
+- Seguimiento en vivo del trabajador asignado (`ClientLiveRequestTracker`).
+- Chat por solicitud (cliente ↔ pro).
+- Flujo de pago y confirmación de finalización.
+- Calificación del servicio al cerrar la solicitud.
 
-```bash
-git clone https://github.com/alejoo548/Fixlife.git
-cd Fixlife
+### Pro (trabajador)
+- Registro y verificación documental.
+- Dashboard pro: solicitudes, estado, ganancias y configuración.
+- Aceptar/rechazar/counter offer, iniciar y completar trabajos.
+- Presencia online y gestión de portafolio.
+
+### Admin
+- CRUD de servicios y tarjetas (`service_cards`) de homepage.
+- Gestión de workers pendientes.
+- Gestión de usuarios y estado/rol.
+- Histórico de solicitudes y actividad admin.
+- Gestión de recompensas de pros.
+- Editor de hero slides e imágenes.
+
+### IA (Fixly)
+- Widget flotante en frontend (`src/components/common/AiSupportChatWidget.tsx`).
+- Endpoint backend con rate limiting y validación de payload (`backend/src/routes/aiChat.routes.ts`).
+- Respuesta con Groq usando `GROQ_API_KEY`.
+
+### Fixlife Zod
+- Validación modular con schemas Zod por dominio (auth, worker, admin).
+- Middleware genérico `validate(schema)`.
+- Documentación dedicada en `FIXLIFE_ZOD.md`.
+
+---
+
+## 🧭 Flujo funcional principal
+
+1. Cliente crea solicitud (`/api/services/requests`).
+2. Sistema/pros toman o responden la solicitud.
+3. Cliente ve tracking en mapa y estado del trabajo.
+4. Cliente/pro se comunican por chat de solicitud.
+5. Cliente confirma pago y finalización.
+6. Cliente califica el trabajo.
+
+Notas:
+- Geocoding y sugerencias de ubicación: `/api/services/geocode`, `/api/services/geocode/suggest`, `/api/services/geocode/reverse`.
+- Workers cercanos: `/api/services/nearby-workers`.
+
+---
+
+## 📁 Estructura relevante del proyecto
+
+```text
+Fixlife/
+├── backend/
+│   ├── src/
+│   │   ├── controllers/
+│   │   │   ├── auth.controller.ts
+│   │   │   ├── services.controller.ts
+│   │   │   ├── worker.controller.ts
+│   │   │   └── admin.controller.ts
+│   │   ├── routes/
+│   │   │   ├── auth.routes.ts
+│   │   │   ├── services.routes.ts
+│   │   │   ├── worker.routes.ts
+│   │   │   ├── admin.routes.ts
+│   │   │   ├── aiChat.routes.ts
+│   │   │   └── notifications.routes.ts
+│   │   ├── middlewares/
+│   │   │   ├── auth.middleware.ts
+│   │   │   ├── security.middleware.ts
+│   │   │   ├── upload.middleware.ts
+│   │   │   └── validate.middleware.ts
+│   │   ├── schemas/
+│   │   │   ├── auth.schema.ts
+│   │   │   ├── worker.schema.ts
+│   │   │   └── admin.schema.ts
+│   │   └── index.ts
+│   └── uploads/
+├── src/
+│   ├── config/api.ts
+│   ├── components/common/AiSupportChatWidget.tsx
+│   ├── components/modals/ServiceRequestWizard.tsx
+│   ├── components/modals/ClientLiveRequestTracker.tsx
+│   ├── components/modals/AdminDashboard.tsx
+│   ├── components/modals/ProDashboard.tsx
+│   └── pages/PaymentCheckoutPage.tsx
+├── docker/
+│   ├── fixlife_db.sql
+│   └── mysql-init.sql
+├── docker-compose.yml
+├── .env.example
+└── FIXLIFE_ZOD.md
 ```
 
-### 2. Configurar Variables de Entorno
+---
+
+## ⚙️ Variables de entorno
+
+Copiar plantilla:
 
 ```bash
 cp .env.example .env
 ```
 
-El archivo `.env.example` ya está configurado con las credenciales por defecto para desarrollo local.
+Variables clave para que todo funcione:
 
-### 3. Iniciar los Contenedores
+- `MYSQL_ROOT_PASSWORD`
+- `MYSQL_DATABASE`
+- `DB_PASSWORD` (password que usará el backend para MySQL)
+- `JWT_SECRET`
+- `GROQ_API_KEY` (obligatoria para chat IA)
+- `ALLOWED_ORIGINS` (especialmente en producción)
+- `EMAIL_USER` / `EMAIL_PASS` (si se usará email real)
+- `VITE_API_URL` (opcional; en red local se resuelve dinámicamente por host)
+
+---
+
+## 🐳 Levantar en Docker (desarrollo)
 
 ```bash
-docker-compose up --build
+docker compose up -d --build
 ```
 
-Para ejecutar en segundo plano:
+Servicios:
+
+- Frontend: `http://localhost:3000`
+- Backend: `http://localhost:8000`
+- phpMyAdmin: `http://localhost:8080`
+- MySQL host: `localhost:3307`
+
+En red local (ej. Raspberry), usar la IP de la máquina host:
+
+- `http://<IP_RASPBERRY>:3000`
+- `http://<IP_RASPBERRY>:8000`
+- `http://<IP_RASPBERRY>:8080`
+
+`0.0.0.0:puerto` en Docker significa “escucha en todas las interfaces”; no es la IP que debes abrir en el navegador.
+
+---
+
+## 🧪 Validaciones rápidas
+
 ```bash
-docker-compose up -d --build
-```
+# Frontend build
+npm run build
 
-### 4. Acceder a los Servicios
+# Backend build
+cd backend && npm run build
 
-- **Frontend**: http://localhost:3000
-- **Backend API**: http://localhost:8000
-- **phpMyAdmin**: http://localhost:8080
-- **MySQL**: `localhost:3307`
+# Salud de contenedores
+docker compose ps
 
----
+# Servicios públicos
+curl http://localhost:8000/api/services
+curl http://localhost:8000/api/services/cards
 
-## 🗂️ Estructura del Proyecto
-
-```
-Fixlife/
-├── 📁 backend/                      # Backend Node.js + Express + TypeScript
-│   ├── 📁 src/
-│   │   ├── 📁 config/              # Configuraciones
-│   │   │   ├── db.ts               # Conexión a MySQL
-│   │   │   └── mail.ts             # Configuración de email
-│   │   │
-│   │   ├── 📁 controllers/         # Lógica de negocio
-│   │   │   ├── admin.controller.ts # CRUD servicios, aprobación workers, stats, hero slides
-│   │   │   ├── auth.controller.ts  # Registro, login, verificación, reset password
-│   │   │   ├── services.controller.ts # Servicios públicos
-│   │   │   └── worker.controller.ts   # Perfil worker, documentos, especialidades
-│   │   │
-│   │   ├── 📁 middlewares/         # Middlewares de Express
-│   │   │   ├── admin.middleware.ts # Verificación rol admin
-│   │   │   ├── auth.middleware.ts  # Verificación JWT
-│   │   │   ├── security.middleware.ts # Rate limiting
-│   │   │   ├── upload.middleware.ts   # Multer para archivos
-│   │   │   └── validation.middleware.ts # Validación de datos
-│   │   │
-│   │   ├── 📁 routes/              # Definición de rutas
-│   │   │   ├── admin.routes.ts     # /api/admin/*
-│   │   │   ├── auth.routes.ts      # /api/auth/*
-│   │   │   ├── services.routes.ts  # /api/services/*
-│   │   │   └── worker.routes.ts    # /api/worker/*
-│   │   │
-│   │   ├── 📁 types/               # Definiciones TypeScript
-│   │   │   ├── express-rate-limit.d.ts
-│   │   │   ├── helmet.d.ts
-│   │   │   └── nodemailer.d.ts
-│   │   │
-│   │   ├── 📁 utils/               # Utilidades
-│   │   │   └── email.ts            # Envío de emails
-│   │   │
-│   │   └── index.ts                # Punto de entrada del servidor
-│   │
-│   ├── 📁 uploads/                 # Archivos subidos (DUI, certificados, imágenes)
-│   ├── .env                        # Variables de entorno backend
-│   ├── Dockerfile                  # Imagen Docker backend
-│   ├── package.json
-│   └── tsconfig.json
-│
-├── 📁 src/                         # Frontend React + TypeScript
-│   ├── 📁 components/
-│   │   ├── 📁 common/              # Componentes reutilizables
-│   │   │   ├── Button.tsx
-│   │   │   ├── Logo.tsx
-│   │   │   ├── ScrollReveal.tsx
-│   │   │   └── SkeletonLoader.tsx
-│   │   │
-│   │   ├── 📁 dashboard/           # Vistas del dashboard worker
-│   │   │   ├── EarningsView.tsx
-│   │   │   ├── RequestsView.tsx
-│   │   │   ├── ScheduleView.tsx
-│   │   │   ├── SettingsView.tsx
-│   │   │   └── UploadDocumentsView.tsx
-│   │   │
-│   │   ├── 📁 effects/             # Efectos visuales
-│   │   │   └── ParticlesBackground.tsx
-│   │   │
-│   │   ├── 📁 layout/              # Layouts de la app
-│   │   │
-│   │   ├── 📁 modals/              # Modales y dashboards
-│   │   │   ├── AdminDashboard.tsx  # Dashboard completo del admin
-│   │   │   ├── AuthModal.tsx       # Modal login/registro usuarios
-│   │   │   ├── ProDashboard.tsx    # Dashboard workers
-│   │   │   ├── ProSidebar.tsx      # Sidebar del dashboard worker
-│   │   │   ├── ServiceRequestWizard.tsx # Wizard solicitud servicio
-│   │   │   └── WorkerAuthModal.tsx # Modal login/registro workers
-│   │   │
-│   │   ├── 📁 sections/            # Secciones de la landing
-│   │   │   ├── FAQSection.tsx
-│   │   │   ├── HeroSlider.tsx      # Carrusel hero (editable desde admin)
-│   │   │   ├── ProBento.tsx
-│   │   │   ├── SafetySection.tsx
-│   │   │   ├── StepsSection.tsx
-│   │   │   └── TestimonialsCarousel.tsx
-│   │   │
-│   │   ├── JoinProSlider.tsx
-│   │   └── ServiceRequestWizard.tsx
-│   │
-│   ├── 📁 config/
-│   │   └── api.ts                  # Endpoints del API
-│   │
-│   ├── 📁 context/
-│   │   └── AuthContext.tsx         # Context de autenticación
-│   │
-│   ├── 📁 pages/
-│   │   └── ForgotPassword.tsx      # Página recuperar contraseña
-│   │
-│   ├── 📁 routes/                  # Rutas del frontend
-│   │
-│   ├── 📁 services/
-│   │   └── authService.ts          # Servicios de autenticación
-│   │
-│   ├── 📁 utils/
-│   │   ├── heroSlides.ts           # Gestión de hero slides
-│   │   └── session.ts              # Gestión de sesión
-│   │
-│   ├── types.ts                    # Tipos TypeScript globales
-│   ├── App.tsx                     # Componente principal
-│   ├── main.tsx                    # Punto de entrada
-│   └── index.css                   # Estilos globales
-│
-├── 📁 docker/                      # Configuración Docker
-│   ├── Dockerfile.backend.dev
-│   ├── Dockerfile.dev
-│   ├── Dockerfile.prod
-│   ├── fixlife_db.sql              # Schema completo de la BD
-│   ├── mysql-init.sql              # Script de inicialización
-│   └── README.md
-│
-├── 📁 public/                      # Assets estáticos
-│   ├── Fixilogo.png
-│   ├── Fixlogo.png
-│   ├── mascot.png
-│   └── tranquilo.png
-│
-├── .dockerignore
-├── .env                            # Variables de entorno globales
-├── .env.example                    # Ejemplo de variables
-├── .gitignore
-├── docker-compose.yml              # Orquestación de contenedores
-├── docker-compose.prod.yml         # Configuración producción
-├── index.html
-├── package.json
-├── postcss.config.js
-├── tailwind.config.js              # Configuración Tailwind
-├── tsconfig.json
-├── vite.config.ts                  # Configuración Vite
-└── README.md
+# IA (requiere GROQ_API_KEY válida)
+curl -X POST http://localhost:8000/api/ai/chat \
+  -H 'Content-Type: application/json' \
+  -d '{"messages":[{"role":"user","content":"hola"}]}'
 ```
 
 ---
 
-## 🎨 Características Principales
-
-### 👤 Para Usuarios
-- ✅ Registro y autenticación con verificación por email
-- ✅ Búsqueda y solicitud de servicios
-- ✅ Sistema de wizard para solicitudes paso a paso
-- ✅ Recuperación de contraseña
-- ✅ Interfaz moderna y responsiva
-
-### 👷 Para Trabajadores (Pros)
-- ✅ Registro con documentación (DUI, certificados)
-- ✅ Selección de especialidades/servicios
-- ✅ Dashboard con vistas de: solicitudes, agenda, ganancias, configuración
-- ✅ Sistema de aprobación por admin
-- ✅ Subida de documentos con validación
-
-### 👨‍💼 Para Administradores
-- ✅ **Dashboard completo** con estadísticas en tiempo real
-- ✅ **CRUD de Servicios**: crear, editar, activar/desactivar servicios
-- ✅ **Gestión de Workers**: aprobar o rechazar solicitudes pendientes
-- ✅ **Previsualización de documentos**: ver DUI y certificados
-- ✅ **Editor de Hero Slides**: gestionar carrusel de la homepage
-  - Subida de imágenes con auto-crop a 16:9
-  - Edición de texto (tag, título, descripción, CTA)
-  - Reordenamiento de slides
-  - Restaurar valores por defecto
-- ✅ **Analytics**: gráficos de usuarios, pros, ingresos
-- ✅ **Monitoreo del sistema**: CPU, base de datos, storage
-
----
-
-## 🔐 Sistema de Autenticación
-
-### Roles de Usuario
-- **user**: Usuario regular que solicita servicios
-- **worker**: Profesional que ofrece servicios
-- **admin**: Administrador de la plataforma
-
-### Flujo de Autenticación
-1. Registro → Email de verificación
-2. Click en link de verificación
-3. Login con credenciales
-4. JWT token almacenado en localStorage
-5. Token enviado en header `Authorization: Bearer <token>`
-
----
-
-## 📡 API Endpoints
+## 📡 Endpoints principales (resumen)
 
 ### Auth (`/api/auth`)
-```
-POST   /register          - Registro de usuario
-POST   /register-worker   - Registro de worker
-POST   /login             - Login
-POST   /verify-email      - Verificar email
-POST   /forgot-password   - Solicitar reset password
-POST   /reset-password    - Resetear password
-```
+- `POST /register/worker`
+- `POST /register-user`
+- `POST /verify-worker-email`
+- `POST /resend-otp`
+- `POST /login`
+- `POST /forgot-password`
+- `POST /reset-password`
+- `POST /verify-reset-token`
+- `PUT /profile`
+- `POST /profile-image`
+- `DELETE /profile-image`
 
 ### Services (`/api/services`)
-```
-GET    /                  - Obtener servicios activos (público)
-```
+- Públicos: `/`, `/cards`, `/geocode`, `/geocode/suggest`, `/geocode/reverse`, `/nearby-workers`
+- Privados: `/saved-locations*`, `/my-requests`, `/requests/:id/...`, rating y chat de solicitud
 
 ### Worker (`/api/worker`)
-```
-GET    /profile           - Obtener perfil worker
-PUT    /profile           - Actualizar perfil
-POST   /documents         - Subir documentos
-GET    /services          - Obtener servicios disponibles
-POST   /services          - Asignar servicios al worker
-```
+- `/me`, `/rewards-dashboard`, `/requests`
+- Acciones de request: accept/reject/counter/start/complete
+- `/presence`, `/settings`, `/change-password`
+- Verificación y archivos: `/verify`, `/profile-image`, `/portfolio`
 
 ### Admin (`/api/admin`)
-```
-# Services CRUD
-GET    /services          - Listar todos los servicios
-POST   /services          - Crear servicio
-PUT    /services/:id      - Actualizar servicio
-DELETE /services/:id      - Eliminar servicio
+- Servicios: CRUD `/services`
+- Homepage cards: CRUD `/service-cards`
+- Workers: `/pending-workers`, `/:id/approve`, `/:id/reject`
+- Usuarios: `/users`, role/status
+- Dashboard: `/stats`, `/requests-history`, `/activity`
+- Rewards: `/worker-rewards`, `/worker-rewards/settings`, `/worker-rewards/payouts/:idBonusPayout/pay`
+- Hero: `/hero-slides`, `/hero-slides/image-upload`, `/hero-slides/:idSlide/image`
 
-# Worker Approval
-GET    /pending-workers   - Listar workers pendientes
-PUT    /workers/:id/approve - Aprobar worker
-PUT    /workers/:id/reject  - Rechazar worker
+### Notifications (`/api/notifications`)
+- `GET /`
+- `POST /read-all`
+- `POST /:idNotification/read`
 
-# Dashboard Stats
-GET    /stats             - Obtener estadísticas
-
-# Hero Slides
-GET    /hero-slides       - Obtener slides (público)
-PUT    /hero-slides       - Actualizar slides (admin)
-POST   /hero-slides/image-upload - Subir imagen temporal
-POST   /hero-slides/:id/image    - Actualizar imagen de slide
-```
+### IA (`/api/ai/chat`)
+- `POST /api/ai/chat`
 
 ---
 
-## 🗄️ Base de Datos
+## 🛡️ Seguridad y validación
 
-### Tablas Principales
+- JWT por rol (cliente/pro/admin).
+- Rate limiting en auth, rutas sensibles y chat IA.
+- CORS configurable por `ALLOWED_ORIGINS`.
+- Uploads protegidos (ruta `/uploads` requiere token).
+- Validación Zod en rutas críticas vía `validate.middleware.ts`.
 
-#### `users`
-Almacena todos los usuarios (users, workers, admins)
-- Campos: id_user, name, lastname, email, password, phone_number, rol, verification_token, etc.
-
-#### `worker_profiles`
-Perfil extendido para workers
-- Campos: id_worker_profile, id_user, bio, dui_document, cert_document, is_verified
-
-#### `services`
-Catálogo de servicios disponibles
-- Campos: id_service, name, description, icon, is_active
-
-#### `worker_services`
-Relación many-to-many entre workers y servicios
-- Campos: id_worker_service, id_worker_profile, id_service
-
-#### `hero_slides`
-Slides del carrusel de la homepage (editable desde admin)
-- Campos: id_slide, sort_order, image_url, tag, title, description, cta
+Ver detalle completo: `FIXLIFE_ZOD.md`.
 
 ---
 
-## 🔧 Comandos Útiles
+## 🧱 Base de datos y seed inicial
 
-### Docker
+- Script base: `docker/fixlife_db.sql`.
+- Init MySQL: `docker/mysql-init.sql`.
+- Seed defensivo en runtime:
+  - Si `services` está vacía, backend inserta catálogo por defecto.
+  - Si `service_cards` está vacía, backend genera cards base.
+
+Esto evita despliegues “vacíos” cuando se monta en una máquina nueva.
+
+---
+
+## 🔧 Troubleshooting rápido
+
+### Frontend carga pero login o API falla en celular
+- Revisar que accedes por IP (`http://<IP>:3000`) y no por `localhost`.
+- Verificar backend en `http://<IP>:8000`.
+
+### Error DB `Access denied for user root@...`
+- Verificar `DB_PASSWORD` vs contraseña real de MySQL.
+- Revisar variables efectivas del backend en `docker compose`.
+
+### Chat IA no responde
+- Verificar `GROQ_API_KEY` real (no placeholder).
+- Reiniciar backend tras cambiar `.env`.
+
+### Servicios/cards vacíos
+- Revisar logs backend; se deben auto-sembrar al consultar servicios/cards.
+
+---
+
+## 🚀 Producción
+
+Referencia base:
 
 ```bash
-# Iniciar servicios
-docker-compose up
-
-# Iniciar en segundo plano
-docker-compose up -d
-
-# Ver logs
-docker-compose logs -f
-
-# Ver logs de un servicio específico
-docker-compose logs -f backend
-
-# Detener servicios
-docker-compose down
-
-# Resetear base de datos (elimina volumen)
-docker-compose down -v
-docker-compose up --build
-
-# Reconstruir imágenes
-docker-compose up --build
-
-# Entrar a un contenedor
-docker exec -it fixlife_backend bash
+docker compose -f docker-compose.prod.yml up -d --build
 ```
 
-### Backend
+Checklist mínimo:
 
-```bash
-# Dentro del contenedor backend
-cd backend
-npm run dev      # Modo desarrollo con nodemon
-npm run build    # Compilar TypeScript
-npm start        # Ejecutar versión compilada
-```
-
-### Frontend
-
-```bash
-# En la raíz del proyecto
-npm run dev      # Modo desarrollo
-npm run build    # Build para producción
-npm run preview  # Preview del build
-```
+1. `JWT_SECRET` fuerte.
+2. `GROQ_API_KEY` válida.
+3. `ALLOWED_ORIGINS` correctamente definido.
+4. Credenciales DB reales (sin placeholders).
+5. HTTPS y reverse proxy para entorno público.
 
 ---
 
-## 🔑 Credenciales de Base de Datos
+## 📌 Notas finales
 
-**phpMyAdmin** (http://localhost:8080)
-- **Usuario**: `root`
-- **Contraseña**: `Info2026/*-`
-- **Base de datos**: `fixlife_db`
-
-**Conexión directa MySQL**
-- **Host**: `localhost`
-- **Puerto**: `3307`
-- **Usuario**: `root`
-- **Contraseña**: `Info2026/*-`
-
----
-
-## 📦 Gestión de Archivos
-
-Los archivos subidos (documentos, imágenes) se almacenan en:
-```
-backend/uploads/
-├── dui_document-*.{pdf,jpg,png,webp}
-├── cert_document-*.{pdf,jpg,png,webp}
-└── profile_image-*.{jpg,png,webp}
-```
-
-**Límites:**
-- Tamaño máximo: 10MB por archivo
-- Formatos permitidos: PDF, JPG, PNG, WEBP
-
----
-
-## 🎨 Personalización de Tema
-
-Los colores principales están definidos en `tailwind.config.js`:
-
-```javascript
-colors: {
-  'bird-blue': '#0090FF',
-  'bird-darkBlue': '#0070CC',
-  'bird-lightBlue': '#33A9FF',
-  'bird-orange': '#FF8000',
-  'bird-yellow': '#FFC20E',
-  'bird-gold': '#E6A500',
-}
-```
-
----
-
-## 🚀 Despliegue a Producción
-
-Para producción, usa:
-```bash
-docker-compose -f docker-compose.prod.yml up --build
-```
-
-Asegúrate de:
-1. Cambiar las contraseñas en `.env`
-2. Configurar un JWT_SECRET seguro
-3. Configurar SMTP real para emails
-4. Usar HTTPS
-5. Configurar CORS apropiadamente
-
----
-
-## 🤝 Contribución
-
-1. Fork el proyecto
-2. Crea una rama para tu feature (`git checkout -b feature/AmazingFeature`)
-3. Commit tus cambios (`git commit -m 'Add some AmazingFeature'`)
-4. Push a la rama (`git push origin feature/AmazingFeature`)
-5. Abre un Pull Request
-
----
-
-## 📝 Notas para Desarrolladores
-
-- **Hot Reload**: Tanto frontend como backend tienen hot-reload activado
-- **TypeScript**: Todo el código está tipado
-- **Validación**: Los middlewares validan datos antes de llegar a los controllers
-- **Seguridad**: Rate limiting, helmet, CORS configurados
-- **Logs**: Los logs del backend se muestran en la consola de Docker
-
----
-
-## 📄 Licencia
-
-Este proyecto es privado y pertenece al equipo de desarrollo de Fixlife.
-
----
-
-## 👥 Equipo
-
-Desarrollado con ❤️ por el equipo de Fixlife
-
----
-
-## 📞 Soporte
-
-Para problemas o preguntas, abre un issue en el repositorio de GitHub.
+- Recomendado trabajar en una sola fuente de verdad para configuración (`.env` de despliegue).
+- Este repositorio está orientado a desarrollo y despliegue con Docker en entornos locales/LAN (incluyendo Raspberry Pi).
