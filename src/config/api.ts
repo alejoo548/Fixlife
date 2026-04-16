@@ -1,10 +1,11 @@
-export const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+export const API_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000';
 
 export const API_ENDPOINTS = {
   auth: {
     login: `${API_URL}/api/auth/login`,
     registerUser: `${API_URL}/api/auth/register-user`,
     registerWorker: `${API_URL}/api/auth/register/worker`,
+    google: `${API_URL}/api/auth/google`,
     verifyWorkerEmail: `${API_URL}/api/auth/verify-worker-email`,
     resendOtp: `${API_URL}/api/auth/resend-otp`,
     forgotPassword: `${API_URL}/api/auth/forgot-password`,

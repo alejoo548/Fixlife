@@ -5,10 +5,13 @@ services:
     build:
       context: .
       dockerfile: docker/Dockerfile.dev
+      args:
+        VITE_API_URL: ${VITE_API_URL:-http://127.0.0.1:8000}
+        VITE_GOOGLE_CLIENT_ID: ${VITE_GOOGLE_CLIENT_ID}
+        VITE_RECAPTCHA_SITE_KEY: ${VITE_RECAPTCHA_SITE_KEY}
+        VITE_TOMTOM_TRAFFIC_KEY: ${VITE_TOMTOM_TRAFFIC_KEY:-}
+        GEMINI_API_KEY: ${GEMINI_API_KEY:-}
     container_name: fixlife_frontend
-    volumes:
-      - .:/app
-      - /app/node_modules
     ports:
       - "3000:3000"
     networks:

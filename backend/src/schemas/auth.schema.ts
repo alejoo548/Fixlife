@@ -89,6 +89,17 @@ export const AuthSchema = {
       .regex(usernameRegex, 'Invalid username format.')
       .optional()
       .or(z.literal('')),
+    captchaToken: z
+      .string()
+      .trim()
+      .min(10, 'Captcha token is required.'),
+  }),
+
+  googleLogin: z.object({
+    credential: z
+      .string()
+      .trim()
+      .min(10, 'Invalid Google credential.'),
   }),
 
   verifyEmail: z.object({

@@ -1,20 +1,33 @@
 # Frontend Dockerfile
 FROM node:20-alpine
 
-# Directorio de trabajo
+# Working directory
 WORKDIR /app
 
-# Copiar package files
+# Install dependencies first for better layer caching
 COPY package*.json ./
+RUN npm install
 
-# Instalar dependencias
-RUN npm ci
-
-# Copiar código
+# Copy project files and build once
 COPY . .
 
-# Exponer puerto
+# Build-time variables used by Vite (injected from docker-compose build args)
+ARG VITE_API_URL
+ARG VITE_GOOGLE_CLIENT_ID
+ARG VITE_RECAPTCHA_SITE_KEY
+ARG VITE_TOMTOM_TRAFFIC_KEY
+ARG GEMINI_API_KEY
+
+ENV VITE_API_URL=$VITE_API_URL
+ENV VITE_GOOGLE_CLIENT_ID=$VITE_GOOGLE_CLIENT_ID
+ENV VITE_RECAPTCHA_SITE_KEY=$VITE_RECAPTCHA_SITE_KEY
+ENV VITE_TOMTOM_TRAFFIC_KEY=$VITE_TOMTOM_TRAFFIC_KEY
+ENV GEMINI_API_KEY=$GEMINI_API_KEY
+
+RUN npm run build
+
 EXPOSE 3000
 
-# Comando por defecto (dev mode)
-CMD ["npm", "run", "dev", "--", "--host", "0.0.0.0"]
+# Serve a stable built app (no Vite watcher/HMR)
+CMD ["npm", "run", "preview", "--", "--host", "0.0.0.0", "--port", "3000"]
+
