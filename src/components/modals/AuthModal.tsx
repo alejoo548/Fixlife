@@ -6,6 +6,13 @@ import 'notyf/notyf.min.css';
 import { useAuth } from '../../context/AuthContext';
 import { setAuthSession } from '../../utils/session';
 import ForgotPassword from '../../pages/ForgotPassword';
+import ReCAPTCHA from 'react-google-recaptcha';
+
+declare global {
+  interface Window {
+    google?: any;
+  }
+}
 
 interface AuthModalProps {
   isOpen: boolean;
@@ -29,6 +36,100 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMo
 });
 
 const { login } = useAuth();
+const [captchaToken, setCaptchaToken] = useState<string | null>(null);
+const recaptchaSiteKey = import.meta.env.VITE_RECAPTCHA_SITE_KEY as string | undefined;
+const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID as string | undefined;
+
+const loadGoogleGsiScript = () =>
+  new Promise<void>((resolve, reject) => {
+    if (window.google?.accounts?.id) {
+      resolve();
+      return;
+    }
+
+    const existing = document.querySelector<HTMLScriptElement>('script[data-fixlife-gsi="true"]');
+    if (existing) {
+      existing.addEventListener('load', () => resolve());
+      existing.addEventListener('error', () => reject(new Error('GSI script failed to load')));
+      return;
+    }
+
+    const script = document.createElement('script');
+    script.src = 'https://accounts.google.com/gsi/client?hl=en';
+    script.async = true;
+    script.defer = true;
+    script.dataset.fixlifeGsi = 'true';
+    script.onload = () => resolve();
+    script.onerror = () => reject(new Error('GSI script failed to load'));
+    document.head.appendChild(script);
+  });
+
+const GoogleSignInButton = ({ onCredential }: { onCredential: (credential: string) => void }) => {
+  const [ready, setReady] = useState(false);
+  const containerRef = React.useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const setup = async () => {
+      if (!googleClientId) return;
+      try {
+        await loadGoogleGsiScript();
+        if (cancelled) return;
+
+        const google = window.google;
+        if (!google?.accounts?.id || !containerRef.current) return;
+
+        google.accounts.id.initialize({
+          client_id: googleClientId,
+          callback: (resp: any) => {
+            const credential = String(resp?.credential || '');
+            if (credential) onCredential(credential);
+          },
+        });
+
+        containerRef.current.innerHTML = '';
+        google.accounts.id.renderButton(containerRef.current, {
+          theme: 'outline',
+          size: 'large',
+          text: 'signin_with',
+          shape: 'pill',
+          width: 320,
+          locale: 'en',
+        });
+
+        setReady(true);
+      } catch (e) {
+        // keep silent; fallback text below
+      }
+    };
+
+    setup();
+    return () => {
+      cancelled = true;
+    };
+  }, [onCredential]);
+
+  if (!googleClientId) return null;
+
+  return (
+    <div className="w-full flex justify-center">
+      <div ref={containerRef} />
+      {!ready && (
+        <button
+          type="button"
+          className="flex items-center justify-center gap-3 py-2.5 rounded-lg bg-white border border-gray-200 text-gray-800 font-bold text-xs hover:bg-gray-50 transition-colors shadow-sm"
+          onClick={() => {
+            // no-op fallback
+          }}
+        >
+          <img src="https://www.svgrepo.com/show/475656/google-color.svg" className="w-5 h-5" alt="Google" />
+          Sign in with Google
+        </button>
+      )}
+    </div>
+  );
+};
 
 const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
   setFormData({
@@ -42,6 +143,12 @@ const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
       setView(initialMode);
     }
   }, [initialMode, isOpen]);
+
+  useEffect(() => {
+    if (view !== 'signup') {
+      setCaptchaToken(null);
+    }
+  }, [view]);
 
   const notyf = new Notyf({
     position: { x: 'right', y: 'bottom' },
@@ -76,6 +183,16 @@ const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     return;
   }
 
+  if (!recaptchaSiteKey) {
+    notyf.error('Captcha is not configured.');
+    return;
+  }
+
+  if (!captchaToken) {
+    notyf.error('Please complete the captcha verification.');
+    return;
+  }
+
   try {
     const res = await fetch(API_ENDPOINTS.auth.registerUser, {
       method: 'POST',
@@ -87,6 +204,7 @@ const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         phone_number: formData.phone_number,
         email: formData.email,
         password: formData.password,
+        captchaToken,
       }),
     });
 
@@ -100,7 +218,60 @@ const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     login(data.user, data.token);
     notyf.success('Account created successfully!');
 
+    setCaptchaToken(null);
     onClose();
+  } catch (err) {
+    console.error(err);
+    notyf.error('Connection error');
+  }
+};
+
+const handleAuthSuccess = (data: any) => {
+  const role = String(data.user?.rol ?? data.user?.role ?? '').toLowerCase();
+
+  if (role === 'admin' || role === 'root') {
+    setAuthSession(data.user, data.token, 'admin');
+    notyf.success('Admin session ready.');
+    onClose();
+    setTimeout(() => {
+      if (onAdminLogin) {
+        onAdminLogin();
+        return;
+      }
+      window.location.replace('/admin-dashboard');
+    }, 100);
+    return;
+  }
+
+  if (data.user?.rol === 'worker' || data.user?.role === 'worker') {
+    onClose();
+    setTimeout(() => {
+      window.location.replace('/pro-dashboard');
+    }, 100);
+    return;
+  }
+
+  login(data.user, data.token);
+  notyf.success('Welcome back!');
+  onClose();
+};
+
+const handleGoogleSignin = async (credential: string) => {
+  try {
+    const res = await fetch(API_ENDPOINTS.auth.google, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ credential }),
+    });
+
+    const data = await res.json();
+
+    if (!res.ok) {
+      notyf.error(data.error || 'Google login failed');
+      return;
+    }
+
+    handleAuthSuccess(data);
   } catch (err) {
     console.error(err);
     notyf.error('Connection error');
@@ -138,29 +309,7 @@ if (!emailRegex.test(formData.email)) {
       return;
     }
 
-    const role = String(data.user?.rol ?? data.user?.role ?? '').toLowerCase();
-
-    if (role === 'admin' || role === 'root') {
-      setAuthSession(data.user, data.token, 'admin');
-      notyf.success('Admin session ready.');
-      onClose();
-      setTimeout(() => {
-        if (onAdminLogin) {
-          onAdminLogin();
-          return;
-        }
-        window.location.replace('/admin-dashboard');
-      }, 100);
-    } else if (data.user?.rol === 'worker' || data.user?.role === 'worker') {
-      onClose();
-      setTimeout(() => {
-        window.location.replace('/pro-dashboard');
-      }, 100);
-    } else {
-      login(data.user, data.token);
-      notyf.success('Welcome back!');
-      onClose();
-    }
+    handleAuthSuccess(data);
   } catch (err) {
     console.error(err);
     notyf.error('Connection error');
@@ -256,6 +405,16 @@ if (!emailRegex.test(formData.email)) {
               </div>
             </div>
 
+            {recaptchaSiteKey && (
+              <div className="flex justify-center pt-1">
+                <ReCAPTCHA
+                  sitekey={recaptchaSiteKey}
+                  hl="en"
+                  onChange={(value) => setCaptchaToken(value || null)}
+                />
+              </div>
+            )}
+
             <button className="mt-2 w-full py-3 rounded-full bg-bird-yellow text-gray-900 font-bold text-sm tracking-wide shadow-lg shadow-bird-yellow/20 hover:bg-bird-orange hover:scale-[1.02] transition-all duration-300">
               SIGN UP
             </button>
@@ -282,10 +441,7 @@ if (!emailRegex.test(formData.email)) {
           <h2 className="text-3xl font-bold mb-6 text-bird-blue">Sign in to Fixlife</h2>
 
           <div className="flex flex-col gap-3 w-full mb-6">
-            <button onClick={() => handleSocialLogin('Google')} className="flex items-center justify-center gap-3 py-2.5 rounded-lg bg-white border border-gray-200 text-gray-800 font-bold text-xs hover:bg-gray-50 transition-colors shadow-sm">
-              <img src="https://www.svgrepo.com/show/475656/google-color.svg" className="w-5 h-5" alt="Google" />
-              Sign in with Google
-            </button>
+            <GoogleSignInButton onCredential={handleGoogleSignin} />
             <button onClick={() => handleSocialLogin('Facebook')} className="flex items-center justify-center gap-3 py-2.5 rounded-lg bg-[#1877F2] text-white font-bold text-xs hover:bg-[#1864D9] transition-colors shadow-sm">
               <svg className="w-5 h-5 fill-current" viewBox="0 0 24 24"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z" /></svg>
               Sign in with Facebook
@@ -359,10 +515,7 @@ if (!emailRegex.test(formData.email)) {
 
             {!isSignup && (
               <div className="flex flex-col gap-3 mb-6">
-                <button onClick={() => handleSocialLogin('Google')} className="flex items-center justify-center gap-3 py-3 rounded-xl bg-white border border-gray-200 text-gray-800 font-bold text-xs hover:bg-gray-50 transition-colors shadow-sm">
-                  <img src="https://www.svgrepo.com/show/475656/google-color.svg" className="w-5 h-5" alt="Google" />
-                  Sign in with Google
-                </button>
+                <GoogleSignInButton onCredential={handleGoogleSignin} />
                 <button onClick={() => handleSocialLogin('Facebook')} className="flex items-center justify-center gap-3 py-3 rounded-xl bg-[#1877F2] text-white font-bold text-xs hover:bg-[#1864D9] transition-colors shadow-sm">
                   <svg className="w-5 h-5 fill-current" viewBox="0 0 24 24"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z" /></svg>
                   Sign in with Facebook
@@ -410,6 +563,16 @@ if (!emailRegex.test(formData.email)) {
                   </div>
                 )}
               </div>
+
+              {isSignup && recaptchaSiteKey && (
+                <div className="flex justify-center pt-2">
+                  <ReCAPTCHA
+                    sitekey={recaptchaSiteKey}
+                    hl="en"
+                    onChange={(value) => setCaptchaToken(value || null)}
+                  />
+                </div>
+              )}
 
               {!isSignup && (
                 <div className="flex justify-end">

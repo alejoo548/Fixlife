@@ -1175,6 +1175,18 @@ export const updateUserStatus = async (req: AuthRequest, res: Response): Promise
 export const getDashboardStats = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     await ensureUsersPendingWorkerColumn();
+    await ensureServiceRequestTables();
+
+    const requestedServiceIdRaw = req.query.service_id;
+    let requestedServiceId: number | null = null;
+    if (requestedServiceIdRaw !== undefined) {
+      const parsed = Number(requestedServiceIdRaw);
+      if (!parsed || Number.isNaN(parsed) || parsed < 1) {
+        res.status(400).json({ error: 'Invalid service filter.' });
+        return;
+      }
+      requestedServiceId = parsed;
+    }
 
     const [[{ total_services }]] = await pool.execute<RowDataPacket[]>(`SELECT COUNT(*) as total_services FROM services`);
     
@@ -1205,6 +1217,151 @@ export const getDashboardStats = async (req: AuthRequest, res: Response): Promis
       ORDER BY DATE(created_at) ASC
     `);
 
+    const [serviceCategoryRows] = await pool.execute<RowDataPacket[]>(`
+      SELECT
+        s.name as name,
+        COUNT(sr.id_request) as value
+      FROM services s
+      LEFT JOIN service_requests sr
+        ON sr.id_service = s.id_service
+       AND sr.created_at >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)
+      GROUP BY s.id_service
+      ORDER BY value DESC, s.name ASC
+      LIMIT 5
+    `);
+
+    const completedWhereParts: string[] = [
+      `status = 'done'`,
+      `updated_at >= DATE_SUB(CURDATE(), INTERVAL 6 DAY)`,
+    ];
+    const completedParams: any[] = [];
+    if (requestedServiceId != null) {
+      completedWhereParts.push(`id_service = ?`);
+      completedParams.push(requestedServiceId);
+    }
+
+    const [completedRows] = await pool.execute<RowDataPacket[]>(`
+      SELECT
+        DATE(updated_at) as day,
+        COUNT(*) as value
+      FROM service_requests
+      WHERE ${completedWhereParts.join(' AND ')}
+      GROUP BY DATE(updated_at)
+      ORDER BY day ASC
+    `, completedParams);
+
+    const completedPrevWhereParts: string[] = [
+      `status = 'done'`,
+      `updated_at >= DATE_SUB(CURDATE(), INTERVAL 13 DAY)`,
+      `updated_at < DATE_SUB(CURDATE(), INTERVAL 6 DAY)`,
+    ];
+    const completedPrevParams: any[] = [];
+    if (requestedServiceId != null) {
+      completedPrevWhereParts.push(`id_service = ?`);
+      completedPrevParams.push(requestedServiceId);
+    }
+
+    const [[{ completed_prev_total }]] = await pool.execute<RowDataPacket[]>(
+      `SELECT COUNT(*) as completed_prev_total
+       FROM service_requests
+       WHERE ${completedPrevWhereParts.join(' AND ')}`,
+      completedPrevParams
+    );
+
+    const locationWhereParts: string[] = [
+      `created_at >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)`,
+    ];
+    const locationParams: any[] = [];
+    if (requestedServiceId != null) {
+      locationWhereParts.push(`id_service = ?`);
+      locationParams.push(requestedServiceId);
+    }
+
+    const [locationRows] = await pool.execute<RowDataPacket[]>(`
+      SELECT
+        location_text as name,
+        COUNT(*) as value
+      FROM service_requests
+      WHERE ${locationWhereParts.join(' AND ')}
+      GROUP BY location_text
+      ORDER BY value DESC, location_text ASC
+      LIMIT 5
+    `, locationParams);
+
+    const revenueWhereParts: string[] = [
+      `srp.payment_status IN ('paid', 'released')`,
+      `srp.paid_at >= DATE_SUB(DATE_FORMAT(CURDATE(), '%Y-%m-01'), INTERVAL 5 MONTH)`,
+    ];
+    const revenueParams: any[] = [];
+    if (requestedServiceId != null) {
+      revenueWhereParts.push(`sr.id_service = ?`);
+      revenueParams.push(requestedServiceId);
+    }
+
+    const [revenueRows] = await pool.execute<RowDataPacket[]>(`
+      SELECT
+        DATE_FORMAT(srp.paid_at, '%Y-%m-01') as month_start,
+        SUM(srp.platform_fee) as uv
+      FROM service_request_payments srp
+      INNER JOIN service_requests sr ON sr.id_request = srp.id_request
+      WHERE ${revenueWhereParts.join(' AND ')}
+      GROUP BY month_start
+      ORDER BY month_start ASC
+    `, revenueParams);
+
+    const formatYmd = (date: Date) => {
+      const yyyy = date.getFullYear();
+      const mm = String(date.getMonth() + 1).padStart(2, '0');
+      const dd = String(date.getDate()).padStart(2, '0');
+      return `${yyyy}-${mm}-${dd}`;
+    };
+
+    const weekdayFormatter = new Intl.DateTimeFormat('en-US', { weekday: 'short' });
+    const monthFormatter = new Intl.DateTimeFormat('en-US', { month: 'short' });
+
+    const completedMap = new Map<string, number>();
+    for (const row of completedRows as any[]) {
+      completedMap.set(String(row.day), Number(row.value || 0));
+    }
+
+    const completedServicesWeekly: Array<{ name: string; value: number }> = [];
+    const today = new Date();
+    for (let offset = 6; offset >= 0; offset -= 1) {
+      const d = new Date(today.getFullYear(), today.getMonth(), today.getDate() - offset);
+      const key = formatYmd(d);
+      completedServicesWeekly.push({
+        name: weekdayFormatter.format(d),
+        value: Number(completedMap.get(key) || 0),
+      });
+    }
+
+    const revenueMap = new Map<string, number>();
+    for (const row of revenueRows as any[]) {
+      revenueMap.set(String(row.month_start), Number(row.uv || 0));
+    }
+
+    const revenueData: Array<{ name: string; uv: number; pv: number; amt?: number }> = [];
+    const firstMonth = new Date(today.getFullYear(), today.getMonth() - 5, 1);
+    for (let idx = 0; idx < 6; idx += 1) {
+      const d = new Date(firstMonth.getFullYear(), firstMonth.getMonth() + idx, 1);
+      const key = formatYmd(d);
+      revenueData.push({
+        name: monthFormatter.format(d),
+        uv: Number(revenueMap.get(key) || 0),
+        pv: 0,
+      });
+    }
+    for (let idx = 0; idx < revenueData.length; idx += 1) {
+      revenueData[idx].pv = idx === 0 ? revenueData[idx].uv : revenueData[idx - 1].uv;
+    }
+
+    const trafficData = (trafficRows as any[]).map((row) => ({
+      name: String(row.name),
+      Users: Number(row.Users || 0),
+      Pros: Number(row.Pros || 0),
+      Admins: Number(row.Admins || 0),
+    }));
+
     res.json({
       success: true,
       stats: {
@@ -1213,7 +1370,19 @@ export const getDashboardStats = async (req: AuthRequest, res: Response): Promis
         pending_pros: Number(pending_pros),
         total_users: Number(total_users),
         total_admins: Number(total_admins),
-        trafficData: trafficRows
+        trafficData,
+        selected_service_id: requestedServiceId,
+        serviceCategoryStats: (serviceCategoryRows as any[]).map((row) => ({
+          name: String(row.name),
+          value: Number(row.value || 0),
+        })),
+        completedServicesWeekly,
+        completedServicesPrevTotal: Number(completed_prev_total || 0),
+        popularLocations: (locationRows as any[]).map((row) => ({
+          name: String(row.name),
+          value: Number(row.value || 0),
+        })),
+        revenueData,
       }
     });
 

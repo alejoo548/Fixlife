@@ -16,7 +16,13 @@ import {
   syncWorkerBonusPayouts,
 } from '../utils/workerRewards';
 import { createUserNotification } from '../utils/notifications';
-import { autoReassignStaleAssignedRequests, ensureServiceRequestTables, ensureWorkerGeoColumns } from './services.controller';
+
+const servicesController = require(path.join(__dirname, './services.controller'));
+const {
+  autoReassignStaleAssignedRequests,
+  ensureServiceRequestTables,
+  ensureWorkerGeoColumns,
+} = servicesController;
 
 const ACTIVE_WORKER_REQUEST_STATUSES = ['payment_pending', 'paid', 'assigned', 'in_progress', 'awaiting_confirmation'];
 
