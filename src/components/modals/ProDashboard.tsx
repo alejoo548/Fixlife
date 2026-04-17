@@ -131,7 +131,15 @@ export const ProDashboard: React.FC<ProDashboardProps> = ({ isOpen, onClose, onS
          setIsVerified(normalizeBool(user.worker_profile?.is_verified));
          setHasUploadedDocs(!!user.worker_profile?.dui_document || !!user.worker_profile?.cert_document);
          setUserName(typeof user.name === 'string' ? user.name : '');
-         setUserAvatar(typeof user.profile_image === 'string' ? user.profile_image : null);
+         const rawAvatar = typeof user.profile_image_url === 'string' && user.profile_image_url
+            ? user.profile_image_url
+            : typeof user.profile_image === 'string' ? user.profile_image : null;
+         const resolvedAvatar = rawAvatar
+            ? (rawAvatar.startsWith('http://') || rawAvatar.startsWith('https://')
+               ? rawAvatar
+               : `${API_URL}/uploads/${rawAvatar.replace(/^\/+/, '').replace(/^uploads\//, '')}`)
+            : null;
+         setUserAvatar(resolvedAvatar);
       }
    }, [onClose]);
 

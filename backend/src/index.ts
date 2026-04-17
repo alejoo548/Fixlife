@@ -10,7 +10,6 @@ import servicesRoutes from './routes/services.routes';
 import aiChatRoutes from './routes/aiChat.routes';
 import notificationsRoutes from './routes/notifications.routes';
 import { globalLimiter } from './middlewares/security.middleware';
-import { verifyToken } from './middlewares/auth.middleware';
 
 dotenv.config();
 
@@ -47,7 +46,7 @@ app.use(globalLimiter);
 app.use(express.json({ limit: '1mb' }));
 app.use(express.urlencoded({ extended: true, limit: '1mb' }));
 
-app.use('/uploads', verifyToken, express.static(uploadsDir));
+app.use('/uploads', express.static(uploadsDir));
 
 app.use('/api/auth', authRoutes);
 app.use('/api/worker', workerRoutes);

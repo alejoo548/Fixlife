@@ -636,6 +636,8 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
     const [isWorkerPortfolioZoomed, setIsWorkerPortfolioZoomed] = useState(false);
     const [workerPortfolioScale, setWorkerPortfolioScale] = useState(1);
     const [workerPortfolioTransformOrigin, setWorkerPortfolioTransformOrigin] = useState('center center');
+    const [workerAvatarBroken, setWorkerAvatarBroken] = useState(false);
+    const [brokenPortfolioPhotos, setBrokenPortfolioPhotos] = useState<Record<number, boolean>>({});
     const [saveLocationKind, setSaveLocationKind] = useState<'home' | 'work' | 'favorite'>('favorite');
     const [saveLocationTitle, setSaveLocationTitle] = useState('');
     const [paymentModalRequest, setPaymentModalRequest] = useState<MyServiceRequest | null>(null);
@@ -1482,6 +1484,8 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
         setIsWorkerPortfolioFullscreen(false);
         setIsWorkerPortfolioZoomed(false);
         setWorkerPortfolioScale(1);
+        setWorkerAvatarBroken(false);
+        setBrokenPortfolioPhotos({});
     };
 
     const shiftWorkerPortfolio = (direction: 'prev' | 'next') => {
@@ -4659,10 +4663,11 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                             </svg>
                                         </button>
                                         <div className="relative z-10 flex items-center gap-4">
-                                            {selectedWorkerProfile?.profile_image_url ? (
+                                            {selectedWorkerProfile?.profile_image_url && !workerAvatarBroken ? (
                                                 <img
                                                     src={selectedWorkerProfile.profile_image_url}
                                                     alt={selectedWorkerProfile.name}
+                                                    onError={() => setWorkerAvatarBroken(true)}
                                                     className="h-16 w-16 shrink-0 rounded-2xl object-cover ring-2 ring-white/20 shadow-lg"
                                                 />
                                             ) : (
@@ -4772,7 +4777,19 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                                                     onClick={() => { setWorkerPortfolioIndex(index); setIsWorkerPortfolioFullscreen(true); }}
                                                                     className="group relative aspect-square overflow-hidden rounded-xl bg-slate-100 border border-slate-200"
                                                                 >
-                                                                    <img src={item.image_url || ''} alt="" className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105" />
+                                                                    {item.image_url && !brokenPortfolioPhotos[item.id_photo] ? (
+                                                                        <img
+                                                                            src={item.image_url}
+                                                                            alt=""
+                                                                            onError={() => setBrokenPortfolioPhotos((prev) => ({ ...prev, [item.id_photo]: true }))}
+                                                                            className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+                                                                        />
+                                                                    ) : (
+                                                                        <div className="w-full h-full flex flex-col items-center justify-center bg-slate-100 text-slate-400">
+                                                                            <svg className="w-6 h-6 mb-1" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+                                                                            <span className="text-[9px] font-bold uppercase tracking-wider">Unavailable</span>
+                                                                        </div>
+                                                                    )}
                                                                     <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center">
                                                                         <svg className="w-6 h-6 text-white opacity-0 group-hover:opacity-100 transition-opacity drop-shadow" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v3m0 0v3m0-3h3m-3 0H7" /></svg>
                                                                     </div>
@@ -4804,7 +4821,7 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                 initial={{ opacity: 0 }}
                                 animate={{ opacity: 1 }}
                                 exit={{ opacity: 0 }}
-                                className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md"
+                                className="fixed inset-0 z-[10000] bg-slate-950/80 backdrop-blur-md"
                                 onClick={() => setIsWorkerPortfolioFullscreen(false)}
                             >
                                 <motion.div

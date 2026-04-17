@@ -47,51 +47,106 @@ export const AdminSchema = {
   }),
 
   createServiceCard: z.object({
-    service_id: z
+    id_service: z
       .coerce
       .number()
       .int()
-      .positive('service_id must be a positive integer.'),
-    title: z
-      .string()
-      .trim()
-      .min(1, 'Title is required.')
-      .max(150, 'Title too long.'),
-    description: z
-      .string()
-      .trim()
-      .max(500, 'Description too long.')
-      .optional()
-      .or(z.literal('')),
+      .positive('id_service must be a positive integer.'),
     image_url: z
       .string()
       .trim()
-      .url('Invalid image URL.')
-      .max(300, 'Image URL too long.')
+      .max(500, 'Image URL too long.')
       .optional()
+      .nullable()
       .or(z.literal('')),
+    badge: z
+      .string()
+      .trim()
+      .max(40, 'Badge too long.')
+      .optional()
+      .nullable()
+      .or(z.literal('')),
+    headline: z
+      .string()
+      .trim()
+      .max(150, 'Headline too long.')
+      .optional()
+      .nullable()
+      .or(z.literal('')),
+    summary: z
+      .string()
+      .trim()
+      .max(500, 'Summary too long.')
+      .optional()
+      .nullable()
+      .or(z.literal('')),
+    cta_label: z
+      .string()
+      .trim()
+      .max(60, 'CTA label too long.')
+      .optional()
+      .nullable()
+      .or(z.literal('')),
+    sort_order: z
+      .coerce
+      .number()
+      .int()
+      .min(1, 'sort_order must be >= 1.')
+      .max(5000, 'sort_order too large.')
+      .optional(),
+    is_active: z.boolean().optional(),
   }),
 
   updateServiceCard: z.object({
-    title: z
-      .string()
-      .trim()
-      .min(1, 'Title is required.')
-      .max(150, 'Title too long.')
+    id_service: z
+      .coerce
+      .number()
+      .int()
+      .positive('id_service must be a positive integer.')
       .optional(),
-    description: z
-      .string()
-      .trim()
-      .max(500, 'Description too long.')
-      .optional()
-      .or(z.literal('')),
     image_url: z
       .string()
       .trim()
-      .url('Invalid image URL.')
-      .max(300, 'Image URL too long.')
+      .max(500, 'Image URL too long.')
       .optional()
+      .nullable()
       .or(z.literal('')),
+    badge: z
+      .string()
+      .trim()
+      .max(40, 'Badge too long.')
+      .optional()
+      .nullable()
+      .or(z.literal('')),
+    headline: z
+      .string()
+      .trim()
+      .max(150, 'Headline too long.')
+      .optional()
+      .nullable()
+      .or(z.literal('')),
+    summary: z
+      .string()
+      .trim()
+      .max(500, 'Summary too long.')
+      .optional()
+      .nullable()
+      .or(z.literal('')),
+    cta_label: z
+      .string()
+      .trim()
+      .max(60, 'CTA label too long.')
+      .optional()
+      .nullable()
+      .or(z.literal('')),
+    sort_order: z
+      .coerce
+      .number()
+      .int()
+      .min(1, 'sort_order must be >= 1.')
+      .max(5000, 'sort_order too large.')
+      .optional(),
+    is_active: z.boolean().optional(),
   }),
 
   heroSlides: z.object({
