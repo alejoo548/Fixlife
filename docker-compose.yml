@@ -10,6 +10,7 @@ services:
         VITE_TOMTOM_TRAFFIC_KEY: ${VITE_TOMTOM_TRAFFIC_KEY:-}
         GEMINI_API_KEY: ${GEMINI_API_KEY:-}
     container_name: fixlife_frontend
+    restart: unless-stopped
     ports:
       - "3000:3000"
     networks:
@@ -20,6 +21,7 @@ services:
       context: ./backend
       dockerfile: Dockerfile
     container_name: fixlife_backend
+    restart: unless-stopped
     env_file:
       - ./.env
     command: sh -c "npm install && npm run dev"
@@ -48,6 +50,7 @@ services:
   mysql:
     image: mysql:8.0
     container_name: fixlife_mysql
+    restart: unless-stopped
     environment:
       - MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD:-Info2026/*-}
       - MYSQL_DATABASE=${MYSQL_DATABASE:-fixlife_db}
@@ -68,6 +71,7 @@ services:
   phpmyadmin:
     image: phpmyadmin:latest
     container_name: fixlife_phpmyadmin
+    restart: unless-stopped
     environment:
       - PMA_HOST=mysql
       - PMA_PORT=3306

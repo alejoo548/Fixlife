@@ -33,6 +33,7 @@ const corsOptions = isProduction && ALLOWED_ORIGINS.length > 0
   : {};
 
 const app = express();
+app.set('trust proxy', 1);
 const PORT = process.env.PORT || 8000;
 const uploadsDir = path.resolve(process.cwd(), 'uploads');
 
