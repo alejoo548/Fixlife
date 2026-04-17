@@ -119,6 +119,18 @@ export const registerWorker = async (req: Request, res: Response): Promise<void>
       return;
     }
 
+    const normalizedServiceIds = Array.isArray(service_ids)
+      ? service_ids
+          .map((id: any) => Number(id))
+          .filter((id: number) => Number.isFinite(id) && id > 0)
+          .slice(0, 10)
+      : [];
+
+    if (normalizedServiceIds.length === 0) {
+      res.status(400).json({ error: 'Select at least one service you offer.' });
+      return;
+    }
+
     const connection = await pool.getConnection();
 
     try {
@@ -141,6 +153,33 @@ export const registerWorker = async (req: Request, res: Response): Promise<void>
             `UPDATE users SET name = ?, lastname = ?, phone_number = ?, password_hash = ?, username = ?, verification_token = ?, token_expires_at = ?, pending_worker = 1 WHERE id_user = ?`,
             [trimmedName, trimmedLastname, trimmedPhoneNumber, password_hash, trimmedUsername || null, otp, expiresAt, existingUser.id_user]
           );
+
+          // Re-sync worker services on re-registration: ensure there is a worker_profile
+          // and replace selected services with the new list from this attempt.
+          const [existingProfileRows] = await connection.execute<RowDataPacket[]>(
+            `SELECT id_worker_profile FROM worker_profiles WHERE id_user = ? LIMIT 1`,
+            [existingUser.id_user]
+          );
+          let existingProfileId: number | null = existingProfileRows.length > 0
+            ? Number(existingProfileRows[0].id_worker_profile)
+            : null;
+          if (existingProfileId === null) {
+            const [createdProfile] = await connection.execute<ResultSetHeader>(
+              `INSERT INTO worker_profiles (id_user, is_verified) VALUES (?, 0)`,
+              [existingUser.id_user]
+            );
+            existingProfileId = Number(createdProfile.insertId);
+          }
+          await connection.execute(
+            `DELETE FROM worker_services WHERE id_worker_profile = ?`,
+            [existingProfileId]
+          );
+          for (const svcId of normalizedServiceIds) {
+            await connection.execute(
+              `INSERT IGNORE INTO worker_services (id_worker_profile, id_service) VALUES (?, ?)`,
+              [existingProfileId, svcId]
+            );
+          }
 
           const emailSent = await sendVerificationEmail(trimmedEmail, otp, trimmedName);
           if (!emailSent) {
@@ -191,19 +230,13 @@ export const registerWorker = async (req: Request, res: Response): Promise<void>
         [userId]
       );
 
-      // Insert selected services
-      if (Array.isArray(service_ids) && service_ids.length > 0) {
-        const profileId = profileResult.insertId;
-        const validIds = service_ids
-          .map((id: any) => Number(id))
-          .filter((id: number) => !isNaN(id) && id > 0)
-          .slice(0, 10);
-        for (const svcId of validIds) {
-          await connection.execute(
-            `INSERT IGNORE INTO worker_services (id_worker_profile, id_service) VALUES (?, ?)`,
-            [profileId, svcId]
-          );
-        }
+      // Insert selected services (already validated: at least 1 id)
+      const profileId = profileResult.insertId;
+      for (const svcId of normalizedServiceIds) {
+        await connection.execute(
+          `INSERT IGNORE INTO worker_services (id_worker_profile, id_service) VALUES (?, ?)`,
+          [profileId, svcId]
+        );
       }
 
       // Send OTP Email before committing
