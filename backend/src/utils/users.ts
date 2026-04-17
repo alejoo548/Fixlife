@@ -3,6 +3,7 @@ import pool from '../config/db';
 
 let usersActiveColumnChecked = false;
 let usersPendingWorkerColumnChecked = false;
+let usersPhoneNullableChecked = false;
 
 export const ensureUsersActiveColumn = async (): Promise<void> => {
   if (usersActiveColumnChecked) return;
@@ -40,4 +41,24 @@ export const ensureUsersPendingWorkerColumn = async (): Promise<void> => {
   }
 
   usersPendingWorkerColumnChecked = true;
+};
+
+export const ensureUsersPhoneNumberNullable = async (): Promise<void> => {
+  if (usersPhoneNullableChecked) return;
+
+  const [rows] = await pool.execute<RowDataPacket[]>(
+    `SELECT IS_NULLABLE as isNullable
+     FROM information_schema.COLUMNS
+     WHERE table_schema = DATABASE()
+       AND table_name = 'users'
+       AND column_name = 'phone_number'
+     LIMIT 1`
+  );
+
+  const isNullable = String(rows[0]?.isNullable || '').toUpperCase();
+  if (isNullable === 'NO') {
+    await pool.execute(`ALTER TABLE users MODIFY COLUMN phone_number VARCHAR(50) NULL`);
+  }
+
+  usersPhoneNullableChecked = true;
 };

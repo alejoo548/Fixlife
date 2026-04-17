@@ -7,7 +7,7 @@ import crypto from 'crypto';
 import pool from '../config/db';
 import { ResultSetHeader, RowDataPacket } from 'mysql2';
 import { sendVerificationEmail, sendPasswordResetEmail } from '../utils/email';
-import { ensureUsersActiveColumn, ensureUsersPendingWorkerColumn } from '../utils/users';
+import { ensureUsersActiveColumn, ensureUsersPendingWorkerColumn, ensureUsersPhoneNumberNullable } from '../utils/users';
 import { AuthRequest } from '../middlewares/auth.middleware';
 import { OAuth2Client } from 'google-auth-library';
 
@@ -386,6 +386,8 @@ export const verifyWorkerEmail = async (req: Request, res: Response): Promise<vo
 
 export const registerUser = async (req: Request, res: Response): Promise<void> => {
   try {
+    await ensureUsersPhoneNumberNullable();
+
     const { name, lastname, email, phone_number, password, username, captchaToken } = req.body;
 
     if (!name || !lastname || !email || !password) {
@@ -604,6 +606,7 @@ export const googleLogin = async (req: Request, res: Response): Promise<void> =>
 
     await ensureUsersActiveColumn();
     await ensureUsersPendingWorkerColumn();
+    await ensureUsersPhoneNumberNullable();
 
     const ticket = await googleClient.verifyIdToken({
       idToken: credential,
@@ -624,8 +627,9 @@ export const googleLogin = async (req: Request, res: Response): Promise<void> =>
     }
 
     const fullName = sanitizeText(payload?.name);
-    const fallbackName = fullName.split(' ')[0] || 'User';
-    const fallbackLast = fullName.split(' ').slice(1).join(' ') || 'Google';
+    const nameParts = fullName.split(/\s+/).filter(Boolean);
+    const fallbackName = nameParts[0] || 'User';
+    const fallbackLast = nameParts.slice(1).join(' ') || fallbackName;
     const name = sanitizeText(payload?.given_name) || fallbackName;
     const lastname = sanitizeText(payload?.family_name) || fallbackLast;
 
@@ -656,11 +660,16 @@ export const googleLogin = async (req: Request, res: Response): Promise<void> =>
         userId = Number(user.id_user);
         userRole = String(user.rol);
         pendingWorker = user.pending_worker ? 1 : 0;
+        const currentLastname = sanitizeText(user.lastname);
+
+        if (!currentLastname || currentLastname.toLowerCase() === 'google') {
+          await connection.execute(`UPDATE users SET lastname = ? WHERE id_user = ?`, [lastname, userId]);
+        }
 
         userData = {
           id_user: userId,
           name: user.name,
-          lastname: user.lastname,
+          lastname: (!currentLastname || currentLastname.toLowerCase() === 'google') ? lastname : user.lastname,
           email: user.email,
           phone_number: user.phone_number,
           rol: userRole,
@@ -987,6 +996,8 @@ export const removeProfileImage = async (req: AuthRequest, res: Response): Promi
 
 export const updateProfile = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
+    await ensureUsersPhoneNumberNullable();
+
     const userId = req.user?.user_id;
 
     if (!userId) {
