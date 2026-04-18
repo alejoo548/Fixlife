@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import Particles, { initParticlesEngine } from "@tsparticles/react";
-import { type Container, type ISourceOptions } from "@tsparticles/engine";
+import { type ISourceOptions } from "@tsparticles/engine";
 import { loadSlim } from "@tsparticles/slim";
 
 export const ParticlesBackground = () => {
@@ -14,36 +14,24 @@ export const ParticlesBackground = () => {
     });
   }, []);
 
-  const particlesLoaded = async (container?: Container): Promise<void> => {
-    console.log(container);
-  };
-
   const options: ISourceOptions = useMemo(
     () => ({
       background: {
         color: "transparent",
       },
-      fpsLimit: 60,
+      fpsLimit: 30,
       interactivity: {
         events: {
           onClick: {
-            enable: true,
+            enable: false,
             mode: "push",
           },
           onHover: {
-            enable: true,
+            enable: false,
             mode: "bubble",
           },
-        },
-        modes: {
-          push: {
-            quantity: 2,
-          },
-          bubble: {
-            distance: 250,
-            size: 40,
-            duration: 2,
-            opacity: 0.8,
+          resize: {
+            enable: true,
           },
         },
       },
@@ -61,41 +49,27 @@ export const ParticlesBackground = () => {
             default: "out",
           },
           random: true,
-          speed: 2,
+          speed: 0.8,
           straight: false,
         },
         number: {
           density: {
             enable: true,
+            area: 1200,
           },
-          value: 35,
+          value: 14,
         },
         opacity: {
-          value: { min: 0.5, max: 0.8 },
-          animation: {
-            enable: true,
-            speed: 1,
-            sync: false,
-          },
+          value: { min: 0.18, max: 0.32 },
         },
         shape: {
           type: "circle",
         },
         size: {
-          value: { min: 15, max: 35 },
-          animation: {
-            enable: true,
-            speed: 5,
-            sync: false,
-          },
-        },
-        wobble: {
-          enable: true,
-          distance: 10,
-          speed: 10,
+          value: { min: 8, max: 18 },
         },
       },
-      detectRetina: true,
+      detectRetina: false,
     }),
     [],
   );
@@ -104,7 +78,6 @@ export const ParticlesBackground = () => {
     return (
       <Particles
         id="tsparticles"
-        particlesLoaded={particlesLoaded}
         options={options}
         className="absolute inset-0 w-full h-full"
       />

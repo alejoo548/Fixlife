@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, Suspense, lazy } from 'react';
+import React, { useState, useEffect, Suspense, lazy } from 'react';
 import { motion } from 'framer-motion';
 import { Navbar } from './components/layout/Navbar';
 import { NavItemType, AuthMode } from './types';
@@ -14,7 +14,6 @@ import { TestimonialsCarousel } from './components/sections/TestimonialsCarousel
 import { FAQSection } from './components/sections/FAQSection';
 import { Button } from './components/common/Button';
 import { AiSupportChatWidget } from './components/common/AiSupportChatWidget';
-import PageLoader from './components/common/PageLoader';
 import { ThreeDCard } from './components/common/ThreeDCard';
 import UserProfile from './pages/UserProfile';
 import { clearAuthSession, hasRole, isAuthenticated } from './utils/session';
@@ -115,8 +114,6 @@ const hasAccessToView = (view: 'landing' | 'app' | 'pro-dashboard' | 'admin-dash
 };
 
 const App: React.FC = () => {
-  const [isPageLoading, setIsPageLoading] = useState(true);
-  const loaderTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [isAuthOpen, setIsAuthOpen] = useState(false);
   const [authMode, setAuthMode] = useState<AuthMode>('signin');
   const [isWorkerAuthOpen, setIsWorkerAuthOpen] = useState(false);
@@ -126,15 +123,6 @@ const App: React.FC = () => {
   const [serviceCards, setServiceCards] = useState<HomeServiceCard[]>([]);
   const [selectedService, setSelectedService] = useState<{ id: number; name: string } | null>(null);
   const [pendingSection, setPendingSection] = useState<LandingSectionTarget | null>(null);
-
-  useEffect(() => {
-    loaderTimerRef.current = setTimeout(() => {
-      setIsPageLoading(false);
-    }, 2200);
-    return () => {
-      if (loaderTimerRef.current) clearTimeout(loaderTimerRef.current);
-    };
-  }, []);
 
   const goLandingWithReplace = () => {
     window.history.replaceState({}, '', '/');
@@ -171,12 +159,12 @@ const App: React.FC = () => {
       return;
     }
 
-      if (path === '/pro-dashboard') {
-        setCheckoutRequestId(null);
-        if (isAuthenticated('worker') && hasRole('worker', 'worker')) {
-          setCurrentView('pro-dashboard');
-        } else {
-          goLandingWithReplace();
+    if (path === '/pro-dashboard') {
+      setCheckoutRequestId(null);
+      if (isAuthenticated('worker') && hasRole('worker', 'worker')) {
+        setCurrentView('pro-dashboard');
+      } else {
+        goLandingWithReplace();
       }
       return;
     }
@@ -464,17 +452,17 @@ const App: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-sky-50 via-amber-50 to-orange-50 text-gray-900 selection:bg-bird-blue selection:text-white overflow-x-hidden font-sans flex flex-col relative transition-colors duration-500">
-      <PageLoader visible={isPageLoading} />
+      {currentView === 'landing' ? (
+        <div className="fixed inset-0 w-full h-full overflow-hidden pointer-events-none z-0">
+          <ParticlesBackground />
 
-      <div className="fixed inset-0 w-full h-full overflow-hidden pointer-events-none z-0">
-        <ParticlesBackground />
+          <div className="absolute top-[-10%] left-[-10%] w-[60vw] h-[60vw] bg-bird-lightBlue/20 rounded-full blur-[100px] animate-blob" />
+          <div className="absolute bottom-[-10%] right-[-10%] w-[60vw] h-[60vw] bg-bird-yellow/20 rounded-full blur-[120px] animate-blob animation-delay-2000" />
 
-        <div className="absolute top-[-10%] left-[-10%] w-[60vw] h-[60vw] bg-bird-lightBlue/20 rounded-full blur-[100px] animate-blob" />
-        <div className="absolute bottom-[-10%] right-[-10%] w-[60vw] h-[60vw] bg-bird-yellow/20 rounded-full blur-[120px] animate-blob animation-delay-2000" />
-
-        <div className="absolute top-[20%] right-[20%] w-[40vw] h-[40vw] bg-bird-orange/15 rounded-full blur-[90px] animate-blob animation-delay-4000" />
-        <div className="absolute bottom-[20%] left-[20%] w-[30vw] h-[30vw] bg-white/40 rounded-full blur-[80px] animate-blob" />
-      </div>
+          <div className="absolute top-[20%] right-[20%] w-[40vw] h-[40vw] bg-bird-orange/15 rounded-full blur-[90px] animate-blob animation-delay-4000" />
+          <div className="absolute bottom-[20%] left-[20%] w-[30vw] h-[30vw] bg-white/40 rounded-full blur-[80px] animate-blob" />
+        </div>
+      ) : null}
 
       <AuthModal
         isOpen={isAuthOpen}
