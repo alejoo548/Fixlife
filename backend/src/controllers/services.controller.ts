@@ -5,6 +5,7 @@ import { AuthRequest } from '../middlewares/auth.middleware';
 import fs from 'fs';
 import path from 'path';
 import { createUserNotification } from '../utils/notifications';
+import { pushToUser } from '../services/sseManager';
 import { getWorkerBonusPayouts, getWorkerRewardsSettings, syncWorkerBonusPayouts } from '../utils/workerRewards';
 import { sendPaymentInvoiceEmail, sendWorkerPaymentSecuredEmail } from '../utils/email';
 
@@ -2605,6 +2606,11 @@ export const postRequestChatMessage = async (req: AuthRequest, res: Response): P
         },
       });
     }
+
+    // Push SSE to both sides so they receive the new message without polling
+    const chatPayload = { id_request: idRequest, latest_message_id: createdMessages[createdMessages.length - 1]?.id_message ?? primaryMessageId };
+    pushToUser(userId, 'chat_message', chatPayload);
+    if (recipientUserId) pushToUser(recipientUserId, 'chat_message', chatPayload);
 
     res.status(201).json({
       success: true,

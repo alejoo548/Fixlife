@@ -1,5 +1,6 @@
 import { ResultSetHeader, RowDataPacket } from 'mysql2';
 import pool from '../config/db';
+import { pushToUser } from '../services/sseManager';
 
 export type NotificationTone = 'info' | 'success' | 'warning';
 
@@ -97,6 +98,12 @@ export const createUserNotification = async (input: {
       metadataJson,
     ]
   );
+
+  // Push SSE events so clients react immediately without polling
+  pushToUser(input.userId, 'notification', { event_type: input.eventType });
+  if (input.requestId != null) {
+    pushToUser(input.userId, 'request_updated', { id_request: input.requestId });
+  }
 };
 
 export const listUserNotifications = async (

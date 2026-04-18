@@ -9,6 +9,7 @@ import adminRoutes from './routes/admin.routes';
 import servicesRoutes from './routes/services.routes';
 import aiChatRoutes from './routes/aiChat.routes';
 import notificationsRoutes from './routes/notifications.routes';
+import eventsRoute from './routes/events.route';
 import { globalLimiter } from './middlewares/security.middleware';
 
 dotenv.config();
@@ -55,6 +56,7 @@ app.use('/api/admin', adminRoutes);
 app.use('/api/services', servicesRoutes);
 app.use('/api', aiChatRoutes);
 app.use('/api/notifications', notificationsRoutes);
+app.use('/api/events', eventsRoute);
 
 
 app.get('/api/health', (req: Request, res: Response) => {

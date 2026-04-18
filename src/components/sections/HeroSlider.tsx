@@ -88,6 +88,7 @@ export const HeroSlider: React.FC<HeroSliderProps> = ({ onStartBooking }) => {
                   src={slide.image}
                   alt={slide.title}
                   className="w-full h-full object-cover"
+                  onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
                 />
                 <div className="absolute inset-0 bg-gradient-to-t from-gray-900 via-gray-900/60 to-transparent opacity-90" />
                 <div className="absolute inset-0 bg-gradient-to-r from-gray-900/80 to-transparent opacity-60" />

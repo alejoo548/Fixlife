@@ -10,6 +10,7 @@ import {
   updateWorkerRewardsSettings,
 } from '../utils/workerRewards';
 import { createUserNotification } from '../utils/notifications';
+import { pushToUser } from '../services/sseManager';
 import { ensureServiceCardsTable, ensureServiceRequestTables } from './services.controller';
 import { ensureUsersActiveColumn, ensureUsersPendingWorkerColumn } from '../utils/users';
 
@@ -850,6 +851,7 @@ export const approveWorker = async (req: AuthRequest, res: Response): Promise<vo
 
       const workerName = `${userRows[0]?.name || ''} ${userRows[0]?.lastname || ''}`.trim();
       await connection.commit();
+      pushToUser(userId, 'worker_status', { is_verified: 1 });
       await logAdminActivity(
         req,
         'approve',
@@ -925,6 +927,7 @@ export const rejectWorker = async (req: AuthRequest, res: Response): Promise<voi
 
       const workerName = `${userRows[0]?.name || ''} ${userRows[0]?.lastname || ''}`.trim();
       await connection.commit();
+      pushToUser(userId, 'worker_status', { is_verified: 2 });
       await logAdminActivity(
         req,
         'reject',

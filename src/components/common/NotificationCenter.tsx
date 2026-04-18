@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { useSSE } from '../../hooks/useSSE';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Notyf } from 'notyf';
 import 'notyf/notyf.min.css';
@@ -178,14 +179,13 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({
 
   useEffect(() => {
     void fetchNotifications(true);
-    if (!token) return;
-
-    const intervalId = window.setInterval(() => {
-      void fetchNotifications(true);
-    }, 15000);
-
-    return () => window.clearInterval(intervalId);
   }, [token]);
+
+  useSSE({
+    token,
+    events: { notification: () => { void fetchNotifications(true); } },
+    enabled: !!token,
+  });
 
   useEffect(() => {
     if (!isOpen) return;

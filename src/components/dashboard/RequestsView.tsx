@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { useSSE } from '../../hooks/useSSE';
 import { API_ENDPOINTS } from '../../config/api';
 import { Notyf } from 'notyf';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -1344,15 +1345,11 @@ export const RequestsView: React.FC<RequestsViewProps> = ({ isOnline, mobileView
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [statusFilter, token]);
 
-  useEffect(() => {
-    if (!token) return;
-    if (!isOnline) return;
-    const interval = window.setInterval(() => {
-      fetchRequests(true);
-    }, 5000);
-    return () => window.clearInterval(interval);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [token, isOnline, statusFilter]);
+  useSSE({
+    token,
+    events: { request_updated: () => { if (isOnline) fetchRequests(true); } },
+    enabled: !!token && isOnline,
+  });
 
   const handleAction = async (idRequest: number, action: 'accept' | 'reject') => {
     if (!token) return;
@@ -1640,18 +1637,20 @@ export const RequestsView: React.FC<RequestsViewProps> = ({ isOnline, mobileView
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedRequest?.id_request, token, canUseChatWithClient, chatPanelOpen]);
 
-  useEffect(() => {
-    if (!selectedRequest?.id_request) return;
-    if (!canUseChatWithClient) return;
-    if (!chatPanelOpen) return;
-
-    const interval = window.setInterval(() => {
-      void fetchRequestChat(selectedRequest.id_request, { silent: true, incremental: true });
-    }, CHAT_POLL_MS);
-
-    return () => window.clearInterval(interval);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedRequest?.id_request, token, canUseChatWithClient, chatPanelOpen]);
+  useSSE({
+    token,
+    events: {
+      chat_message: (data: unknown) => {
+        const d = data as { id_request?: number } | null;
+        if (!selectedRequest?.id_request) return;
+        if (!canUseChatWithClient || !chatPanelOpen) return;
+        if (d?.id_request == null || d.id_request === selectedRequest.id_request) {
+          void fetchRequestChat(selectedRequest.id_request, { silent: true, incremental: true });
+        }
+      },
+    },
+    enabled: !!token && !!selectedRequest?.id_request && canUseChatWithClient && chatPanelOpen,
+  });
 
   useEffect(() => {
     if (!selectedRequest?.id_request || !canUseChatWithClient) {
