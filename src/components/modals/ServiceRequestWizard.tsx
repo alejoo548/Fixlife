@@ -1,4 +1,5 @@
 ﻿import React, { Suspense, lazy, useEffect, useMemo, useRef, useState } from 'react';
+import { useSSE } from '../../hooks/useSSE';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ServiceRequestData } from '../../types';
 import { API_ENDPOINTS } from '../../config/api';
@@ -1668,16 +1669,11 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
         })();
     }, [isOpen]);
 
-    useEffect(() => {
-        if (!isOpen) return;
-        if (!isAuthenticated()) return;
-
-        const interval = window.setInterval(() => {
-            void fetchMyRequests(historyStatus, true);
-        }, 5000);
-
-        return () => window.clearInterval(interval);
-    }, [isOpen, historyStatus]);
+    useSSE({
+        token: getToken(),
+        events: { request_updated: () => { if (isOpen && isAuthenticated()) void fetchMyRequests(historyStatus, true); } },
+        enabled: isOpen && isAuthenticated(),
+    });
 
     useEffect(() => {
         if (!openChatRequestId) return;

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { API_ENDPOINTS } from '../../config/api';
 import { AuthMode } from '../../types';
 import { Notyf } from 'notyf';
@@ -64,15 +64,21 @@ const loadGoogleGsiScript = () =>
     document.head.appendChild(script);
   });
 
+// Module-level flag: google.accounts.id.initialize() must only be called once per page
+let gsiInitialized = false;
+
 const GoogleSignInButton = ({ onCredential }: { onCredential: (credential: string) => void }) => {
   const [ready, setReady] = useState(false);
   const containerRef = React.useRef<HTMLDivElement | null>(null);
+  // Keep latest callback in a ref so the effect never needs to re-run when it changes
+  const onCredentialRef = useRef(onCredential);
+  onCredentialRef.current = onCredential;
 
   useEffect(() => {
+    if (!googleClientId) return;
     let cancelled = false;
 
     const setup = async () => {
-      if (!googleClientId) return;
       try {
         await loadGoogleGsiScript();
         if (cancelled) return;
@@ -80,13 +86,16 @@ const GoogleSignInButton = ({ onCredential }: { onCredential: (credential: strin
         const google = window.google;
         if (!google?.accounts?.id || !containerRef.current) return;
 
-        google.accounts.id.initialize({
-          client_id: googleClientId,
-          callback: (resp: any) => {
-            const credential = String(resp?.credential || '');
-            if (credential) onCredential(credential);
-          },
-        });
+        if (!gsiInitialized) {
+          google.accounts.id.initialize({
+            client_id: googleClientId,
+            callback: (resp: any) => {
+              const credential = String(resp?.credential || '');
+              if (credential) onCredentialRef.current(credential);
+            },
+          });
+          gsiInitialized = true;
+        }
 
         containerRef.current.innerHTML = '';
         google.accounts.id.renderButton(containerRef.current, {
@@ -105,10 +114,8 @@ const GoogleSignInButton = ({ onCredential }: { onCredential: (credential: strin
     };
 
     setup();
-    return () => {
-      cancelled = true;
-    };
-  }, [onCredential]);
+    return () => { cancelled = true; };
+  }, []); // run once — callback stays current via onCredentialRef
 
   if (!googleClientId) return null;
 

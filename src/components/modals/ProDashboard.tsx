@@ -1,4 +1,5 @@
 import React, { useState, useEffect, Suspense, lazy } from 'react';
+import { useSSE } from '../../hooks/useSSE';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ProSidebar } from './ProSidebar';
 import { API_URL } from '../../config/api';
@@ -145,14 +146,14 @@ export const ProDashboard: React.FC<ProDashboardProps> = ({ isOpen, onClose, onS
 
    useEffect(() => {
       if (!isOpen || !token) return;
-
       syncWorkerStatus(token);
-      const intervalId = window.setInterval(() => {
-         syncWorkerStatus(token);
-      }, 3000);
-
-      return () => window.clearInterval(intervalId);
    }, [isOpen, token]);
+
+   useSSE({
+      token,
+      events: { worker_status: () => { if (token) syncWorkerStatus(token); } },
+      enabled: isOpen && !!token,
+   });
 
    if (!isOpen) return null;
 

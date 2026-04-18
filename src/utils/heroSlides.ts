@@ -26,7 +26,7 @@ export const DEFAULT_HERO_SLIDES: HeroSlideContent[] = [
   {
     id: 2,
     image:
-      'https://images.unsplash.com/photo-1581578731117-10d52b43cc0a?q=80&w=2070&auto=format&fit=crop',
+      'https://images.unsplash.com/photo-1503387762-592deb58ef4e?q=80&w=2070&auto=format&fit=crop',
     tag: 'RENOVATION',
     title: 'Transform Your Space',
     description:
