@@ -368,7 +368,7 @@ if (!emailRegex.test(formData.email)) {
           <div
             className={`absolute top-0 bottom-0 left-0 w-1/2 bg-gradient-to-br from-bird-blue to-bird-darkBlue z-20 ${transitionClass}`}
             style={{
-              transform: isSignup ? 'translateX(100%)' : 'translateX(0%)',
+              transform: isSignup ? 'translateX(0%)' : 'translateX(100%)',
             }}
           >
             <div className="absolute top-[-20%] -left-[20%] w-60 h-60 bg-white/10 rounded-full blur-3xl pointer-events-none" />

@@ -1,4 +1,4 @@
-﻿import React, { Suspense, lazy, useEffect, useMemo, useRef, useState } from 'react';
+import React, { Suspense, lazy, useEffect, useMemo, useRef, useState } from 'react';
 import { useSSE } from '../../hooks/useSSE';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ServiceRequestData } from '../../types';
@@ -6,6 +6,27 @@ import { API_ENDPOINTS } from '../../config/api';
 import { getAuthUser, getToken, isAuthenticated } from '../../utils/session';
 import { Notyf } from 'notyf';
 import { NotificationCenter } from '../common/NotificationCenter';
+import { ServiceRequestMapOverlays } from './ServiceRequestMapOverlays';
+import { ServiceRequestPanelShell } from './ServiceRequestPanelShell';
+import { ServiceRequestServiceStep } from './ServiceRequestServiceStep';
+import { ServiceRequestDetailsHeader } from './ServiceRequestDetailsHeader';
+import { ServiceRequestLocationSection } from './ServiceRequestLocationSection';
+import { ServiceRequestProblemSection } from './ServiceRequestProblemSection';
+import { ServiceRequestHistorySection } from './ServiceRequestHistorySection';
+import { ServiceRequestAssignedWorkerCard } from './ServiceRequestAssignedWorkerCard';
+import { ServiceRequestPaymentModal } from './ServiceRequestPaymentModal';
+import { ServiceRequestFixesSuccessModal } from './ServiceRequestFixesSuccessModal';
+import { useResponsiveSheet } from '../../hooks/useResponsiveSheet';
+import {
+    statusBadgeClasses,
+    statusLabel,
+    getClientTimelineState,
+    timelineSteps,
+    hasPendingCounter,
+    hasPendingWorkerApproval,
+    canUseRequestChat,
+    counterBadge,
+} from './serviceRequestHelpers';
 import 'notyf/notyf.min.css';
 
 const ClientLiveRequestTracker = lazy(() => import('./ClientLiveRequestTracker'));
@@ -674,6 +695,8 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
     const [ratingForm, setRatingForm] = useState<Record<number, { punctuality: number; quality: number; price_fairness: number; comment: string }>>({});
     const [ratingModalRequest, setRatingModalRequest] = useState<MyServiceRequest | null>(null);
     const [fixesSuccessRequest, setFixesSuccessRequest] = useState<MyServiceRequest | null>(null);
+    const [isRequestPanelExpanded, setIsRequestPanelExpanded] = useState(() => !initialServiceId);
+    const isDesktopSheet = useResponsiveSheet();
     const mapContainerRef = useRef<HTMLDivElement | null>(null);
     const mapInstanceRef = useRef<any>(null);
     const currentMarkerRef = useRef<any>(null);
@@ -721,6 +744,7 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
         setPaymentMethod('card');
         setRatingModalRequest(null);
         setFixesSuccessRequest(null);
+        setIsRequestPanelExpanded(!initialServiceId);
     }, [isOpen, initialServiceId, initialServiceName]);
 
     useEffect(() => {
@@ -1366,6 +1390,8 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
         [quickAccessLocations]
     );
 
+    const getLocationChipClass = (kind: SavedLocation['kind']) => getLocationVisual(kind).chipClass;
+
     const activeLocationKind = useMemo<SavedLocation['kind'] | 'current'>(() => {
         if (!currentCoords) return 'current';
         if (savedHome && sameCoords(savedHome, currentCoords)) return 'home';
@@ -1782,6 +1808,27 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
 
     useEffect(() => {
         if (!isOpen) return;
+        if (!isAuthenticated() || !getToken()) return;
+
+        void (async () => {
+            const backendCount = await fetchSavedLocationsFromBackend(true);
+            if (backendCount == null) return;
+
+            const cached = readSavedLocations();
+            const cachedCount =
+                (cached.home ? 1 : 0) +
+                (cached.work ? 1 : 0) +
+                (cached.favorites?.length || 0) +
+                (cached.recent?.length || 0);
+
+            if (backendCount === 0 && cachedCount > 0) {
+                await syncLocalSavedLocationsToBackend();
+            }
+        })();
+    }, [isOpen]);
+
+    useEffect(() => {
+        if (!isOpen) return;
 
         const query = data.location.trim();
         const parsedCoords = parseCoordinateInput(query);
@@ -1865,24 +1912,23 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
         });
 
         mapInstanceRef.current = map;
-    }, [isOpen, leafletReady]);
 
-    useEffect(() => {
-        if (isOpen) return;
-        if (mapInstanceRef.current) {
-            try {
-                mapInstanceRef.current.remove();
-            } catch {
-                // ignore map cleanup errors
+        return () => {
+            if (mapInstanceRef.current) {
+                try {
+                    mapInstanceRef.current.remove();
+                } catch {
+                    // ignore map cleanup errors
+                }
+                mapInstanceRef.current = null;
+                currentMarkerRef.current = null;
+                currentRadiusRef.current = null;
+                savedPlaceMarkersRef.current = [];
+                nearbyWorkerMarkersRef.current = [];
+                lastCenteredCoordsRef.current = null;
             }
-            mapInstanceRef.current = null;
-            currentMarkerRef.current = null;
-            currentRadiusRef.current = null;
-            savedPlaceMarkersRef.current = [];
-            nearbyWorkerMarkersRef.current = [];
-            lastCenteredCoordsRef.current = null;
-        }
-    }, [isOpen]);
+        };
+    }, [isOpen, leafletReady]);
 
     useEffect(() => {
         if (!mapInstanceRef.current || !window.L) return;
@@ -2033,16 +2079,42 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
         return found?.name || data.category;
     }, [data.category, services]);
 
-    if (!isOpen) return null;
+    const compactLocationLabel = useMemo(() => {
+        if (data.location.trim()) return data.location.trim();
+        if (currentCoords) return `${currentCoords.lat.toFixed(4)}, ${currentCoords.lng.toFixed(4)}`;
+        return 'Choose your address';
+    }, [currentCoords, data.location]);
 
-    const getColorClass = (color: string) => {
-        const colors: Record<string, string> = {
-            blue: 'group-hover:bg-bird-blue',
-            yellow: 'group-hover:bg-bird-yellow',
-            orange: 'group-hover:bg-bird-orange',
-            green: 'group-hover:bg-green-500'
-        };
-        return colors[color] || colors.blue;
+    const canSearchPros = !!data.location.trim() && !resolvingLocation;
+    const canSubmitRequest =
+        !isSubmittingRequest &&
+        isAuthenticated() &&
+        !!data.price &&
+        !!data.location.trim() &&
+        problemFiles.length > 0 &&
+        !resolvingLocation;
+
+    const shouldShowCollapsedBookingCard = step === 1 && !activeTrackedRequest;
+
+    const openBookingDetails = () => {
+        setIsRequestPanelExpanded(true);
+    };
+
+    const collapseBookingDetails = () => {
+        if (step === 1) {
+            setIsRequestPanelExpanded(false);
+        }
+    };
+
+    const handleFloatingFindPro = async () => {
+        if (step !== 1) return;
+        if (!isRequestPanelExpanded) {
+            setIsRequestPanelExpanded(true);
+        }
+        if (!canSearchPros) return;
+        setIsSearching(true);
+        await fetchNearbyPros();
+        setTimeout(() => setIsSearching(false), 700);
     };
 
     const showToast = (type: 'success' | 'error' | 'info', message: string) => {
@@ -2447,109 +2519,6 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
         } finally {
             setIsSubmittingRequest(false);
         }
-    };
-
-    const statusBadgeClasses = (statusRaw: string) => {
-        const status = String(statusRaw || 'pending').toLowerCase();
-        if (status === 'done') return 'bg-emerald-100 text-emerald-700 border-emerald-200';
-        if (status === 'awaiting_confirmation') return 'bg-violet-100 text-violet-700 border-violet-200';
-        if (status === 'assigned') return 'bg-sky-100 text-gray-500 border-sky-200';
-        if (status === 'payment_pending') return 'bg-yellow-100 text-yellow-700 border-yellow-200';
-        if (status === 'paid') return 'bg-cyan-100 text-cyan-700 border-cyan-200';
-        if (status === 'in_progress') return 'bg-indigo-100 text-indigo-700 border-indigo-200';
-        if (status === 'cancelled') return 'bg-red-100 text-red-700 border-red-200';
-        return 'bg-amber-100 text-amber-700 border-amber-200';
-    };
-
-    const statusLabel = (statusRaw: string, request?: MyServiceRequest) => {
-        const status = String(statusRaw || 'pending').toLowerCase();
-        if (status === 'assigned') {
-            if (request && hasPendingWorkerApproval(request)) return 'Review Worker';
-            if (request && hasPendingCounter(request)) return 'Counter Pending';
-            return 'Worker Accepted';
-        }
-        if (status === 'payment_pending') return 'Payment Pending';
-        if (status === 'paid') return 'Payment Secured';
-        if (status === 'awaiting_confirmation') return 'Awaiting Confirmation';
-        if (status === 'in_progress') return 'In Progress';
-        if (status === 'done') return 'Completed';
-        if (status === 'pending') return 'Finding Worker';
-        return status.charAt(0).toUpperCase() + status.slice(1);
-    };
-
-    const getClientTimelineState = (request: MyServiceRequest) => {
-        const status = String(request.status || 'pending').toLowerCase();
-        const workerAccepted =
-            !!request.assigned_worker &&
-            ['assigned', 'payment_pending', 'paid', 'in_progress', 'awaiting_confirmation', 'done'].includes(status);
-        const paymentSecured = ['paid', 'in_progress', 'awaiting_confirmation', 'done'].includes(status);
-        const onTheWay = ['paid', 'in_progress', 'awaiting_confirmation', 'done'].includes(status);
-        const arrived = ['in_progress', 'awaiting_confirmation', 'done'].includes(status);
-        const workInProgress = ['in_progress', 'awaiting_confirmation', 'done'].includes(status);
-        const completed = status === 'done';
-
-        return {
-            workerAccepted,
-            paymentSecured,
-            onTheWay,
-            arrived,
-            workInProgress,
-            completed,
-        };
-    };
-
-    const timelineSteps = [
-        { key: 'workerAccepted', label: 'Worker accepted' },
-        { key: 'paymentSecured', label: 'Payment secured' },
-        { key: 'onTheWay', label: 'On the way' },
-        { key: 'arrived', label: 'Arrived' },
-        { key: 'workInProgress', label: 'Work in progress' },
-        { key: 'completed', label: 'Completed' },
-    ] as const;
-
-    const hasPendingCounter = (request: MyServiceRequest) =>
-        request.status === 'assigned' &&
-        request.proposed_budget != null &&
-        (request.counter_status == null || request.counter_status === 'pending');
-
-    const hasPendingWorkerApproval = (request: MyServiceRequest) =>
-        String(request.status || '').toLowerCase() === 'assigned' &&
-        !!request.assigned_worker &&
-        request.proposed_budget == null;
-
-    const canUseRequestChat = (request: MyServiceRequest) => {
-        const status = String(request.status || '').toLowerCase();
-        return ['assigned', 'payment_pending', 'paid', 'in_progress', 'awaiting_confirmation', 'done'].includes(status) && !!request.assigned_worker;
-    };
-
-    const getTimelineProgress = (request: MyServiceRequest) => {
-        const status = String(request.status || 'pending').toLowerCase();
-        const hasCounter = request.proposed_budget != null;
-        const counterAccepted = request.counter_status === 'accepted';
-
-        if (status === 'done') return 6;
-        if (status === 'awaiting_confirmation') return 5;
-        if (status === 'in_progress') return 5;
-        if (status === 'paid') return 4;
-        if (status === 'payment_pending') return 3;
-        if (status === 'cancelled') return 0;
-        if (status === 'assigned') {
-            if (hasCounter && !counterAccepted) return 2;
-            if (counterAccepted) return 3;
-            return 1;
-        }
-        return 0;
-    };
-
-    const counterBadge = (request: MyServiceRequest) => {
-        if (request.proposed_budget == null) return null;
-        if (request.counter_status === 'accepted') {
-            return <span className="text-[10px] font-bold px-2 py-1 rounded-full bg-emerald-100 text-emerald-700 border border-emerald-200">Counter Accepted</span>;
-        }
-        if (request.counter_status === 'declined') {
-            return <span className="text-[10px] font-bold px-2 py-1 rounded-full bg-red-100 text-red-700 border border-red-200">Counter Declined</span>;
-        }
-        return <span className="text-[10px] font-bold px-2 py-1 rounded-full bg-amber-100 text-amber-700 border border-amber-200">Counter Offer</span>;
     };
 
     const handleWorkerApprovalDecision = async (request: MyServiceRequest, decision: 'accept' | 'decline') => {
@@ -2985,134 +2954,63 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-40 flex flex-col md:flex-row font-sans pointer-events-auto bg-black/5"
+            className="fixed inset-0 z-40 flex font-sans pointer-events-auto bg-black/5"
         >
             {/* Map View Background */}
             <div className="absolute inset-0 z-0 bg-gray-100">
-                <div ref={mapContainerRef} className="absolute inset-0 z-0" />
-                {!leafletReady && <div className="absolute right-4 top-4 z-[500] h-2.5 w-2.5 rounded-full bg-bird-blue/40 animate-pulse" />}
-                {!activeTrackedRequest && (
-                    <div className="absolute top-4 right-4 md:left-[520px] md:top-4 z-[400] rounded-xl bg-white/95 border border-gray-200 shadow-xl px-4 py-3 pointer-events-auto hidden sm:block">
-                    <p className="text-[11px] uppercase tracking-wider font-bold text-gray-500">Live Map</p>
-                    <p className="text-[15px] font-bold text-slate-800">
-                        {currentCoords
-                            ? (data.location.trim() || `Lat ${currentCoords.lat.toFixed(4)}, Lng ${currentCoords.lng.toFixed(4)}`)
-                            : 'Detect location to center'}
-                    </p>
-                    <p className="text-xs text-slate-900 font-bold mt-1">
-                        {nearbyWorkers.length} nearby pro(s) in {radiusKm} km
-                    </p>
-                    </div>
-                )}
-                {activeTrackedRequest && (
-                    <div className="absolute inset-y-4 right-4 z-[420] hidden md:block md:left-[466px] lg:left-[516px]">
+                <div ref={mapContainerRef} className={`absolute inset-0 z-0 ${activeTrackedRequest && isDesktopSheet ? 'md:invisible' : ''}`} />
+                <ServiceRequestMapOverlays
+                    leafletReady={leafletReady}
+                    activeTrackedRequest={activeTrackedRequest ? { id_request: activeTrackedRequest.id_request } : null}
+                    currentCoords={currentCoords}
+                    locationLabel={data.location}
+                    nearbyWorkersCount={nearbyWorkers.length}
+                    radiusKm={radiusKm}
+                    shouldShowCollapsedBookingCard={shouldShowCollapsedBookingCard}
+                    selectedServiceTitle={selectedServiceTitle}
+                    compactLocationLabel={compactLocationLabel}
+                    onOpenBookingDetails={openBookingDetails}
+                    trackerContent={
                         <TrackerErrorBoundary>
                             <Suspense fallback={<InlineTrackerFallback />}>
-                                <ClientLiveRequestTracker
-                                    key={`desktop-${activeTrackedRequest.id_request}`}
-                                    leafletReady={leafletReady}
-                                    request={activeTrackedRequest}
-                                />
+                                {activeTrackedRequest ? (
+                                    <ClientLiveRequestTracker
+                                        key={`desktop-${activeTrackedRequest.id_request}`}
+                                        leafletReady={leafletReady}
+                                        request={activeTrackedRequest}
+                                    />
+                                ) : null}
                             </Suspense>
                         </TrackerErrorBoundary>
-                    </div>
-                )}
+                    }
+                />
             </div>
 
-            {/* Sidebar / Bottom Sheet */}
-            <motion.div
-                initial={{ y: "100%", opacity: 0 }}
-                animate={{ y: 0, opacity: 1 }}
-                exit={{ y: "100%", opacity: 0 }}
-                transition={{ type: "spring", damping: 25, stiffness: 200 }}
-                className="w-full h-[60vh] mt-auto md:mt-0 md:h-full md:w-[450px] lg:w-[500px] flex flex-col bg-white relative z-20 shadow-[0_-10px_40px_rgba(0,0,0,0.15)] md:shadow-2xl overflow-hidden rounded-t-[2rem] md:rounded-none md:border-r border-gray-200"
+            <ServiceRequestPanelShell
+                isDesktopSheet={isDesktopSheet}
+                step={step}
+                hasActiveTrackedRequest={!!activeTrackedRequest}
+                isRequestPanelExpanded={isRequestPanelExpanded}
+                selectedServiceTitle={selectedServiceTitle}
+                compactLocationLabel={compactLocationLabel}
+                nearbyWorkersCount={nearbyWorkers.length}
+                radiusKm={radiusKm}
+                onClose={onClose}
+                onToggleExpanded={() => setIsRequestPanelExpanded((prev) => !prev)}
+                onOpenBookingDetails={openBookingDetails}
+                notificationCenter={<NotificationCenter token={getToken()} variant="panel" />}
             >
-                {/* Mobile Drag Handle */}
-                <div className="w-full flex justify-center pt-4 pb-0 md:hidden bg-white">
-                    <div className="w-12 h-1.5 bg-gray-300 rounded-full" />
-                </div>
-
-                {/* Header */}
-                <div className="h-14 flex items-center justify-between px-5 border-b border-gray-200 bg-white shrink-0">
-                    <motion.button
-                        whileHover={{ scale: 1.05 }}
-                        whileTap={{ scale: 0.95 }}
-                        className="flex items-center gap-2 group"
-                        onClick={onClose}
-                    >
-                        <div className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center text-gray-600 group-hover:bg-bird-blue group-hover:text-white transition-all">
-                            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-                            </svg>
-                        </div>
-                        <span className="font-bold text-gray-900 text-lg">Fixlife</span>
-                    </motion.button>
-
-                    <div className="flex items-center gap-3">
-                        <NotificationCenter token={getToken()} variant="panel" />
-                    </div>
-                </div>
-
-                {/* Content */}
-                <div className="flex-1 overflow-y-auto custom-scrollbar relative bg-gray-50/30">
-                    <AnimatePresence mode="wait">
+                <AnimatePresence mode="wait">
                         {step === 0 && (
-                            <motion.div
-                                key="step0"
-                                initial={{ opacity: 0, y: 20 }}
-                                animate={{ opacity: 1, y: 0 }}
-                                exit={{ opacity: 0, y: -20 }}
-                                className="p-6 pb-24"
-                            >
-                                <h1 className="text-3xl font-black text-slate-900 mb-1 tracking-tight">What do you need?</h1>
-                                <p className="text-slate-500 font-medium mb-6">Choose a service to continue</p>
-                                
-                                {servicesLoading ? (
-                                    <div className="flex justify-center py-8">
-                                        <div className="h-6 w-6 rounded-full border-2 border-bird-blue/20 border-t-bird-blue animate-spin" />
-                                    </div>
-                                ) : services.length === 0 ? (
-                                    <div className="rounded-2xl border border-dashed border-gray-200 bg-white px-4 py-6 text-center text-sm font-medium text-gray-500">
-                                        No active services available.
-                                    </div>
-                                ) : (
-                                    <div className="space-y-3">
-                                        {services.map((cat) => (
-                                            <motion.button
-                                                key={cat.id_service}
-                                                whileHover={{ scale: 1.01 }}
-                                                whileTap={{ scale: 0.98 }}
-                                                onClick={() => {
-                                                    setData({ ...data, category: cat.name });
-                                                    setStep(1);
-                                                }}
-                                                className="w-full flex items-center p-4 bg-white hover:bg-gray-50 rounded-2xl border border-gray-100 shadow-sm transition-all gap-4 text-left"
-                                            >
-                                                <div className="w-12 h-12 rounded-xl bg-gray-50 flex items-center justify-center shrink-0 border border-gray-100">
-                                                    {cat.icon ? (
-                                                        /^(https?:|data:image\/|\/)/i.test(cat.icon) ? (
-                                                            <img src={cat.icon} alt={cat.name} className="w-6 h-6 object-contain" />
-                                                        ) : (
-                                                            <span className="text-2xl leading-none">
-                                                                {cat.icon.length <= 2 ? cat.icon : '🧰'}
-                                                            </span>
-                                                        )
-                                                    ) : (
-                                                        <div className="w-6 h-6 bg-gray-200 rounded-full" />
-                                                    )}
-                                                </div>
-                                                <div className="flex flex-col flex-1">
-                                                    <span className="font-bold text-gray-900 text-[15px]">{cat.name}</span>
-                                                    {cat.description && <span className="text-xs font-medium text-slate-500 line-clamp-1">{cat.description}</span>}
-                                                </div>
-                                                <div className="text-gray-300">
-                                                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
-                                                </div>
-                                            </motion.button>
-                                        ))}
-                                    </div>
-                                )}
-                            </motion.div>
+                            <ServiceRequestServiceStep
+                                servicesLoading={servicesLoading}
+                                services={services}
+                                onSelectService={(serviceName) => {
+                                    setData({ ...data, category: serviceName });
+                                    setStep(1);
+                                    setIsRequestPanelExpanded(false);
+                                }}
+                            />
                         )}
                         {step === 1 && (
                             <motion.div
@@ -3121,44 +3019,16 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                 animate={{ opacity: 1, x: 0 }}
                                 exit={{ opacity: 0, x: -20 }}
                                 transition={{ duration: 0.3 }}
-                                className="p-6 pb-24 h-full flex flex-col"
+                                className="p-6 pb-6 h-full flex flex-col"
                             >
-                                <motion.button
-                                    whileHover={{ x: -5 }}
-                                    onClick={() => setStep(0)}
-                                    className="text-gray-600 hover:text-gray-900 text-sm font-bold flex items-center gap-2 mb-6 transition-colors"
-                                >
-                                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-                                    </svg>
-                                    Back
-                                </motion.button>
-
-                                <motion.h2
-                                    initial={{ opacity: 0, y: 20 }}
-                                    animate={{ opacity: 1, y: 0 }}
-                                    className="text-2xl font-black text-slate-900 mb-4 tracking-tight">Request Details
-                                </motion.h2>
-
-                                {selectedServiceTitle && (
-                                    <motion.div
-                                        initial={{ opacity: 0, y: 12 }}
-                                        animate={{ opacity: 1, y: 0 }}
-                                        className="mb-4 flex items-center justify-between gap-2 rounded-xl border border-gray-100 pb-4"
-                                    >
-                                        <div>
-                                            <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400">Selected Service</p>
-                                            <p className="text-[15px] font-bold text-slate-800">{selectedServiceTitle}</p>
-                                        </div>
-                                        <button
-                                            type="button"
-                                            onClick={() => setStep(0)}
-                                            className="text-xs font-bold px-3 py-1.5 rounded-lg border border-gray-200 bg-white hover:bg-gray-50"
-                                        >
-                                            Change
-                                        </button>
-                                    </motion.div>
-                                )}
+                                <ServiceRequestDetailsHeader
+                                    selectedServiceTitle={selectedServiceTitle}
+                                    onBack={() => {
+                                        setStep(0);
+                                        setIsRequestPanelExpanded(true);
+                                    }}
+                                    onChangeService={() => setStep(0)}
+                                />
 
                                 <div className="flex-1 space-y-6">
                                     <motion.div
@@ -3166,465 +3036,106 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                         animate={{ opacity: 1, y: 0 }}
                                         transition={{ delay: 0.1 }}
                                     >
-                                        <div className="flex items-center justify-between gap-2 mb-2">
-                                            <label className="block text-sm font-bold text-gray-700">Where?</label>
-                                            <div className="flex flex-wrap items-center justify-end gap-2">
-                                                <button
-                                                    type="button"
-                                                    onClick={openSaveLocationPanel}
-                                                    disabled={!currentCoords || resolvingLocation || geoLoading}
-                                                    className="text-xs font-bold px-3 py-1.5 rounded-lg border border-bird-blue/20 bg-bird-blue text-white hover:bg-bird-darkBlue disabled:opacity-60"
-                                                >
-                                                    Add location
-                                                </button>
-                                                <button
-                                                    type="button"
-                                                    onClick={() => void resolveLocationInput()}
-                                                    disabled={resolvingLocation || !data.location.trim()}
-                                                    className="text-xs font-bold px-3 py-1.5 rounded-lg border border-emerald-300 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 disabled:opacity-60"
-                                                >
-                                                    {resolvingLocation ? 'Resolving...' : 'Use typed address'}
-                                                </button>
-                                                <button
-                                                    type="button"
-                                                    onClick={detectCurrentLocation}
-                                                    disabled={geoLoading}
-                                                    className="text-xs font-bold px-3 py-1.5 rounded-lg border border-bird-blue/30 bg-bird-blue/10 text-slate-900 hover:bg-bird-blue/20 disabled:opacity-60"
-                                                >
-                                                    {geoLoading ? 'Detecting...' : 'Detect my location'}
-                                                </button>
-                                            </div>
-                                        </div>
-                                        <input
-                                            type="text"
-                                            placeholder="Ej: Residencial Santa Monica, Santa Tecla o 13.6841, -89.2872"
-                                            autoComplete="off"
-                                            className="w-full bg-gray-100 border-none rounded-xl px-4 py-3 text-gray-900 focus:outline-none focus:ring-2 focus:ring-gray-300 transition-all placeholder-gray-400"
-                                            value={data.location}
-                                            onFocus={() => {
+                                        <ServiceRequestLocationSection
+                                            location={data.location}
+                                            currentCoords={currentCoords}
+                                            resolvingLocation={resolvingLocation}
+                                            geoLoading={geoLoading}
+                                            locationInputContext={locationInputContext}
+                                            showSaveLocationPanel={showSaveLocationPanel}
+                                            saveLocationKind={saveLocationKind}
+                                            saveLocationTitle={saveLocationTitle}
+                                            geoError={geoError}
+                                            quickAccessLocationsCount={quickAccessLocations.length}
+                                            savedPlacesPreview={savedPlacesPreview}
+                                            radiusKm={radiusKm}
+                                            mainSuggestionsDropdown={locationInputContext === 'main' ? renderLocationSuggestionsDropdown() : null}
+                                            saveSuggestionsDropdown={locationInputContext === 'save-panel' ? renderLocationSuggestionsDropdown() : null}
+                                            renderLocationBadge={renderLocationBadge}
+                                            getLocationChipClass={getLocationChipClass}
+                                            onOpenSaveLocationPanel={openSaveLocationPanel}
+                                            onResolveLocationInput={() => void resolveLocationInput()}
+                                            onDetectCurrentLocation={detectCurrentLocation}
+                                            onMainInputFocus={() => {
                                                 setLocationInputContext('main');
                                                 setShowLocationSuggestions(true);
                                             }}
-                                            onBlur={() => window.setTimeout(() => setShowLocationSuggestions(false), 120)}
-                                            onKeyDown={handleLocationKeyDown}
-                                            onChange={(e) => handleLocationChange(e.target.value)}
-                                        />
-                                        {locationInputContext === 'main' && renderLocationSuggestionsDropdown()}
-                                        <p className="mt-2 text-xs font-medium text-gray-500">
-                                            Write a colonia, residencial, mall, or landmark in El Salvador and click <span className="font-bold text-emerald-700">Use typed address</span>,
-                                            or paste coordinates like <span className="font-bold text-gray-700">13.6841, -89.2872</span>.
-                                        </p>
-                                        <p className="mt-1 text-[11px] font-semibold text-gray-400">
-                                            Keyboard: use â†‘ â†“ to move through suggestions and Enter to confirm.
-                                        </p>
-                                        {currentCoords && (
-                                            <p className="mt-2 text-xs font-semibold text-emerald-700">
-                                                Location ready: {currentCoords.lat.toFixed(4)}, {currentCoords.lng.toFixed(4)}
-                                            </p>
-                                        )}
-                                        {showSaveLocationPanel && currentCoords && (
-                                            <div className="mt-3 rounded-2xl border border-bird-blue/20 bg-bird-blue/5 p-4">
-                                                <div className="flex items-center justify-between gap-3">
-                                                    <div>
-                                                        <p className="text-[15px] font-bold text-slate-800">Save this location</p>
-                                                        <p className="mt-1 text-xs text-gray-500">
-                                                            Register it once and reuse it in future requests.
-                                                        </p>
-                                                    </div>
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => setShowSaveLocationPanel(false)}
-                                                        className="rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-[11px] font-bold text-gray-500 hover:text-gray-700"
-                                                    >
-                                                        Cancel
-                                                    </button>
-                                                </div>
-                                                <div className="mt-4">
-                                                    <label className="mb-1 block text-[11px] font-bold uppercase tracking-wide text-gray-500">
-                                                        Search address
-                                                    </label>
-                                                    <input
-                                                        type="text"
-                                                        placeholder="Ej: Jardines de Guadalupe, Antiguo Cuscatlan"
-                                                        autoComplete="off"
-                                                        value={data.location}
-                                                        onFocus={() => {
-                                                            setLocationInputContext('save-panel');
-                                                            setShowLocationSuggestions(true);
-                                                        }}
-                                                        onBlur={() => window.setTimeout(() => setShowLocationSuggestions(false), 120)}
-                                                        onKeyDown={handleLocationKeyDown}
-                                                        onChange={(e) => handleLocationChange(e.target.value)}
-                                                        className="w-full rounded-xl border-2 border-gray-200 bg-white px-4 py-3 text-sm text-gray-900 focus:border-bird-blue focus:outline-none"
-                                                    />
-                                                    {locationInputContext === 'save-panel' && renderLocationSuggestionsDropdown()}
-                                                    <p className="mt-2 text-[11px] font-semibold text-gray-400">
-                                                        Use the same El Salvador autocomplete here to fine-tune the pin before saving.
-                                                    </p>
-                                                </div>
-                                                <div className="mt-4 grid grid-cols-3 gap-2">
-                                                    {(['home', 'work', 'favorite'] as const).map((kind) => (
-                                                        <button
-                                                            key={kind}
-                                                            type="button"
-                                                            onClick={() => {
-                                                                setSaveLocationKind(kind);
-                                                                setSaveLocationTitle(
-                                                                    kind === 'favorite'
-                                                                        ? compactLocationTitle(data.location.trim())
-                                                                        : kind === 'home'
-                                                                            ? 'Home'
-                                                                            : 'Work'
-                                                                );
-                                                            }}
-                                                            className={`rounded-xl border px-3 py-2 text-xs font-bold transition ${
-                                                                saveLocationKind === kind
-                                                                    ? 'border-bird-blue bg-white text-slate-900 shadow-sm'
-                                                                    : 'border-gray-200 bg-white text-gray-600 hover:border-bird-blue/40'
-                                                            }`}
-                                                        >
-                                                            <span className="inline-flex items-center gap-2">
-                                                                {renderLocationBadge(kind, 'sm')}
-                                                                {kind === 'home' ? 'Home' : kind === 'work' ? 'Work' : 'Favorite'}
-                                                            </span>
-                                                        </button>
-                                                    ))}
-                                                </div>
-                                                <div className="mt-3">
-                                                    <label className="mb-1 block text-[11px] font-bold uppercase tracking-wide text-gray-500">
-                                                        {saveLocationKind === 'favorite' ? 'Location name' : 'Saved label'}
-                                                    </label>
-                                                    <input
-                                                        type="text"
-                                                        value={saveLocationKind === 'favorite' ? saveLocationTitle : saveLocationKind === 'home' ? 'Home' : 'Work'}
-                                                        onChange={(e) => setSaveLocationTitle(e.target.value)}
-                                                        disabled={saveLocationKind !== 'favorite'}
-                                                        className="w-full rounded-xl border-2 border-gray-200 bg-white px-4 py-3 text-sm text-gray-900 focus:border-bird-blue focus:outline-none disabled:bg-gray-100 disabled:text-gray-400"
-                                                    />
-                                                </div>
-                                                <button
-                                                    type="button"
-                                                    onClick={() => void handleSaveLocationFromPanel()}
-                                                    className="mt-4 w-full rounded-xl bg-bird-blue px-4 py-3 text-sm font-bold text-white shadow-sm hover:bg-bird-darkBlue"
-                                                >
-                                                    Save location
-                                                </button>
-                                            </div>
-                                        )}
-                                        {geoError && <p className="text-xs text-red-600 mt-2 font-semibold">{geoError}</p>}
-                                        <div className="mt-4 rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">
-                                            <div className="flex items-center justify-between gap-3">
-                                                <div>
-                                                    <p className="text-sm font-bold uppercase tracking-wider text-gray-500">Saved places</p>
-                                                    <p className="mt-1 text-xs text-gray-500">
-                                                        Open your saved locations in a cleaner view.
-                                                    </p>
-                                                </div>
-                                                <button
-                                                    type="button"
-                                                    onClick={() => setShowSavedPlacesModal(true)}
-                                                    className="rounded-2xl border-none bg-gray-50/80 hover:bg-gray-100 transition-colors px-3 py-2 text-xs font-bold text-slate-900 hover:border-bird-blue/40 hover:bg-bird-blue/5"
-                                                >
-                                                    <span className="inline-flex items-center gap-2">
-                                                        {renderLocationBadge('current', 'sm')}
-                                                        Open saved places
-                                                    </span>
-                                                </button>
-                                            </div>
-                                            {quickAccessLocations.length === 0 ? (
-                                                <div className="mt-4 rounded-xl border border-dashed border-gray-300 bg-gray-50 px-4 py-4 text-sm text-gray-500">
-                                                    Resolve a location first, then use <span className="font-bold text-gray-700">Add location</span> to save it here.
-                                                </div>
-                                            ) : (
-                                                <div className="mt-4 flex flex-wrap gap-2">
-                                                    {savedPlacesPreview.map((location, index) => {
-                                                        const visual = getLocationVisual(location.kind);
-                                                        return (
-                                                            <button
-                                                                key={`${location.kind}-preview-${index}-${location.label}`}
-                                                                type="button"
-                                                                onClick={() => useSavedLocation(location)}
-                                                                className={`inline-flex items-center gap-2 rounded-full border px-3 py-2 text-xs font-bold transition hover:shadow-sm ${visual.chipClass}`}
-                                                            >
-                                                                {renderLocationBadge(location.kind, 'sm')}
-                                                                {location.title}
-                                                            </button>
-                                                        );
-                                                    })}
-                                                    {quickAccessLocations.length > savedPlacesPreview.length && (
-                                                        <button
-                                                            type="button"
-                                                            onClick={() => setShowSavedPlacesModal(true)}
-                                                            className="inline-flex items-center rounded-full border border-dashed border-gray-300 px-3 py-2 text-xs font-bold text-gray-500 hover:border-bird-blue hover:text-slate-900"
-                                                        >
-                                                            +{quickAccessLocations.length - savedPlacesPreview.length} more
-                                                        </button>
-                                                    )}
-                                                </div>
-                                            )}
-                                        </div>
-
-                                        <div className="mt-3">
-                                            <label className="block text-xs font-bold uppercase tracking-wider text-gray-500 mb-1">
-                                                Search radius
-                                            </label>
-                                            <select
-                                                value={radiusKm}
-                                                onChange={(e) => setRadiusKm(Number(e.target.value))}
-                                                className="w-full bg-gray-50 border-2 border-gray-200 rounded-xl px-4 py-2.5 text-gray-900 focus:outline-none focus:border-bird-blue transition-all"
-                                            >
-                                                <option value={3}>3 km</option>
-                                                <option value={5}>5 km</option>
-                                                <option value={8}>8 km</option>
-                                                <option value={12}>12 km</option>
-                                                <option value={15}>15 km</option>
-                                            </select>
-                                        </div>
-                                    </motion.div>
-
-                                    <motion.div
-                                        initial={{ opacity: 0, y: 20 }}
-                                        animate={{ opacity: 1, y: 0 }}
-                                        transition={{ delay: 0.2 }}
-                                    >
-                                        <label className="block text-sm font-bold text-gray-700 mb-2">What's the problem?</label>
-                                        <textarea
-                                            className="w-full h-32 bg-gray-100 border-none rounded-xl p-4 text-gray-900 focus:outline-none focus:ring-2 focus:ring-gray-300 transition-all resize-none placeholder-gray-400"
-                                            placeholder="Describe what needs fixing..."
-                                            value={data.description}
-                                            onChange={(e) => setData({ ...data, description: e.target.value })}
+                                            onSavePanelInputFocus={() => {
+                                                setLocationInputContext('save-panel');
+                                                setShowLocationSuggestions(true);
+                                            }}
+                                            onInputBlur={() => window.setTimeout(() => setShowLocationSuggestions(false), 120)}
+                                            onLocationKeyDown={handleLocationKeyDown}
+                                            onLocationChange={handleLocationChange}
+                                            onCloseSaveLocationPanel={() => setShowSaveLocationPanel(false)}
+                                            onSelectSaveLocationKind={(kind) => {
+                                                setSaveLocationKind(kind);
+                                                setSaveLocationTitle(
+                                                    kind === 'favorite'
+                                                        ? compactLocationTitle(data.location.trim())
+                                                        : kind === 'home'
+                                                            ? 'Home'
+                                                            : 'Work'
+                                                );
+                                            }}
+                                            onSaveLocation={() => void handleSaveLocationFromPanel()}
+                                            onOpenSavedPlacesModal={() => setShowSavedPlacesModal(true)}
+                                            onUseSavedLocation={(location) => useSavedLocation(location as SavedLocation)}
+                                            onSaveLocationTitleChange={setSaveLocationTitle}
+                                            onRadiusChange={setRadiusKm}
                                         />
                                     </motion.div>
 
-                                    <motion.div
-                                        initial={{ opacity: 0, y: 20 }}
-                                        animate={{ opacity: 1, y: 0 }}
-                                        transition={{ delay: 0.25 }}
-                                    >
-                                        <div className="flex items-center justify-between mb-2">
-                                            <label className="block text-sm font-bold text-slate-900">Problem Images (max 5)</label>
-                                            <span className="text-xs font-bold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full">{problemFiles.length}/5</span>
-                                        </div>
-                                        <label className="block cursor-pointer">
-                                            <div className="w-full rounded-2xl border-2 border-dashed border-slate-200 bg-slate-50 hover:bg-slate-100 hover:border-slate-300 transition-all duration-200 p-6 text-center group">
-                                                <div className="w-12 h-12 rounded-full bg-white shadow-sm border border-slate-100 flex items-center justify-center mx-auto mb-3 group-hover:scale-110 transition-transform">
-                                                    <svg className="w-5 h-5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
-                                                    </svg>
-                                                </div>
-                                                <div className="text-slate-900 font-bold text-[15px]">Upload Photos</div>
-                                                <div className="text-[13px] text-slate-500 mt-1">PNG, JPG, WEBP</div>
-                                            </div>
-                                            <input
-                                                type="file"
-                                                multiple
-                                                accept="image/png,image/jpeg,image/jpg,image/webp"
-                                                onChange={handleProblemFiles}
-                                                className="hidden"
-                                            />
-                                        </label>
-
-                                        {problemPreviewUrls.length > 0 && (
-                                            <div className="grid grid-cols-3 gap-3 mt-4">
-                                                {problemPreviewUrls.map((url, index) => (
-                                                    <motion.div 
-                                                        initial={{ opacity: 0, scale: 0.9 }}
-                                                        animate={{ opacity: 1, scale: 1 }}
-                                                        key={url} 
-                                                        className="relative rounded-xl overflow-hidden border border-slate-200 shadow-sm group aspect-square"
-                                                    >
-                                                        <img src={url} alt={`Problem ${index + 1}`} className="w-full h-full object-cover" />
-                                                        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                                                            <button
-                                                                type="button"
-                                                                onClick={(e) => { e.preventDefault(); removeProblemImage(index); }}
-                                                                className="w-8 h-8 rounded-full bg-white/20 hover:bg-red-500 text-white flex items-center justify-center backdrop-blur-sm transition-colors"
-                                                            >
-                                                                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
-                                                                </svg>
-                                                            </button>
-                                                        </div>
-                                                    </motion.div>
-                                                ))}
-                                            </div>
-                                        )}
-                                    </motion.div>
-
-                                    <motion.div
-                                        initial={{ opacity: 0, y: 20 }}
-                                        animate={{ opacity: 1, y: 0 }}
-                                        transition={{ delay: 0.3 }}
-                                    >
-                                        <label className="block text-sm font-bold text-slate-900 mb-2">Your budget</label>
-                                        <div className="relative group">
-                                            <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-lg group-focus-within:text-slate-900 transition-colors">$</span>
-                                            <input
-                                                type="number"
-                                                min="1"
-                                                step="0.01"
-                                                placeholder="0"
-                                                className="w-full bg-slate-50 border-2 border-transparent focus:bg-white rounded-xl py-4 pl-10 pr-16 text-slate-900 font-bold text-lg outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 transition-all placeholder-slate-300 shadow-sm"
-                                                value={data.price}
-                                                onChange={(e) => {
-                                                    const nextValue = e.target.value;
-                                                    if (nextValue === '') {
-                                                        setData({ ...data, price: '' });
-                                                        return;
-                                                    }
-
-                                                    const parsed = Number(nextValue);
-                                                    if (!Number.isFinite(parsed) || parsed < 0) {
-                                                        return;
-                                                    }
-
-                                                    setData({ ...data, price: nextValue });
-                                                }}
-                                            />
-                                            <span className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 text-sm font-bold bg-white px-2 py-1 rounded-md shadow-sm border border-slate-100">USD</span>
-                                        </div>
-                                        <div className="flex items-center gap-2 mt-3">
-                                            <svg className="w-4 h-4 text-emerald-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                            </svg>
-                                            <p className="text-xs font-semibold text-slate-500">Suggested budget: <span className="text-slate-700">$40 - $80</span></p>
-                                        </div>
-                                    </motion.div>
-                                </div>
-
-                                <div className="mt-8 space-y-3 sticky bottom-0 bg-gradient-to-t from-white via-white to-transparent pt-4 pb-2 z-10">
-                                    <motion.button
-                                        initial={{ opacity: 0, y: 20 }}
-                                        animate={{ opacity: 1, y: 0 }}
-                                        transition={{ delay: 0.4 }}
-                                        whileHover={{ scale: 1.01 }}
-                                        whileTap={{ scale: 0.99 }}
-                                        onClick={async () => {
-                                            setIsSearching(true);
-                                            await fetchNearbyPros();
-                                            setTimeout(() => setIsSearching(false), 700);
+                                    <ServiceRequestProblemSection
+                                        description={data.description}
+                                        price={data.price}
+                                        problemFilesCount={problemFiles.length}
+                                        problemPreviewUrls={problemPreviewUrls}
+                                        nearbyWorkers={nearbyWorkers}
+                                        canSearchPros={canSearchPros}
+                                        canSubmitRequest={canSubmitRequest}
+                                        isSubmittingRequest={isSubmittingRequest}
+                                        isAuthenticated={isAuthenticated()}
+                                        onDescriptionChange={(value) => setData({ ...data, description: value })}
+                                        onPriceChange={(nextValue) => {
+                                            if (nextValue === '') {
+                                                setData({ ...data, price: '' });
+                                                return;
+                                            }
+                                            const parsed = Number(nextValue);
+                                            if (!Number.isFinite(parsed) || parsed < 0) {
+                                                return;
+                                            }
+                                            setData({ ...data, price: nextValue });
                                         }}
-                                        disabled={!data.price || !data.location.trim() || resolvingLocation}
-                                        className="w-full py-4 rounded-xl bg-slate-900 text-white font-bold text-[15px] hover:bg-black transition-all disabled:opacity-50 disabled:hover:bg-slate-900 flex items-center justify-center gap-3 shadow-lg shadow-slate-900/20"
-                                    >
-                                        <span>Find a Pro</span>
-                                        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" />
-                                        </svg>
-                                    </motion.button>
-
-                                    <motion.button
-                                        initial={{ opacity: 0, y: 20 }}
-                                        animate={{ opacity: 1, y: 0 }}
-                                        transition={{ delay: 0.45 }}
-                                        whileHover={{ scale: 1.01 }}
-                                        whileTap={{ scale: 0.99 }}
-                                        onClick={submitServiceRequest}
-                                        disabled={isSubmittingRequest || !isAuthenticated() || !data.price || !data.location.trim() || problemFiles.length === 0 || resolvingLocation}
-                                        className="w-full py-4 rounded-xl bg-white border-2 border-slate-200 text-slate-700 font-bold text-[15px] hover:bg-slate-50 hover:border-slate-300 hover:text-slate-900 transition-all disabled:opacity-50 disabled:bg-white"
-                                    >
-                                        {!isAuthenticated() ? 'Login Required' : isSubmittingRequest ? 'Submitting...' : 'Submit Request'}
-                                    </motion.button>
+                                        onProblemFilesChange={handleProblemFiles}
+                                        onRemoveProblemImage={removeProblemImage}
+                                        onFindPro={handleFloatingFindPro}
+                                        onSubmitRequest={submitServiceRequest}
+                                    />
                                 </div>
-
-                                {nearbyWorkers.length > 0 && (
-                                    <div className="mt-4 rounded-xl border border-gray-100 bg-white p-3">
-                                        <p className="text-xs uppercase tracking-wider font-bold text-emerald-700 mb-2">
-                                            Nearby workers in range
-                                        </p>
-                                        <div className="space-y-2">
-                                            {nearbyWorkers.slice(0, 5).map((worker) => (
-                                                <div key={worker.id_worker_profile} className="flex items-center justify-between rounded-lg bg-gray-50 border border-gray-100 px-3 py-2">
-                                                    <div className="min-w-0">
-                                                        <p className="text-[15px] font-bold text-slate-800 truncate">{worker.name}</p>
-                                                        <p className="text-xs text-gray-500 truncate">{worker.bio || 'Available now'}</p>
-                                                    </div>
-                                                    <span className="text-xs font-bold text-emerald-700">
-                                                        {worker.distance_km != null ? `${worker.distance_km.toFixed(1)} km` : '--'}
-                                                    </span>
-                                                </div>
-                                            ))}
+                                <ServiceRequestHistorySection
+                                    historyStatus={historyStatus}
+                                    historyLoading={historyLoading}
+                                    hasRequests={myRequests.length > 0}
+                                    activeTrackedRequest={activeTrackedRequest}
+                                    statusBadgeClass={activeTrackedRequest ? statusBadgeClasses(activeTrackedRequest.status) : ''}
+                                    statusLabel={activeTrackedRequest ? statusLabel(activeTrackedRequest.status, activeTrackedRequest) : ''}
+                                    mobileTracker={activeTrackedRequest ? (
+                                        <div className="mb-4 md:hidden relative h-[400px] w-full rounded-[2rem] overflow-hidden shadow-sm">
+                                            <TrackerErrorBoundary>
+                                                <Suspense fallback={<InlineTrackerFallback />}>
+                                                    <ClientLiveRequestTracker
+                                                        key={`mobile-${activeTrackedRequest.id_request}`}
+                                                        leafletReady={leafletReady}
+                                                        request={activeTrackedRequest}
+                                                    />
+                                                </Suspense>
+                                            </TrackerErrorBoundary>
                                         </div>
-                                    </div>
-                                )}
-
-                                    <div className="mt-5 rounded-2xl border border-gray-200 bg-white p-4">
-                                        <div className="flex items-center justify-between gap-2 mb-3">
-                                            <p className="text-xs uppercase tracking-wider font-bold text-gray-500">My Request History</p>
-                                        <select
-                                            value={historyStatus}
-                                            onChange={(e) => setHistoryStatus(e.target.value as any)}
-                                            className="text-xs font-bold rounded-lg border border-gray-200 bg-gray-50 px-2 py-1.5"
-                                        >
-                                            <option value="all">All</option>
-                                            <option value="pending">Pending</option>
-                                            <option value="payment_pending">Payment Pending</option>
-                                            <option value="paid">Paid</option>
-                                            <option value="assigned">Assigned</option>
-                                            <option value="in_progress">In Progress</option>
-                                            <option value="awaiting_confirmation">Awaiting Confirmation</option>
-                                            <option value="done">Done</option>
-                                            <option value="cancelled">Cancelled</option>
-                                        </select>
-                                            </div>
-
-                                            {activeTrackedRequest && (
-                                                <div className="mb-3 rounded-[2rem] border border-slate-200/50 bg-white p-4 shadow-sm">
-                                                    <div className="flex items-start justify-between gap-3">
-                                                        <div className="min-w-0">
-                                                            <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">Live service active</p>
-                                                            <p className="mt-1 text-base font-black text-slate-900 truncate">
-                                                                {activeTrackedRequest.service_name}
-                                                            </p>
-                                                            <p className="text-xs font-medium text-slate-500 line-clamp-1">
-                                                                {activeTrackedRequest.location_text}
-                                                            </p>
-                                                        </div>
-                                                        <span className={`shrink-0 rounded-full border px-3 py-1 text-[10px] font-black uppercase tracking-[0.16em] ${statusBadgeClasses(activeTrackedRequest.status)}`}>
-                                                            {statusLabel(activeTrackedRequest.status, activeTrackedRequest)}
-                                                        </span>
-                                                    </div>
-                                                    <div className="mt-4 grid grid-cols-3 gap-2">
-                                                        <div className="rounded-xl bg-slate-50 border border-slate-100 p-3">
-                                                            <p className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">ETA</p>
-                                                            <p className="mt-0.5 text-sm font-black text-slate-900">
-                                                                {activeTrackedRequest.status === 'done' ? '0 min' : 'Live'}
-                                                            </p>
-                                                        </div>
-                                                        <div className="rounded-xl border border-blue-100 bg-blue-50/50 p-3">
-                                                            <p className="text-[10px] font-black uppercase tracking-[0.16em] text-blue-600">Worker</p>
-                                                            <p className="mt-0.5 truncate text-sm font-black text-slate-900">
-                                                                {activeTrackedRequest.assigned_worker?.name || 'Assigned'}
-                                                            </p>
-                                                        </div>
-                                                        <div className="rounded-xl bg-slate-50 border border-slate-100 p-3">
-                                                            <p className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">Track</p>
-                                                            <p className="mt-0.5 text-sm font-black text-slate-900">On map</p>
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                            )}
-
-                                            {activeTrackedRequest && (
-                                                <div className="mb-4 md:hidden relative h-[400px] w-full rounded-[2rem] overflow-hidden shadow-sm">
-                                                    <TrackerErrorBoundary>
-                                                        <Suspense fallback={<InlineTrackerFallback />}>
-                                                            <ClientLiveRequestTracker
-                                                                key={`mobile-${activeTrackedRequest.id_request}`}
-                                                                leafletReady={leafletReady}
-                                                                request={activeTrackedRequest}
-                                                            />
-                                                        </Suspense>
-                                                    </TrackerErrorBoundary>
-                                                </div>
-                                            )}
-
-                                            {historyLoading && myRequests.length > 0 && (
-                                                <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-gray-200 bg-gray-50 px-3 py-1.5 text-[11px] font-medium uppercase tracking-wider text-gray-500">
-                                                    <span className="h-2 w-2 rounded-full bg-bird-blue animate-pulse" />
-                                                    Refreshing requests
-                                                </div>
-                                            )}
+                                    ) : null}
+                                    onHistoryStatusChange={(value) => setHistoryStatus(value as any)}
+                                >
 
                                             {historyLoading && myRequests.length === 0 ? (
                                                 <div className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-[11px] font-medium uppercase tracking-wider text-slate-500">
@@ -3700,78 +3211,15 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                                         </div>
 
                                                         {request.assigned_worker && (
-                                                            <div className="mt-4 rounded-2xl border border-slate-100 bg-slate-50 p-4">
-                                                                <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
-                                                                    <div className="flex items-start gap-3 min-w-0 w-full sm:w-auto">
-                                                                        {request.assigned_worker.profile_image_url ? (
-                                                                            <img
-                                                                                src={request.assigned_worker.profile_image_url}
-                                                                                alt={request.assigned_worker.name}
-                                                                                className="h-12 w-12 shrink-0 rounded-2xl object-cover ring-2 ring-white shadow-sm"
-                                                                            />
-                                                                        ) : (
-                                                                            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-bird-blue text-sm font-black text-white shadow-sm">
-                                                                                {getInitials(request.assigned_worker.name)}
-                                                                            </div>
-                                                                        )}
-                                                                        <div className="min-w-0 flex-1">
-                                                                            <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">Assigned pro</p>
-                                                                            <p className="mt-0.5 truncate text-base font-black text-slate-900">{request.assigned_worker.name}</p>
-                                                                            <div className="flex items-center gap-1.5 mt-1">
-                                                                                <svg className="w-3.5 h-3.5 text-emerald-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" /></svg>
-                                                                                <p className="truncate text-[11px] font-bold text-slate-600">
-                                                                                    {request.assigned_worker.phone_number || 'Visible in profile'}
-                                                                                </p>
-                                                                            </div>
-                                                                        </div>
-                                                                    </div>
-                                                                    <button
-                                                                        type="button"
-                                                                        onClick={() => void openWorkerProfileModal(request)}
-                                                                        className="w-full sm:w-auto shrink-0 rounded-xl border-2 border-slate-200 bg-white px-3 py-2.5 sm:py-2 text-[11px] font-black text-slate-900 shadow-sm transition hover:border-slate-900 hover:bg-slate-900 hover:text-white text-center"
-                                                                    >
-                                                                        View profile
-                                                                    </button>
-                                                                </div>
-
-                                                                {request.assigned_worker.bio && (
-                                                                    <p className="mt-3 line-clamp-2 text-xs font-medium text-slate-500 bg-white/50 p-2.5 rounded-lg border border-slate-100">
-                                                                        "{request.assigned_worker.bio}"
-                                                                    </p>
-                                                                )}
-
-                                                                {pendingWorkerApproval && (
-                                                                    <div className="mt-3 rounded-xl border border-blue-200 bg-blue-50/50 p-3.5">
-                                                                        <div className="flex items-center gap-2 mb-1.5">
-                                                                            <span className="flex h-5 w-5 items-center justify-center rounded-full bg-blue-100 text-blue-600">
-                                                                                <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>
-                                                                            </span>
-                                                                            <p className="text-xs font-black uppercase tracking-widest text-slate-900">Action Required</p>
-                                                                        </div>
-                                                                        <p className="text-[13px] font-medium text-slate-600 mb-3">
-                                                                            Review the profile and portfolio. Approve to move to payment, or decline to find another pro.
-                                                                        </p>
-                                                                        <div className="grid grid-cols-2 gap-2">
-                                                                            <button
-                                                                                type="button"
-                                                                                disabled={workerApprovalBusyId === request.id_request}
-                                                                                onClick={() => handleWorkerApprovalDecision(request, 'decline')}
-                                                                                className="rounded-xl border-2 border-red-200 bg-white px-4 py-2.5 text-xs font-bold text-red-600 transition hover:bg-red-50 disabled:opacity-50 text-center"
-                                                                            >
-                                                                                {workerApprovalBusyId === request.id_request ? 'Saving...' : 'Decline'}
-                                                                            </button>
-                                                                            <button
-                                                                                type="button"
-                                                                                disabled={workerApprovalBusyId === request.id_request}
-                                                                                onClick={() => handleWorkerApprovalDecision(request, 'accept')}
-                                                                                className="rounded-xl bg-slate-900 px-4 py-2.5 text-xs font-bold text-white transition hover:bg-black disabled:opacity-50 shadow-md text-center"
-                                                                            >
-                                                                                {workerApprovalBusyId === request.id_request ? 'Saving...' : 'Approve Pro'}
-                                                                            </button>
-                                                                        </div>
-                                                                    </div>
-                                                                )}
-                                                            </div>
+                                                            <ServiceRequestAssignedWorkerCard
+                                                                worker={request.assigned_worker}
+                                                                pendingWorkerApproval={pendingWorkerApproval}
+                                                                workerApprovalBusy={workerApprovalBusyId === request.id_request}
+                                                                getInitials={getInitials}
+                                                                onViewProfile={() => void openWorkerProfileModal(request)}
+                                                                onDecline={() => handleWorkerApprovalDecision(request, 'decline')}
+                                                                onAccept={() => handleWorkerApprovalDecision(request, 'accept')}
+                                                            />
                                                         )}
 
                                                         {(timelineState.workerAccepted || timelineState.paymentSecured || timelineState.onTheWay || timelineState.workInProgress || timelineState.completed) && (
@@ -4136,7 +3584,7 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                             })}
                                         </div>
                                     )}
-                                </div>
+                                </ServiceRequestHistorySection>
                             </motion.div>
                         )}
                     </AnimatePresence>
@@ -4313,77 +3761,13 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
 
                     <AnimatePresence>
                         {fixesSuccessRequest && (
-                            <motion.div
-                                initial={{ opacity: 0 }}
-                                animate={{ opacity: 1 }}
-                                exit={{ opacity: 0 }}
-                                className="absolute inset-0 z-35 bg-slate-950/35 backdrop-blur-[3px] flex items-center justify-center p-4"
-                            >
-                                <motion.div
-                                    initial={{ opacity: 0, scale: 0.94, y: 16 }}
-                                    animate={{ opacity: 1, scale: 1, y: 0 }}
-                                    exit={{ opacity: 0, scale: 0.94, y: 16 }}
-                                    transition={{ type: 'spring', damping: 22, stiffness: 240 }}
-                                    className="w-full max-w-xl overflow-hidden rounded-[30px] border border-emerald-200 bg-white shadow-[0_30px_70px_rgba(15,23,42,0.18)]"
-                                >
-                                    <div className="relative overflow-hidden bg-gradient-to-r from-emerald-500 via-teal-500 to-cyan-500 px-6 py-6 text-white">
-                                        <div className="absolute -right-10 -top-10 h-36 w-36 rounded-full bg-white/10 blur-2xl" />
-                                        <div className="relative flex items-start justify-between gap-4">
-                                            <div>
-                                                <p className="text-[11px] font-black uppercase tracking-[0.2em] text-white/80">Fixes saved</p>
-                                                <h3 className="mt-2 text-3xl font-black">Thanks for the review</h3>
-                                                <p className="mt-2 text-sm text-gray-900">
-                                                    Your Fixes stars for <span className="font-black">{fixesSuccessRequest.service_name}</span> are now part of the worker profile.
-                                                </p>
-                                            </div>
-                                            <div className="flex h-16 w-16 items-center justify-center rounded-full bg-white/15 text-white shadow-[0_20px_34px_rgba(15,23,42,0.18)]">
-                                                <span className="text-3xl font-black">★</span>
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    <div className="p-6">
-                                        <div className="rounded-[26px] border border-slate-200 bg-slate-50 p-4">
-                                            <div className="flex flex-wrap items-center justify-between gap-3">
-                                                <div>
-                                                    <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">Reviewed pro</p>
-                                                    <p className="mt-1 text-lg font-black text-slate-900">
-                                                        {fixesSuccessRequest.assigned_worker?.name || 'Assigned pro'}
-                                                    </p>
-                                                </div>
-                                                <span className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-[11px] font-black uppercase tracking-[0.18em] text-emerald-700">
-                                                    Review submitted
-                                                </span>
-                                            </div>
-                                        </div>
-
-                                        <div className="mt-4 grid gap-3 sm:grid-cols-3">
-                                            <div className="rounded-2xl border border-bird-yellow/20 bg-bird-yellow/10 px-4 py-4 text-center">
-                                                <p className="text-[11px] font-black uppercase tracking-[0.18em] text-amber-700">Punctuality</p>
-                                                <p className="mt-2 text-2xl font-black text-slate-950">{getRatingDraft(fixesSuccessRequest.id_request).punctuality}/5</p>
-                                            </div>
-                                            <div className="rounded-2xl border border-bird-blue/15 bg-bird-blue/10 px-4 py-4 text-center">
-                                                <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-900">Quality</p>
-                                                <p className="mt-2 text-2xl font-black text-slate-950">{getRatingDraft(fixesSuccessRequest.id_request).quality}/5</p>
-                                            </div>
-                                            <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-4 text-center">
-                                                <p className="text-[11px] font-black uppercase tracking-[0.18em] text-emerald-700">Price fairness</p>
-                                                <p className="mt-2 text-2xl font-black text-slate-950">{getRatingDraft(fixesSuccessRequest.id_request).price_fairness}/5</p>
-                                            </div>
-                                        </div>
-
-                                        <div className="mt-5 flex justify-end">
-                                            <button
-                                                type="button"
-                                                onClick={() => setFixesSuccessRequest(null)}
-                                                className="rounded-2xl bg-bird-blue px-5 py-3 text-sm font-black text-white shadow-[0_16px_30px_rgba(0,144,255,0.18)] transition hover:-translate-y-0.5 hover:bg-blue-700"
-                                            >
-                                                Back to requests
-                                            </button>
-                                        </div>
-                                    </div>
-                                </motion.div>
-                            </motion.div>
+                            <ServiceRequestFixesSuccessModal
+                                request={fixesSuccessRequest}
+                                punctuality={getRatingDraft(fixesSuccessRequest.id_request).punctuality}
+                                quality={getRatingDraft(fixesSuccessRequest.id_request).quality}
+                                priceFairness={getRatingDraft(fixesSuccessRequest.id_request).price_fairness}
+                                onClose={() => setFixesSuccessRequest(null)}
+                            />
                         )}
                     </AnimatePresence>
 
@@ -5224,235 +4608,16 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
 
                     <AnimatePresence>
                         {paymentModalRequest && (
-                            <motion.div
-                                initial={{ opacity: 0 }}
-                                animate={{ opacity: 1 }}
-                                exit={{ opacity: 0 }}
-                                className="fixed inset-0 z-[78] bg-slate-950/35 backdrop-blur-sm p-4 flex items-center justify-center"
-                            >
-                                <motion.div
-                                    initial={{ opacity: 0, scale: 0.96, y: 16 }}
-                                    animate={{ opacity: 1, scale: 1, y: 0 }}
-                                    exit={{ opacity: 0, scale: 0.96, y: 16 }}
-                                    transition={{ type: 'spring', damping: 24, stiffness: 220 }}
-                                    className="w-full max-w-5xl overflow-hidden rounded-[28px] border border-gray-200 bg-white shadow-2xl"
-                                >
-                                    <div className="grid grid-cols-1 lg:grid-cols-[1.05fr_0.95fr]">
-                                        <div className="bg-gradient-to-br from-sky-600 via-blue-700 to-cyan-500 p-8 text-white">
-                                            <div className="flex items-center gap-4">
-                                                <div className="rounded-2xl bg-white/15 px-4 py-2 text-sm font-black tracking-wide">FIXLIFE PAY</div>
-                                                <div className="rounded-2xl bg-white/10 px-4 py-2 text-sm font-bold">Checkout seguro</div>
-                                            </div>
-                                            <div className="mt-10">
-                                                <p className="text-lg font-medium text-blue-100">Reserva tu servicio de forma segura</p>
-                                                <h3 className="mt-3 text-5xl font-black leading-none">PAGOS CON TARJETA</h3>
-                                                <p className="mt-3 text-2xl font-semibold text-cyan-100">sin salir de Fixlife</p>
-                                            </div>
-                                            <div className="mt-10 rounded-3xl bg-white/10 p-5 backdrop-blur-sm">
-                                                <p className="text-[11px] uppercase tracking-[0.18em] text-blue-100">Solicitud actual</p>
-                                                <p className="mt-2 text-2xl font-black">{paymentModalRequest.service_name}</p>
-                                                <p className="mt-2 text-sm text-blue-100 line-clamp-3">{paymentModalRequest.description}</p>
-                                                <div className="mt-5 grid grid-cols-2 gap-3">
-                                                    <div className="rounded-2xl bg-white/10 px-4 py-3">
-                                                        <p className="text-[11px] uppercase tracking-wide text-blue-100">Monto</p>
-                                                        <p className="mt-1 text-2xl font-black">
-                                                            ${Number(paymentModalRequest.final_budget ?? paymentModalRequest.proposed_budget ?? paymentModalRequest.budget ?? 0).toFixed(2)}
-                                                        </p>
-                                                    </div>
-                                                    <div className="rounded-2xl bg-white/10 px-4 py-3">
-                                                        <p className="text-[11px] uppercase tracking-wide text-blue-100">Estado</p>
-                                                        <p className="mt-1 text-lg font-black">Pago pendiente</p>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        </div>
-
-                                        <div className="bg-white p-8">
-                                            <div className="flex items-start justify-between gap-4">
-                                                <div>
-                                                    <p className="text-[11px] uppercase tracking-[0.18em] font-bold text-gray-400">Checkout</p>
-                                                    <h3 className="mt-1 text-2xl font-black text-gray-900">Elige tu metodo de pago</h3>
-                                                </div>
-                                                <button
-                                                    type="button"
-                                                    onClick={() => setPaymentModalRequest(null)}
-                                                    className="rounded-2xl border-none bg-gray-50/80 hover:bg-gray-100 transition-colors px-3 py-2 text-xs font-bold text-gray-500 hover:text-gray-700"
-                                                >
-                                                    Cerrar
-                                                </button>
-                                            </div>
-
-                                            <div className="mt-6 grid gap-3 sm:grid-cols-2">
-                                                <button
-                                                    type="button"
-                                                    onClick={() => setPaymentMethod('paypal')}
-                                                    className={`rounded-2xl border px-4 py-4 text-left transition ${
-                                                        paymentMethod === 'paypal'
-                                                            ? 'border-blue-500 bg-blue-50 shadow-sm'
-                                                            : 'border-gray-200 bg-white hover:border-blue-300'
-                                                    }`}
-                                                >
-                                                    <div className="flex items-center justify-between gap-3">
-                                                        <div>
-                                                            <p className="text-lg font-black text-[#003087]">PayPal</p>
-                                                            <p className="mt-1 text-xs font-semibold text-gray-500">Visible en la UI, todavia no configurado.</p>
-                                                        </div>
-                                                        <span className="rounded-full bg-amber-100 px-2.5 py-1 text-[10px] font-black uppercase tracking-wide text-amber-700">
-                                                            Soon
-                                                        </span>
-                                                    </div>
-                                                </button>
-
-                                                <button
-                                                    type="button"
-                                                    onClick={() => setPaymentMethod('card')}
-                                                    className={`rounded-2xl border px-4 py-4 text-left transition ${
-                                                        paymentMethod === 'card'
-                                                            ? 'border-cyan-500 bg-cyan-50 shadow-sm'
-                                                            : 'border-gray-200 bg-white hover:border-cyan-300'
-                                                    }`}
-                                                >
-                                                    <div className="flex items-center justify-between gap-3">
-                                                        <div>
-                                                            <p className="text-lg font-black text-gray-900">Tarjeta de credito o debito</p>
-                                                            <p className="mt-1 text-xs font-semibold text-gray-500">Checkout demo listo dentro de Fixlife.</p>
-                                                        </div>
-                                                        <span className="rounded-full bg-emerald-100 px-2.5 py-1 text-[10px] font-black uppercase tracking-wide text-emerald-700">
-                                                            Activo
-                                                        </span>
-                                                    </div>
-                                                </button>
-                                            </div>
-
-                                            {paymentMethod === 'paypal' ? (
-                                                <div className="mt-6 rounded-3xl border border-blue-200 bg-blue-50 p-6">
-                                                    <p className="text-sm font-black text-[#003087]">PayPal proximamente</p>
-                                                    <p className="mt-2 text-sm text-slate-600">
-                                                        Ya dejamos visible la opcion de PayPal en la UI, pero la integracion real todavia no esta configurada.
-                                                    </p>
-                                                    <button
-                                                        type="button"
-                                                        disabled
-                                                        className="mt-5 w-full rounded-2xl bg-[#0070ba] px-4 py-3 text-sm font-black text-white opacity-60"
-                                                    >
-                                                        Paga con PayPal
-                                                    </button>
-                                                </div>
-                                            ) : (
-                                                <div className="mt-6 space-y-4">
-                                                    <div className="rounded-2xl border border-gray-200 bg-gray-50 p-4">
-                                                        <p className="text-[11px] uppercase tracking-[0.18em] font-bold text-gray-400">Resumen del cobro</p>
-                                                        <p className="mt-2 text-3xl font-black text-gray-900">
-                                                            ${Number(paymentModalRequest.final_budget ?? paymentModalRequest.proposed_budget ?? paymentModalRequest.budget ?? 0).toFixed(2)}
-                                                        </p>
-                                                        <p className="mt-1 text-sm text-gray-500">El cobro se asegura para este trabajo en modo demo.</p>
-                                                    </div>
-
-                                                    <div className="grid gap-4 sm:grid-cols-2">
-                                                        <label className="text-xs font-bold text-gray-600">
-                                                            Nombre
-                                                            <input
-                                                                type="text"
-                                                                value={paymentForm.fullName}
-                                                                onChange={(e) => setPaymentForm((prev) => ({ ...prev, fullName: e.target.value }))}
-                                                                className="mt-1 w-full rounded-xl border border-gray-200 px-4 py-3 text-sm text-gray-900 focus:border-bird-blue focus:outline-none"
-                                                                placeholder="Juan Perez"
-                                                            />
-                                                        </label>
-                                                        <label className="text-xs font-bold text-gray-600">
-                                                            Correo electronico
-                                                            <input
-                                                                type="email"
-                                                                value={paymentForm.email}
-                                                                onChange={(e) => setPaymentForm((prev) => ({ ...prev, email: e.target.value }))}
-                                                                className="mt-1 w-full rounded-xl border border-gray-200 px-4 py-3 text-sm text-gray-900 focus:border-bird-blue focus:outline-none"
-                                                                placeholder="john@doe.com"
-                                                            />
-                                                        </label>
-                                                        <label className="text-xs font-bold text-gray-600">
-                                                            Telefono
-                                                            <input
-                                                                type="text"
-                                                                value={paymentForm.phone}
-                                                                onChange={(e) => setPaymentForm((prev) => ({ ...prev, phone: e.target.value }))}
-                                                                className="mt-1 w-full rounded-xl border border-gray-200 px-4 py-3 text-sm text-gray-900 focus:border-bird-blue focus:outline-none"
-                                                                placeholder="+503 7000 0000"
-                                                            />
-                                                        </label>
-                                                        <label className="text-xs font-bold text-gray-600">
-                                                            Ciudad
-                                                            <input
-                                                                type="text"
-                                                                value={paymentForm.city}
-                                                                onChange={(e) => setPaymentForm((prev) => ({ ...prev, city: e.target.value }))}
-                                                                className="mt-1 w-full rounded-xl border border-gray-200 px-4 py-3 text-sm text-gray-900 focus:border-bird-blue focus:outline-none"
-                                                                placeholder="Santa Tecla"
-                                                            />
-                                                        </label>
-                                                    </div>
-
-                                                    <label className="text-xs font-bold text-gray-600">
-                                                        Pais
-                                                        <select
-                                                            value={paymentForm.country}
-                                                            onChange={(e) => setPaymentForm((prev) => ({ ...prev, country: e.target.value }))}
-                                                            className="mt-1 w-full rounded-xl border border-gray-200 px-4 py-3 text-sm text-gray-900 focus:border-bird-blue focus:outline-none"
-                                                        >
-                                                            <option value="Guatemala">Guatemala</option>
-                                                            <option value="El Salvador">El Salvador</option>
-                                                            <option value="Honduras">Honduras</option>
-                                                            <option value="Mexico">Mexico</option>
-                                                        </select>
-                                                    </label>
-
-                                                    <label className="text-xs font-bold text-gray-600">
-                                                        Tarjeta de credito o debito
-                                                        <input
-                                                            type="text"
-                                                            value={paymentForm.cardNumber}
-                                                            onChange={(e) => setPaymentForm((prev) => ({ ...prev, cardNumber: e.target.value }))}
-                                                            className="mt-1 w-full rounded-xl border border-gray-200 px-4 py-3 text-sm text-gray-900 focus:border-bird-blue focus:outline-none"
-                                                            placeholder="4242 4242 4242 4242"
-                                                        />
-                                                    </label>
-
-                                                    <div className="grid gap-4 sm:grid-cols-2">
-                                                        <label className="text-xs font-bold text-gray-600">
-                                                            MM / AA
-                                                            <input
-                                                                type="text"
-                                                                value={paymentForm.expiry}
-                                                                onChange={(e) => setPaymentForm((prev) => ({ ...prev, expiry: e.target.value }))}
-                                                                className="mt-1 w-full rounded-xl border border-gray-200 px-4 py-3 text-sm text-gray-900 focus:border-bird-blue focus:outline-none"
-                                                                placeholder="MM / YY"
-                                                            />
-                                                        </label>
-                                                        <label className="text-xs font-bold text-gray-600">
-                                                            CVV
-                                                            <input
-                                                                type="password"
-                                                                value={paymentForm.cvv}
-                                                                onChange={(e) => setPaymentForm((prev) => ({ ...prev, cvv: e.target.value }))}
-                                                                className="mt-1 w-full rounded-xl border border-gray-200 px-4 py-3 text-sm text-gray-900 focus:border-bird-blue focus:outline-none"
-                                                                placeholder="123"
-                                                            />
-                                                        </label>
-                                                    </div>
-
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => void confirmPaymentThroughModal()}
-                                                        disabled={paymentBusyId === paymentModalRequest.id_request}
-                                                        className="w-full rounded-2xl bg-cyan-600 px-4 py-3 text-sm font-black text-white shadow-sm hover:bg-cyan-700 disabled:opacity-50"
-                                                    >
-                                                        {paymentBusyId === paymentModalRequest.id_request ? 'Procesando pago...' : 'Pagar y asegurar reserva'}
-                                                    </button>
-                                                </div>
-                                            )}
-                                        </div>
-                                    </div>
-                                </motion.div>
-                            </motion.div>
+                            <ServiceRequestPaymentModal
+                                paymentModalRequest={paymentModalRequest}
+                                paymentMethod={paymentMethod}
+                                paymentForm={paymentForm}
+                                paymentBusyId={paymentBusyId}
+                                onClose={() => setPaymentModalRequest(null)}
+                                onSelectMethod={setPaymentMethod}
+                                onPaymentFormChange={(patch) => setPaymentForm((prev) => ({ ...prev, ...patch }))}
+                                onConfirmPayment={() => void confirmPaymentThroughModal()}
+                            />
                         )}
                     </AnimatePresence>
 
@@ -5496,8 +4661,24 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                             </motion.div>
                         )}
                     </AnimatePresence>
+            </ServiceRequestPanelShell>
+
+            {step === 1 && !activeTrackedRequest && (
+                <div className="pointer-events-none absolute inset-x-0 bottom-4 z-[430] flex justify-end px-4 md:bottom-6 md:px-6">
+                    <motion.button
+                        whileHover={{ scale: 1.03 }}
+                        whileTap={{ scale: 0.97 }}
+                        onClick={() => void handleFloatingFindPro()}
+                        disabled={!canSearchPros}
+                        className="pointer-events-auto inline-flex items-center gap-3 rounded-full bg-slate-950 px-6 py-4 text-sm font-black text-white shadow-[0_20px_40px_rgba(15,23,42,0.28)] transition hover:bg-black disabled:opacity-60"
+                    >
+                        <span>Find a Pro</span>
+                        <span className="inline-flex h-8 min-w-8 items-center justify-center rounded-full bg-white/10 px-2 text-xs font-black">
+                            {nearbyWorkers.length}
+                        </span>
+                    </motion.button>
                 </div>
-            </motion.div>
+            )}
 
 
         </motion.div>

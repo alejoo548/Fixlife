@@ -535,9 +535,7 @@ const ClientLiveRequestTracker: React.FC<ClientLiveRequestTrackerProps> = ({ lea
 
         L.control.zoom({ position: 'bottomright' }).addTo(map);
         mapInstanceRef.current = map;
-    }, [leafletReady]);
 
-    useEffect(() => {
         return () => {
             if (animationFrameRef.current) {
                 window.cancelAnimationFrame(animationFrameRef.current);
@@ -552,7 +550,7 @@ const ClientLiveRequestTracker: React.FC<ClientLiveRequestTrackerProps> = ({ lea
                 mapInstanceRef.current = null;
             }
         };
-    }, []);
+    }, [leafletReady]);
 
     useEffect(() => {
         if (!workerStartCoords || !destinationCoords) {
@@ -957,7 +955,7 @@ const ClientLiveRequestTracker: React.FC<ClientLiveRequestTrackerProps> = ({ lea
     const distanceLabel = routeLoading ? 'Updating' : `${(metrics?.distanceKm ?? routePreview?.distanceKm ?? 0).toFixed(1)} km`;
 
     return (
-        <div className={`relative h-full min-h-[400px] w-full overflow-hidden rounded-[2rem] shadow-2xl bg-slate-100 border border-slate-200/50 ${isMapExpanded ? 'fixed inset-4 z-[70]' : ''}`}>
+        <div className={`relative h-full min-h-[400px] w-full overflow-hidden bg-slate-100 ${isMapExpanded ? 'fixed inset-4 z-[70] rounded-[2rem] shadow-2xl border border-slate-200/50' : 'rounded-l-[2rem] border-l border-y border-slate-200/50 shadow-[-8px_0_32px_rgba(0,0,0,0.12)]'}`}>
             {/* Map Background */}
             <div ref={mapContainerRef} className="absolute inset-0 z-0" />
             
