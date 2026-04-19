@@ -684,6 +684,15 @@ export const RequestsView: React.FC<RequestsViewProps> = ({ isOnline, mobileView
     L.control.zoom({ position: 'bottomright' }).addTo(map);
 
     mapInstanceRef.current = map;
+
+    return () => {
+      if (mapInstanceRef.current) {
+        try {
+          mapInstanceRef.current.remove();
+        } catch {}
+        mapInstanceRef.current = null;
+      }
+    };
   }, [leafletReady]);
 
   useEffect(() => {
