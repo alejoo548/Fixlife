@@ -30,6 +30,12 @@ interface AdminDashboardProps {
   onClose: () => void;
 }
 
+const StableResponsiveContainer: React.FC<React.PropsWithChildren> = ({ children }) => (
+  <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={240} debounce={150}>
+    {children}
+  </ResponsiveContainer>
+);
+
 interface Service {
   id_service: number;
   name: string;
@@ -2293,7 +2299,7 @@ const renderRequestsHistoryTab = () => {
             </div>
           </div>
           <div className="flex-1 w-full min-h-0">
-            <ResponsiveContainer width="100%" height="100%">
+            <StableResponsiveContainer>
               <BarChart data={serviceCategoryStats} margin={{ top: 10, right: 0, left: -25, bottom: 0 }} barSize={14}>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={adminChartTheme.grid} />
                 <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: adminChartTheme.tick, fontSize: 12 }} dy={10} />
@@ -2306,7 +2312,7 @@ const renderRequestsHistoryTab = () => {
                 />
                 <Bar dataKey="value" name="Share" fill="#0090FF" radius={[6, 6, 0, 0]} />
               </BarChart>
-            </ResponsiveContainer>
+            </StableResponsiveContainer>
           </div>
         </motion.div>
 
@@ -2339,7 +2345,7 @@ const renderRequestsHistoryTab = () => {
             </div>
           </div>
           <div className="flex-1 w-full min-h-0">
-            <ResponsiveContainer width="100%" height="100%">
+            <StableResponsiveContainer>
               <AreaChart data={completedServicesWeekly} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                 <defs>
                   <linearGradient id="completedFill" x1="0" y1="0" x2="0" y2="1">
@@ -2357,7 +2363,7 @@ const renderRequestsHistoryTab = () => {
                 />
                 <Area type="monotone" name="Completed" dataKey="value" stroke="#0090FF" strokeWidth={3} fillOpacity={1} fill="url(#completedFill)" />
               </AreaChart>
-            </ResponsiveContainer>
+            </StableResponsiveContainer>
           </div>
         </motion.div>
 
@@ -2377,7 +2383,7 @@ const renderRequestsHistoryTab = () => {
             </div>
           </div>
           <div className="flex-1 w-full min-h-0">
-            <ResponsiveContainer width="100%" height="100%">
+            <StableResponsiveContainer>
               <BarChart data={popularLocations} layout="vertical" margin={{ top: 0, right: 10, left: 10, bottom: 0 }} barSize={10}>
                 <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke={adminChartTheme.grid} />
                 <XAxis type="number" axisLine={false} tickLine={false} tick={{ fill: adminChartTheme.tick, fontSize: 12 }} />
@@ -2390,7 +2396,7 @@ const renderRequestsHistoryTab = () => {
                 />
                 <Bar dataKey="value" name="Requests" fill="#FFC20E" radius={[0, 6, 6, 0]} />
               </BarChart>
-            </ResponsiveContainer>
+            </StableResponsiveContainer>
           </div>
         </motion.div>
       </div>
@@ -2415,7 +2421,7 @@ const renderRequestsHistoryTab = () => {
             </select>
           </div>
           <div className="flex-1 w-full min-h-0">
-            <ResponsiveContainer width="100%" height="100%">
+            <StableResponsiveContainer>
               <AreaChart data={dashboardStats?.revenueData || DEFAULT_REVENUE_DATA} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                 <defs>
                   <linearGradient id="colorUv" x1="0" y1="0" x2="0" y2="1">
@@ -2439,7 +2445,7 @@ const renderRequestsHistoryTab = () => {
                 <Area type="monotone" name="Actual Revenue" dataKey="uv" stroke="#0090FF" strokeWidth={3} fillOpacity={1} fill="url(#colorUv)" />
                 <Area type="monotone" name="Projected" dataKey="pv" stroke="#FFC20E" strokeWidth={3} fillOpacity={1} fill="url(#colorPv)" />
               </AreaChart>
-            </ResponsiveContainer>
+            </StableResponsiveContainer>
           </div>
         </motion.div>
 
@@ -2454,7 +2460,7 @@ const renderRequestsHistoryTab = () => {
             <p className="text-sm text-gray-500 font-medium">Weekly active registrations</p>
           </div>
           <div className="flex-1 w-full min-h-0">
-            <ResponsiveContainer width="100%" height="100%">
+            <StableResponsiveContainer>
               <BarChart data={dashboardStats?.trafficData || DEFAULT_TRAFFIC_DATA} margin={{ top: 10, right: 0, left: -25, bottom: 0 }} barSize={12}>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={adminChartTheme.grid} />
                 <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fill: adminChartTheme.tick, fontSize: 12}} dy={10} />
@@ -2469,7 +2475,7 @@ const renderRequestsHistoryTab = () => {
                 <Bar dataKey="Users" fill="#0090FF" radius={[4, 4, 0, 0]} />
                 <Bar dataKey="Pros" fill="#FF8000" radius={[4, 4, 0, 0]} />
               </BarChart>
-            </ResponsiveContainer>
+            </StableResponsiveContainer>
           </div>
         </motion.div>
       </div>
