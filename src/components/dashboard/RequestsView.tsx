@@ -79,7 +79,11 @@ interface SimulatedTrafficSummary {
 }
 
 const notyf = new Notyf({ position: { x: 'left', y: 'bottom' }, ripple: true });
-const CHAT_POLL_MS = 3000;
+const PRESENCE_PUSH_IDLE_MS = 30000;
+const PRESENCE_PUSH_ACTIVE_ROUTE_MS = 8000;
+const PRESENCE_MOVE_IDLE_KM = 0.08;
+const PRESENCE_MOVE_ACTIVE_ROUTE_KM = 0.02;
+const PRESENCE_PUSH_BACKGROUND_MS = 60000;
 
 const getLatestChatMessageId = (messages: ChatMessage[]) =>
   messages.length > 0 ? Number(messages[messages.length - 1].id_message || 0) : 0;
@@ -546,6 +550,12 @@ export const RequestsView: React.FC<RequestsViewProps> = ({ isOnline, mobileView
   const firstLoadRef = useRef(true);
   const knownNewIdsRef = useRef<Set<number>>(new Set());
   const lastRouteViewportKeyRef = useRef<string | null>(null);
+  const lastPresencePushRef = useRef<{
+    isOnline: boolean;
+    lat?: number;
+    lng?: number;
+    at: number;
+  } | null>(null);
 
   const selectedRequest = useMemo(
     () => requests.find((r) => r.id_request === selectedRequestId) || requests[0] || null,
@@ -607,7 +617,7 @@ export const RequestsView: React.FC<RequestsViewProps> = ({ isOnline, mobileView
       : statusFilter === 'rejected'
         ? 'Rejected leads stay here for quick reference.'
         : isOnline
-          ? `Live updates every 5s${presenceBusy ? ' - syncing location' : ''}`
+          ? `Live updates on change${presenceBusy ? ' - syncing location' : ''}`
           : 'Go online to receive nearby requests';
   const selectedServiceIcon = selectedRequest?.service_icon || 'Fix';
   const routeStatusDisplayLabel =
@@ -1500,6 +1510,48 @@ export const RequestsView: React.FC<RequestsViewProps> = ({ isOnline, mobileView
 
   const pushPresence = async (isOnlineNow: boolean, lat?: number, lng?: number) => {
     if (!token) return;
+
+    const now = Date.now();
+    const lastPush = lastPresencePushRef.current;
+    const isBackground =
+      typeof document !== 'undefined' && document.visibilityState !== 'visible';
+    const minIntervalMs = isBackground
+      ? PRESENCE_PUSH_BACKGROUND_MS
+      : isInPageRouteActive
+        ? PRESENCE_PUSH_ACTIVE_ROUTE_MS
+        : PRESENCE_PUSH_IDLE_MS;
+    const minMovementKm = isInPageRouteActive
+      ? PRESENCE_MOVE_ACTIVE_ROUTE_KM
+      : PRESENCE_MOVE_IDLE_KM;
+
+    if (lastPush && lastPush.isOnline === isOnlineNow) {
+      const hasValidCoords =
+        Number.isFinite(lat) &&
+        Number.isFinite(lng) &&
+        Number.isFinite(lastPush.lat) &&
+        Number.isFinite(lastPush.lng);
+
+      if (hasValidCoords) {
+        const movedKm = haversineKm(
+          { lat: Number(lat), lng: Number(lng) },
+          { lat: Number(lastPush.lat), lng: Number(lastPush.lng) }
+        );
+
+        if (movedKm < minMovementKm && now - lastPush.at < minIntervalMs) {
+          return;
+        }
+      } else if (now - lastPush.at < minIntervalMs) {
+        return;
+      }
+    }
+
+    lastPresencePushRef.current = {
+      isOnline: isOnlineNow,
+      lat,
+      lng,
+      at: now,
+    };
+
     try {
       setPresenceBusy(true);
       await fetch(API_ENDPOINTS.worker.presence, {
@@ -1515,7 +1567,7 @@ export const RequestsView: React.FC<RequestsViewProps> = ({ isOnline, mobileView
         }),
       });
     } catch {
-      // silent
+      lastPresencePushRef.current = lastPush;
     } finally {
       setPresenceBusy(false);
     }
@@ -1621,9 +1673,9 @@ export const RequestsView: React.FC<RequestsViewProps> = ({ isOnline, mobileView
           pushPresence(true);
         },
         {
-          enableHighAccuracy: true,
-          timeout: isInPageRouteActive ? 6000 : 10000,
-          maximumAge: isInPageRouteActive ? 2000 : 10000,
+          enableHighAccuracy: isInPageRouteActive,
+          timeout: isInPageRouteActive ? 6000 : 12000,
+          maximumAge: isInPageRouteActive ? 5000 : 30000,
         }
       );
     } else {

@@ -673,6 +673,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ isOpen, onClose 
   useEffect(() => {
     if (activeTab !== 'Overview') return;
     const id = window.setInterval(() => {
+      if (typeof document !== 'undefined' && document.visibilityState !== 'visible') {
+        return;
+      }
       fetchStats(statsServiceId);
     }, 30_000);
     return () => window.clearInterval(id);
