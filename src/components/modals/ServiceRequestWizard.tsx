@@ -17,6 +17,9 @@ import { ServiceRequestAssignedWorkerCard } from './ServiceRequestAssignedWorker
 import { ServiceRequestPaymentModal } from './ServiceRequestPaymentModal';
 import { ServiceRequestFixesSuccessModal } from './ServiceRequestFixesSuccessModal';
 import { useResponsiveSheet } from '../../hooks/useResponsiveSheet';
+import { useServiceRequestChat } from './hooks/useServiceRequestChat';
+import { useServiceRequestLocation } from './hooks/useServiceRequestLocation';
+import { useServiceRequestMap } from './hooks/useServiceRequestMap';
 import {
     statusBadgeClasses,
     statusLabel,
@@ -157,15 +160,6 @@ interface RequestWorkerProfileResponse {
     portfolio: WorkerPortfolioPhoto[];
 }
 
-interface ChatMessage {
-    id_message: number;
-    id_request: number;
-    sender_role: 'client' | 'worker';
-    message: string | null;
-    image_url: string | null;
-    created_at: string;
-}
-
 interface LocationSuggestion {
     label: string;
     lat: number;
@@ -192,23 +186,6 @@ const RATING_METRIC_LABELS: Record<RatingMetricKey, string> = {
 };
 
 const notyf = new Notyf({ position: { x: 'left', y: 'bottom' }, ripple: true });
-const CHAT_POLL_MS = 3000;
-const getLatestChatMessageId = (messages: ChatMessage[]) =>
-    messages.length > 0 ? Number(messages[messages.length - 1].id_message || 0) : 0;
-
-const mergeChatMessages = (current: ChatMessage[], incoming: ChatMessage[]) => {
-    const byId = new Map<number, ChatMessage>();
-
-    for (const message of current) {
-        byId.set(Number(message.id_message), message);
-    }
-
-    for (const message of incoming) {
-        byId.set(Number(message.id_message), message);
-    }
-
-    return Array.from(byId.values()).sort((left, right) => Number(left.id_message || 0) - Number(right.id_message || 0));
-};
 const SAVED_LOCATIONS_KEY = 'fixlife.saved_locations.v1';
 const HOME_ICON = "M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6";
 const WORK_ICON = "M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4";
@@ -629,14 +606,7 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
     const [isSearching, setIsSearching] = useState(false);
     const [problemFiles, setProblemFiles] = useState<File[]>([]);
     const [problemPreviewUrls, setProblemPreviewUrls] = useState<string[]>([]);
-    const [geoLoading, setGeoLoading] = useState(false);
     const [resolvingLocation, setResolvingLocation] = useState(false);
-    const [suggestionsLoading, setSuggestionsLoading] = useState(false);
-    const [geoError, setGeoError] = useState<string | null>(null);
-    const [currentCoords, setCurrentCoords] = useState<{ lat: number; lng: number } | null>(null);
-    const [locationSuggestions, setLocationSuggestions] = useState<LocationSuggestion[]>([]);
-    const [showLocationSuggestions, setShowLocationSuggestions] = useState(false);
-    const [highlightedSuggestionIndex, setHighlightedSuggestionIndex] = useState(-1);
     const [locationInputContext, setLocationInputContext] = useState<'main' | 'save-panel'>('main');
     const [savedHome, setSavedHome] = useState<SavedLocation | null>(null);
     const [savedWork, setSavedWork] = useState<SavedLocation | null>(null);
@@ -676,7 +646,6 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
     });
     const [nearbyWorkers, setNearbyWorkers] = useState<NearbyWorker[]>([]);
     const [radiusKm, setRadiusKm] = useState<number>(8);
-    const [leafletReady, setLeafletReady] = useState(false);
     const [isSubmittingRequest, setIsSubmittingRequest] = useState(false);
     const [myRequests, setMyRequests] = useState<MyServiceRequest[]>([]);
     const [historyStatus, setHistoryStatus] = useState<'all' | 'pending' | 'payment_pending' | 'paid' | 'assigned' | 'in_progress' | 'awaiting_confirmation' | 'done' | 'cancelled'>('all');
@@ -686,30 +655,56 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
     const [cancelBusyId, setCancelBusyId] = useState<number | null>(null);
     const [paymentBusyId, setPaymentBusyId] = useState<number | null>(null);
     const [completionBusyId, setCompletionBusyId] = useState<number | null>(null);
-    const [openChatRequestId, setOpenChatRequestId] = useState<number | null>(null);
-    const [chatByRequest, setChatByRequest] = useState<Record<number, ChatMessage[]>>({});
-    const [chatMessage, setChatMessage] = useState<Record<number, string>>({});
-    const [chatImage, setChatImage] = useState<Record<number, File | null>>({});
-    const [chatBusyId, setChatBusyId] = useState<number | null>(null);
     const [ratingBusyId, setRatingBusyId] = useState<number | null>(null);
     const [ratingForm, setRatingForm] = useState<Record<number, { punctuality: number; quality: number; price_fairness: number; comment: string }>>({});
     const [ratingModalRequest, setRatingModalRequest] = useState<MyServiceRequest | null>(null);
     const [fixesSuccessRequest, setFixesSuccessRequest] = useState<MyServiceRequest | null>(null);
     const [isRequestPanelExpanded, setIsRequestPanelExpanded] = useState(() => !initialServiceId);
     const isDesktopSheet = useResponsiveSheet();
-    const mapContainerRef = useRef<HTMLDivElement | null>(null);
-    const mapInstanceRef = useRef<any>(null);
-    const currentMarkerRef = useRef<any>(null);
-    const currentRadiusRef = useRef<any>(null);
-    const savedPlaceMarkersRef = useRef<any[]>([]);
-    const nearbyWorkerMarkersRef = useRef<any[]>([]);
-    const lastCenteredCoordsRef = useRef<{ lat: number; lng: number } | null>(null);
     const lastToastRef = useRef<{ type: 'success' | 'error' | 'info'; message: string; at: number } | null>(null);
-    const locationSuggestionTimerRef = useRef<number | null>(null);
     const previousRequestStatusesRef = useRef<Record<number, string>>({});
     const clientChatEndRef = useRef<HTMLDivElement | null>(null);
     const workerPortfolioPinchRef = useRef<{ startDistance: number; startScale: number } | null>(null);
     const workerPortfolioTapRef = useRef<number>(0);
+    const {
+        geoLoading,
+        geoError,
+        setGeoError,
+        currentCoords,
+        setCurrentCoords,
+        locationSuggestions,
+        setLocationSuggestions,
+        showLocationSuggestions,
+        setShowLocationSuggestions,
+        highlightedSuggestionIndex,
+        setHighlightedSuggestionIndex,
+        suggestionsLoading,
+        detectCurrentLocation,
+    } = useServiceRequestLocation({
+        isOpen,
+        locationText: data.location,
+        parseCoordinateInput,
+        reverseGeocodeCoords,
+        showToast,
+    });
+    const {
+        openChatRequestId,
+        setOpenChatRequestId,
+        chatByRequest,
+        chatMessage,
+        setChatMessage,
+        chatImage,
+        setChatImage,
+        chatBusyId,
+        fetchRequestChat,
+        sendRequestChat,
+    } = useServiceRequestChat({
+        isOpen,
+        requests: myRequests,
+        token: getToken(),
+        canUseRequestChat,
+        showToast,
+    });
 
     useEffect(() => {
         if (!isOpen) return;
@@ -1402,6 +1397,19 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
         if (recentMatch) return 'recent';
         return 'current';
     }, [currentCoords, savedHome, savedWork, favoriteLocations, recentLocations]);
+    const { leafletReady, mapContainerRef } = useServiceRequestMap({
+        isOpen,
+        currentCoords,
+        radiusKm,
+        activeLocationKind,
+        quickAccessLocations,
+        nearbyWorkers,
+        reverseGeocodeCoords,
+        useSavedLocation,
+        sameCoords,
+        createLeafletPinIcon,
+        getLocationVisual,
+    });
 
     const activeTrackedRequest = useMemo(() => {
         const priority = ['in_progress', 'awaiting_confirmation', 'paid', 'payment_pending'];
@@ -1702,22 +1710,6 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
     });
 
     useEffect(() => {
-        if (!openChatRequestId) return;
-
-        const activeRequest = myRequests.find((request) => request.id_request === openChatRequestId);
-        if (!activeRequest) {
-            setOpenChatRequestId(null);
-            return;
-        }
-
-        const requestStatus = String(activeRequest.status || '').toLowerCase();
-        const canUseChat = canUseRequestChat(activeRequest);
-        if (!canUseChat) {
-            setOpenChatRequestId(null);
-        }
-    }, [myRequests, openChatRequestId]);
-
-    useEffect(() => {
         if (!isOpen) return;
 
         const previousStatuses = previousRequestStatusesRef.current;
@@ -1771,42 +1763,6 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
     }, []);
 
     useEffect(() => {
-        const loadLeaflet = async () => {
-            if (window.L) {
-                setLeafletReady(true);
-                return;
-            }
-
-            const cssId = 'leaflet-css-cdn';
-            const jsId = 'leaflet-js-cdn';
-
-            if (!document.getElementById(cssId)) {
-                const link = document.createElement('link');
-                link.id = cssId;
-                link.rel = 'stylesheet';
-                link.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
-                document.head.appendChild(link);
-            }
-
-            if (!document.getElementById(jsId)) {
-                await new Promise<void>((resolve, reject) => {
-                    const script = document.createElement('script');
-                    script.id = jsId;
-                    script.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
-                    script.async = true;
-                    script.onload = () => resolve();
-                    script.onerror = () => reject(new Error('Could not load map library'));
-                    document.body.appendChild(script);
-                });
-            }
-
-            if (window.L) setLeafletReady(true);
-        };
-
-        loadLeaflet().catch((err) => console.error(err));
-    }, []);
-
-    useEffect(() => {
         if (!isOpen) return;
         if (!isAuthenticated() || !getToken()) return;
 
@@ -1826,252 +1782,6 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
             }
         })();
     }, [isOpen]);
-
-    useEffect(() => {
-        if (!isOpen) return;
-
-        const query = data.location.trim();
-        const parsedCoords = parseCoordinateInput(query);
-
-        if (locationSuggestionTimerRef.current) {
-            window.clearTimeout(locationSuggestionTimerRef.current);
-            locationSuggestionTimerRef.current = null;
-        }
-
-        if (!query || query.length < 2 || parsedCoords) {
-            setLocationSuggestions([]);
-            setSuggestionsLoading(false);
-            return;
-        }
-
-        locationSuggestionTimerRef.current = window.setTimeout(async () => {
-            try {
-                setSuggestionsLoading(true);
-                const params = new URLSearchParams({ q: query });
-                const res = await fetch(`${API_ENDPOINTS.services.geocodeSuggest}?${params.toString()}`);
-                const payload = await res.json();
-                if (!res.ok || !payload?.success) {
-                    setLocationSuggestions([]);
-                    return;
-                }
-                setLocationSuggestions(Array.isArray(payload.suggestions) ? payload.suggestions : []);
-            } catch {
-                setLocationSuggestions([]);
-            } finally {
-                setSuggestionsLoading(false);
-            }
-        }, 220);
-
-        return () => {
-            if (locationSuggestionTimerRef.current) {
-                window.clearTimeout(locationSuggestionTimerRef.current);
-                locationSuggestionTimerRef.current = null;
-            }
-        };
-    }, [data.location, isOpen]);
-
-    useEffect(() => {
-        if (!showLocationSuggestions || locationSuggestions.length === 0) {
-            setHighlightedSuggestionIndex(-1);
-            return;
-        }
-
-        setHighlightedSuggestionIndex((prev) => {
-            if (prev >= 0 && prev < locationSuggestions.length) return prev;
-            return 0;
-        });
-    }, [locationSuggestions, showLocationSuggestions]);
-
-    useEffect(() => {
-        if (!isOpen || !mapContainerRef.current || !window.L || !leafletReady) return;
-        if (mapInstanceRef.current) return;
-
-        const L = window.L;
-        const map = L.map(mapContainerRef.current, {
-            zoomControl: false,
-            attributionControl: true,
-        }).setView([13.6929, -89.2182], 12);
-
-        L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
-            maxZoom: 19,
-            attribution: '&copy; OpenStreetMap &copy; CARTO',
-        }).addTo(map);
-
-        L.control.zoom({ position: 'bottomright' }).addTo(map);
-
-        map.on('click', (event: any) => {
-            const nextCoords = {
-                lat: Number(event.latlng.lat.toFixed(7)),
-                lng: Number(event.latlng.lng.toFixed(7)),
-            };
-
-            void reverseGeocodeCoords(nextCoords, {
-                toastMessage: 'Location adjusted on the map.',
-                fallbackLabel: `${nextCoords.lat}, ${nextCoords.lng}`,
-            });
-        });
-
-        mapInstanceRef.current = map;
-
-        return () => {
-            if (mapInstanceRef.current) {
-                try {
-                    mapInstanceRef.current.remove();
-                } catch {
-                    // ignore map cleanup errors
-                }
-                mapInstanceRef.current = null;
-                currentMarkerRef.current = null;
-                currentRadiusRef.current = null;
-                savedPlaceMarkersRef.current = [];
-                nearbyWorkerMarkersRef.current = [];
-                lastCenteredCoordsRef.current = null;
-            }
-        };
-    }, [isOpen, leafletReady]);
-
-    useEffect(() => {
-        if (!mapInstanceRef.current || !window.L) return;
-        const L = window.L;
-        const map = mapInstanceRef.current;
-
-        if (!currentCoords) {
-            if (currentMarkerRef.current) {
-                try {
-                    map.removeLayer(currentMarkerRef.current);
-                } catch {
-                    // ignore
-                }
-                currentMarkerRef.current = null;
-            }
-            if (currentRadiusRef.current) {
-                try {
-                    map.removeLayer(currentRadiusRef.current);
-                } catch {
-                    // ignore
-                }
-                currentRadiusRef.current = null;
-            }
-            map.setView([13.6929, -89.2182], 12);
-            lastCenteredCoordsRef.current = null;
-            return;
-        }
-
-        const shouldRecenter =
-            !lastCenteredCoordsRef.current ||
-            !sameCoords(lastCenteredCoordsRef.current, currentCoords);
-
-        if (shouldRecenter) {
-            map.setView([currentCoords.lat, currentCoords.lng], 14);
-            lastCenteredCoordsRef.current = currentCoords;
-        }
-
-        const selectedVisual = getLocationVisual(activeLocationKind);
-
-        if (!currentMarkerRef.current) {
-            const me = L.marker([currentCoords.lat, currentCoords.lng], {
-                draggable: true,
-                icon: createLeafletPinIcon(L, activeLocationKind),
-                zIndexOffset: 1200,
-            })
-                .addTo(map)
-                .bindPopup(`<b>${selectedVisual.label}</b><br/>Drag or tap the map to fine-tune the exact point.`);
-
-            me.on('dragend', () => {
-                const position = me.getLatLng();
-                const nextCoords = {
-                    lat: Number(position.lat.toFixed(7)),
-                    lng: Number(position.lng.toFixed(7)),
-                };
-                void reverseGeocodeCoords(nextCoords, {
-                    toastMessage: 'Location adjusted on the map.',
-                    fallbackLabel: `${nextCoords.lat}, ${nextCoords.lng}`,
-                });
-            });
-
-            currentMarkerRef.current = me;
-        } else {
-            currentMarkerRef.current.setLatLng([currentCoords.lat, currentCoords.lng]);
-            currentMarkerRef.current.setIcon(createLeafletPinIcon(L, activeLocationKind));
-            currentMarkerRef.current.setPopupContent(`<b>${selectedVisual.label}</b><br/>Drag or tap the map to fine-tune the exact point.`);
-        }
-
-        if (!currentRadiusRef.current) {
-            currentRadiusRef.current = L.circle([currentCoords.lat, currentCoords.lng], {
-                radius: radiusKm * 1000,
-                color: '#3b82f6',
-                weight: 1,
-                fillColor: '#3b82f6',
-                fillOpacity: 0.05,
-            }).addTo(map);
-        } else {
-            currentRadiusRef.current.setLatLng([currentCoords.lat, currentCoords.lng]);
-            currentRadiusRef.current.setRadius(radiusKm * 1000);
-        }
-    }, [currentCoords, radiusKm, activeLocationKind, isOpen]);
-
-    useEffect(() => {
-        if (!mapInstanceRef.current || !window.L) return;
-        const L = window.L;
-        const map = mapInstanceRef.current;
-
-        savedPlaceMarkersRef.current.forEach((marker) => {
-            try {
-                map.removeLayer(marker);
-            } catch {
-                // ignore
-            }
-        });
-        savedPlaceMarkersRef.current = [];
-
-        quickAccessLocations
-            .filter((location) => location.kind !== 'recent')
-            .filter((location) => !sameCoords(location, currentCoords))
-            .forEach((location) => {
-                const pin = L.marker([location.lat, location.lng], {
-                    icon: createLeafletPinIcon(L, location.kind),
-                    zIndexOffset: 600,
-                })
-                    .addTo(map)
-                    .bindPopup(`<b>${location.title}</b><br/>${location.label}`);
-
-                pin.on('click', () => useSavedLocation(location));
-                savedPlaceMarkersRef.current.push(pin);
-            });
-    }, [quickAccessLocations, currentCoords]);
-
-    useEffect(() => {
-        if (!mapInstanceRef.current || !window.L) return;
-        const L = window.L;
-        const map = mapInstanceRef.current;
-
-        nearbyWorkerMarkersRef.current.forEach((marker) => {
-            try {
-                map.removeLayer(marker);
-            } catch {
-                // ignore
-            }
-        });
-        nearbyWorkerMarkersRef.current = [];
-
-        nearbyWorkers.forEach((worker) => {
-            const lat = worker.latitude;
-            const lng = worker.longitude;
-            if (typeof lat !== 'number' || typeof lng !== 'number') return;
-
-            const marker = L.circleMarker([lat, lng], {
-                radius: 8,
-                color: '#ffffff',
-                weight: 2,
-                fillColor: '#0284c7',
-                fillOpacity: 1,
-            }).addTo(map).bindPopup(
-                `<b>${worker.name}</b><br/>${worker.distance_km != null ? `${worker.distance_km.toFixed(1)} km` : ''}`
-            );
-
-            nearbyWorkerMarkersRef.current.push(marker);
-        });
-    }, [nearbyWorkers]);
 
     const selectedServiceTitle = useMemo(() => {
         if (!data.category) return null;
@@ -2117,7 +1827,7 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
         setTimeout(() => setIsSearching(false), 700);
     };
 
-    const showToast = (type: 'success' | 'error' | 'info', message: string) => {
+    function showToast(type: 'success' | 'error' | 'info', message: string) {
         const now = Date.now();
         const last = lastToastRef.current;
         if (last && last.type === type && last.message === message && now - last.at < 900) {
@@ -2138,7 +1848,7 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
             background: '#1d4ed8',
             duration: 2200,
         });
-    };
+    }
 
     const getRequestStageNotification = (request: MyServiceRequest) => {
         const status = String(request.status || '').toLowerCase();
@@ -2236,11 +1946,11 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
         setCurrentCoords(null);
     };
 
-    const applyResolvedLocation = (
+    function applyResolvedLocation(
         label: string,
         coords: { lat: number; lng: number },
         options?: { toastMessage?: string; remember?: boolean }
-    ) => {
+    ) {
         const nextLabel = String(label || '').trim();
         setCurrentCoords({ lat: Number(coords.lat), lng: Number(coords.lng) });
         setData((prev) => ({ ...prev, location: nextLabel }));
@@ -2252,12 +1962,12 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
         if (options?.toastMessage) {
             showToast('success', options.toastMessage);
         }
-    };
+    }
 
-    const reverseGeocodeCoords = async (
+    async function reverseGeocodeCoords(
         coords: { lat: number; lng: number },
         options?: { toastMessage?: string; fallbackLabel?: string; remember?: boolean }
-    ) => {
+    ) {
         try {
             const params = new URLSearchParams({ lat: String(coords.lat), lng: String(coords.lng) });
             const res = await fetch(`${API_ENDPOINTS.services.geocodeReverse}?${params.toString()}`);
@@ -2281,7 +1991,7 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                 remember: options?.remember,
             }
         );
-    };
+    }
 
     const selectLocationSuggestion = (suggestion: LocationSuggestion) => {
         applyResolvedLocation(suggestion.label, { lat: suggestion.lat, lng: suggestion.lng }, {
@@ -2376,41 +2086,6 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
         } finally {
             setResolvingLocation(false);
         }
-    };
-
-    const detectCurrentLocation = () => {
-        if (!navigator.geolocation) {
-            setGeoError('Geolocation is not supported in this browser.');
-            showToast('error', 'Geolocation not supported.');
-            return;
-        }
-
-        setGeoLoading(true);
-        setGeoError(null);
-
-        navigator.geolocation.getCurrentPosition(
-            (pos) => {
-                const lat = Number(pos.coords.latitude.toFixed(7));
-                const lng = Number(pos.coords.longitude.toFixed(7));
-                setCurrentCoords({ lat, lng });
-                void (async () => {
-                    try {
-                        await reverseGeocodeCoords({ lat, lng }, {
-                            toastMessage: 'Current location detected.',
-                            fallbackLabel: `${lat}, ${lng}`,
-                        });
-                    } finally {
-                        setGeoLoading(false);
-                    }
-                })();
-            },
-            () => {
-                setGeoError('Could not access your location. Allow permission and try again.');
-                showToast('error', 'Could not read your location.');
-                setGeoLoading(false);
-            },
-            { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
-        );
     };
 
     const fetchNearbyPros = async () => {
@@ -2787,113 +2462,6 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
 
         requestConfirmRequestAction('cancel', request);
     };
-
-    const fetchRequestChat = async (
-        idRequest: number,
-        options: { silent?: boolean; incremental?: boolean } = {}
-    ) => {
-        const token = getToken();
-        if (!token) return;
-        const silent = options.silent === true;
-        const currentChat = chatByRequest[idRequest] || [];
-        const afterId = options.incremental ? getLatestChatMessageId(currentChat) : 0;
-        const chatUrl =
-            afterId > 0
-                ? `${API_ENDPOINTS.services.requestChat(idRequest)}?after_id=${afterId}`
-                : API_ENDPOINTS.services.requestChat(idRequest);
-        try {
-            const res = await fetch(chatUrl, {
-                headers: { Authorization: `Bearer ${token}` },
-            });
-            const payload = await res.json();
-            if (!res.ok || !payload?.success) {
-                if (!silent) {
-                    showToast('error', payload?.error || 'Could not load chat.');
-                }
-                return;
-            }
-            const nextChat = Array.isArray(payload.chat) ? payload.chat : [];
-            setChatByRequest((prev) => {
-                const currentChat = prev[idRequest] || [];
-                const mergedChat = afterId > 0 ? mergeChatMessages(currentChat, nextChat) : nextChat;
-                const currentLastId = currentChat[currentChat.length - 1]?.id_message ?? null;
-                const nextLastId = mergedChat[mergedChat.length - 1]?.id_message ?? null;
-
-                if (currentChat.length === mergedChat.length && currentLastId === nextLastId) {
-                    return prev;
-                }
-
-                return { ...prev, [idRequest]: mergedChat };
-            });
-        } catch {
-            if (!silent) {
-                showToast('error', 'Network error loading chat.');
-            }
-        }
-    };
-
-    const sendRequestChat = async (idRequest: number) => {
-        const token = getToken();
-        if (!token) return;
-        const text = (chatMessage[idRequest] || '').trim();
-        const image = chatImage[idRequest] || null;
-        if (!text && !image) {
-            showToast('error', 'Write a message or attach an image.');
-            return;
-        }
-
-        setChatBusyId(idRequest);
-        try {
-            const form = new FormData();
-            if (text) form.append('message', text);
-            if (image) form.append('chat_images', image);
-
-            const res = await fetch(API_ENDPOINTS.services.requestChat(idRequest), {
-                method: 'POST',
-                headers: { Authorization: `Bearer ${token}` },
-                body: form,
-            });
-            const payload = await res.json();
-            if (!res.ok || !payload?.success) {
-                showToast('error', payload?.error || 'Could not send message.');
-                return;
-            }
-
-            setChatMessage((prev) => ({ ...prev, [idRequest]: '' }));
-            setChatImage((prev) => ({ ...prev, [idRequest]: null }));
-            const createdMessages = Array.isArray(payload?.messages) ? payload.messages : [];
-            if (createdMessages.length > 0) {
-                setChatByRequest((prev) => ({
-                    ...prev,
-                    [idRequest]: mergeChatMessages(prev[idRequest] || [], createdMessages),
-                }));
-            } else {
-                await fetchRequestChat(idRequest, { silent: true });
-            }
-        } catch {
-            showToast('error', 'Network error sending message.');
-        } finally {
-            setChatBusyId(null);
-        }
-    };
-
-    useEffect(() => {
-        if (!isOpen || !openChatRequestId) return;
-
-        const activeRequest = myRequests.find((request) => request.id_request === openChatRequestId);
-        if (!activeRequest) return;
-
-        const requestStatus = String(activeRequest.status || '').toLowerCase();
-        const canUseChat = canUseRequestChat(activeRequest);
-
-        if (!canUseChat) return;
-
-        const interval = window.setInterval(() => {
-            void fetchRequestChat(openChatRequestId, { silent: true, incremental: true });
-        }, CHAT_POLL_MS);
-
-        return () => window.clearInterval(interval);
-    }, [isOpen, openChatRequestId, myRequests]);
 
     useEffect(() => {
         if (!isOpen || !openChatRequestId) return;
