@@ -337,6 +337,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ isOpen, onClose 
       return;
     }
     const firstServiceId = String(availableCardServices[0].id_service);
+    const nextSortOrder = Math.max(0, ...serviceCards.map((card) => Number(card.sort_order) || 0)) + 1;
     setEditingCard(null);
     setServiceCardForm({
       id_service: firstServiceId,
@@ -345,7 +346,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ isOpen, onClose 
       headline: '',
       summary: '',
       cta_label: 'Learn More',
-      sort_order: String(serviceCards.length + 1),
+      sort_order: String(nextSortOrder),
       is_active: true,
     });
     setShowCardForm(true);
@@ -391,6 +392,15 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ isOpen, onClose 
       return;
     }
 
+    const sortOrder = Number(serviceCardForm.sort_order) || 1;
+    const hasSortConflict = serviceCards.some(
+      (card) => card.id_card !== editingCard?.id_card && Number(card.sort_order) === sortOrder
+    );
+    if (hasSortConflict) {
+      notyf.error('That display order is already used by another card.');
+      return;
+    }
+
     const payload = {
       id_service: idService,
       image_url: serviceCardForm.image_url.trim() || null,
@@ -398,7 +408,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ isOpen, onClose 
       headline: serviceCardForm.headline.trim() || null,
       summary: serviceCardForm.summary.trim() || null,
       cta_label: serviceCardForm.cta_label.trim() || 'Learn More',
-      sort_order: Number(serviceCardForm.sort_order) || 1,
+      sort_order: sortOrder,
       is_active: serviceCardForm.is_active,
     };
 

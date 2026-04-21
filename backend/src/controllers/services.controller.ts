@@ -38,6 +38,10 @@ const DEFAULT_ALLOWED_REDIRECT_ORIGINS = [
   'http://127.0.0.1:3000',
   'http://0.0.0.0:3000',
 ];
+const MAX_PROXIMITY_RADIUS_KM = 50;
+const KM_PER_LATITUDE_DEGREE = 110.574;
+const KM_PER_LONGITUDE_DEGREE_AT_EQUATOR = 111.32;
+const SERVICE_CARD_SORT_INDEX = 'ux_service_cards_sort';
 type SupportedPaymentMethod = 'paypal' | 'wompi';
 const CHAT_ENABLED_REQUEST_STATUSES = [
   'assigned',
@@ -48,38 +52,266 @@ const CHAT_ENABLED_REQUEST_STATUSES = [
   'done',
 ];
 
-const DEFAULT_SERVICES = [
+type CatalogService = {
+  name: string;
+  aliases?: string[];
+  description: string;
+  icon: string;
+};
+
+const CATALOG_SERVICES: CatalogService[] = [
   {
-    name: 'Plumbing',
-    description: 'Leak repairs, pipe installation, and sanitary maintenance.',
-    icon: '🔧',
-  },
-  {
-    name: 'Electrical Services',
-    description: 'Safe installations, wiring, panels, and short-circuit repairs.',
-    icon: '⚡',
+    name: 'Carpentry',
+    description: 'Custom woodwork, furniture repair, and door/window installations.',
+    icon: '\u{1FA9A}',
   },
   {
     name: 'Auto Mechanic',
-    description: 'Vehicle diagnostics, maintenance, and emergency assistance.',
-    icon: '🚗',
+    description: 'Vehicle diagnostics, maintenance, and mechanical repairs.',
+    icon: '\u{1F527}',
   },
   {
-    name: 'Carpentry',
-    description: 'Furniture repairs, custom woodwork, and installations.',
-    icon: '🪚',
+    name: 'Childcare / Babysitting',
+    description: 'Safe and reliable care for children at home.',
+    icon: '\u{1F9F8}',
   },
   {
-    name: 'Cleaning',
-    description: 'Deep cleaning, recurring home cleaning, and move-in/move-out service.',
-    icon: '🧼',
+    name: 'Gardening',
+    description: 'Lawn care, pruning, planting, and garden maintenance.',
+    icon: '\u{1F33F}',
   },
   {
-    name: 'Painting',
+    name: 'Electrical Services',
+    description: 'Wiring, outlets, lighting, and electrical troubleshooting.',
+    icon: '\u26A1',
+  },
+  {
+    name: 'Plumbing',
+    description: 'Leak repairs, pipe installation, and drain unclogging.',
+    icon: '\u{1F6B0}',
+  },
+  {
+    name: 'House Painting',
+    aliases: ['Painting'],
     description: 'Interior and exterior painting with professional finishing.',
-    icon: '🎨',
+    icon: '\u{1F3A8}',
   },
-] as const;
+  {
+    name: 'Masonry',
+    description: 'Brickwork, concrete repairs, and structural improvements.',
+    icon: '\u{1F9F1}',
+  },
+  {
+    name: 'Welding',
+    description: 'Metal fabrication, repairs, and custom welding jobs.',
+    icon: '\u{1F525}',
+  },
+  {
+    name: 'AC Installation & Repair',
+    description: 'Air conditioner setup, maintenance, and cooling fixes.',
+    icon: '\u2744\uFE0F',
+  },
+  {
+    name: 'Refrigeration Repair',
+    description: 'Repair and maintenance for refrigerators and cooling systems.',
+    icon: '\u{1F9CA}',
+  },
+  {
+    name: 'Locksmith Services',
+    description: 'Lock installation, key duplication, and emergency unlocking.',
+    icon: '\u{1F510}',
+  },
+  {
+    name: 'Drywall Installation',
+    description: 'Drywall mounting, patching, and wall finishing.',
+    icon: '\u{1F9F1}',
+  },
+  {
+    name: 'Home Cleaning',
+    aliases: ['Cleaning'],
+    description: 'Deep cleaning and regular housekeeping services.',
+    icon: '\u{1F9F9}',
+  },
+  {
+    name: 'Elderly Care',
+    description: 'Companion and basic support care for seniors.',
+    icon: '\u{1F91D}',
+  },
+  {
+    name: 'Computer Technician',
+    description: 'PC troubleshooting, software setup, and hardware repair.',
+    icon: '\u{1F4BB}',
+  },
+  {
+    name: 'Security Camera Installation',
+    description: 'CCTV setup, configuration, and basic monitoring guidance.',
+    icon: '\u{1F4F9}',
+  },
+  {
+    name: 'Appliance Repair',
+    description: 'Repair of washers, dryers, stoves, and home appliances.',
+    icon: '\u{1F6E0}\uFE0F',
+  },
+];
+
+type CoordinateBounds = {
+  minLat: number;
+  maxLat: number;
+  minLng: number;
+  maxLng: number;
+  crossesAntimeridian: boolean;
+};
+
+const clamp = (value: number, min: number, max: number) => Math.min(Math.max(value, min), max);
+
+const normalizeLongitude = (value: number) => {
+  let normalized = value;
+  while (normalized < -180) normalized += 360;
+  while (normalized > 180) normalized -= 360;
+  return normalized;
+};
+
+const getProximityBounds = (lat: number, lng: number, radiusKm: number): CoordinateBounds => {
+  const radius = clamp(radiusKm, 1, MAX_PROXIMITY_RADIUS_KM);
+  const latDelta = radius / KM_PER_LATITUDE_DEGREE;
+  const minLat = clamp(lat - latDelta, -90, 90);
+  const maxLat = clamp(lat + latDelta, -90, 90);
+  const latitudeRadians = (lat * Math.PI) / 180;
+  const cosLatitude = Math.max(Math.abs(Math.cos(latitudeRadians)), 0.01);
+  const lngDelta = radius / (KM_PER_LONGITUDE_DEGREE_AT_EQUATOR * cosLatitude);
+
+  if (lngDelta >= 180) {
+    return {
+      minLat,
+      maxLat,
+      minLng: -180,
+      maxLng: 180,
+      crossesAntimeridian: false,
+    };
+  }
+
+  const rawMinLng = lng - lngDelta;
+  const rawMaxLng = lng + lngDelta;
+
+  return {
+    minLat,
+    maxLat,
+    minLng: normalizeLongitude(rawMinLng),
+    maxLng: normalizeLongitude(rawMaxLng),
+    crossesAntimeridian: rawMinLng < -180 || rawMaxLng > 180,
+  };
+};
+
+const getWorkerBoundsFilter = (bounds: CoordinateBounds) => ({
+  sql: bounds.crossesAntimeridian
+    ? `AND wp.latitude BETWEEN ? AND ?
+       AND (wp.longitude >= ? OR wp.longitude <= ?)`
+    : `AND wp.latitude BETWEEN ? AND ?
+       AND wp.longitude BETWEEN ? AND ?`,
+  params: [bounds.minLat, bounds.maxLat, bounds.minLng, bounds.maxLng],
+});
+
+const ensureIndexExists = async (tableName: string, indexName: string, alterSql: string) => {
+  const [rows] = await pool.execute<RowDataPacket[]>(
+    `SELECT COUNT(*) AS total
+     FROM information_schema.statistics
+     WHERE table_schema = DATABASE()
+       AND table_name = ?
+       AND index_name = ?`,
+    [tableName, indexName]
+  );
+
+  if (Number(rows[0]?.total || 0) === 0) {
+    await pool.execute(alterSql);
+  }
+};
+
+let serviceCatalogDataChecked = false;
+let serviceCardDataChecked = false;
+
+const repairServiceCatalogData = async () => {
+  if (serviceCatalogDataChecked) return;
+
+  for (const service of CATALOG_SERVICES) {
+    await pool.execute(
+      `UPDATE services
+       SET description = ?, icon = ?
+       WHERE LOWER(name) = ?`,
+      [service.description, service.icon, service.name.toLowerCase()]
+    );
+
+    for (const alias of service.aliases || []) {
+      await pool.execute(
+        `UPDATE services
+         SET name = ?, description = ?, icon = ?
+         WHERE LOWER(name) = ?
+           AND NOT EXISTS (
+             SELECT 1
+             FROM (SELECT id_service FROM services WHERE LOWER(name) = ? LIMIT 1) AS existing_service
+           )`,
+        [service.name, service.description, service.icon, alias.toLowerCase(), service.name.toLowerCase()]
+      );
+    }
+  }
+
+  serviceCatalogDataChecked = true;
+};
+
+const repairServiceCardSeedData = async () => {
+  if (serviceCardDataChecked) return;
+
+  await pool.execute(
+    `UPDATE service_cards
+     SET headline = 'House Painting',
+         summary = 'Interior and exterior painting with clean, professional finishing.'
+     WHERE id_service = 9
+       AND (headline IS NULL
+            OR headline <> 'House Painting'
+            OR summary IS NULL
+            OR summary LIKE '%delivery service%')`
+  );
+
+  await pool.execute(
+    `UPDATE service_cards
+     SET summary = 'Lawn care, planting, pruning, and garden maintenance.'
+     WHERE id_service = 6
+       AND summary LIKE '%service.'`
+  );
+
+  serviceCardDataChecked = true;
+};
+
+const normalizeServiceCardSortOrder = async () => {
+  const [summaryRows] = await pool.execute<RowDataPacket[]>(
+    `SELECT COUNT(*) AS total, COUNT(DISTINCT sort_order) AS unique_total FROM service_cards`
+  );
+  const total = Number(summaryRows[0]?.total || 0);
+  const uniqueTotal = Number(summaryRows[0]?.unique_total || 0);
+
+  if (total === 0 || total === uniqueTotal) return;
+
+  const [rows] = await pool.execute<RowDataPacket[]>(
+    `SELECT id_card
+     FROM service_cards
+     ORDER BY sort_order ASC, id_card ASC`
+  );
+  const tempOffset = 100000;
+
+  for (let index = 0; index < rows.length; index += 1) {
+    await pool.execute(
+      `UPDATE service_cards SET sort_order = ? WHERE id_card = ?`,
+      [tempOffset + index + 1, Number(rows[index].id_card)]
+    );
+  }
+
+  for (let index = 0; index < rows.length; index += 1) {
+    await pool.execute(
+      `UPDATE service_cards SET sort_order = ? WHERE id_card = ?`,
+      [index + 1, Number(rows[index].id_card)]
+    );
+  }
+};
+
 const toPublicRequestStatus = (status: string | null | undefined) => {
   if (!status) return 'pending';
   return status === 'open' ? 'pending' : status;
@@ -108,15 +340,17 @@ const ensureDefaultServices = async () => {
   );
 
   const total = Number(rows[0]?.total || 0);
-  if (total > 0) return;
-
-  for (const service of DEFAULT_SERVICES) {
-    await pool.execute(
-      `INSERT INTO services (name, description, icon, is_active)
-       VALUES (?, ?, ?, 1)`,
-      [service.name, service.description, service.icon]
-    );
+  if (total === 0) {
+    for (const service of CATALOG_SERVICES) {
+      await pool.execute(
+        `INSERT INTO services (name, description, icon, is_active)
+         VALUES (?, ?, ?, 1)`,
+        [service.name, service.description, service.icon]
+      );
+    }
   }
+
+  await repairServiceCatalogData();
 };
 
 const buildAssetUrl = (req: Request, fileName: string | null) => {
@@ -171,6 +405,7 @@ const requeueAssignedRequest = async (
   const lng = Number(input.longitude);
   const radiusKm = Number(input.radiusKm || 8);
   const idService = Number(input.idService);
+  const boundsFilter = getWorkerBoundsFilter(getProximityBounds(lat, lng, radiusKm));
 
   const [nearRows] = await connection.execute(
     `SELECT
@@ -187,12 +422,13 @@ const requeueAssignedRequest = async (
        AND ws.id_service = ?
        AND wp.latitude IS NOT NULL
        AND wp.longitude IS NOT NULL
+       ${boundsFilter.sql}
        AND wp.id_worker_profile <> ?
        AND srw.id_request IS NULL
      HAVING distance_km <= ? AND distance_km <= wp.coverage_km
      ORDER BY distance_km ASC
      LIMIT 50`,
-    [lng, lat, input.idRequest, idService, input.assignedWorkerProfile, radiusKm]
+    [lng, lat, input.idRequest, idService, ...boundsFilter.params, input.assignedWorkerProfile, radiusKm]
   );
 
   for (const candidate of nearRows as RowDataPacket[]) {
@@ -227,6 +463,7 @@ export const ensureServiceCardsTable = async () => {
       created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
       updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
       PRIMARY KEY (id_card),
+      UNIQUE KEY ux_service_cards_sort (sort_order),
       KEY idx_service_cards_service (id_service),
       KEY idx_service_cards_active_sort (is_active, sort_order)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
@@ -281,6 +518,19 @@ export const ensureServiceCardsTable = async () => {
       );
     }
   }
+
+  await repairServiceCardSeedData();
+  await normalizeServiceCardSortOrder();
+  await ensureIndexExists(
+    'service_cards',
+    SERVICE_CARD_SORT_INDEX,
+    `ALTER TABLE service_cards ADD UNIQUE KEY ${SERVICE_CARD_SORT_INDEX} (sort_order)`
+  );
+  await ensureIndexExists(
+    'service_cards',
+    'idx_service_cards_active_sort',
+    `ALTER TABLE service_cards ADD KEY idx_service_cards_active_sort (is_active, sort_order)`
+  );
 
   serviceCardsTableChecked = true;
 };
@@ -372,6 +622,22 @@ export const ensureWorkerGeoColumns = async () => {
     await pool.execute(`ALTER TABLE worker_profiles ADD COLUMN last_seen_at TIMESTAMP NULL`);
   }
 
+  await ensureIndexExists(
+    'worker_profiles',
+    'idx_worker_profiles_geo_verified',
+    `ALTER TABLE worker_profiles ADD KEY idx_worker_profiles_geo_verified (is_verified, latitude, longitude)`
+  );
+  await ensureIndexExists(
+    'worker_profiles',
+    'idx_worker_profiles_geo_online',
+    `ALTER TABLE worker_profiles ADD KEY idx_worker_profiles_geo_online (is_verified, is_online, latitude, longitude)`
+  );
+  await ensureIndexExists(
+    'worker_services',
+    'idx_worker_services_service_profile',
+    `ALTER TABLE worker_services ADD KEY idx_worker_services_service_profile (id_service, id_worker_profile)`
+  );
+
   workerGeoColumnsChecked = true;
 };
 
@@ -429,6 +695,8 @@ export const getNearbyWorkers = async (req: Request, res: Response): Promise<voi
       return;
     }
 
+    const boundsFilter = getWorkerBoundsFilter(getProximityBounds(lat, lng, radiusKm));
+
     const [rows] = await pool.execute<RowDataPacket[]>(
       `SELECT
          u.id_user,
@@ -450,10 +718,11 @@ export const getNearbyWorkers = async (req: Request, res: Response): Promise<voi
          AND ws.id_service = ?
          AND wp.latitude IS NOT NULL
          AND wp.longitude IS NOT NULL
+         ${boundsFilter.sql}
        HAVING distance_km <= ? AND distance_km <= wp.coverage_km
        ORDER BY distance_km ASC
        LIMIT 20`,
-      [lng, lat, idService, radiusKm]
+      [lng, lat, idService, ...boundsFilter.params, radiusKm]
     );
 
     const workers = rows.map((row: any) => ({
@@ -1444,6 +1713,7 @@ export const createServiceRequest = async (req: AuthRequest, res: Response): Pro
     }
 
     if (latitude != null && longitude != null) {
+      const boundsFilter = getWorkerBoundsFilter(getProximityBounds(latitude, longitude, radiusKm));
       const [nearRows] = await pool.execute<RowDataPacket[]>(
         `SELECT
            wp.id_worker_profile,
@@ -1457,10 +1727,11 @@ export const createServiceRequest = async (req: AuthRequest, res: Response): Pro
            AND ws.id_service = ?
            AND wp.latitude IS NOT NULL
            AND wp.longitude IS NOT NULL
+           ${boundsFilter.sql}
          HAVING distance_km <= ? AND distance_km <= wp.coverage_km
          ORDER BY distance_km ASC
          LIMIT 50`,
-        [longitude, latitude, idService, radiusKm]
+        [longitude, latitude, idService, ...boundsFilter.params, radiusKm]
       );
 
       for (const row of nearRows) {
@@ -1959,6 +2230,7 @@ export const autoReassignStaleAssignedRequests = async () => {
       );
 
       if (lat != null && lng != null && idService > 0) {
+        const boundsFilter = getWorkerBoundsFilter(getProximityBounds(lat, lng, radiusKm));
         const [nearRows] = await connection.execute<RowDataPacket[]>(
           `SELECT
              wp.id_worker_profile,
@@ -1974,12 +2246,13 @@ export const autoReassignStaleAssignedRequests = async () => {
              AND ws.id_service = ?
              AND wp.latitude IS NOT NULL
              AND wp.longitude IS NOT NULL
+             ${boundsFilter.sql}
              AND wp.id_worker_profile <> ?
              AND srw.id_request IS NULL
            HAVING distance_km <= ? AND distance_km <= wp.coverage_km
            ORDER BY distance_km ASC
            LIMIT 50`,
-          [lng, lat, idRequest, idService, prevWorker, radiusKm]
+          [lng, lat, idRequest, idService, ...boundsFilter.params, prevWorker, radiusKm]
         );
 
         for (const row of nearRows) {
@@ -3267,6 +3540,7 @@ export const declineCounterOffer = async (req: AuthRequest, res: Response): Prom
       const lng = Number(row.longitude);
       const radiusKm = Number(row.radius_km || 8);
       const idService = Number(row.id_service);
+      const boundsFilter = getWorkerBoundsFilter(getProximityBounds(lat, lng, radiusKm));
 
       const [nearRows] = await connection.execute<RowDataPacket[]>(
         `SELECT
@@ -3283,12 +3557,13 @@ export const declineCounterOffer = async (req: AuthRequest, res: Response): Prom
            AND ws.id_service = ?
            AND wp.latitude IS NOT NULL
            AND wp.longitude IS NOT NULL
+           ${boundsFilter.sql}
            AND wp.id_worker_profile <> ?
            AND srw.id_request IS NULL
          HAVING distance_km <= ? AND distance_km <= wp.coverage_km
          ORDER BY distance_km ASC
          LIMIT 50`,
-        [lng, lat, idRequest, idService, assignedWorker, radiusKm]
+        [lng, lat, idRequest, idService, ...boundsFilter.params, assignedWorker, radiusKm]
       );
 
       for (const candidate of nearRows) {

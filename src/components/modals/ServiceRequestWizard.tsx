@@ -391,7 +391,7 @@ const getSuggestionDisplay = (suggestion: LocationSuggestion) => {
         title: (suggestion.short_label || fallbackParts[0] || suggestion.label || 'Saved place').trim(),
         context:
             (suggestion.context_label ||
-                fallbackParts.slice(1, 3).join(' â€¢ ') ||
+                fallbackParts.slice(1, 3).join(' - ') ||
                 `${suggestion.lat.toFixed(4)}, ${suggestion.lng.toFixed(4)}`).trim(),
     };
 };
@@ -408,7 +408,7 @@ const getSuggestionKindLabel = (kind?: string) => {
 
 const getSuggestionBadgeLabel = (suggestion: LocationSuggestion) => {
     if (suggestion.source === 'local') {
-        return `SV â€¢ ${getSuggestionKindLabel(suggestion.kind)}`;
+        return `SV - ${getSuggestionKindLabel(suggestion.kind)}`;
     }
 
     if (suggestion.kind) {
