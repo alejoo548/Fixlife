@@ -11,18 +11,20 @@ import aiChatRoutes from './routes/aiChat.routes';
 import notificationsRoutes from './routes/notifications.routes';
 import eventsRoute from './routes/events.route';
 import { globalLimiter } from './middlewares/security.middleware';
+import { isUsingInsecureDefaultJwtSecret } from './config/security';
 
 dotenv.config();
 
-if (!process.env.JWT_SECRET) {
-  if (process.env.NODE_ENV === 'production') {
-    console.error('❌ FATAL: JWT_SECRET is not set. Refusing to start in production.');
-    process.exit(1);
-  }
-  console.warn('⚠️  WARNING: JWT_SECRET not set — using insecure default. Never use this in production.');
-}
-
 const isProduction = process.env.NODE_ENV === 'production';
+
+try {
+  if (isUsingInsecureDefaultJwtSecret()) {
+    console.warn('WARNING: JWT_SECRET is not set. Using development-only default.');
+  }
+} catch (error: any) {
+  console.error(error?.message || 'JWT configuration error.');
+  process.exit(1);
+}
 
 const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS ?? '')
   .split(',')
@@ -48,7 +50,17 @@ app.use(globalLimiter);
 app.use(express.json({ limit: '1mb' }));
 app.use(express.urlencoded({ extended: true, limit: '1mb' }));
 
-app.use('/uploads', express.static(uploadsDir));
+app.use(
+  '/uploads',
+  express.static(uploadsDir, {
+    setHeaders: (res, filePath) => {
+      const isPdf = path.extname(filePath).toLowerCase() === '.pdf';
+      res.setHeader('X-Content-Type-Options', 'nosniff');
+      res.setHeader('Content-Disposition', isPdf ? 'attachment' : 'inline');
+      res.setHeader('Cache-Control', isPdf ? 'private, no-store' : 'public, max-age=86400');
+    },
+  })
+);
 
 app.use('/api/auth', authRoutes);
 app.use('/api/worker', workerRoutes);
