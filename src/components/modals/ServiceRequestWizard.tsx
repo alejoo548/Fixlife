@@ -3,7 +3,7 @@ import { useSSE } from '../../hooks/useSSE';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ServiceRequestData } from '../../types';
 import { API_ENDPOINTS } from '../../config/api';
-import { getAuthUser, getToken, isAuthenticated } from '../../utils/session';
+import { getToken, isAuthenticated } from '../../utils/session';
 import { Notyf } from 'notyf';
 import { NotificationCenter } from '../common/NotificationCenter';
 import { ServiceRequestMapOverlays } from './ServiceRequestMapOverlays';
@@ -19,8 +19,12 @@ import { ServiceRequestFixesSuccessModal } from './ServiceRequestFixesSuccessMod
 import { useResponsiveSheet } from '../../hooks/useResponsiveSheet';
 import { useServiceRequestChat } from './hooks/useServiceRequestChat';
 import { useActiveTrackedRequest } from './hooks/useActiveTrackedRequest';
+import { useNearbyProsSearch } from './hooks/useNearbyProsSearch';
+import { useServiceRequestHistory } from './hooks/useServiceRequestHistory';
 import { useServiceRequestLocation } from './hooks/useServiceRequestLocation';
 import { useServiceRequestMap } from './hooks/useServiceRequestMap';
+import { useServiceRequestPayment } from './hooks/useServiceRequestPayment';
+import { useServiceRequestSubmit } from './hooks/useServiceRequestSubmit';
 import {
     statusBadgeClasses,
     statusLabel,
@@ -634,28 +638,14 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
     const [brokenPortfolioPhotos, setBrokenPortfolioPhotos] = useState<Record<number, boolean>>({});
     const [saveLocationKind, setSaveLocationKind] = useState<'home' | 'work' | 'favorite'>('favorite');
     const [saveLocationTitle, setSaveLocationTitle] = useState('');
-    const [paymentModalRequest, setPaymentModalRequest] = useState<MyServiceRequest | null>(null);
-    const [paymentMethod, setPaymentMethod] = useState<'card' | 'paypal'>('card');
-    const [paymentForm, setPaymentForm] = useState({
-        fullName: '',
-        email: '',
-        phone: '',
-        city: '',
-        country: 'Guatemala',
-        cardNumber: '',
-        expiry: '',
-        cvv: '',
-    });
     const [nearbyWorkers, setNearbyWorkers] = useState<NearbyWorker[]>([]);
     const [radiusKm, setRadiusKm] = useState<number>(8);
     const [isSubmittingRequest, setIsSubmittingRequest] = useState(false);
-    const [myRequests, setMyRequests] = useState<MyServiceRequest[]>([]);
-    const [historyStatus, setHistoryStatus] = useState<'all' | 'pending' | 'payment_pending' | 'paid' | 'assigned' | 'in_progress' | 'awaiting_confirmation' | 'done' | 'cancelled'>('all');
-    const [historyLoading, setHistoryLoading] = useState(false);
+    const { fetchMyRequests, historyLoading, historyStatus, myRequests, setHistoryStatus } =
+        useServiceRequestHistory<MyServiceRequest>(isOpen);
     const [counterBusyId, setCounterBusyId] = useState<number | null>(null);
     const [workerApprovalBusyId, setWorkerApprovalBusyId] = useState<number | null>(null);
     const [cancelBusyId, setCancelBusyId] = useState<number | null>(null);
-    const [paymentBusyId, setPaymentBusyId] = useState<number | null>(null);
     const [completionBusyId, setCompletionBusyId] = useState<number | null>(null);
     const [ratingBusyId, setRatingBusyId] = useState<number | null>(null);
     const [ratingForm, setRatingForm] = useState<Record<number, { punctuality: number; quality: number; price_fairness: number; comment: string }>>({});
@@ -668,6 +658,22 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
     const clientChatEndRef = useRef<HTMLDivElement | null>(null);
     const workerPortfolioPinchRef = useRef<{ startDistance: number; startScale: number } | null>(null);
     const workerPortfolioTapRef = useRef<number>(0);
+    const {
+        confirmPaymentThroughModal,
+        handleSecurePayment,
+        paymentBusyId,
+        paymentForm,
+        paymentMethod,
+        paymentModalRequest,
+        setPaymentForm,
+        setPaymentMethod,
+        setPaymentModalRequest,
+    } = useServiceRequestPayment<MyServiceRequest>({
+        fetchMyRequests,
+        historyStatus,
+        onOpenCheckout,
+        showToast,
+    });
     const {
         geoLoading,
         geoError,
@@ -1633,37 +1639,6 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
         );
     };
 
-    const fetchMyRequests = async (
-        status: 'all' | 'pending' | 'payment_pending' | 'paid' | 'assigned' | 'in_progress' | 'awaiting_confirmation' | 'done' | 'cancelled' = historyStatus,
-        silent = false
-    ) => {
-        const token = getToken();
-        if (!token) {
-            setMyRequests([]);
-            return;
-        }
-        try {
-            if (!silent) setHistoryLoading(true);
-            const res = await fetch(`${API_ENDPOINTS.services.myRequests}?status=${status}`, {
-                headers: { Authorization: `Bearer ${token}` },
-            });
-            const payload = await res.json();
-            if (!res.ok || !payload?.success) {
-                return;
-            }
-            setMyRequests(Array.isArray(payload.requests) ? payload.requests : []);
-        } catch {
-            // silent
-        } finally {
-            if (!silent) setHistoryLoading(false);
-        }
-    };
-
-    useEffect(() => {
-        if (!isOpen) return;
-        fetchMyRequests(historyStatus);
-    }, [isOpen, historyStatus]);
-
     useEffect(() => {
         if (!isOpen) return;
         if (!isAuthenticated() || !getToken()) return;
@@ -1743,6 +1718,15 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
 
         fetchServices();
     }, []);
+
+    useEffect(() => {
+        if (!isOpen || initialServiceName || !initialServiceId || data.category) return;
+        const matchedService = services.find((svc) => Number(svc.id_service) === Number(initialServiceId));
+        if (!matchedService) return;
+        setData((prev) => ({ ...prev, category: matchedService.name }));
+        setStep(1);
+        setIsRequestPanelExpanded(false);
+    }, [data.category, initialServiceId, initialServiceName, isOpen, services]);
 
     useEffect(() => {
         if (!isOpen) return;
@@ -2070,113 +2054,32 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
         }
     };
 
-    const fetchNearbyPros = async () => {
-        const selectedService = services.find((svc) => svc.name === data.category);
-        if (!selectedService?.id_service) {
-            showToast('error', 'Select a service first.');
-            return;
-        }
+    const fetchNearbyPros = useNearbyProsSearch<NearbyWorker>({
+        currentCoords,
+        radiusKm,
+        resolveLocationInput,
+        selectedCategory: data.category,
+        services,
+        setNearbyWorkers,
+        showToast,
+    });
 
-        const resolvedCoords = currentCoords ?? (await resolveLocationInput());
-        if (!resolvedCoords) {
-            return;
-        }
-
-        try {
-            const params = new URLSearchParams({
-                id_service: String(selectedService.id_service),
-                lat: String(resolvedCoords.lat),
-                lng: String(resolvedCoords.lng),
-                radius_km: String(radiusKm),
-            });
-            const res = await fetch(`${API_ENDPOINTS.services.nearbyWorkers}?${params.toString()}`);
-            const payload = await res.json();
-            if (!res.ok || !payload?.success) {
-                showToast('error', payload?.error || 'Could not search nearby workers.');
-                return;
-            }
-            setNearbyWorkers(Array.isArray(payload.workers) ? payload.workers : []);
-            showToast('success', 'Nearby workers loaded.');
-        } catch {
-            showToast('error', 'Network error searching nearby workers.');
-        }
-    };
-
-    const submitServiceRequest = async () => {
-        if (!isAuthenticated() || !getToken() || !getAuthUser()) {
-            showToast('error', 'You need an account and active session to create a request.');
-            return;
-        }
-
-        const selectedService = services.find((svc) => svc.name === data.category);
-        if (!selectedService?.id_service) {
-            showToast('error', 'Select a service first.');
-            return;
-        }
-        if (!data.location.trim()) {
-            showToast('error', 'Location is required.');
-            return;
-        }
-        const resolvedCoords = currentCoords ?? (await resolveLocationInput());
-        if (!resolvedCoords) {
-            showToast('error', 'We need a valid location before creating the request.');
-            return;
-        }
-        if (!data.description.trim() || data.description.trim().length < 10) {
-            showToast('error', 'Description must have at least 10 characters.');
-            return;
-        }
-        const budgetValue = Number(data.price);
-        if (!Number.isFinite(budgetValue) || budgetValue <= 0) {
-            showToast('error', 'Budget must be greater than 0.');
-            return;
-        }
-        if (problemFiles.length === 0) {
-            showToast('error', 'Add at least one problem image.');
-            return;
-        }
-
-        try {
-            setIsSubmittingRequest(true);
-            const form = new FormData();
-            form.append('id_service', String(selectedService.id_service));
-            form.append('description', data.description.trim());
-            form.append('location', data.location.trim());
-            form.append('budget', String(budgetValue));
-            form.append('radius_km', String(radiusKm));
-            form.append('lat', String(resolvedCoords.lat));
-            form.append('lng', String(resolvedCoords.lng));
-            problemFiles.forEach((file) => form.append('problem_images', file));
-
-            const token = getToken();
-            const res = await fetch(API_ENDPOINTS.services.createRequest, {
-                method: 'POST',
-                headers: token ? { Authorization: `Bearer ${token}` } : undefined,
-                body: form,
-            });
-            const payload = await res.json();
-            if (!res.ok || !payload?.success) {
-                if (res.status === 409 && payload?.id_request) {
-                    showToast('error', `You already have an active request (#${payload.id_request}).`);
-                    fetchMyRequests(historyStatus);
-                    return;
-                }
-                showToast('error', payload?.error || 'Could not create request.');
-                return;
-            }
-
-            showToast('success', `Request #${payload.request?.id_request || ''} created successfully.`);
-            setProblemFiles([]);
-            setCurrentCoords(null);
-            setGeoError(null);
-            setData((prev) => ({ ...prev, description: '', location: '', price: '', images: [] }));
-            fetchMyRequests(historyStatus);
-        } catch {
-            showToast('error', 'Network error creating request.');
-        } finally {
-            setIsSubmittingRequest(false);
-        }
-    };
+    const submitServiceRequest = useServiceRequestSubmit({
+        currentCoords,
+        data,
+        fetchMyRequests,
+        historyStatus,
+        problemFiles,
+        radiusKm,
+        resolveLocationInput,
+        services,
+        setCurrentCoords,
+        setData,
+        setGeoError,
+        setIsSubmittingRequest,
+        setProblemFiles,
+        showToast,
+    });
 
     const handleWorkerApprovalDecision = async (request: MyServiceRequest, decision: 'accept' | 'decline') => {
         const token = getToken();
@@ -2249,74 +2152,6 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
             showToast('error', `Network error trying to ${decision} counter offer.`);
         } finally {
             setCounterBusyId(null);
-        }
-    };
-
-    const handleSecurePayment = (request: MyServiceRequest) => {
-        const token = getToken();
-        if (!token) {
-            showToast('error', 'Login required.');
-            return;
-        }
-
-        onOpenCheckout?.(request.id_request);
-    };
-
-    const confirmPaymentThroughModal = async () => {
-        const token = getToken();
-        if (!token || !paymentModalRequest) {
-            showToast('error', 'Login required.');
-            return;
-        }
-
-        if (paymentMethod === 'paypal') {
-            showToast('error', 'PayPal is visible in the demo but not configured yet. Use card checkout for now.');
-            return;
-        }
-
-        if (
-            !paymentForm.fullName.trim() ||
-            !paymentForm.email.trim() ||
-            !paymentForm.phone.trim() ||
-            !paymentForm.city.trim() ||
-            !paymentForm.country.trim() ||
-            !paymentForm.cardNumber.trim() ||
-            !paymentForm.expiry.trim() ||
-            !paymentForm.cvv.trim()
-        ) {
-            showToast('error', 'Complete all card payment fields first.');
-            return;
-        }
-
-        setPaymentBusyId(paymentModalRequest.id_request);
-        try {
-            const checkoutRes = await fetch(API_ENDPOINTS.services.paymentCheckout(paymentModalRequest.id_request), {
-                method: 'POST',
-                headers: { Authorization: `Bearer ${token}` },
-            });
-            const checkoutPayload = await checkoutRes.json();
-            if (!checkoutRes.ok || !checkoutPayload?.success) {
-                showToast('error', checkoutPayload?.error || 'Could not initialize payment.');
-                return;
-            }
-
-            const payRes = await fetch(API_ENDPOINTS.services.confirmPayment(paymentModalRequest.id_request), {
-                method: 'POST',
-                headers: { Authorization: `Bearer ${token}` },
-            });
-            const payPayload = await payRes.json();
-            if (!payRes.ok || !payPayload?.success) {
-                showToast('error', payPayload?.error || 'Could not confirm payment.');
-                return;
-            }
-
-            showToast('success', 'Payment secured. Your pro can now start the job.');
-            setPaymentModalRequest(null);
-            await fetchMyRequests(historyStatus, true);
-        } catch {
-            showToast('error', 'Network error processing payment.');
-        } finally {
-            setPaymentBusyId(null);
         }
     };
 

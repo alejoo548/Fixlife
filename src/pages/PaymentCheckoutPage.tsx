@@ -70,6 +70,19 @@ const getLocationMeta = (label: string) => {
 
 const readString = (value: unknown) => (typeof value === 'string' ? value.trim() : '');
 
+const isAllowedPaymentRedirect = (value: string) => {
+    try {
+        const url = new URL(value);
+        const hostname = url.hostname.toLowerCase();
+        return (
+            url.protocol === 'https:' &&
+            (hostname === 'paypal.com' || hostname === 'www.paypal.com' || hostname.endsWith('.paypal.com'))
+        );
+    } catch {
+        return false;
+    }
+};
+
 const renderStageIcon = (stage: CheckoutStage) => {
     if (stage === 'success') {
         return (
@@ -399,6 +412,10 @@ const PaymentCheckoutPage: React.FC<PaymentCheckoutPageProps> = ({ requestId, on
             const approvalUrl = readString(checkoutPayload?.checkout?.approval_url);
             if (!approvalUrl) {
                 moveToErrorStage('PayPal did not return an approval link. Please try again.');
+                return;
+            }
+            if (!isAllowedPaymentRedirect(approvalUrl)) {
+                moveToErrorStage('Payment provider returned an unsafe redirect. Please retry checkout.');
                 return;
             }
 

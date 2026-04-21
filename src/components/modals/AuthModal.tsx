@@ -22,10 +22,11 @@ interface AuthModalProps {
   onClose: () => void;
   initialMode: AuthMode;
   onAdminLogin?: () => void;
+  onClientLogin?: () => void;
   onWorkerLogin?: () => void;
 }
 
-export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMode, onAdminLogin, onWorkerLogin }) => {
+export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMode, onAdminLogin, onClientLogin, onWorkerLogin }) => {
   const navigate = useNavigate();
   type AuthView = AuthMode | 'forgot';
   const [view, setView] = useState<AuthView>(initialMode);
@@ -246,6 +247,7 @@ const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
 
     setCaptchaToken(null);
     onClose();
+    setTimeout(() => onClientLogin?.(), 100);
   } catch (err) {
     console.error(err);
     notyf.error('Connection error');
@@ -286,6 +288,7 @@ const handleAuthSuccess = (data: any) => {
   login(data.user, data.token);
   notyf.success('Welcome back!');
   onClose();
+  setTimeout(() => onClientLogin?.(), 100);
 };
 
 const handleGoogleSignin = async (credential: string) => {

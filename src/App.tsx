@@ -1,6 +1,6 @@
 import React, { useState, useEffect, Suspense, lazy } from 'react';
 import { motion } from 'framer-motion';
-import { Navigate, Route, Routes, useLocation, useNavigate, useParams } from 'react-router-dom';
+import { Navigate, Route, Routes, useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { Navbar } from './components/layout/Navbar';
 import { NavItemType, AuthMode } from './types';
 import { AuthModal } from './components/modals/AuthModal';
@@ -10,7 +10,6 @@ import { ProBento } from './components/sections/ProBento';
 import { StepsSection } from './components/sections/StepsSection';
 import { Footer } from './components/layout/Footer';
 import { ScrollReveal } from './components/common/ScrollReveal';
-import { ParticlesBackground } from './components/effects/ParticlesBackground';
 import { TestimonialsCarousel } from './components/sections/TestimonialsCarousel';
 import { FAQSection } from './components/sections/FAQSection';
 import { Button } from './components/common/Button';
@@ -25,6 +24,11 @@ import { ProtectedRoute } from './routes/ProtectedRoute';
 const ServiceRequestWizard = lazy(() =>
   import('./components/modals/ServiceRequestWizard').then((module) => ({
     default: module.ServiceRequestWizard,
+  }))
+);
+const ParticlesBackground = lazy(() =>
+  import('./components/effects/ParticlesBackground').then((module) => ({
+    default: module.ParticlesBackground,
   }))
 );
 const ProDashboard = lazy(() =>
@@ -102,6 +106,33 @@ const CheckoutRoute: React.FC<{ onBack: () => void }> = ({ onBack }) => {
   );
 };
 
+const ServiceRequestRoute: React.FC<{
+  onClose: () => void;
+  onOpenCheckout: (requestId: number) => void;
+}> = ({ onClose, onOpenCheckout }) => {
+  const [searchParams] = useSearchParams();
+  const serviceId = Number(searchParams.get('serviceId') || 0);
+  const serviceName = searchParams.get('serviceName')?.trim() || undefined;
+
+  return (
+    <ServiceRequestWizard
+      isOpen={true}
+      onClose={onClose}
+      initialServiceId={Number.isFinite(serviceId) && serviceId > 0 ? serviceId : undefined}
+      initialServiceName={serviceName}
+      onOpenCheckout={onOpenCheckout}
+    />
+  );
+};
+
+const buildBookingPath = (service?: { id: number; name: string } | null) => {
+  const params = new URLSearchParams();
+  if (service?.id && service.id > 0) params.set('serviceId', String(service.id));
+  if (service?.name?.trim()) params.set('serviceName', service.name.trim());
+  const query = params.toString();
+  return query ? `/app?${query}` : '/app';
+};
+
 const App: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
@@ -110,8 +141,8 @@ const App: React.FC = () => {
   const [isWorkerAuthOpen, setIsWorkerAuthOpen] = useState(false);
   const [workerAuthMode, setWorkerAuthMode] = useState<'signin' | 'signup'>('signup');
   const [serviceCards, setServiceCards] = useState<HomeServiceCard[]>([]);
-  const [selectedService, setSelectedService] = useState<{ id: number; name: string } | null>(null);
   const [pendingSection, setPendingSection] = useState<LandingSectionTarget | null>(null);
+  const [pendingBookingPath, setPendingBookingPath] = useState<string | null>(null);
   const isLandingRoute = location.pathname === '/';
   const isDashboardRoute = location.pathname === '/admin-dashboard' || location.pathname === '/pro-dashboard';
 
@@ -160,8 +191,22 @@ const App: React.FC = () => {
   };
 
   const handleStartBooking = (service?: { id: number; name: string } | null) => {
-    setSelectedService(service || null);
-    navigate('/app');
+    const bookingPath = buildBookingPath(service);
+
+    if (!isAuthenticated()) {
+      setPendingBookingPath(bookingPath);
+      handleOpenAuth('signin');
+      return;
+    }
+
+    navigate(bookingPath);
+    window.scrollTo(0, 0);
+  };
+
+  const handleClientLogin = () => {
+    if (!pendingBookingPath) return;
+    navigate(pendingBookingPath);
+    setPendingBookingPath(null);
     window.scrollTo(0, 0);
   };
 
@@ -319,7 +364,9 @@ const App: React.FC = () => {
     <div className="min-h-screen bg-gradient-to-br from-sky-50 via-amber-50 to-orange-50 text-gray-900 selection:bg-bird-blue selection:text-white overflow-x-hidden font-sans flex flex-col relative transition-colors duration-500">
       {isLandingRoute ? (
         <div className="fixed inset-0 w-full h-full overflow-hidden pointer-events-none z-0">
-          <ParticlesBackground />
+          <Suspense fallback={null}>
+            <ParticlesBackground />
+          </Suspense>
 
           <div className="absolute top-[-10%] left-[-10%] w-[60vw] h-[60vw] bg-bird-lightBlue/20 rounded-full blur-[100px] animate-blob" />
           <div className="absolute bottom-[-10%] right-[-10%] w-[60vw] h-[60vw] bg-bird-yellow/20 rounded-full blur-[120px] animate-blob animation-delay-2000" />
@@ -331,9 +378,13 @@ const App: React.FC = () => {
 
       <AuthModal
         isOpen={isAuthOpen}
-        onClose={() => setIsAuthOpen(false)}
+        onClose={() => {
+          setIsAuthOpen(false);
+          if (!isAuthenticated()) setPendingBookingPath(null);
+        }}
         initialMode={authMode}
         onAdminLogin={handleOpenAdminDashboard}
+        onClientLogin={handleClientLogin}
         onWorkerLogin={handleOpenProDashboard}
       />
 
@@ -348,15 +399,14 @@ const App: React.FC = () => {
         <Route
           path="/app"
           element={(
-            <Suspense fallback={<AppRouteFallback title="Loading booking flow..." subtitle="Getting the service wizard ready." />}>
-              <ServiceRequestWizard
-                isOpen={true}
-                onClose={handleBackToLanding}
-                initialServiceId={selectedService?.id}
-                initialServiceName={selectedService?.name}
-                onOpenCheckout={handleOpenCheckout}
-              />
-            </Suspense>
+            <ProtectedRoute>
+              <Suspense fallback={<AppRouteFallback title="Loading booking flow..." subtitle="Getting the service wizard ready." />}>
+                <ServiceRequestRoute
+                  onClose={handleBackToLanding}
+                  onOpenCheckout={handleOpenCheckout}
+                />
+              </Suspense>
+            </ProtectedRoute>
           )}
         />
         <Route
