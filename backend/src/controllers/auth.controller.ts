@@ -10,8 +10,8 @@ import { sendVerificationEmail, sendPasswordResetEmail } from '../utils/email';
 import { ensureUsersActiveColumn, ensureUsersPendingWorkerColumn, ensureUsersPhoneNumberNullable } from '../utils/users';
 import { AuthRequest } from '../middlewares/auth.middleware';
 import { OAuth2Client } from 'google-auth-library';
+import { getJwtSecret } from '../config/security';
 
-const JWT_SECRET = process.env.JWT_SECRET || 'super_secret_jwt_key_for_development';
 const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || '';
 const RECAPTCHA_SECRET_KEY = process.env.RECAPTCHA_SECRET_KEY || '';
 const googleClient = GOOGLE_CLIENT_ID ? new OAuth2Client(GOOGLE_CLIENT_ID) : null;
@@ -376,7 +376,7 @@ export const verifyWorkerEmail = async (req: Request, res: Response): Promise<vo
 
       const token = jwt.sign(
         { user_id: user.id_user, rol: user.rol, pending_worker: user.pending_worker ? 1 : 0 },
-        JWT_SECRET,
+        getJwtSecret(),
         { expiresIn: '7d' }
       );
 
@@ -501,7 +501,7 @@ export const registerUser = async (req: Request, res: Response): Promise<void> =
 
       const token = jwt.sign(
         { user_id: userId, rol: 'client', pending_worker: 0 },
-        JWT_SECRET,
+        getJwtSecret(),
         { expiresIn: '7d' }
       );
 
@@ -608,7 +608,7 @@ export const login = async (req: Request, res: Response): Promise<void> => {
 
     const token = jwt.sign(
       { user_id: user.id_user, rol: user.rol, pending_worker: user.pending_worker ? 1 : 0 },
-      JWT_SECRET,
+      getJwtSecret(),
       { expiresIn: '7d' }
     );
 
@@ -762,7 +762,7 @@ export const googleLogin = async (req: Request, res: Response): Promise<void> =>
 
       const token = jwt.sign(
         { user_id: userId, rol: userRole, pending_worker: pendingWorker },
-        JWT_SECRET,
+        getJwtSecret(),
         { expiresIn: '7d' }
       );
 

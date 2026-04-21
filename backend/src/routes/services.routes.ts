@@ -27,7 +27,7 @@ import {
   updateSavedLocation,
 } from '../controllers/services.controller';
 import { verifyToken } from '../middlewares/auth.middleware';
-import { upload } from '../middlewares/upload.middleware';
+import { uploadImageOnly } from '../middlewares/upload.middleware';
 
 const router = Router();
 
@@ -44,7 +44,7 @@ router.delete('/saved-locations/:idSavedLocation', verifyToken, deleteSavedLocat
 router.delete('/saved-locations', verifyToken, clearSavedLocationsByKind);
 router.get('/my-requests', verifyToken, getMyServiceRequests);
 router.get('/requests/:idRequest/worker-profile', verifyToken, getRequestAssignedWorkerProfile);
-router.post('/requests', verifyToken, upload.array('problem_images', 5), createServiceRequest);
+router.post('/requests', verifyToken, uploadImageOnly.array('problem_images', 5), createServiceRequest);
 router.post('/requests/:idRequest/cancel', verifyToken, cancelServiceRequest);
 router.post('/requests/:idRequest/worker/accept', verifyToken, acceptAssignedWorker);
 router.post('/requests/:idRequest/worker/decline', verifyToken, declineAssignedWorker);
@@ -54,7 +54,7 @@ router.post('/requests/:idRequest/payment-checkout', verifyToken, createRequestP
 router.post('/requests/:idRequest/payment-confirm', verifyToken, confirmRequestPayment);
 router.post('/requests/:idRequest/confirm-completion', verifyToken, confirmServiceCompletion);
 router.get('/requests/:idRequest/chat', verifyToken, getRequestChat);
-router.post('/requests/:idRequest/chat', verifyToken, upload.array('chat_images', 3), postRequestChatMessage);
+router.post('/requests/:idRequest/chat', verifyToken, uploadImageOnly.array('chat_images', 3), postRequestChatMessage);
 router.post('/requests/:idRequest/rating', verifyToken, submitRequestRating);
 
 export default router;
