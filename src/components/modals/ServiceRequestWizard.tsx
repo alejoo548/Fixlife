@@ -77,6 +77,7 @@ interface ServiceRequestWizardProps {
     onClose: () => void;
     initialServiceId?: number;
     initialServiceName?: string;
+    onOpenCheckout?: (requestId: number) => void;
 }
 
 interface ServiceOption {
@@ -592,7 +593,7 @@ const createLeafletPinIcon = (L: any, kind: SavedLocation['kind'] | 'current') =
         `,
     });
 };
-export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOpen, onClose, initialServiceId, initialServiceName }) => {
+export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOpen, onClose, initialServiceId, initialServiceName, onOpenCheckout }) => {
     const [step, setStep] = useState(initialServiceId ? 1 : 0);
     const [services, setServices] = useState<ServiceOption[]>([]);
     const [servicesLoading, setServicesLoading] = useState(false);
@@ -2277,8 +2278,7 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
             return;
         }
 
-        window.history.pushState({}, '', `/checkout/${request.id_request}`);
-        window.dispatchEvent(new PopStateEvent('popstate'));
+        onOpenCheckout?.(request.id_request);
     };
 
     const confirmPaymentThroughModal = async () => {

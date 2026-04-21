@@ -1,5 +1,6 @@
 import React, { useState, useEffect, Suspense, lazy } from 'react';
 import { motion } from 'framer-motion';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { Navbar } from './components/layout/Navbar';
 import { NavItemType, AuthMode } from './types';
 import { AuthModal } from './components/modals/AuthModal';
@@ -86,34 +87,9 @@ const AppRouteFallback: React.FC<{ title?: string; subtitle?: string }> = ({
   </div>
 );
 
-const getProtectedPathForView = (view: 'landing' | 'app' | 'pro-dashboard' | 'admin-dashboard' | 'profile' | 'checkout') => {
-  switch (view) {
-    case 'pro-dashboard':
-      return '/pro-dashboard';
-    case 'admin-dashboard':
-      return '/admin-dashboard';
-    case 'profile':
-      return '/profile';
-    default:
-      return null;
-  }
-};
-
-const hasAccessToView = (view: 'landing' | 'app' | 'pro-dashboard' | 'admin-dashboard' | 'profile' | 'checkout') => {
-  switch (view) {
-    case 'pro-dashboard':
-      return isAuthenticated('worker') && hasRole('worker', 'worker');
-    case 'admin-dashboard':
-      return isAuthenticated('admin') && hasRole('admin', 'admin');
-    case 'profile':
-    case 'checkout':
-      return isAuthenticated();
-    default:
-      return true;
-  }
-};
-
 const App: React.FC = () => {
+  const navigate = useNavigate();
+  const location = useLocation();
   const [isAuthOpen, setIsAuthOpen] = useState(false);
   const [authMode, setAuthMode] = useState<AuthMode>('signin');
   const [isWorkerAuthOpen, setIsWorkerAuthOpen] = useState(false);
@@ -125,7 +101,8 @@ const App: React.FC = () => {
   const [pendingSection, setPendingSection] = useState<LandingSectionTarget | null>(null);
 
   const goLandingWithReplace = () => {
-    window.history.replaceState({}, '', '/');
+    navigate('/', { replace: true });
+    setCheckoutRequestId(null);
     setCurrentView('landing');
   };
 
@@ -183,15 +160,10 @@ const App: React.FC = () => {
     setCurrentView('landing');
   };
 
-  // Sync with URL on mount and browser navigation
+  // Let React Router own URL changes; this keeps app state in sync with real routes.
   useEffect(() => {
-    const handleRoute = () => resolveViewFromPath(window.location.pathname);
-
-    handleRoute();
-    window.addEventListener('popstate', handleRoute);
-
-    return () => window.removeEventListener('popstate', handleRoute);
-  }, []);
+    resolveViewFromPath(location.pathname);
+  }, [location.pathname]);
 
   // Guard already-open private views in case session disappears
   useEffect(() => {
@@ -213,35 +185,6 @@ const App: React.FC = () => {
     if (currentView === 'checkout' && !isAuthenticated()) {
       goLandingWithReplace();
     }
-  }, [currentView]);
-
-  useEffect(() => {
-    const protectedPath = getProtectedPathForView(currentView);
-    if (!protectedPath || !hasAccessToView(currentView)) {
-      return;
-    }
-
-    const blockProtectedBackNavigation = () => {
-      if (!hasAccessToView(currentView)) {
-        return;
-      }
-
-      const expectedPath = getProtectedPathForView(currentView);
-      if (!expectedPath) {
-        return;
-      }
-
-      window.history.pushState({ fixlifeProtected: true }, '', expectedPath);
-      setCurrentView(currentView);
-      window.scrollTo(0, 0);
-    };
-
-    window.history.pushState({ fixlifeProtected: true }, '', protectedPath);
-    window.addEventListener('popstate', blockProtectedBackNavigation);
-
-    return () => {
-      window.removeEventListener('popstate', blockProtectedBackNavigation);
-    };
   }, [currentView]);
 
   useEffect(() => {
@@ -290,7 +233,7 @@ const App: React.FC = () => {
 
   const handleStartBooking = (service?: { id: number; name: string } | null) => {
     setSelectedService(service || null);
-    window.history.pushState({}, '', '/app');
+    navigate('/app');
     setCurrentView('app');
     window.scrollTo(0, 0);
   };
@@ -300,7 +243,7 @@ const App: React.FC = () => {
       goLandingWithReplace();
       return;
     }
-    window.history.replaceState({}, '', '/pro-dashboard');
+    navigate('/pro-dashboard', { replace: true });
     setCurrentView('pro-dashboard');
     window.scrollTo(0, 0);
   }
@@ -310,7 +253,7 @@ const App: React.FC = () => {
       goLandingWithReplace();
       return;
     }
-    window.history.replaceState({}, '', '/admin-dashboard');
+    navigate('/admin-dashboard', { replace: true });
     setCurrentView('admin-dashboard');
     window.scrollTo(0, 0);
   }
@@ -325,7 +268,7 @@ const App: React.FC = () => {
       handleOpenAuth('signin');
       return;
     }
-    window.history.replaceState({}, '', '/profile');
+    navigate('/profile', { replace: true });
     setCurrentView('profile');
     window.scrollTo(0, 0);
   }
@@ -338,25 +281,30 @@ const App: React.FC = () => {
       currentView === 'profile' ||
       currentView === 'checkout';
 
-    if (leavingProtectedView) {
-      window.history.replaceState({}, '', '/');
-    } else {
-      window.history.pushState({}, '', '/');
-    }
+    navigate('/', { replace: leavingProtectedView });
     setCurrentView('landing');
     window.scrollTo(0, 0);
   };
 
   const handleWorkerSignOut = () => {
     clearAuthSession('worker');
-    window.history.replaceState({}, '', '/');
-    window.location.reload();
+    navigate('/', { replace: true });
+    setCurrentView('landing');
+    window.scrollTo(0, 0);
   };
 
   const handleBackToRequests = () => {
-    window.history.replaceState({}, '', '/app');
+    navigate('/app', { replace: true });
     setCurrentView('app');
     setCheckoutRequestId(null);
+    window.scrollTo(0, 0);
+  };
+
+  const handleOpenCheckout = (requestId: number) => {
+    if (!requestId) return;
+    setCheckoutRequestId(requestId);
+    navigate(`/checkout/${requestId}`);
+    setCurrentView('checkout');
     window.scrollTo(0, 0);
   };
 
@@ -421,7 +369,7 @@ const App: React.FC = () => {
 
     if (currentView !== 'landing') {
       setPendingSection(typedTarget);
-      window.history.pushState({}, '', '/');
+      navigate('/');
       setCurrentView('landing');
       window.scrollTo(0, 0);
       return;
@@ -469,6 +417,7 @@ const App: React.FC = () => {
         onClose={() => setIsAuthOpen(false)}
         initialMode={authMode}
         onAdminLogin={handleOpenAdminDashboard}
+        onWorkerLogin={handleOpenProDashboard}
       />
 
       <WorkerAuthModal
@@ -485,6 +434,7 @@ const App: React.FC = () => {
             onClose={handleBackToLanding}
             initialServiceId={selectedService?.id}
             initialServiceName={selectedService?.name}
+            onOpenCheckout={handleOpenCheckout}
           />
         </Suspense>
       ) : currentView === 'checkout' ? (
