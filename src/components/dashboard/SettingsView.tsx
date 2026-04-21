@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Notyf } from 'notyf';
 import 'notyf/notyf.min.css';
 import { API_URL } from '../../config/api';
-import { clearAuthSession, getAuthUser, getToken as getSessionToken, updateStoredAuthUser } from '../../utils/session';
+import { getAuthUser, getToken as getSessionToken, logoutAuthSession, updateStoredAuthUser } from '../../utils/session';
 
 type PortfolioItem = {
   id_photo: number;
@@ -318,7 +318,7 @@ export const SettingsView: React.FC = () => {
   };
 
   const handleSignOut = () => {
-    clearAuthSession('worker');
+    logoutAuthSession('worker');
     navigate('/', { replace: true });
   };
 

@@ -2,9 +2,9 @@ import React, { createContext, useContext, useEffect, useState } from 'react';
 
 import {
   AUTH_SESSION_CHANGED_EVENT,
-  clearAuthSession,
   getAuthUser,
   getToken,
+  logoutAuthSession,
   setAuthSession,
   updateStoredAuthUser,
 } from '../utils/session';
@@ -63,7 +63,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const logout = () => {
-    clearAuthSession('client');
+    logoutAuthSession('client');
     setUser(null);
   };
 

@@ -3,7 +3,7 @@ import { useSSE } from '../../hooks/useSSE';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ProSidebar } from './ProSidebar';
 import { API_URL } from '../../config/api';
-import { clearAuthSession, getAuthUser, getToken as getSessionToken, isAuthenticated, updateStoredAuthUser } from '../../utils/session';
+import { getAuthUser, getToken as getSessionToken, isAuthenticated, logoutAuthSession, updateStoredAuthUser } from '../../utils/session';
 import { NotificationCenter } from '../common/NotificationCenter';
 import { DashboardThemeToggle } from '../common/DashboardThemeToggle';
 import { useDashboardTheme } from '../../hooks/useDashboardTheme';
@@ -68,7 +68,7 @@ export const ProDashboard: React.FC<ProDashboardProps> = ({ isOpen, onClose, onS
    };
 
    const handleSignOut = () => {
-      clearAuthSession('worker');
+      logoutAuthSession('worker');
       if (onSignOut) {
          onSignOut();
          return;

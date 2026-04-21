@@ -18,6 +18,7 @@ import { ServiceRequestPaymentModal } from './ServiceRequestPaymentModal';
 import { ServiceRequestFixesSuccessModal } from './ServiceRequestFixesSuccessModal';
 import { useResponsiveSheet } from '../../hooks/useResponsiveSheet';
 import { useServiceRequestChat } from './hooks/useServiceRequestChat';
+import { useActiveTrackedRequest } from './hooks/useActiveTrackedRequest';
 import { useServiceRequestLocation } from './hooks/useServiceRequestLocation';
 import { useServiceRequestMap } from './hooks/useServiceRequestMap';
 import {
@@ -1412,27 +1413,7 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
         getLocationVisual,
     });
 
-    const activeTrackedRequest = useMemo(() => {
-        const priority = ['in_progress', 'awaiting_confirmation', 'paid', 'payment_pending'];
-        return [...myRequests]
-            .filter((request) => {
-                const status = String(request.status || '').toLowerCase();
-                return (
-                    priority.includes(status) &&
-                    !!request.assigned_worker &&
-                    request.latitude != null &&
-                    request.longitude != null
-                );
-            })
-            .sort((left, right) => {
-                const leftStatus = String(left.status || '').toLowerCase();
-                const rightStatus = String(right.status || '').toLowerCase();
-                return (
-                    priority.indexOf(leftStatus) - priority.indexOf(rightStatus) ||
-                    new Date(right.created_at).getTime() - new Date(left.created_at).getTime()
-                );
-            })[0] || null;
-    }, [myRequests]);
+    const activeTrackedRequest = useActiveTrackedRequest(myRequests);
 
     const workerPortfolio = useMemo(
         () => workerProfileData?.portfolio || [],
