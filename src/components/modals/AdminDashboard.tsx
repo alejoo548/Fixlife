@@ -11,7 +11,7 @@ import {
 import { API_ENDPOINTS } from '../../config/api';
 import { Notyf } from 'notyf';
 import 'notyf/notyf.min.css';
-import { clearAuthSession, getAuthUser, getToken as getSessionToken, isAuthenticated } from '../../utils/session';
+import { getAuthUser, getToken as getSessionToken, isAuthenticated, logoutAuthSession } from '../../utils/session';
 import { DashboardThemeToggle } from '../common/DashboardThemeToggle';
 import { useDashboardTheme } from '../../hooks/useDashboardTheme';
 import {
@@ -231,7 +231,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ isOpen, onClose 
   const getToken = () => getSessionToken('admin') || '';
 
   const handleLogout = () => {
-    clearAuthSession('admin');
+    logoutAuthSession('admin');
     onClose();
   };
 

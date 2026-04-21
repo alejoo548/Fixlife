@@ -88,12 +88,8 @@ export const FAQSection: React.FC<FAQSectionProps> = ({ onBookService, onNavigat
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
         {faqs.map((faq, index) => (
-          <motion.div
+          <div
             key={index}
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            transition={{ delay: index * 0.05 }}
             className="bg-white/80 backdrop-blur-sm border border-gray-200 rounded-2xl overflow-hidden shadow-sm hover:shadow-lg transition-all duration-300"
           >
             <button
@@ -145,17 +141,11 @@ export const FAQSection: React.FC<FAQSectionProps> = ({ onBookService, onNavigat
                 </svg>
               </motion.div>
             </button>
-          </motion.div>
+          </div>
         ))}
       </div>
 
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        whileInView={{ opacity: 1, y: 0 }}
-        viewport={{ once: true }}
-        transition={{ delay: 0.4 }}
-        className="mt-5 bg-gradient-to-r from-bird-blue to-bird-darkBlue rounded-2xl p-4 md:p-6 text-center relative overflow-hidden"
-      >
+      <div className="mt-5 bg-gradient-to-r from-bird-blue to-bird-darkBlue rounded-2xl p-4 md:p-6 text-center relative overflow-hidden">
         <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-10" />
         <div className="relative z-10">
           <h4 className="text-lg md:text-xl font-bold text-white mb-1.5">Ready to solve your issue?</h4>
@@ -183,7 +173,7 @@ export const FAQSection: React.FC<FAQSectionProps> = ({ onBookService, onNavigat
             </button>
           </div>
         </div>
-      </motion.div>
+      </div>
     </div>
   );
 };
