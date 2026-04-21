@@ -70,6 +70,10 @@ const parsePositiveInt = (value: unknown, fieldName: string, max = 10000): numbe
   return Math.floor(parsed);
 };
 
+const isServiceCardSortConflict = (error: any) =>
+  error?.code === 'ER_DUP_ENTRY' &&
+  String(error?.message || '').includes('ux_service_cards_sort');
+
 const toPublicRequestStatus = (status: string | null | undefined) => {
   if (!status) return 'pending';
   return status === 'open' ? 'pending' : status;
@@ -563,6 +567,10 @@ export const createServiceCard = async (req: AuthRequest, res: Response): Promis
     });
   } catch (error: any) {
     console.error('Error in createServiceCard:', error);
+    if (isServiceCardSortConflict(error)) {
+      res.status(409).json({ error: 'Another service card already uses this sort_order.' });
+      return;
+    }
     if (typeof error?.message === 'string' && error.message.toLowerCase().includes('invalid')) {
       res.status(400).json({ error: error.message });
       return;
@@ -707,6 +715,10 @@ export const updateServiceCard = async (req: AuthRequest, res: Response): Promis
     res.json({ success: true, message: 'Service card updated.' });
   } catch (error: any) {
     console.error('Error in updateServiceCard:', error);
+    if (isServiceCardSortConflict(error)) {
+      res.status(409).json({ error: 'Another service card already uses this sort_order.' });
+      return;
+    }
     if (typeof error?.message === 'string' && error.message.toLowerCase().includes('invalid')) {
       res.status(400).json({ error: error.message });
       return;

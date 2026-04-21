@@ -98,17 +98,17 @@ CREATE TABLE `services` (
 
 INSERT INTO `services` (`id_service`, `name`, `description`, `icon`, `is_active`, `created_at`) VALUES
 (3, 'Carpentry', 'Custom woodwork, furniture repair, and door/window installations.', '🪚', 1, '2026-03-10 01:02:40'),
-(4, 'Auto Mechanic', 'Vehicle diagnostics, maintenance, and mechanical repairs.', 'ðŸ”§', 1, '2026-03-10 01:02:40'),
-(5, 'Childcare / Babysitting', 'Safe and reliable care for children at home.', 'ðŸ§¸', 1, '2026-03-10 01:02:40'),
-(6, 'Gardening', 'Lawn care, pruning, planting, and garden maintenance.', 'ðŸŒ¿', 1, '2026-03-10 01:02:40'),
-(7, 'Electrical Services', 'Wiring, outlets, lighting, and electrical troubleshooting.', 'âš¡', 1, '2026-03-10 01:02:40'),
-(8, 'Plumbing', 'Leak repairs, pipe installation, and drain unclogging.', 'ðŸš°', 1, '2026-03-10 01:02:40'),
-(9, 'House Painting', 'Interior and exterior painting with clean finishing.', '🎨', 1, '2026-03-10 01:02:40'),
-(10, 'Masonry', 'Brickwork, concrete repairs, and structural improvements.', 'ðŸ§±', 1, '2026-03-10 01:02:40'),
-(11, 'Welding', 'Metal fabrication, repairs, and custom welding jobs.', 'ðŸ”¥', 1, '2026-03-10 01:02:40'),
+(4, 'Auto Mechanic', 'Vehicle diagnostics, maintenance, and mechanical repairs.', '🔧', 1, '2026-03-10 01:02:40'),
+(5, 'Childcare / Babysitting', 'Safe and reliable care for children at home.', '🧸', 1, '2026-03-10 01:02:40'),
+(6, 'Gardening', 'Lawn care, pruning, planting, and garden maintenance.', '🌿', 1, '2026-03-10 01:02:40'),
+(7, 'Electrical Services', 'Wiring, outlets, lighting, and electrical troubleshooting.', '⚡', 1, '2026-03-10 01:02:40'),
+(8, 'Plumbing', 'Leak repairs, pipe installation, and drain unclogging.', '🚰', 1, '2026-03-10 01:02:40'),
+(9, 'House Painting', 'Interior and exterior painting with professional finishing.', '🎨', 1, '2026-03-10 01:02:40'),
+(10, 'Masonry', 'Brickwork, concrete repairs, and structural improvements.', '🧱', 1, '2026-03-10 01:02:40'),
+(11, 'Welding', 'Metal fabrication, repairs, and custom welding jobs.', '🔥', 1, '2026-03-10 01:02:40'),
 (12, 'AC Installation & Repair', 'Air conditioner setup, maintenance, and cooling fixes.', '🔌', 1, '2026-03-10 01:02:40'),
 (13, 'Refrigeration Repair', 'Repair and maintenance for refrigerators and cooling systems.', '🗄️', 1, '2026-03-10 01:02:40'),
-(14, 'Locksmith Services', 'Lock installation, key duplication, and emergency unlocking.', 'ðŸ”', 1, '2026-03-10 01:02:40'),
+(14, 'Locksmith Services', 'Lock installation, key duplication, and emergency unlocking.', '🔐', 1, '2026-03-10 01:02:40'),
 (15, 'Drywall Installation', 'Drywall mounting, patching, and wall finishing.', '🧱', 1, '2026-03-10 01:02:40'),
 (16, 'Home Cleaning', 'Deep cleaning and regular housekeeping services.', '🧹', 1, '2026-03-10 01:02:40'),
 (17, 'Elderly Care', 'Companion and basic support care for seniors.', '🤝', 1, '2026-03-10 01:02:40'),
@@ -142,9 +142,9 @@ CREATE TABLE `service_cards` (
 
 INSERT INTO `service_cards` (`id_card`, `id_service`, `image_url`, `badge`, `headline`, `summary`, `cta_label`, `sort_order`, `is_active`, `created_at`, `updated_at`) VALUES
 (1, 3, 'http://localhost:8000/uploads/image-1773410959656-662461131.jpg', 'POPULAR', 'Carpentry', 'Custom woodwork, furniture repair, and door/window installations.', 'Learn More', 1, 1, '2026-03-10 02:07:34', '2026-03-13 14:09:23'),
-(3, 5, 'http://localhost:8000/uploads/image-1773411061347-453362969.jpg', 'POPULAR', 'Childcare / Babysitting', 'Safe and reliable care for children at home.', 'Learn More', 3, 1, '2026-03-10 02:07:34', '2026-03-13 14:11:05'),
-(4, 9, 'https://images.unsplash.com/photo-1562259949-e8e7689d7828?q=80&w=1400&auto=format&fit=crop', 'POPULAR', 'House Paiting', 'House paiting delivery service.', 'Learn More', 4, 1, '2026-03-10 02:07:34', '2026-03-13 14:15:18'),
-(6, 6, 'http://localhost:8000/uploads/image-1773411465420-259216860.jpg', 'POPULAR', 'Gardening', 'Gardening, planting, and maintainance service.', 'Learn More', 4, 1, '2026-03-13 14:17:52', '2026-03-13 14:17:52');
+(3, 5, 'http://localhost:8000/uploads/image-1773411061347-453362969.jpg', 'POPULAR', 'Childcare / Babysitting', 'Safe and reliable care for children at home.', 'Learn More', 2, 1, '2026-03-10 02:07:34', '2026-03-13 14:11:05'),
+(4, 9, 'https://images.unsplash.com/photo-1562259949-e8e7689d7828?q=80&w=1400&auto=format&fit=crop', 'POPULAR', 'House Painting', 'Interior and exterior painting with clean, professional finishing.', 'Learn More', 3, 1, '2026-03-10 02:07:34', '2026-03-13 14:15:18'),
+(6, 6, 'http://localhost:8000/uploads/image-1773411465420-259216860.jpg', 'POPULAR', 'Gardening', 'Lawn care, planting, pruning, and garden maintenance.', 'Learn More', 4, 1, '2026-03-13 14:17:52', '2026-03-13 14:17:52');
 
 -- --------------------------------------------------------
 
@@ -489,6 +489,7 @@ ALTER TABLE `services`
 --
 ALTER TABLE `service_cards`
   ADD PRIMARY KEY (`id_card`),
+  ADD UNIQUE KEY `ux_service_cards_sort` (`sort_order`),
   ADD KEY `idx_service_cards_service` (`id_service`),
   ADD KEY `idx_service_cards_active_sort` (`is_active`,`sort_order`);
 
@@ -589,7 +590,9 @@ ALTER TABLE `worker_portfolio`
 --
 ALTER TABLE `worker_profiles`
   ADD PRIMARY KEY (`id_worker_profile`),
-  ADD UNIQUE KEY `id_user` (`id_user`);
+  ADD UNIQUE KEY `id_user` (`id_user`),
+  ADD KEY `idx_worker_profiles_geo_verified` (`is_verified`,`latitude`,`longitude`),
+  ADD KEY `idx_worker_profiles_geo_online` (`is_verified`,`is_online`,`latitude`,`longitude`);
 
 --
 -- Indices de la tabla `worker_rewards_settings`
@@ -602,7 +605,7 @@ ALTER TABLE `worker_rewards_settings`
 --
 ALTER TABLE `worker_services`
   ADD PRIMARY KEY (`id_worker_profile`,`id_service`),
-  ADD KEY `fk_ws_service` (`id_service`);
+  ADD KEY `idx_worker_services_service_profile` (`id_service`,`id_worker_profile`);
 
 --
 -- AUTO_INCREMENT de las tablas volcadas
