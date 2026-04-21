@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Notyf } from 'notyf';
 import 'notyf/notyf.min.css';
 import { API_URL } from '../../config/api';
@@ -12,6 +13,7 @@ type PortfolioItem = {
 };
 
 export const SettingsView: React.FC = () => {
+  const navigate = useNavigate();
   const notyf = useMemo(
     () =>
       new Notyf({
@@ -317,8 +319,7 @@ export const SettingsView: React.FC = () => {
 
   const handleSignOut = () => {
     clearAuthSession('worker');
-    window.history.replaceState({}, '', '/');
-    window.location.assign('/');
+    navigate('/', { replace: true });
   };
 
   const displayProfileImage = profileImagePreview || profileImage;

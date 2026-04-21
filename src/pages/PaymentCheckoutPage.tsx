@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { Notyf } from 'notyf';
 import 'notyf/notyf.min.css';
 import { API_ENDPOINTS } from '../config/api';
@@ -134,6 +135,8 @@ const renderStageIcon = (stage: CheckoutStage) => {
 };
 
 const PaymentCheckoutPage: React.FC<PaymentCheckoutPageProps> = ({ requestId, onBack }) => {
+    const navigate = useNavigate();
+    const location = useLocation();
     const [loading, setLoading] = useState(true);
     const [request, setRequest] = useState<MyServiceRequest | null>(null);
     const [paymentMethod, setPaymentMethod] = useState<CheckoutPaymentMethod>('paypal');
@@ -293,7 +296,7 @@ const PaymentCheckoutPage: React.FC<PaymentCheckoutPageProps> = ({ requestId, on
                     : prev
             );
 
-            window.history.replaceState({}, '', `/checkout/${request.id_request}`);
+            navigate(`/checkout/${request.id_request}`, { replace: true });
             setCheckoutStage('success');
             setCheckoutMessage('PayPal payment secured successfully. Your electronic invoice was sent to your email.');
             notyf.success('PayPal payment confirmed. Your pro can now start the job.');
@@ -308,7 +311,7 @@ const PaymentCheckoutPage: React.FC<PaymentCheckoutPageProps> = ({ requestId, on
     useEffect(() => {
         if (loading || !requestId || !request) return;
 
-        const params = new URLSearchParams(window.location.search);
+        const params = new URLSearchParams(location.search);
         const paypalState = readString(params.get('paypal')).toLowerCase();
         if (!paypalState) return;
 
@@ -321,7 +324,7 @@ const PaymentCheckoutPage: React.FC<PaymentCheckoutPageProps> = ({ requestId, on
                 });
             }
             paypalReturnHandledRef.current = true;
-            window.history.replaceState({}, '', `/checkout/${request.id_request}`);
+            navigate(`/checkout/${request.id_request}`, { replace: true });
             return;
         }
 
@@ -329,14 +332,14 @@ const PaymentCheckoutPage: React.FC<PaymentCheckoutPageProps> = ({ requestId, on
             const tokenFromUrl = readString(params.get('token'));
             if (!tokenFromUrl) {
                 moveToErrorStage('PayPal returned without an order token. Please try payment again.');
-                window.history.replaceState({}, '', `/checkout/${request.id_request}`);
+                navigate(`/checkout/${request.id_request}`, { replace: true });
                 return;
             }
             if (paypalReturnHandledRef.current || isAlreadyPaid) return;
             paypalReturnHandledRef.current = true;
             void handlePaypalReturnConfirmation(tokenFromUrl);
         }
-    }, [loading, requestId, request, isAlreadyPaid]);
+    }, [loading, requestId, request, isAlreadyPaid, location.search, navigate]);
 
     const handleSecurePayment = async (selectedMethod: CheckoutPaymentMethod = paymentMethod) => {
         const token = getToken();

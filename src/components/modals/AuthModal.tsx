@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { API_ENDPOINTS } from '../../config/api';
 import { AuthMode } from '../../types';
 import { Notyf } from 'notyf';
@@ -21,9 +22,11 @@ interface AuthModalProps {
   onClose: () => void;
   initialMode: AuthMode;
   onAdminLogin?: () => void;
+  onWorkerLogin?: () => void;
 }
 
-export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMode, onAdminLogin }) => {
+export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMode, onAdminLogin, onWorkerLogin }) => {
+  const navigate = useNavigate();
   type AuthView = AuthMode | 'forgot';
   const [view, setView] = useState<AuthView>(initialMode);
 
@@ -261,15 +264,21 @@ const handleAuthSuccess = (data: any) => {
         onAdminLogin();
         return;
       }
-      window.location.replace('/admin-dashboard');
+      navigate('/admin-dashboard', { replace: true });
     }, 100);
     return;
   }
 
   if (data.user?.rol === 'worker' || data.user?.role === 'worker') {
+    setAuthSession(data.user, data.token, 'worker');
+    notyf.success('Worker session ready.');
     onClose();
     setTimeout(() => {
-      window.location.replace('/pro-dashboard');
+      if (onWorkerLogin) {
+        onWorkerLogin();
+        return;
+      }
+      navigate('/pro-dashboard', { replace: true });
     }, 100);
     return;
   }

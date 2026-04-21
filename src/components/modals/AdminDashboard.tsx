@@ -233,7 +233,6 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ isOpen, onClose 
   const handleLogout = () => {
     clearAuthSession('admin');
     onClose();
-    window.location.replace('/');
   };
 
   useEffect(() => {
