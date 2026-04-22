@@ -1,16 +1,12 @@
 import multer from 'multer';
 import path from 'path';
-import fs from 'fs';
+import { protectedUploadsDir, publicUploadsDir, ensureUploadDirectories } from '../utils/assets';
 
-// Ensure uploads folder exists
-const uploadDir = path.join(__dirname, '../../uploads');
-if (!fs.existsSync(uploadDir)) {
-  fs.mkdirSync(uploadDir, { recursive: true });
-}
+ensureUploadDirectories();
 
-const storage = multer.diskStorage({
+const createStorage = (destinationDir: string) => multer.diskStorage({
   destination: (req, file, cb) => {
-    cb(null, uploadDir);
+    cb(null, destinationDir);
   },
   filename: (req, file, cb) => {
     const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
@@ -51,13 +47,19 @@ const imageOnlyFilter = (req: any, file: Express.Multer.File, cb: multer.FileFil
 };
 
 export const upload = multer({
-  storage,
+  storage: createStorage(protectedUploadsDir),
   fileFilter: docsAndImageFilter,
   limits: { fileSize: 10 * 1024 * 1024 }
 });
 
 export const uploadImageOnly = multer({
-  storage,
+  storage: createStorage(publicUploadsDir),
+  fileFilter: imageOnlyFilter,
+  limits: { fileSize: 5 * 1024 * 1024 }
+});
+
+export const uploadProtectedImageOnly = multer({
+  storage: createStorage(protectedUploadsDir),
   fileFilter: imageOnlyFilter,
   limits: { fileSize: 5 * 1024 * 1024 }
 });

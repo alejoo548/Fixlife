@@ -2,13 +2,13 @@ import { Request, Response } from 'express';
 import { ResultSetHeader, RowDataPacket } from 'mysql2';
 import pool from '../config/db';
 import { AuthRequest } from '../middlewares/auth.middleware';
-import fs from 'fs';
-import path from 'path';
 import { createUserNotification } from '../utils/notifications';
 import { pushToUser } from '../services/sseManager';
 import { getWorkerBonusPayouts, getWorkerRewardsSettings, syncWorkerBonusPayouts } from '../utils/workerRewards';
 import { sendPaymentInvoiceEmail, sendWorkerPaymentSecuredEmail } from '../utils/email';
 import { resolveRequestLocation, reverseGeocodeLocation, suggestLocationTexts } from '../services/geocoding.service';
+import { buildProtectedAssetUrl, buildPublicAssetUrl, deleteUploadIfExists } from '../utils/assets';
+import { shouldRunRuntimeSchemaSync } from '../config/schemaSync';
 
 type ServiceCardRow = RowDataPacket & {
   id_card: number;
@@ -335,6 +335,8 @@ const defaultImageForService = (serviceName: string) => {
 };
 
 const ensureDefaultServices = async () => {
+  if (!shouldRunRuntimeSchemaSync()) return;
+
   const [rows] = await pool.execute<RowDataPacket[]>(
     `SELECT COUNT(*) AS total FROM services`
   );
@@ -354,8 +356,7 @@ const ensureDefaultServices = async () => {
 };
 
 const buildAssetUrl = (req: Request, fileName: string | null) => {
-  if (!fileName) return null;
-  return `${req.protocol}://${req.get('host')}/uploads/${encodeURIComponent(fileName)}`;
+  return buildPublicAssetUrl(req, fileName);
 };
 
 const getWorkerUserIdByProfileId = async (profileId: number | null | undefined) => {
@@ -431,21 +432,15 @@ const requeueAssignedRequest = async (
     [lng, lat, input.idRequest, idService, ...boundsFilter.params, input.assignedWorkerProfile, radiusKm]
   );
 
-  for (const candidate of nearRows as RowDataPacket[]) {
-    await connection.execute(
-      `INSERT INTO service_request_workers (id_request, id_worker_profile, distance_km, status)
-       VALUES (?, ?, ?, 'new')`,
-      [
-        input.idRequest,
-        Number(candidate.id_worker_profile),
-        candidate.distance_km != null ? Number(candidate.distance_km) : null,
-      ]
-    );
-  }
+  await bulkInsertRequestWorkerCandidates(connection, input.idRequest, nearRows as RowDataPacket[]);
 };
 
 export const ensureServiceCardsTable = async () => {
   if (serviceCardsTableChecked) return;
+  if (!shouldRunRuntimeSchemaSync()) {
+    serviceCardsTableChecked = true;
+    return;
+  }
 
   await ensureDefaultServices();
 
@@ -595,6 +590,10 @@ export const getPublicServiceCards = async (_req: Request, res: Response): Promi
 
 export const ensureWorkerGeoColumns = async () => {
   if (workerGeoColumnsChecked) return;
+  if (!shouldRunRuntimeSchemaSync()) {
+    workerGeoColumnsChecked = true;
+    return;
+  }
 
   const [columns] = await pool.execute<RowDataPacket[]>(
     `SELECT COLUMN_NAME
@@ -643,6 +642,10 @@ export const ensureWorkerGeoColumns = async () => {
 
 export const ensureSavedLocationsTable = async () => {
   if (savedLocationsTableChecked) return;
+  if (!shouldRunRuntimeSchemaSync()) {
+    savedLocationsTableChecked = true;
+    return;
+  }
 
   await pool.execute(`
     CREATE TABLE IF NOT EXISTS user_saved_locations (
@@ -1118,6 +1121,10 @@ export const clearSavedLocationsByKind = async (req: AuthRequest, res: Response)
 
 export const ensureServiceRequestTables = async () => {
   if (serviceRequestsTablesChecked) return;
+  if (!shouldRunRuntimeSchemaSync()) {
+    serviceRequestsTablesChecked = true;
+    return;
+  }
 
   await pool.execute(`
     CREATE TABLE IF NOT EXISTS service_requests (
@@ -1349,15 +1356,34 @@ export const ensureServiceRequestTables = async () => {
 const removeUploadedFiles = (files: Express.Multer.File[]) => {
   for (const file of files) {
     if (!file?.filename) continue;
-    const filePath = path.join(__dirname, '../../uploads', file.filename);
-    if (fs.existsSync(filePath)) {
-      try {
-        fs.unlinkSync(filePath);
-      } catch {
-        // ignore cleanup failures
-      }
-    }
+    deleteUploadIfExists(file.filename, 'protected');
   }
+};
+
+const bulkInsertServiceRequestImages = async (idRequest: number, files: Express.Multer.File[]) => {
+  if (files.length === 0) return;
+  await pool.execute(
+    `INSERT INTO service_request_images (id_request, image_url)
+     VALUES ${files.map(() => '(?, ?)').join(', ')}`,
+    files.flatMap((file) => [idRequest, file.filename])
+  );
+};
+
+const bulkInsertRequestWorkerCandidates = async (
+  executor: Pick<typeof pool, 'execute'>,
+  idRequest: number,
+  rows: RowDataPacket[]
+) => {
+  if (rows.length === 0) return;
+  await executor.execute(
+    `INSERT INTO service_request_workers (id_request, id_worker_profile, distance_km, status)
+     VALUES ${rows.map(() => "(?, ?, ?, 'new')").join(', ')}`,
+    rows.flatMap((row) => [
+      idRequest,
+      Number(row.id_worker_profile),
+      row.distance_km != null ? Number(row.distance_km) : null,
+    ])
+  );
 };
 
 const buildCheckoutReference = (idRequest: number) =>
@@ -1705,12 +1731,7 @@ export const createServiceRequest = async (req: AuthRequest, res: Response): Pro
 
     const idRequest = Number(insertRequest.insertId);
 
-    for (const file of files) {
-      await pool.execute(
-        `INSERT INTO service_request_images (id_request, image_url) VALUES (?, ?)`,
-        [idRequest, file.filename]
-      );
-    }
+    await bulkInsertServiceRequestImages(idRequest, files);
 
     if (latitude != null && longitude != null) {
       const boundsFilter = getWorkerBoundsFilter(getProximityBounds(latitude, longitude, radiusKm));
@@ -1734,13 +1755,7 @@ export const createServiceRequest = async (req: AuthRequest, res: Response): Pro
         [longitude, latitude, idService, ...boundsFilter.params, radiusKm]
       );
 
-      for (const row of nearRows) {
-        await pool.execute(
-          `INSERT INTO service_request_workers (id_request, id_worker_profile, distance_km, status)
-           VALUES (?, ?, ?, 'new')`,
-          [idRequest, Number(row.id_worker_profile), row.distance_km != null ? Number(row.distance_km) : null]
-        );
-      }
+      await bulkInsertRequestWorkerCandidates(pool, idRequest, nearRows);
     }
 
     res.status(201).json({
@@ -1756,7 +1771,7 @@ export const createServiceRequest = async (req: AuthRequest, res: Response): Pro
         status: 'pending',
         images: files.map((f) => ({
           file_name: f.filename,
-          url: `${req.protocol}://${req.get('host')}/uploads/${encodeURIComponent(f.filename)}`,
+          url: buildProtectedAssetUrl(req, f.filename),
         })),
       },
     });
@@ -1908,7 +1923,7 @@ export const getMyServiceRequests = async (req: AuthRequest, res: Response): Pro
               .filter(Boolean)
               .map((name: string) => ({
                 file_name: name,
-                url: `${req.protocol}://${req.get('host')}/uploads/${encodeURIComponent(name)}`,
+                url: buildProtectedAssetUrl(req, name),
               }))
           : [],
     }));
@@ -2255,13 +2270,7 @@ export const autoReassignStaleAssignedRequests = async () => {
           [lng, lat, idRequest, idService, ...boundsFilter.params, prevWorker, radiusKm]
         );
 
-        for (const row of nearRows) {
-          await connection.execute(
-            `INSERT INTO service_request_workers (id_request, id_worker_profile, distance_km, status)
-             VALUES (?, ?, ?, 'new')`,
-            [idRequest, Number(row.id_worker_profile), row.distance_km != null ? Number(row.distance_km) : null]
-          );
-        }
+        await bulkInsertRequestWorkerCandidates(connection, idRequest, nearRows);
       }
 
       await connection.commit();
@@ -2317,7 +2326,7 @@ const mapRequestChatRow = (req: Request, row: any) => ({
   id_user: Number(row.id_user),
   id_worker_profile: row.id_worker_profile != null ? Number(row.id_worker_profile) : null,
   message: row.message || null,
-  image_url: row.image_url ? `${req.protocol}://${req.get('host')}/uploads/${encodeURIComponent(row.image_url)}` : null,
+  image_url: buildProtectedAssetUrl(req, row.image_url || null),
   created_at: row.created_at,
 });
 
@@ -2423,28 +2432,36 @@ export const postRequestChatMessage = async (req: AuthRequest, res: Response): P
     const uploads: string[] = [];
     const insertedMessageIds: number[] = [];
     const firstImage = files[0] || null;
+    const chatRows = [
+      {
+        message,
+        image: firstImage ? firstImage.filename : null,
+      },
+      ...files.slice(1).map((file) => ({ message: null, image: file.filename })),
+    ];
+
     const [insertResult] = await pool.execute<ResultSetHeader>(
-      `INSERT INTO service_request_chat_messages
-       (id_request, sender_role, id_user, id_worker_profile, message, image_url)
-       VALUES (?, ?, ?, ?, ?, ?)`,
-      [idRequest, participant.role, userId, workerProfileId, message, firstImage ? firstImage.filename : null]
+      chatRows.length === 1
+        ? `INSERT INTO service_request_chat_messages
+           (id_request, sender_role, id_user, id_worker_profile, message, image_url)
+           VALUES (?, ?, ?, ?, ?, ?)`
+        : `INSERT INTO service_request_chat_messages
+           (id_request, sender_role, id_user, id_worker_profile, message, image_url)
+           VALUES ${chatRows.map(() => '(?, ?, ?, ?, ?, ?)').join(', ')}`,
+      chatRows.flatMap((row) => [
+        idRequest,
+        participant.role,
+        userId,
+        workerProfileId,
+        row.message,
+        row.image,
+      ])
     );
     const primaryMessageId = Number(insertResult.insertId || 0);
-    if (primaryMessageId) insertedMessageIds.push(primaryMessageId);
-    if (firstImage) uploads.push(firstImage.filename);
-
-    for (let i = 1; i < files.length; i += 1) {
-      const file = files[i];
-      const [extraInsert] = await pool.execute<ResultSetHeader>(
-        `INSERT INTO service_request_chat_messages
-         (id_request, sender_role, id_user, id_worker_profile, message, image_url)
-         VALUES (?, ?, ?, ?, NULL, ?)`,
-        [idRequest, participant.role, userId, workerProfileId, file.filename]
-      );
-      const extraId = Number(extraInsert.insertId || 0);
-      if (extraId) insertedMessageIds.push(extraId);
-      uploads.push(file.filename);
+    for (let offset = 0; offset < Number(insertResult.affectedRows || 0); offset += 1) {
+      insertedMessageIds.push(primaryMessageId + offset);
     }
+    uploads.push(...files.map((file) => file.filename));
 
     let createdMessages: any[] = [];
     if (insertedMessageIds.length > 0) {
@@ -2497,7 +2514,7 @@ export const postRequestChatMessage = async (req: AuthRequest, res: Response): P
       id_request: idRequest,
       latest_message_id: createdMessages[createdMessages.length - 1]?.id_message ?? primaryMessageId,
       messages: createdMessages,
-      uploads: uploads.map((name) => `${req.protocol}://${req.get('host')}/uploads/${encodeURIComponent(name)}`),
+      uploads: uploads.map((name) => buildProtectedAssetUrl(req, name)),
     });
   } catch (error: any) {
     console.error('Error in postRequestChatMessage:', error);
@@ -3566,13 +3583,7 @@ export const declineCounterOffer = async (req: AuthRequest, res: Response): Prom
         [lng, lat, idRequest, idService, ...boundsFilter.params, assignedWorker, radiusKm]
       );
 
-      for (const candidate of nearRows) {
-        await connection.execute(
-          `INSERT INTO service_request_workers (id_request, id_worker_profile, distance_km, status)
-           VALUES (?, ?, ?, 'new')`,
-          [idRequest, Number(candidate.id_worker_profile), candidate.distance_km != null ? Number(candidate.distance_km) : null]
-        );
-      }
+      await bulkInsertRequestWorkerCandidates(connection, idRequest, nearRows);
     }
 
     await connection.commit();

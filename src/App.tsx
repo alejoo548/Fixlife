@@ -13,7 +13,6 @@ import { ScrollReveal } from './components/common/ScrollReveal';
 import { TestimonialsCarousel } from './components/sections/TestimonialsCarousel';
 import { FAQSection } from './components/sections/FAQSection';
 import { Button } from './components/common/Button';
-import { AiSupportChatWidget } from './components/common/AiSupportChatWidget';
 import { ThreeDCard } from './components/common/ThreeDCard';
 import ForgotPassword from './pages/ForgotPassword';
 import UserProfile from './pages/UserProfile';
@@ -26,11 +25,9 @@ const ServiceRequestWizard = lazy(() =>
     default: module.ServiceRequestWizard,
   }))
 );
-const ParticlesBackground = lazy(() =>
-  import('./components/effects/ParticlesBackground').then((module) => ({
-    default: module.ParticlesBackground,
-  }))
-);
+const AiSupportChatWidget = lazy(() => import('./components/common/AiSupportChatWidget').then((module) => ({
+  default: module.AiSupportChatWidget,
+})));
 const ProDashboard = lazy(() =>
   import('./components/modals/ProDashboard').then((module) => ({
     default: module.ProDashboard,
@@ -143,8 +140,6 @@ const App: React.FC = () => {
   const [serviceCards, setServiceCards] = useState<HomeServiceCard[]>([]);
   const [pendingSection, setPendingSection] = useState<LandingSectionTarget | null>(null);
   const [pendingBookingPath, setPendingBookingPath] = useState<string | null>(null);
-  const isLandingRoute = location.pathname === '/';
-  const isDashboardRoute = location.pathname === '/admin-dashboard' || location.pathname === '/pro-dashboard';
 
   useEffect(() => {
     const fetchServiceCards = async () => {
@@ -281,7 +276,7 @@ const App: React.FC = () => {
       summary: 'Leak repairs, pipe installation, and sanitary maintenance.',
       cta_label: 'Learn More',
       service_name: 'Plumbing',
-      service_icon: '??',
+      service_icon: 'PL',
     },
     {
       id_card: 0,
@@ -292,7 +287,7 @@ const App: React.FC = () => {
       summary: 'Safe installations, wiring, panels, and short circuit repairs.',
       cta_label: 'Learn More',
       service_name: 'Electrical Services',
-      service_icon: '?',
+      service_icon: 'EL',
     },
     {
       id_card: 0,
@@ -303,7 +298,7 @@ const App: React.FC = () => {
       summary: 'Vehicle diagnostics, oil changes, and mobile repairs.',
       cta_label: 'Learn More',
       service_name: 'Auto Mechanic',
-      service_icon: '??',
+      service_icon: 'AU',
     },
     {
       id_card: 0,
@@ -314,12 +309,15 @@ const App: React.FC = () => {
       summary: 'Furniture design, door repair, and structure assembly.',
       cta_label: 'Learn More',
       service_name: 'Carpentry',
-      service_icon: '??',
+      service_icon: 'CA',
     },
   ];
 
   const cardsToRender = serviceCards.length > 0 ? serviceCards.slice(0, 8) : fallbackCards;
-  const showAiSupportWidget = !isDashboardRoute;
+  const showAiSupportWidget =
+    location.pathname === '/app' ||
+    location.pathname === '/profile' ||
+    location.pathname.startsWith('/checkout/');
 
   const normalizeLabel = (value: string) => value.toLowerCase().replace(/[^a-z0-9]+/g, '');
 
@@ -362,20 +360,6 @@ const App: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-sky-50 via-amber-50 to-orange-50 text-gray-900 selection:bg-bird-blue selection:text-white overflow-x-hidden font-sans flex flex-col relative transition-colors duration-500">
-      {isLandingRoute ? (
-        <div className="fixed inset-0 w-full h-full overflow-hidden pointer-events-none z-0">
-          <Suspense fallback={null}>
-            <ParticlesBackground />
-          </Suspense>
-
-          <div className="absolute top-[-10%] left-[-10%] w-[60vw] h-[60vw] bg-bird-lightBlue/20 rounded-full blur-[100px] animate-blob" />
-          <div className="absolute bottom-[-10%] right-[-10%] w-[60vw] h-[60vw] bg-bird-yellow/20 rounded-full blur-[120px] animate-blob animation-delay-2000" />
-
-          <div className="absolute top-[20%] right-[20%] w-[40vw] h-[40vw] bg-bird-orange/15 rounded-full blur-[90px] animate-blob animation-delay-4000" />
-          <div className="absolute bottom-[20%] left-[20%] w-[30vw] h-[30vw] bg-white/40 rounded-full blur-[80px] animate-blob" />
-        </div>
-      ) : null}
-
       <AuthModal
         isOpen={isAuthOpen}
         onClose={() => {
@@ -666,7 +650,7 @@ const App: React.FC = () => {
                           }}
                           className="absolute top-4 right-4 z-20 w-12 h-12 bg-white/95 backdrop-blur-md rounded-xl border border-gray-200 flex items-center justify-center shadow-lg group-hover:bg-bird-blue group-hover:border-bird-blue group-hover:text-white transition-all duration-300 text-gray-700"
                         >
-                          <span className="text-xl">{item.service_icon && item.service_icon.length <= 2 ? item.service_icon : '??'}</span>
+                          <span className="text-xl">{item.service_icon && item.service_icon.length <= 2 ? item.service_icon : 'FX'}</span>
                         </motion.div>
                       </div>
                       <div className="p-6 flex-1 flex flex-col relative z-20">
@@ -732,7 +716,11 @@ const App: React.FC = () => {
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
 
-      {showAiSupportWidget ? <AiSupportChatWidget /> : null}
+      {showAiSupportWidget ? (
+        <Suspense fallback={null}>
+          <AiSupportChatWidget />
+        </Suspense>
+      ) : null}
 
     </div>
   );

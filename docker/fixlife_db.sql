@@ -74,8 +74,8 @@ CREATE TABLE `hero_slides` (
 
 INSERT INTO `hero_slides` (`id_slide`, `sort_order`, `image_url`, `tag`, `title`, `description`, `cta`, `updated_at`) VALUES
 (14, 1, 'https://images.unsplash.com/photo-1504328345606-18bbc8c9d7d1?q=80&w=2070&auto=format&fit=crop', 'PREMIUM', 'Home Experts', 'Find certified electricians, plumbers, and technicians ready to solve any problem.', 'Find Technician', '2026-03-13 14:07:42'),
-(15, 2, 'http://localhost:8000/uploads/image-1774642010382-929318040.jpg', 'RENOVATION', 'Transform Your Space', 'From a fresh coat of paint to complete remodels. Make your dream home a reality.', 'Get a Quote', '2026-03-27 20:06:50'),
-(16, 3, 'http://localhost:8000/uploads/image-1773410711434-903912005.jpg', 'Home repairs and maintenance', 'Home repairs and maintenance', 'Deep repairing and regular maintenance services so you can enjoy your free time.', 'Book repair', '2026-03-13 14:07:42');
+(15, 2, 'https://images.unsplash.com/photo-1581578731117-10d52b43cc0a?q=80&w=2070&auto=format&fit=crop', 'RENOVATION', 'Transform Your Space', 'From a fresh coat of paint to complete remodels. Make your dream home a reality.', 'Get a Quote', '2026-03-27 20:06:50'),
+(16, 3, 'https://images.unsplash.com/photo-1556911220-bff31c812dba?q=80&w=2668&auto=format&fit=crop', 'Home repairs and maintenance', 'Home repairs and maintenance', 'Deep repairing and regular maintenance services so you can enjoy your free time.', 'Book repair', '2026-03-13 14:07:42');
 
 -- --------------------------------------------------------
 
@@ -141,10 +141,10 @@ CREATE TABLE `service_cards` (
 --
 
 INSERT INTO `service_cards` (`id_card`, `id_service`, `image_url`, `badge`, `headline`, `summary`, `cta_label`, `sort_order`, `is_active`, `created_at`, `updated_at`) VALUES
-(1, 3, 'http://localhost:8000/uploads/image-1773410959656-662461131.jpg', 'POPULAR', 'Carpentry', 'Custom woodwork, furniture repair, and door/window installations.', 'Learn More', 1, 1, '2026-03-10 02:07:34', '2026-03-13 14:09:23'),
-(3, 5, 'http://localhost:8000/uploads/image-1773411061347-453362969.jpg', 'POPULAR', 'Childcare / Babysitting', 'Safe and reliable care for children at home.', 'Learn More', 2, 1, '2026-03-10 02:07:34', '2026-03-13 14:11:05'),
+(1, 3, 'https://images.unsplash.com/photo-1610557892470-55d9e80c0bce?q=80&w=1400&auto=format&fit=crop', 'POPULAR', 'Carpentry', 'Custom woodwork, furniture repair, and door/window installations.', 'Learn More', 1, 1, '2026-03-10 02:07:34', '2026-03-13 14:09:23'),
+(3, 5, 'https://images.unsplash.com/photo-1596464716127-f2a82984de30?q=80&w=1400&auto=format&fit=crop', 'POPULAR', 'Childcare / Babysitting', 'Safe and reliable care for children at home.', 'Learn More', 2, 1, '2026-03-10 02:07:34', '2026-03-13 14:11:05'),
 (4, 9, 'https://images.unsplash.com/photo-1562259949-e8e7689d7828?q=80&w=1400&auto=format&fit=crop', 'POPULAR', 'House Painting', 'Interior and exterior painting with clean, professional finishing.', 'Learn More', 3, 1, '2026-03-10 02:07:34', '2026-03-13 14:15:18'),
-(6, 6, 'http://localhost:8000/uploads/image-1773411465420-259216860.jpg', 'POPULAR', 'Gardening', 'Lawn care, planting, pruning, and garden maintenance.', 'Learn More', 4, 1, '2026-03-13 14:17:52', '2026-03-13 14:17:52');
+(6, 6, 'https://images.unsplash.com/photo-1416879595882-3373a0480b5b?q=80&w=1400&auto=format&fit=crop', 'POPULAR', 'Gardening', 'Lawn care, planting, pruning, and garden maintenance.', 'Learn More', 4, 1, '2026-03-13 14:17:52', '2026-03-13 14:17:52');
 
 -- --------------------------------------------------------
 

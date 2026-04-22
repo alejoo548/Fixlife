@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { HeroSliderProps } from '../../types';
 import {
@@ -12,21 +12,14 @@ import {
 export const HeroSlider: React.FC<HeroSliderProps> = ({ onStartBooking }) => {
   const [slides, setSlides] = useState(() => getHeroSlides());
   const [current, setCurrent] = useState(0);
-  const [isPaused, setIsPaused] = useState(false);
 
-  const nextSlide = useCallback(() => {
+  const nextSlide = () => {
     setCurrent((prev) => (prev === slides.length - 1 ? 0 : prev + 1));
-  }, [slides.length]);
+  };
 
   const prevSlide = () => {
     setCurrent((prev) => (prev === 0 ? slides.length - 1 : prev - 1));
   };
-
-  useEffect(() => {
-    if (isPaused) return;
-    const timer = setInterval(nextSlide, 5000);
-    return () => clearInterval(timer);
-  }, [isPaused, nextSlide]);
 
   useEffect(() => {
     fetchHeroSlides().then((fetched) => {
@@ -63,8 +56,6 @@ export const HeroSlider: React.FC<HeroSliderProps> = ({ onStartBooking }) => {
       animate={{ opacity: 1, scale: 1 }}
       transition={{ duration: 0.6 }}
       className="relative w-full h-full min-h-[450px] rounded-3xl overflow-hidden shadow-2xl border border-gray-200/50 group bg-white"
-      onMouseEnter={() => setIsPaused(true)}
-      onMouseLeave={() => setIsPaused(false)}
     >
       <AnimatePresence mode="wait">
         {slides.map((slide, index) => {
