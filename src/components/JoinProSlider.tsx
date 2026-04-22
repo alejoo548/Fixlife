@@ -8,7 +8,7 @@ const PRO_SLIDES = [
     subhead: "Join the largest network of professionals. Manage your schedule and receive secure payments for every completed job.",
     colorAccent: "from-bird-blue",
     buttonColor: "bg-bird-blue hover:bg-bird-darkBlue",
-    image: "https://images.unsplash.com/photo-1621905251189-08b45d6a269e?q=80&w=1700&auto=format&fit=crop", // Electrician/Tech vibe
+    image: "/landing-home-repair.jpg",
     stats: "Avg earnings: $800/wk"
   },
   {
@@ -18,7 +18,7 @@ const PRO_SLIDES = [
     subhead: "No fixed hours. You decide when to work and which projects to accept. We get you the clients.",
     colorAccent: "from-bird-orange",
     buttonColor: "bg-bird-orange hover:bg-white hover:text-bird-orange",
-    image: "https://images.unsplash.com/photo-1504328345606-18bbc8c9d7d1?q=80&w=1700&auto=format&fit=crop", // Construction vibe
+    image: "/landing-carpentry.jpg",
     stats: "+50 Daily requests"
   },
   {
@@ -28,7 +28,7 @@ const PRO_SLIDES = [
     subhead: "Forget marketing. Fixlife puts your profile in front of thousands of people who need your services today.",
     colorAccent: "from-purple-600",
     buttonColor: "bg-purple-600 hover:bg-purple-700",
-    image: "https://images.unsplash.com/photo-1581578731117-10d52b43cc0a?q=80&w=1700&auto=format&fit=crop", // Repair vibe
+    image: "/landing-renovation.jpg",
     stats: "Guaranteed payments"
   }
 ];
@@ -110,6 +110,9 @@ export const JoinProSlider: React.FC = () => {
             <img
               src={slide.image}
               alt={slide.role}
+              onError={(e) => {
+                e.currentTarget.src = '/landing-home-repair.jpg';
+              }}
               className="w-full h-full object-cover object-top md:object-center transform scale-100 hover:scale-105 transition-transform duration-[10000ms]"
               style={{
                 filter: "brightness(0.9) contrast(1.1)"

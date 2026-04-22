@@ -13,7 +13,7 @@ const PRO_PROFILES = [
     name: "Carlos Méndez",
     role: "Industrial Electrician",
     bio: "Specialist in structured cabling. 6-month guarantee.",
-    image: "https://images.unsplash.com/photo-1556911220-bff31c812dba?q=80&w=1968&auto=format&fit=crop",
+    image: "/landing-home-repair.jpg",
     stats: ["certified", "5.0", "verified"],
     jobs: 124,
     color: "blue"
@@ -23,7 +23,7 @@ const PRO_PROFILES = [
     name: "Ana Julia R.",
     role: "Plumbing & Gas",
     bio: "Quick solutions for leaks and preventive maintenance.",
-    image: "https://images.unsplash.com/photo-1581578731117-10d52b43cc0a?q=80&w=1968&auto=format&fit=crop",
+    image: "/landing-carpentry.jpg",
     stats: ["top-rated", "4.9", "fast"],
     jobs: 98,
     color: "yellow"
@@ -33,7 +33,7 @@ const PRO_PROFILES = [
     name: "Roberto Díaz",
     role: "HVAC Technician",
     bio: "Air conditioning installation and repair.",
-    image: "https://images.unsplash.com/photo-1621905251189-08b45d6a269e?q=80&w=1968&auto=format&fit=crop",
+    image: "/landing-renovation.jpg",
     stats: ["expert", "4.8", "insured"],
     jobs: 156,
     color: "orange"
@@ -235,6 +235,9 @@ export const ProBento: React.FC<ProBentoProps> = ({ onOpenPro, onOpenWorkerAuth 
                       <img
                         src={profile.image}
                         alt={profile.name}
+                        onError={(e) => {
+                          e.currentTarget.src = '/landing-home-repair.jpg';
+                        }}
                         className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
                       />
                       <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent" />

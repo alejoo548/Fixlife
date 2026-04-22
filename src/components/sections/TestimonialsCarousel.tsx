@@ -105,6 +105,9 @@ export const TestimonialsCarousel: React.FC = () => {
                 <img
                   src={testimonials[currentIndex].image}
                   alt={testimonials[currentIndex].name}
+                  onError={(e) => {
+                    e.currentTarget.src = '/mascot.png';
+                  }}
                   className="w-full h-full object-cover"
                 />
               </div>
