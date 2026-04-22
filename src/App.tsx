@@ -460,6 +460,26 @@ const App: React.FC = () => {
           path="/"
           element={(
         <>
+          <div className="fixed left-4 right-4 top-0 z-40 hidden h-14 overflow-hidden rounded-b-2xl bg-gradient-to-r from-bird-blue via-[#0878dc] to-[#0067c8] shadow-2xl shadow-bird-blue/25 lg:left-8 lg:right-8 lg:flex lg:items-start lg:justify-center">
+            <div className="flex h-8 w-full max-w-xl divide-x divide-white/20 text-white">
+              <button
+                type="button"
+                onClick={() => handleStartBooking()}
+                className="flex flex-1 items-center justify-center gap-2 text-sm font-black tracking-wide transition-colors hover:bg-white/10"
+              >
+                <span aria-hidden="true">&rarr;</span>
+                <span>Book a Service</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => handleNavigateSection('services')}
+                className="flex flex-1 items-center justify-center gap-2 text-sm font-black tracking-wide transition-colors hover:bg-white/10"
+              >
+                <span aria-hidden="true">&rarr;</span>
+                <span>Explore Services</span>
+              </button>
+            </div>
+          </div>
 
           <Navbar
             navItems={navItems}
