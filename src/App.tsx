@@ -18,6 +18,7 @@ import { ThreeDCard } from './components/common/ThreeDCard';
 import UserProfile from './pages/UserProfile';
 import { clearAuthSession, hasRole, isAuthenticated } from './utils/session';
 import { API_ENDPOINTS } from './config/api';
+import { isExternalStockImage, normalizeImageUrl } from './utils/imageUrls';
 
 const ServiceRequestWizard = lazy(() =>
   import('./components/modals/ServiceRequestWizard').then((module) => ({
@@ -60,6 +61,42 @@ interface HomeServiceCard {
   service_name: string;
   service_icon: string | null;
 }
+
+const localServiceImageByName: Record<string, string> = {
+  plumbing: '/landing-home-repair.jpg',
+  plumber: '/landing-home-repair.jpg',
+  electrical: '/landing-home-repair.jpg',
+  electrician: '/landing-home-repair.jpg',
+  mechanic: '/landing-home-repair.jpg',
+  auto: '/landing-home-repair.jpg',
+  carpentry: '/landing-carpentry.jpg',
+  carpenter: '/landing-carpentry.jpg',
+  gardening: '/landing-gardening.jpg',
+  landscaping: '/landing-gardening.jpg',
+  painting: '/landing-renovation.jpg',
+  renovation: '/landing-renovation.jpg',
+  cleaning: '/landing-renovation.jpg',
+  home: '/landing-home-repair.jpg',
+};
+
+const getLocalServiceImage = (serviceName?: string | null) => {
+  const normalized = (serviceName || '').toLowerCase();
+  const match = Object.entries(localServiceImageByName).find(([key]) => normalized.includes(key));
+  return match?.[1] || '/service-home.svg';
+};
+
+const normalizeServiceCardImage = (card: HomeServiceCard): HomeServiceCard => {
+  const imageUrl = normalizeImageUrl(card.image_url);
+
+  if (!imageUrl || isExternalStockImage(imageUrl)) {
+    return {
+      ...card,
+      image_url: getLocalServiceImage(card.service_name),
+    };
+  }
+
+  return card;
+};
 
 const LANDING_SECTION_IDS = {
   services: 'services-section',
@@ -250,7 +287,7 @@ const App: React.FC = () => {
         const res = await fetch(API_ENDPOINTS.services.cards);
         const data = await res.json();
         if (data?.success && Array.isArray(data.cards)) {
-          setServiceCards(data.cards);
+          setServiceCards(data.cards.map(normalizeServiceCardImage));
         }
       } catch (error) {
         console.error('Could not fetch service cards:', error);
@@ -364,7 +401,7 @@ const App: React.FC = () => {
     {
       id_card: 0,
       id_service: 0,
-      image_url: 'https://images.unsplash.com/photo-1585704032915-c3400ca199e7?q=80&w=800&auto=format&fit=crop',
+      image_url: '/landing-home-repair.jpg',
       badge: 'POPULAR',
       headline: 'Expert Plumbing',
       summary: 'Leak repairs, pipe installation, and sanitary maintenance.',
@@ -375,7 +412,7 @@ const App: React.FC = () => {
     {
       id_card: 0,
       id_service: 0,
-      image_url: 'https://images.unsplash.com/photo-1621905251189-08b45d6a269e?q=80&w=800&auto=format&fit=crop',
+      image_url: '/landing-home-repair.jpg',
       badge: 'POPULAR',
       headline: 'Electrical',
       summary: 'Safe installations, wiring, panels, and short circuit repairs.',
@@ -386,7 +423,7 @@ const App: React.FC = () => {
     {
       id_card: 0,
       id_service: 0,
-      image_url: 'https://images.unsplash.com/photo-1530046339160-71153320c072?q=80&w=800&auto=format&fit=crop',
+      image_url: '/landing-home-repair.jpg',
       badge: 'POPULAR',
       headline: 'Auto Mechanics',
       summary: 'Vehicle diagnostics, oil changes, and mobile repairs.',
@@ -397,7 +434,7 @@ const App: React.FC = () => {
     {
       id_card: 0,
       id_service: 0,
-      image_url: 'https://images.unsplash.com/photo-1610557892470-55d9e80c0bce?q=80&w=800&auto=format&fit=crop',
+      image_url: '/landing-carpentry.jpg',
       badge: 'POPULAR',
       headline: 'Carpentry',
       summary: 'Furniture design, door repair, and structure assembly.',
@@ -718,6 +755,9 @@ const App: React.FC = () => {
                           transition={{ duration: 0.6 }}
                           src={item.image_url || fallbackCards[0].image_url || ''}
                           alt={item.headline}
+                          onError={(e) => {
+                            e.currentTarget.src = getLocalServiceImage(item.service_name);
+                          }}
                           className="w-full h-full object-cover grayscale-[30%] group-hover:grayscale-0 transition-all duration-700"
                         />
                         <motion.div

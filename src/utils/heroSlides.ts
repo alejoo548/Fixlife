@@ -1,4 +1,5 @@
 import { API_URL } from '../config/api';
+import { isExternalStockImage, normalizeImageUrl } from './imageUrls';
 
 export interface HeroSlideContent {
   id: number;
@@ -45,6 +46,36 @@ export const DEFAULT_HERO_SLIDES: HeroSlideContent[] = [
   },
 ];
 
+const normalizeHeroSlideImage = (slide: HeroSlideContent): HeroSlideContent => {
+  const image = normalizeImageUrl(slide.image);
+  const defaultSlide = DEFAULT_HERO_SLIDES.find((item) => item.id === slide.id);
+  const label = `${slide.tag} ${slide.title}`.toLowerCase();
+  const localFallback = label.includes('renovation') || label.includes('repair')
+    ? '/landing-renovation.jpg'
+    : label.includes('clean')
+      ? '/landing-home-repair.jpg'
+      : '/landing-home-repair.jpg';
+
+  if (!image || image.startsWith('/service-')) {
+    return {
+      ...slide,
+      image: defaultSlide?.image || localFallback,
+    };
+  }
+
+  if (isExternalStockImage(image)) {
+    return {
+      ...slide,
+      image: localFallback,
+    };
+  }
+
+  return {
+    ...slide,
+    image,
+  };
+};
+
 const isSlideShape = (slide: any): slide is HeroSlideContent => {
   return (
     slide &&
@@ -64,7 +95,7 @@ export const getHeroSlides = (): HeroSlideContent[] => {
     const parsed = JSON.parse(raw);
     if (!Array.isArray(parsed) || parsed.length === 0) return DEFAULT_HERO_SLIDES;
     if (!parsed.every(isSlideShape)) return DEFAULT_HERO_SLIDES;
-    return parsed;
+    return parsed.map(normalizeHeroSlideImage);
   } catch {
     return DEFAULT_HERO_SLIDES;
   }
@@ -82,8 +113,9 @@ export const fetchHeroSlides = async (): Promise<HeroSlideContent[]> => {
     if (!response.ok) throw new Error(data?.error || 'Could not fetch hero slides.');
     const slides = Array.isArray(data?.slides) ? data.slides : [];
     if (slides.length === 0) return getHeroSlides();
-    setHeroSlidesCache(slides);
-    return slides;
+    const normalizedSlides = slides.map(normalizeHeroSlideImage);
+    setHeroSlidesCache(normalizedSlides);
+    return normalizedSlides;
   } catch {
     return getHeroSlides();
   }
@@ -106,8 +138,9 @@ export const saveHeroSlides = async (
   if (!response.ok) throw new Error(data?.error || 'Could not save hero slides.');
 
   const nextSlides = Array.isArray(data?.slides) ? data.slides : slides;
-  setHeroSlidesCache(nextSlides);
-  return nextSlides;
+  const normalizedSlides = nextSlides.map(normalizeHeroSlideImage);
+  setHeroSlidesCache(normalizedSlides);
+  return normalizedSlides;
 };
 
 export const uploadHeroSlideImage = async (
@@ -130,8 +163,9 @@ export const uploadHeroSlideImage = async (
   if (!response.ok) throw new Error(data?.error || 'Could not upload image.');
 
   const nextSlides = Array.isArray(data?.slides) ? data.slides : getHeroSlides();
-  setHeroSlidesCache(nextSlides);
-  return nextSlides;
+  const normalizedSlides = nextSlides.map(normalizeHeroSlideImage);
+  setHeroSlidesCache(normalizedSlides);
+  return normalizedSlides;
 };
 
 export const uploadHeroImageAsset = async (file: File, token: string): Promise<string> => {
