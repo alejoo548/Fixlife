@@ -67,6 +67,16 @@ export function useServiceRequestMap({
   const savedPlaceMarkersRef = useRef<any[]>([]);
   const nearbyWorkerMarkersRef = useRef<any[]>([]);
   const lastCenteredCoordsRef = useRef<CoordinatesLike | null>(null);
+  const reverseGeocodeCoordsRef = useRef(reverseGeocodeCoords);
+  const useSavedLocationRef = useRef(useSavedLocation);
+
+  useEffect(() => {
+    reverseGeocodeCoordsRef.current = reverseGeocodeCoords;
+  }, [reverseGeocodeCoords]);
+
+  useEffect(() => {
+    useSavedLocationRef.current = useSavedLocation;
+  }, [useSavedLocation]);
 
   useEffect(() => {
     const loadLeaflet = async () => {
@@ -127,7 +137,7 @@ export function useServiceRequestMap({
         lng: Number(event.latlng.lng.toFixed(7)),
       };
 
-      void reverseGeocodeCoords(nextCoords, {
+      void reverseGeocodeCoordsRef.current(nextCoords, {
         toastMessage: 'Location adjusted on the map.',
         fallbackLabel: `${nextCoords.lat}, ${nextCoords.lng}`,
       });
@@ -157,7 +167,7 @@ export function useServiceRequestMap({
         lastCenteredCoordsRef.current = null;
       }
     };
-  }, [isOpen, leafletReady, reverseGeocodeCoords]);
+  }, [isOpen, leafletReady]);
 
   useEffect(() => {
     if (!mapInstanceRef.current || !window.L) return;
@@ -213,7 +223,7 @@ export function useServiceRequestMap({
           lat: Number(position.lat.toFixed(7)),
           lng: Number(position.lng.toFixed(7)),
         };
-        void reverseGeocodeCoords(nextCoords, {
+        void reverseGeocodeCoordsRef.current(nextCoords, {
           toastMessage: 'Location adjusted on the map.',
           fallbackLabel: `${nextCoords.lat}, ${nextCoords.lng}`,
         });
@@ -247,7 +257,6 @@ export function useServiceRequestMap({
     sameCoords,
     createLeafletPinIcon,
     getLocationVisual,
-    reverseGeocodeCoords,
   ]);
 
   useEffect(() => {
@@ -275,10 +284,10 @@ export function useServiceRequestMap({
           .addTo(map)
           .bindPopup(`<b>${location.title}</b><br/>${location.label}`);
 
-        pin.on('click', () => useSavedLocation(location));
+        pin.on('click', () => useSavedLocationRef.current(location));
         savedPlaceMarkersRef.current.push(pin);
       });
-  }, [quickAccessLocations, currentCoords, sameCoords, useSavedLocation, createLeafletPinIcon]);
+  }, [quickAccessLocations, currentCoords, sameCoords, createLeafletPinIcon]);
 
   useEffect(() => {
     if (!mapInstanceRef.current || !window.L) return;
