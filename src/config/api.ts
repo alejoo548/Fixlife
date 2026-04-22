@@ -2,43 +2,22 @@ const trimTrailingSlash = (value: string) => value.replace(/\/+$/, '');
 
 const stripApiSuffix = (value: string) => {
   const withoutTrailingSlash = trimTrailingSlash(value.trim());
+  if (withoutTrailingSlash === '/api') return '';
   return withoutTrailingSlash.replace(/\/api$/i, '');
 };
 
-const isLocalHost = (hostname: string) =>
-  hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '0.0.0.0';
-
-const isLocalApiUrl = (value: string) =>
-  /^https?:\/\/(localhost|127\.0\.0\.1|0\.0\.0\.0)(:\d+)?(\/api)?\/?$/i.test(value);
-
 const resolveApiUrl = () => {
-  const envApiUrl = String(import.meta.env.VITE_API_URL || '').trim();
-  const runtime =
-    typeof window !== 'undefined'
-      ? {
-          origin: window.location.origin,
-          protocol: window.location.protocol,
-          hostname: window.location.hostname,
-        }
-      : {
-          origin: 'http://localhost:3000',
-          protocol: 'http:',
-          hostname: 'localhost',
-        };
+  const configuredApiUrl = String(
+    import.meta.env.VITE_API_URL || import.meta.env.PUBLIC_API_URL || ''
+  ).trim();
 
-  const runtimeIsLocal = isLocalHost(runtime.hostname);
-
-  if (envApiUrl && (!isLocalApiUrl(envApiUrl) || runtimeIsLocal)) {
-    return stripApiSuffix(envApiUrl);
+  if (configuredApiUrl) {
+    return stripApiSuffix(configuredApiUrl);
   }
 
-  // Local Docker/Vite keeps frontend and backend on separate ports; deployed/proxied
-  // environments default to same-origin so CDN/proxy hostnames do not break API calls.
-  if (runtimeIsLocal) {
-    return `${runtime.protocol}//${runtime.hostname}:8000`;
-  }
-
-  return stripApiSuffix(runtime.origin);
+  // Local dev keeps Vite and the API on separate ports. Production defaults to
+  // same-origin `/api`, which is safer behind proxies, CDN hosts, and domains.
+  return import.meta.env.DEV ? 'http://localhost:8000' : '';
 };
 
 export const API_URL = resolveApiUrl();

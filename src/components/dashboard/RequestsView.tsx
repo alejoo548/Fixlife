@@ -4,53 +4,20 @@ import { API_ENDPOINTS } from '../../config/api';
 import { Notyf } from 'notyf';
 import { motion, AnimatePresence } from 'framer-motion';
 import 'notyf/notyf.min.css';
-
-interface RequestsViewProps {
-  isOnline: boolean;
-  mobileView: 'list' | 'map';
-  token: string | null;
-}
-
-interface WorkerRequest {
-  id_request: number;
-  id_service: number;
-  service_name: string;
-  service_icon: string | null;
-  description: string;
-  location_text: string;
-  latitude: number | null;
-  longitude: number | null;
-  budget: number;
-  request_status: 'open' | 'payment_pending' | 'paid' | 'assigned' | 'in_progress' | 'awaiting_confirmation' | 'done' | 'cancelled';
-  worker_status: 'new' | 'accepted' | 'rejected' | 'expired';
-  distance_km: number | null;
-  created_at: string;
-  route_url: string | null;
-  proposed_budget?: number | null;
-  counter_message?: string | null;
-}
-
-interface ChatMessage {
-  id_message: number;
-  id_request: number;
-  sender_role: 'client' | 'worker';
-  message: string | null;
-  image_url: string | null;
-  created_at: string;
-}
-
-interface WorkerRequestsPayload {
-  success: boolean;
-  status: string;
-  worker_profile?: {
-    id_worker_profile: number;
-    latitude: number | null;
-    longitude: number | null;
-    active_request_id?: number | null;
-    active_request_status?: string | null;
-  };
-  requests: WorkerRequest[];
-}
+import type {
+  ChatMessage,
+  RequestsViewProps,
+  RouteAlert,
+  SimulatedTrafficSegment,
+  SimulatedTrafficSummary,
+  WorkerRequest,
+  WorkerRequestsPayload,
+} from './RequestsView.types';
+import {
+  getLatestChatMessageId,
+  getRealtimeChatMessages,
+  mergeChatMessages,
+} from './RequestsView.chat';
 
 declare global {
   interface Window {
@@ -58,53 +25,13 @@ declare global {
   }
 }
 
-interface RouteAlert {
-  tone: 'info' | 'success' | 'warning';
-  title: string;
-  message: string;
-}
-
-interface SimulatedTrafficSegment {
-  points: [number, number][];
-  level: 'light' | 'moderate' | 'heavy';
-  color: string;
-  label: string;
-}
-
-interface SimulatedTrafficSummary {
-  level: 'Light' | 'Moderate' | 'Heavy';
-  delayMin: number;
-  segments: SimulatedTrafficSegment[];
-  note: string;
-}
-
 const notyf = new Notyf({ position: { x: 'left', y: 'bottom' }, ripple: true });
 const PRESENCE_PUSH_IDLE_MS = 30000;
 const PRESENCE_PUSH_ACTIVE_ROUTE_MS = 8000;
+const PRESENCE_IDLE_LOCATION_REFRESH_MS = 120000;
 const PRESENCE_MOVE_IDLE_KM = 0.08;
 const PRESENCE_MOVE_ACTIVE_ROUTE_KM = 0.02;
 const PRESENCE_PUSH_BACKGROUND_MS = 60000;
-
-const getLatestChatMessageId = (messages: ChatMessage[]) =>
-  messages.length > 0 ? Number(messages[messages.length - 1].id_message || 0) : 0;
-
-const mergeChatMessages = (current: ChatMessage[], incoming: ChatMessage[]) => {
-  const byId = new Map<number, ChatMessage>();
-
-  for (const message of current) {
-    byId.set(Number(message.id_message), message);
-  }
-
-  for (const message of incoming) {
-    byId.set(Number(message.id_message), message);
-  }
-
-  return Array.from(byId.values()).sort((left, right) => {
-    const leftId = Number(left.id_message || 0);
-    const rightId = Number(right.id_message || 0);
-    return leftId - rightId;
-  });
-};
 
 const formatEta = (durationMin: number) => {
   if (!Number.isFinite(durationMin) || durationMin <= 0) return '--';
@@ -1656,35 +1583,75 @@ export const RequestsView: React.FC<RequestsViewProps> = ({ isOnline, mobileView
     if (!token) return;
 
     if (!isOnline) {
-      pushPresence(false);
+      void pushPresence(false);
       return;
     }
 
     let watchId: number | null = null;
-    if (navigator.geolocation) {
-      watchId = navigator.geolocation.watchPosition(
-        (pos) => {
-          const lat = Number(pos.coords.latitude.toFixed(7));
-          const lng = Number(pos.coords.longitude.toFixed(7));
-          setWorkerCoords({ lat, lng });
-          pushPresence(true, lat, lng);
-        },
-        () => {
-          pushPresence(true);
-        },
+    let idleRefreshId: number | null = null;
+    let cancelled = false;
+
+    const syncPresenceFromPosition = (pos: GeolocationPosition) => {
+      if (cancelled) return;
+      const lat = Number(pos.coords.latitude.toFixed(7));
+      const lng = Number(pos.coords.longitude.toFixed(7));
+      setWorkerCoords({ lat, lng });
+      void pushPresence(true, lat, lng);
+    };
+
+    const syncPresenceWithoutCoords = () => {
+      if (!cancelled) void pushPresence(true);
+    };
+
+    const requestIdlePresence = () => {
+      if (cancelled) return;
+      if (typeof document !== 'undefined' && document.visibilityState !== 'visible') {
+        void pushPresence(true);
+        return;
+      }
+
+      navigator.geolocation.getCurrentPosition(
+        syncPresenceFromPosition,
+        syncPresenceWithoutCoords,
         {
-          enableHighAccuracy: isInPageRouteActive,
-          timeout: isInPageRouteActive ? 6000 : 12000,
-          maximumAge: isInPageRouteActive ? 5000 : 30000,
+          enableHighAccuracy: false,
+          timeout: 8000,
+          maximumAge: PRESENCE_IDLE_LOCATION_REFRESH_MS,
         }
       );
+    };
+
+    if (navigator.geolocation && isInPageRouteActive) {
+      watchId = navigator.geolocation.watchPosition(
+        syncPresenceFromPosition,
+        syncPresenceWithoutCoords,
+        {
+          enableHighAccuracy: true,
+          timeout: 6000,
+          maximumAge: 5000,
+        }
+      );
+    } else if (navigator.geolocation) {
+      requestIdlePresence();
+      idleRefreshId = window.setInterval(requestIdlePresence, PRESENCE_IDLE_LOCATION_REFRESH_MS);
+
+      if (typeof document !== 'undefined') {
+        document.addEventListener('visibilitychange', requestIdlePresence);
+      }
     } else {
-      pushPresence(true);
+      syncPresenceWithoutCoords();
     }
 
     return () => {
+      cancelled = true;
       if (watchId != null && navigator.geolocation) {
         navigator.geolocation.clearWatch(watchId);
+      }
+      if (idleRefreshId != null) {
+        window.clearInterval(idleRefreshId);
+      }
+      if (typeof document !== 'undefined') {
+        document.removeEventListener('visibilitychange', requestIdlePresence);
       }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1706,6 +1673,18 @@ export const RequestsView: React.FC<RequestsViewProps> = ({ isOnline, mobileView
         if (!selectedRequest?.id_request) return;
         if (!canUseChatWithClient || !chatPanelOpen) return;
         if (d?.id_request == null || d.id_request === selectedRequest.id_request) {
+          const realtimeMessages = getRealtimeChatMessages(data, selectedRequest.id_request);
+          if (realtimeMessages.length > 0) {
+            setChatByRequest((prev) => ({
+              ...prev,
+              [selectedRequest.id_request]: mergeChatMessages(
+                prev[selectedRequest.id_request] || [],
+                realtimeMessages
+              ),
+            }));
+            return;
+          }
+
           void fetchRequestChat(selectedRequest.id_request, { silent: true, incremental: true });
         }
       },

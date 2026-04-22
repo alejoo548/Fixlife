@@ -132,7 +132,7 @@ Variables clave para que todo funcione:
 - `GROQ_API_KEY` (obligatoria para chat IA)
 - `ALLOWED_ORIGINS` (especialmente en producción)
 - `EMAIL_USER` / `EMAIL_PASS` (si se usará email real)
-- `VITE_API_URL` (opcional; en red local se resuelve dinámicamente por host)
+- `VITE_API_URL` o `PUBLIC_API_URL` (base explícita del backend; en producción sin valor usa `/api` relativo al mismo origen)
 
 ---
 

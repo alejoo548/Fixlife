@@ -38,16 +38,14 @@ export const StepsSection: React.FC<StepsSectionProps> = ({ onStartBooking }) =>
       <div className="text-center mb-7">
         <motion.h3
           initial={{ opacity: 0, y: 20 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true }}
+          animate={{ opacity: 1, y: 0 }}
           className="text-2xl md:text-3xl font-black text-gray-900 mb-2"
         >
           How It Works
         </motion.h3>
         <motion.p
           initial={{ opacity: 0, y: 20 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true }}
+          animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.1 }}
           className="text-gray-600 text-sm md:text-base font-medium"
         >
@@ -60,8 +58,7 @@ export const StepsSection: React.FC<StepsSectionProps> = ({ onStartBooking }) =>
         <div className="hidden md:block absolute top-20 left-[16%] right-[16%] h-1 bg-gradient-to-r from-transparent via-gray-200 to-transparent">
           <motion.div
             initial={{ scaleX: 0 }}
-            whileInView={{ scaleX: 1 }}
-            viewport={{ once: true }}
+            animate={{ scaleX: 1 }}
             transition={{ duration: 1.5, ease: "easeInOut" }}
             className="h-full bg-gradient-to-r from-bird-blue via-bird-yellow to-green-400 origin-left"
           />
@@ -71,8 +68,7 @@ export const StepsSection: React.FC<StepsSectionProps> = ({ onStartBooking }) =>
           <motion.div
             key={i}
             initial={{ opacity: 0, y: 50 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
+            animate={{ opacity: 1, y: 0 }}
             transition={{ delay: i * 0.2, duration: 0.5 }}
             whileHover={{ y: -10 }}
             className="flex flex-col items-center text-center group relative"
@@ -99,8 +95,7 @@ export const StepsSection: React.FC<StepsSectionProps> = ({ onStartBooking }) =>
               {/* Step number badge */}
               <motion.div
                 initial={{ scale: 0 }}
-                whileInView={{ scale: 1 }}
-                viewport={{ once: true }}
+                animate={{ scale: 1 }}
                 transition={{ delay: i * 0.2 + 0.3, type: "spring", stiffness: 200 }}
                 className={`absolute -top-3 -right-3 w-9 h-9 rounded-full bg-gradient-to-br ${step.gradient} flex items-center justify-center shadow-lg border-4 border-white`}
               >
@@ -114,8 +109,7 @@ export const StepsSection: React.FC<StepsSectionProps> = ({ onStartBooking }) =>
             {/* Content */}
             <motion.h3
               initial={{ opacity: 0 }}
-              whileInView={{ opacity: 1 }}
-              viewport={{ once: true }}
+              animate={{ opacity: 1 }}
               transition={{ delay: i * 0.2 + 0.2 }}
               className="text-xl md:text-2xl font-black text-gray-900 mb-2 group-hover:text-transparent group-hover:bg-clip-text group-hover:bg-gradient-to-r group-hover:from-bird-blue group-hover:to-bird-lightBlue transition-all duration-300"
             >
@@ -123,8 +117,7 @@ export const StepsSection: React.FC<StepsSectionProps> = ({ onStartBooking }) =>
             </motion.h3>
             <motion.p
               initial={{ opacity: 0 }}
-              whileInView={{ opacity: 1 }}
-              viewport={{ once: true }}
+              animate={{ opacity: 1 }}
               transition={{ delay: i * 0.2 + 0.3 }}
               className="text-gray-600 text-xs md:text-sm leading-relaxed max-w-xs px-2 font-medium"
             >
@@ -135,8 +128,7 @@ export const StepsSection: React.FC<StepsSectionProps> = ({ onStartBooking }) =>
             {i < steps.length - 1 && (
               <motion.div
                 initial={{ opacity: 0, y: -10 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true }}
+                animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: i * 0.2 + 0.5 }}
                 className="md:hidden mt-8 mb-4"
               >
@@ -152,8 +144,7 @@ export const StepsSection: React.FC<StepsSectionProps> = ({ onStartBooking }) =>
       {/* Bottom CTA */}
       <motion.div
         initial={{ opacity: 0, y: 20 }}
-        whileInView={{ opacity: 1, y: 0 }}
-        viewport={{ once: true }}
+        animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.8 }}
         className="mt-7 text-center"
       >

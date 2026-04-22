@@ -14,6 +14,7 @@ export default defineConfig(({ mode }) => {
     ['notyf', 'feedback-vendor'],
   ];
   return {
+    envPrefix: ['VITE_', 'PUBLIC_'],
     server: {
       port: 3000,
       strictPort: true,

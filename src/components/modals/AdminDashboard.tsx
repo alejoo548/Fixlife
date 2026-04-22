@@ -676,7 +676,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ isOpen, onClose 
         return;
       }
       fetchStats(statsServiceId);
-    }, 30_000);
+    }, 120_000);
     return () => window.clearInterval(id);
   }, [activeTab, statsServiceId]);
 

@@ -76,8 +76,7 @@ export const SafetySection: React.FC = () => {
       <div className="text-center mb-12 md:mb-16">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true }}
+          animate={{ opacity: 1, y: 0 }}
           className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-green-50 border border-green-200 mb-6"
         >
           <svg className="w-5 h-5 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -88,8 +87,7 @@ export const SafetySection: React.FC = () => {
 
         <motion.h3
           initial={{ opacity: 0, y: 20 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true }}
+          animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.1 }}
           className="text-3xl md:text-4xl lg:text-5xl font-black text-gray-900 mb-4"
         >
@@ -97,8 +95,7 @@ export const SafetySection: React.FC = () => {
         </motion.h3>
         <motion.p
           initial={{ opacity: 0, y: 20 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true }}
+          animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.2 }}
           className="text-gray-600 text-base md:text-lg max-w-2xl mx-auto font-medium"
         >
@@ -113,8 +110,7 @@ export const SafetySection: React.FC = () => {
             <motion.div
               key={index}
               initial={{ opacity: 0, y: 30 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
+              animate={{ opacity: 1, y: 0 }}
               transition={{ delay: index * 0.1 }}
               whileHover={{ y: -5 }}
               className="group bg-white/80 backdrop-blur-sm border border-gray-200 rounded-2xl p-6 md:p-8 shadow-sm hover:shadow-xl transition-all duration-300 relative overflow-hidden"
@@ -148,8 +144,7 @@ export const SafetySection: React.FC = () => {
 
       <motion.div
         initial={{ opacity: 0, y: 20 }}
-        whileInView={{ opacity: 1, y: 0 }}
-        viewport={{ once: true }}
+        animate={{ opacity: 1, y: 0 }}
         className="bg-gradient-to-br from-gray-50 to-white border border-gray-200 rounded-2xl p-6 md:p-10 relative overflow-hidden"
       >
         <div className="absolute top-0 left-0 w-full h-full opacity-5">
@@ -169,8 +164,7 @@ export const SafetySection: React.FC = () => {
               <motion.div
                 key={index}
                 initial={{ opacity: 0, scale: 0.8 }}
-                whileInView={{ opacity: 1, scale: 1 }}
-                viewport={{ once: true }}
+                animate={{ opacity: 1, scale: 1 }}
                 transition={{ delay: index * 0.1 }}
                 whileHover={{ scale: 1.05 }}
                 className="bg-white border border-gray-200 rounded-xl p-4 md:p-6 flex flex-col items-center justify-center text-center shadow-sm hover:shadow-md transition-all cursor-pointer group"
@@ -191,8 +185,7 @@ export const SafetySection: React.FC = () => {
 
       <motion.div
         initial={{ opacity: 0, y: 20 }}
-        whileInView={{ opacity: 1, y: 0 }}
-        viewport={{ once: true }}
+        animate={{ opacity: 1, y: 0 }}
         className="mt-8 bg-gradient-to-r from-green-50 to-emerald-50 border border-green-200 rounded-2xl p-6 md:p-8 flex flex-col md:flex-row items-center gap-6"
       >
         <div className="w-16 h-16 md:w-20 md:h-20 rounded-2xl bg-green-500 flex items-center justify-center shrink-0 shadow-lg shadow-green-500/30">

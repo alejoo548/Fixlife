@@ -91,8 +91,7 @@ export const FAQSection: React.FC<FAQSectionProps> = ({ onBookService, onNavigat
           <motion.div
             key={index}
             initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
+            animate={{ opacity: 1, y: 0 }}
             transition={{ delay: index * 0.05 }}
             className="bg-white/80 backdrop-blur-sm border border-gray-200 rounded-2xl overflow-hidden shadow-sm hover:shadow-lg transition-all duration-300"
           >
@@ -151,8 +150,7 @@ export const FAQSection: React.FC<FAQSectionProps> = ({ onBookService, onNavigat
 
       <motion.div
         initial={{ opacity: 0, y: 20 }}
-        whileInView={{ opacity: 1, y: 0 }}
-        viewport={{ once: true }}
+        animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.4 }}
         className="mt-5 bg-gradient-to-r from-bird-blue to-bird-darkBlue rounded-2xl p-4 md:p-6 text-center relative overflow-hidden"
       >

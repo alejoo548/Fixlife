@@ -1,6 +1,6 @@
 import React, { useState, useEffect, Suspense, lazy } from 'react';
 import { motion } from 'framer-motion';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 import { Navbar } from './components/layout/Navbar';
 import { NavItemType, AuthMode } from './types';
 import { AuthModal } from './components/modals/AuthModal';
@@ -36,6 +36,8 @@ const AdminDashboard = lazy(() =>
   }))
 );
 const PaymentCheckoutPage = lazy(() => import('./pages/PaymentCheckoutPage'));
+const ForgotPassword = lazy(() => import('./pages/ForgotPassword'));
+const ResetPassword = lazy(() => import('./pages/ResetPassword'));
 
 const navItems: NavItemType[] = [
   { name: "Services" },
@@ -87,6 +89,18 @@ const AppRouteFallback: React.FC<{ title?: string; subtitle?: string }> = ({
   </div>
 );
 
+const ProtectedRoute: React.FC<{ children: React.ReactElement }> = ({ children }) => {
+  return isAuthenticated() ? children : <Navigate to="/" replace />;
+};
+
+const RoleRoute: React.FC<{
+  scope: 'worker' | 'admin';
+  role: 'worker' | 'admin';
+  children: React.ReactElement;
+}> = ({ scope, role, children }) => {
+  return isAuthenticated(scope) && hasRole(role, scope) ? children : <Navigate to="/" replace />;
+};
+
 const App: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
@@ -94,98 +108,30 @@ const App: React.FC = () => {
   const [authMode, setAuthMode] = useState<AuthMode>('signin');
   const [isWorkerAuthOpen, setIsWorkerAuthOpen] = useState(false);
   const [workerAuthMode, setWorkerAuthMode] = useState<'signin' | 'signup'>('signup');
-  const [currentView, setCurrentView] = useState<'landing' | 'app' | 'pro-dashboard' | 'admin-dashboard' | 'profile' | 'checkout'>('landing');
-  const [checkoutRequestId, setCheckoutRequestId] = useState<number | null>(null);
   const [serviceCards, setServiceCards] = useState<HomeServiceCard[]>([]);
   const [selectedService, setSelectedService] = useState<{ id: number; name: string } | null>(null);
   const [pendingSection, setPendingSection] = useState<LandingSectionTarget | null>(null);
 
+  const isLandingRoute = location.pathname === '/';
+  const isDashboardRoute = location.pathname === '/admin-dashboard' || location.pathname === '/pro-dashboard';
+  const checkoutRequestId = (() => {
+    const match = location.pathname.match(/^\/checkout\/(\d+)$/);
+    const requestId = match ? Number(match[1]) : null;
+    return requestId && requestId > 0 ? requestId : null;
+  })();
+  const routeSelectedService = (() => {
+    const params = new URLSearchParams(location.search);
+    const id = Number(params.get('serviceId'));
+    if (!Number.isFinite(id) || id <= 0) return selectedService;
+    return {
+      id,
+      name: params.get('serviceName') || selectedService?.name || '',
+    };
+  })();
+
   const goLandingWithReplace = () => {
     navigate('/', { replace: true });
-    setCheckoutRequestId(null);
-    setCurrentView('landing');
   };
-
-  const resolveViewFromPath = (path: string) => {
-    const checkoutMatch = path.match(/^\/checkout\/(\d+)$/);
-    if (checkoutMatch) {
-      const requestId = Number(checkoutMatch[1]);
-      if (isAuthenticated() && requestId > 0) {
-        setCheckoutRequestId(requestId);
-        setCurrentView('checkout');
-      } else {
-        setCheckoutRequestId(null);
-        goLandingWithReplace();
-      }
-      return;
-    }
-
-    if (path === '/app') {
-      setCheckoutRequestId(null);
-      setCurrentView('app');
-      return;
-    }
-
-    if (path === '/profile') {
-      setCheckoutRequestId(null);
-      if (isAuthenticated()) {
-        setCurrentView('profile');
-      } else {
-        goLandingWithReplace();
-      }
-      return;
-    }
-
-    if (path === '/pro-dashboard') {
-      setCheckoutRequestId(null);
-      if (isAuthenticated('worker') && hasRole('worker', 'worker')) {
-        setCurrentView('pro-dashboard');
-      } else {
-        goLandingWithReplace();
-      }
-      return;
-    }
-
-    if (path === '/admin-dashboard') {
-      setCheckoutRequestId(null);
-      if (isAuthenticated('admin') && hasRole('admin', 'admin')) {
-        setCurrentView('admin-dashboard');
-      } else {
-        goLandingWithReplace();
-      }
-      return;
-    }
-
-    setCheckoutRequestId(null);
-    setCurrentView('landing');
-  };
-
-  // Let React Router own URL changes; this keeps app state in sync with real routes.
-  useEffect(() => {
-    resolveViewFromPath(location.pathname);
-  }, [location.pathname]);
-
-  // Guard already-open private views in case session disappears
-  useEffect(() => {
-    if (currentView === 'pro-dashboard' && (!isAuthenticated('worker') || !hasRole('worker', 'worker'))) {
-      goLandingWithReplace();
-      return;
-    }
-
-    if (currentView === 'admin-dashboard' && (!isAuthenticated('admin') || !hasRole('admin', 'admin'))) {
-      goLandingWithReplace();
-      return;
-    }
-
-    if (currentView === 'profile' && !isAuthenticated()) {
-      goLandingWithReplace();
-      return;
-    }
-
-    if (currentView === 'checkout' && !isAuthenticated()) {
-      goLandingWithReplace();
-    }
-  }, [currentView]);
 
   useEffect(() => {
     const fetchServiceCards = async () => {
@@ -214,7 +160,7 @@ const App: React.FC = () => {
   };
 
   useEffect(() => {
-    if (currentView !== 'landing' || !pendingSection) {
+    if (!isLandingRoute || !pendingSection) {
       return;
     }
 
@@ -224,7 +170,7 @@ const App: React.FC = () => {
     }, 120);
 
     return () => window.clearTimeout(timer);
-  }, [currentView, pendingSection]);
+  }, [isLandingRoute, pendingSection]);
 
   const handleOpenAuth = (mode: AuthMode) => {
     setAuthMode(mode);
@@ -232,9 +178,18 @@ const App: React.FC = () => {
   };
 
   const handleStartBooking = (service?: { id: number; name: string } | null) => {
-    setSelectedService(service || null);
-    navigate('/app');
-    setCurrentView('app');
+    const nextService = service || null;
+    setSelectedService(nextService);
+
+    if (nextService?.id) {
+      const params = new URLSearchParams({
+        serviceId: String(nextService.id),
+        serviceName: nextService.name,
+      });
+      navigate(`/app?${params.toString()}`);
+    } else {
+      navigate('/app');
+    }
     window.scrollTo(0, 0);
   };
 
@@ -244,7 +199,6 @@ const App: React.FC = () => {
       return;
     }
     navigate('/pro-dashboard', { replace: true });
-    setCurrentView('pro-dashboard');
     window.scrollTo(0, 0);
   }
 
@@ -254,7 +208,6 @@ const App: React.FC = () => {
       return;
     }
     navigate('/admin-dashboard', { replace: true });
-    setCurrentView('admin-dashboard');
     window.scrollTo(0, 0);
   }
 
@@ -269,42 +222,29 @@ const App: React.FC = () => {
       return;
     }
     navigate('/profile', { replace: true });
-    setCurrentView('profile');
     window.scrollTo(0, 0);
   }
 
   const handleBackToLanding = () => {
     setPendingSection(null);
-    const leavingProtectedView =
-      currentView === 'admin-dashboard' ||
-      currentView === 'pro-dashboard' ||
-      currentView === 'profile' ||
-      currentView === 'checkout';
-
-    navigate('/', { replace: leavingProtectedView });
-    setCurrentView('landing');
+    navigate('/', { replace: !isLandingRoute });
     window.scrollTo(0, 0);
   };
 
   const handleWorkerSignOut = () => {
     clearAuthSession('worker');
     navigate('/', { replace: true });
-    setCurrentView('landing');
     window.scrollTo(0, 0);
   };
 
   const handleBackToRequests = () => {
     navigate('/app', { replace: true });
-    setCurrentView('app');
-    setCheckoutRequestId(null);
     window.scrollTo(0, 0);
   };
 
   const handleOpenCheckout = (requestId: number) => {
     if (!requestId) return;
-    setCheckoutRequestId(requestId);
     navigate(`/checkout/${requestId}`);
-    setCurrentView('checkout');
     window.scrollTo(0, 0);
   };
 
@@ -356,7 +296,7 @@ const App: React.FC = () => {
   ];
 
   const cardsToRender = serviceCards.length > 0 ? serviceCards.slice(0, 8) : fallbackCards;
-  const showAiSupportWidget = currentView !== 'admin-dashboard' && currentView !== 'pro-dashboard';
+  const showAiSupportWidget = !isDashboardRoute;
 
   const normalizeLabel = (value: string) => value.toLowerCase().replace(/[^a-z0-9]+/g, '');
 
@@ -367,10 +307,9 @@ const App: React.FC = () => {
 
     const typedTarget = target as LandingSectionTarget;
 
-    if (currentView !== 'landing') {
+    if (!isLandingRoute) {
       setPendingSection(typedTarget);
       navigate('/');
-      setCurrentView('landing');
       window.scrollTo(0, 0);
       return;
     }
@@ -400,7 +339,7 @@ const App: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-sky-50 via-amber-50 to-orange-50 text-gray-900 selection:bg-bird-blue selection:text-white overflow-x-hidden font-sans flex flex-col relative transition-colors duration-500">
-      {currentView === 'landing' ? (
+      {isLandingRoute ? (
         <div className="fixed inset-0 w-full h-full overflow-hidden pointer-events-none z-0">
           <ParticlesBackground />
 
@@ -427,56 +366,99 @@ const App: React.FC = () => {
         onSuccess={handleOpenProDashboard}
       />
 
-      {currentView === 'app' ? (
-        <Suspense fallback={<AppRouteFallback title="Loading booking flow..." subtitle="Getting the service wizard ready." />}>
-          <ServiceRequestWizard
-            isOpen={true}
-            onClose={handleBackToLanding}
-            initialServiceId={selectedService?.id}
-            initialServiceName={selectedService?.name}
-            onOpenCheckout={handleOpenCheckout}
-          />
-        </Suspense>
-      ) : currentView === 'checkout' ? (
-        <Suspense fallback={<AppRouteFallback title="Loading checkout..." subtitle="Preparing secure payment." />}>
-          <PaymentCheckoutPage
-            requestId={checkoutRequestId}
-            onBack={handleBackToRequests}
-          />
-        </Suspense>
-      ) : currentView === 'pro-dashboard' ? (
-        isAuthenticated('worker') && hasRole('worker', 'worker') ? (
-          <Suspense fallback={<AppRouteFallback title="Loading worker dashboard..." subtitle="Preparing requests, maps and tools." />}>
-            <ProDashboard
-              isOpen={true}
-              onClose={handleBackToLanding}
-              onSignOut={handleWorkerSignOut}
-            />
-          </Suspense>
-        ) : null
-      ) : currentView === 'admin-dashboard' ? (
-        isAuthenticated('admin') && hasRole('admin', 'admin') ? (
-          <Suspense fallback={<AppRouteFallback title="Loading admin dashboard..." subtitle="Preparing management tools." />}>
-            <AdminDashboard
-              isOpen={true}
-              onClose={handleBackToLanding}
-            />
-          </Suspense>
-        ) : null
-      ) : currentView === 'profile' ? (
-        <>
-          <Navbar
-            navItems={navItems}
-            onOpenAuth={handleOpenAuth}
-            onStartBooking={handleStartBooking}
-            onOpenProfile={handleOpenProfile}
-            onGoHome={handleBackToLanding}
-            onNavigateSection={handleNavigateSection}
-            onSelectCategory={handleSelectCategory}
-          />
-          <UserProfile onBack={handleBackToLanding} />
-        </>
-      ) : (
+      <Routes>
+        <Route
+          path="/app"
+          element={(
+            <Suspense fallback={<AppRouteFallback title="Loading booking flow..." subtitle="Getting the service wizard ready." />}>
+              <ServiceRequestWizard
+                isOpen={true}
+                onClose={handleBackToLanding}
+                initialServiceId={routeSelectedService?.id}
+                initialServiceName={routeSelectedService?.name || undefined}
+                onOpenCheckout={handleOpenCheckout}
+              />
+            </Suspense>
+          )}
+        />
+        <Route
+          path="/checkout/:requestId"
+          element={(
+            <ProtectedRoute>
+              <Suspense fallback={<AppRouteFallback title="Loading checkout..." subtitle="Preparing secure payment." />}>
+                <PaymentCheckoutPage
+                  requestId={checkoutRequestId}
+                  onBack={handleBackToRequests}
+                />
+              </Suspense>
+            </ProtectedRoute>
+          )}
+        />
+        <Route
+          path="/pro-dashboard"
+          element={(
+            <RoleRoute scope="worker" role="worker">
+              <Suspense fallback={<AppRouteFallback title="Loading worker dashboard..." subtitle="Preparing requests, maps and tools." />}>
+                <ProDashboard
+                  isOpen={true}
+                  onClose={handleBackToLanding}
+                  onSignOut={handleWorkerSignOut}
+                />
+              </Suspense>
+            </RoleRoute>
+          )}
+        />
+        <Route
+          path="/admin-dashboard"
+          element={(
+            <RoleRoute scope="admin" role="admin">
+              <Suspense fallback={<AppRouteFallback title="Loading admin dashboard..." subtitle="Preparing management tools." />}>
+                <AdminDashboard
+                  isOpen={true}
+                  onClose={handleBackToLanding}
+                />
+              </Suspense>
+            </RoleRoute>
+          )}
+        />
+        <Route
+          path="/profile"
+          element={(
+            <ProtectedRoute>
+              <>
+                <Navbar
+                  navItems={navItems}
+                  onOpenAuth={handleOpenAuth}
+                  onStartBooking={handleStartBooking}
+                  onOpenProfile={handleOpenProfile}
+                  onGoHome={handleBackToLanding}
+                  onNavigateSection={handleNavigateSection}
+                  onSelectCategory={handleSelectCategory}
+                />
+                <UserProfile onBack={handleBackToLanding} />
+              </>
+            </ProtectedRoute>
+          )}
+        />
+        <Route
+          path="/forgot-password"
+          element={(
+            <Suspense fallback={<AppRouteFallback title="Loading account recovery..." subtitle="Preparing password reset." />}>
+              <ForgotPassword onBack={handleBackToLanding} />
+            </Suspense>
+          )}
+        />
+        <Route
+          path="/reset-password"
+          element={(
+            <Suspense fallback={<AppRouteFallback title="Loading account recovery..." subtitle="Preparing password reset." />}>
+              <ResetPassword />
+            </Suspense>
+          )}
+        />
+        <Route
+          path="/"
+          element={(
         <>
 
           <Navbar
@@ -613,30 +595,13 @@ const App: React.FC = () => {
               <ScrollReveal>
                 <div className="flex items-center justify-between mb-10 px-2">
                   <div>
-                    <motion.h3
-                      initial={{ opacity: 0, x: -20 }}
-                      whileInView={{ opacity: 1, x: 0 }}
-                      viewport={{ once: true }}
-                      className="text-3xl md:text-4xl font-black text-gray-900 flex items-center gap-4"
-                    >
-                      <motion.span
-                        initial={{ scaleY: 0 }}
-                        whileInView={{ scaleY: 1 }}
-                        viewport={{ once: true }}
-                        transition={{ delay: 0.2, type: "spring" }}
-                        className="w-1.5 h-8 rounded-full bg-bird-blue shadow-[0_0_15px_rgba(0,144,255,0.4)] origin-bottom"
-                      />
+                    <h3 className="text-3xl md:text-4xl font-black text-gray-900 flex items-center gap-4">
+                      <span className="w-1.5 h-8 rounded-full bg-bird-blue shadow-[0_0_15px_rgba(0,144,255,0.4)] origin-bottom" />
                       Professional Services
-                    </motion.h3>
-                    <motion.p
-                      initial={{ opacity: 0, x: -20 }}
-                      whileInView={{ opacity: 1, x: 0 }}
-                      viewport={{ once: true }}
-                      transition={{ delay: 0.3 }}
-                      className="text-gray-600 mt-2 ml-6 text-sm font-medium"
-                    >
+                    </h3>
+                    <p className="text-gray-600 mt-2 ml-6 text-sm font-medium">
                       Expert solutions for every home need
-                    </motion.p>
+                    </p>
                   </div>
                   <Button
                     onClick={() => handleStartBooking()}
@@ -653,10 +618,9 @@ const App: React.FC = () => {
                   </Button>
                 </div>
               </ScrollReveal>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+              <ScrollReveal className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                 {cardsToRender.map((item, i) => (
-                  <ScrollReveal key={i} delay={i * 100} className="h-full">
-                    <ThreeDCard className="h-full">
+                  <ThreeDCard key={i} className="h-full">
                     <div
                       onClick={() => handleStartBooking({ id: item.id_service, name: item.service_name })}
                       className="group h-full cursor-pointer bg-white/80 border border-gray-200/50 rounded-3xl overflow-hidden hover:border-bird-blue/50 transition-all duration-500 hover:shadow-2xl hover:shadow-bird-blue/10 flex flex-col backdrop-blur-sm"
@@ -702,10 +666,9 @@ const App: React.FC = () => {
                         </motion.div>
                       </div>
                     </div>
-                    </ThreeDCard>
-                  </ScrollReveal>
+                  </ThreeDCard>
                 ))}
-              </div>
+              </ScrollReveal>
             </section>
 
             <ScrollReveal>
@@ -739,7 +702,10 @@ const App: React.FC = () => {
             onNavigateSection={handleNavigateSection}
           />
         </>
-      )}
+          )}
+        />
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
 
       {showAiSupportWidget ? <AiSupportChatWidget /> : null}
 

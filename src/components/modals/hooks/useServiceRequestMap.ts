@@ -21,8 +21,8 @@ interface QuickAccessLocationLike extends CoordinatesLike {
 
 interface NearbyWorkerLike {
   name: string;
-  latitude: number | null;
-  longitude: number | null;
+  latitude?: number | null;
+  longitude?: number | null;
   distance_km: number | null;
 }
 

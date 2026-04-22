@@ -98,15 +98,13 @@ export const ProBento: React.FC<ProBentoProps> = ({ onOpenPro, onOpenWorkerAuth 
         {/* Left content */}
         <motion.div
           initial={{ opacity: 0, x: -50 }}
-          whileInView={{ opacity: 1, x: 0 }}
-          viewport={{ once: true }}
+          animate={{ opacity: 1, x: 0 }}
           transition={{ duration: 0.6 }}
           className="flex-1 max-w-xl text-center lg:text-left order-2 lg:order-1"
         >
           <motion.div
             initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
+            animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.2 }}
             className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-gradient-to-r from-bird-blue/10 to-bird-lightBlue/10 border border-bird-blue/20 text-bird-blue text-xs font-bold tracking-wider mb-6 shadow-sm"
           >
@@ -120,8 +118,7 @@ export const ProBento: React.FC<ProBentoProps> = ({ onOpenPro, onOpenWorkerAuth 
 
           <motion.h2
             initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
+            animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.3 }}
             className="text-4xl md:text-5xl lg:text-6xl font-black text-gray-900 mb-6 leading-[1.1] tracking-tight"
           >
@@ -133,8 +130,7 @@ export const ProBento: React.FC<ProBentoProps> = ({ onOpenPro, onOpenWorkerAuth 
 
           <motion.p
             initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
+            animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.4 }}
             className="text-gray-600 text-base md:text-lg mb-8 leading-relaxed font-medium"
           >
@@ -144,8 +140,7 @@ export const ProBento: React.FC<ProBentoProps> = ({ onOpenPro, onOpenWorkerAuth 
           {/* Benefits list */}
           <motion.div
             initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
+            animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.5 }}
             className="mb-8 space-y-3"
           >
@@ -157,8 +152,7 @@ export const ProBento: React.FC<ProBentoProps> = ({ onOpenPro, onOpenWorkerAuth 
               <motion.div
                 key={i}
                 initial={{ opacity: 0, x: -20 }}
-                whileInView={{ opacity: 1, x: 0 }}
-                viewport={{ once: true }}
+                animate={{ opacity: 1, x: 0 }}
                 transition={{ delay: 0.6 + i * 0.1 }}
                 className="flex items-center gap-3 text-left"
               >
@@ -175,8 +169,7 @@ export const ProBento: React.FC<ProBentoProps> = ({ onOpenPro, onOpenWorkerAuth 
           {!isAuthenticated('worker') && (
           <motion.div
             initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
+            animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.9 }}
             className="flex flex-col sm:flex-row items-center gap-4 justify-center lg:justify-start"
           >
@@ -206,8 +199,7 @@ export const ProBento: React.FC<ProBentoProps> = ({ onOpenPro, onOpenWorkerAuth 
         {/* Right content - Profile card */}
         <motion.div
           initial={{ opacity: 0, x: 50 }}
-          whileInView={{ opacity: 1, x: 0 }}
-          viewport={{ once: true }}
+          animate={{ opacity: 1, x: 0 }}
           transition={{ duration: 0.6 }}
           className="flex-1 w-full flex justify-center lg:justify-end order-1 lg:order-2"
         >

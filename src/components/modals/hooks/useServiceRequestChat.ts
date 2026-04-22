@@ -27,7 +27,7 @@ interface UseServiceRequestChatOptions<TRequest extends ServiceRequestChatReques
   showToast: (type: ToastType, message: string) => void;
 }
 
-const CHAT_POLL_FALLBACK_MS = 20000;
+const CHAT_POLL_FALLBACK_MS = 60000;
 
 const getLatestChatMessageId = (messages: ServiceRequestChatMessage[]) =>
   messages.length > 0 ? Number(messages[messages.length - 1].id_message || 0) : 0;
@@ -49,6 +49,19 @@ const mergeChatMessages = (
   return Array.from(byId.values()).sort(
     (left, right) => Number(left.id_message || 0) - Number(right.id_message || 0)
   );
+};
+
+const getRealtimeChatMessages = (
+  payload: unknown,
+  idRequest: number
+): ServiceRequestChatMessage[] => {
+  const messages = (payload as { messages?: unknown } | null)?.messages;
+  if (!Array.isArray(messages)) return [];
+
+  return messages.filter((message): message is ServiceRequestChatMessage => {
+    const item = message as Partial<ServiceRequestChatMessage>;
+    return Number(item.id_request) === idRequest && Number.isFinite(Number(item.id_message));
+  });
 };
 
 export function useServiceRequestChat<TRequest extends ServiceRequestChatRequestLike>({
@@ -167,6 +180,17 @@ export function useServiceRequestChat<TRequest extends ServiceRequestChatRequest
     [token, chatImage, chatMessage, fetchRequestChat, showToast]
   );
 
+  const applyRealtimeChatPayload = useCallback((idRequest: number, payload: unknown) => {
+    const realtimeMessages = getRealtimeChatMessages(payload, idRequest);
+    if (realtimeMessages.length === 0) return false;
+
+    setChatByRequest((prev) => ({
+      ...prev,
+      [idRequest]: mergeChatMessages(prev[idRequest] || [], realtimeMessages),
+    }));
+    return true;
+  }, []);
+
   useEffect(() => {
     if (!openChatRequestId) return;
 
@@ -187,7 +211,9 @@ export function useServiceRequestChat<TRequest extends ServiceRequestChatRequest
         const nextData = data as { id_request?: number } | null;
         if (!isOpen || !openChatRequestId || !canUseOpenChat) return;
         if (nextData?.id_request == null || nextData.id_request === openChatRequestId) {
-          void fetchRequestChat(openChatRequestId, { silent: true, incremental: true });
+          if (!applyRealtimeChatPayload(openChatRequestId, data)) {
+            void fetchRequestChat(openChatRequestId, { silent: true, incremental: true });
+          }
         }
       },
     },

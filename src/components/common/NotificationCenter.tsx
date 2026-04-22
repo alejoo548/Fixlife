@@ -250,7 +250,7 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({
       );
       setUnreadCount((prev) => Math.max(prev - 1, 0));
     } catch {
-      // keep quiet; polling will recover
+      // keep quiet; the next realtime refresh or panel open will recover
     }
   };
 

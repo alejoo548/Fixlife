@@ -4,7 +4,8 @@ services:
       context: .
       dockerfile: docker/Dockerfile.dev
       args:
-        VITE_API_URL: ${VITE_API_URL:-http://127.0.0.1:8000}
+        VITE_API_URL: ${VITE_API_URL:-}
+        PUBLIC_API_URL: ${PUBLIC_API_URL:-http://127.0.0.1:8000}
         VITE_GOOGLE_CLIENT_ID: ${VITE_GOOGLE_CLIENT_ID:-}
         VITE_RECAPTCHA_SITE_KEY: ${VITE_RECAPTCHA_SITE_KEY:-}
         VITE_TOMTOM_TRAFFIC_KEY: ${VITE_TOMTOM_TRAFFIC_KEY:-}
