@@ -23,7 +23,7 @@ export const Footer: React.FC<FooterProps> = ({
   ];
 
   return (
-    <footer className="relative bg-gradient-to-b from-transparent via-orange-50/30 to-gray-50 pt-16 pb-10 border-t border-gray-200">
+    <footer className="relative bg-gradient-to-b from-transparent via-orange-50/30 to-gray-50 pt-8 pb-10 border-t border-gray-200">
       <div className="absolute inset-0 overflow-hidden pointer-events-none z-0">
         <div className="absolute bottom-0 left-[10%] w-[500px] h-[500px] bg-bird-blue/10 rounded-full blur-[100px]" />
         <div className="absolute top-20 right-[10%] w-[400px] h-[400px] bg-bird-yellow/10 rounded-full blur-[100px]" />

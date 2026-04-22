@@ -471,7 +471,7 @@ const App: React.FC = () => {
           />
 
 
-          <main className="relative z-10 pt-24 lg:pt-36 px-4 lg:px-8 max-w-[1400px] mx-auto pb-32 flex-grow w-full">
+          <main className="relative z-10 pt-24 lg:pt-36 px-4 lg:px-8 max-w-[1400px] mx-auto pb-10 flex-grow w-full">
 
 
             <section className="mb-16 md:mb-24 grid grid-cols-1 lg:grid-cols-12 gap-6 md:gap-10">
@@ -689,7 +689,7 @@ const App: React.FC = () => {
               </section>
             </ScrollReveal>
 
-            <section id={LANDING_SECTION_IDS.professionals} className="mb-24 md:mb-32">
+            <section id={LANDING_SECTION_IDS.professionals} className="mb-8 md:mb-10">
               <ScrollReveal><ProBento onOpenPro={handleOpenProDashboard} onOpenWorkerAuth={handleOpenWorkerAuth} /></ScrollReveal>
             </section>
           </main>
