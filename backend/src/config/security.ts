@@ -1,17 +1,27 @@
-const INSECURE_DEFAULT_JWT_SECRET = 'super_secret_jwt_key_for_development';
+import crypto from 'crypto';
+
+let generatedDevelopmentJwtSecret: string | null = null;
+
+const canUseGeneratedDevelopmentSecret = () => {
+  const runtimeEnv = String(process.env.NODE_ENV || '').trim().toLowerCase();
+  return runtimeEnv === 'development' || runtimeEnv === 'test' || (!runtimeEnv && process.env.npm_lifecycle_event === 'dev');
+};
 
 export const getJwtSecret = (): string => {
   const secret = String(process.env.JWT_SECRET || '').trim();
-  const isProduction = process.env.NODE_ENV === 'production';
 
-  if (secret && (!isProduction || secret !== INSECURE_DEFAULT_JWT_SECRET)) return secret;
+  if (secret) return secret;
 
-  if (isProduction) {
-    throw new Error('A secure JWT_SECRET is required in production.');
+  if (!canUseGeneratedDevelopmentSecret()) {
+    throw new Error('A secure JWT_SECRET is required outside development and test.');
   }
 
-  return INSECURE_DEFAULT_JWT_SECRET;
+  if (!generatedDevelopmentJwtSecret) {
+    generatedDevelopmentJwtSecret = crypto.randomBytes(48).toString('base64url');
+  }
+
+  return generatedDevelopmentJwtSecret;
 };
 
-export const isUsingInsecureDefaultJwtSecret = () =>
-  getJwtSecret() === INSECURE_DEFAULT_JWT_SECRET;
+export const isUsingGeneratedDevelopmentJwtSecret = () =>
+  !String(process.env.JWT_SECRET || '').trim() && canUseGeneratedDevelopmentSecret();
