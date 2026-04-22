@@ -140,6 +140,7 @@ const App: React.FC = () => {
   const [serviceCards, setServiceCards] = useState<HomeServiceCard[]>([]);
   const [pendingSection, setPendingSection] = useState<LandingSectionTarget | null>(null);
   const [pendingBookingPath, setPendingBookingPath] = useState<string | null>(null);
+  const isLandingRoute = location.pathname === '/';
 
   useEffect(() => {
     const fetchServiceCards = async () => {
