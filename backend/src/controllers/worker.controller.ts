@@ -16,6 +16,7 @@ import {
   syncWorkerBonusPayouts,
 } from '../utils/workerRewards';
 import { createUserNotification } from '../utils/notifications';
+import { publicUploadUrl } from '../utils/assets';
 
 const servicesController = require(path.join(__dirname, './services.controller'));
 const {
@@ -59,8 +60,7 @@ const ensurePendingEmailColumn = async () => {
 };
 
 const buildAssetUrl = (req: AuthRequest, fileName: string | null) => {
-  if (!fileName) return null;
-  return `${req.protocol}://${req.get('host')}/uploads/${encodeURIComponent(fileName)}`;
+  return publicUploadUrl(req, fileName);
 };
 
 const toSqlDateTime = (date: Date) => date.toISOString().slice(0, 19).replace('T', ' ');

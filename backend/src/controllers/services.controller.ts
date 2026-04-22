@@ -8,6 +8,7 @@ import { createUserNotification } from '../utils/notifications';
 import { pushToUser } from '../services/sseManager';
 import { getWorkerBonusPayouts, getWorkerRewardsSettings, syncWorkerBonusPayouts } from '../utils/workerRewards';
 import { sendPaymentInvoiceEmail, sendWorkerPaymentSecuredEmail } from '../utils/email';
+import { publicUploadUrl } from '../utils/assets';
 
 type ServiceCardRow = RowDataPacket & {
   id_card: number;
@@ -214,8 +215,7 @@ const ensureDefaultServices = async () => {
 };
 
 const buildAssetUrl = (req: Request, fileName: string | null) => {
-  if (!fileName) return null;
-  return `${req.protocol}://${req.get('host')}/uploads/${encodeURIComponent(fileName)}`;
+  return publicUploadUrl(req, fileName);
 };
 
 const getWorkerUserIdByProfileId = async (profileId: number | null | undefined) => {
@@ -693,7 +693,7 @@ export const getActiveServices = async (_req: Request, res: Response): Promise<v
   }
 };
 
-export const getPublicServiceCards = async (_req: Request, res: Response): Promise<void> => {
+export const getPublicServiceCards = async (req: Request, res: Response): Promise<void> => {
   try {
     await ensureServiceCardsTable();
 
@@ -720,7 +720,7 @@ export const getPublicServiceCards = async (_req: Request, res: Response): Promi
     const cards = rows.map((row) => ({
       id_card: Number(row.id_card),
       id_service: Number(row.id_service),
-      image_url: row.image_url,
+      image_url: publicUploadUrl(req, row.image_url) || row.image_url,
       badge: row.badge || 'POPULAR',
       headline: row.headline || row.service_name,
       summary: row.summary || row.service_description || '',
@@ -1879,7 +1879,7 @@ export const createServiceRequest = async (req: AuthRequest, res: Response): Pro
         status: 'pending',
         images: files.map((f) => ({
           file_name: f.filename,
-          url: `${req.protocol}://${req.get('host')}/uploads/${encodeURIComponent(f.filename)}`,
+          url: publicUploadUrl(req, f.filename),
         })),
       },
     });
@@ -2031,7 +2031,7 @@ export const getMyServiceRequests = async (req: AuthRequest, res: Response): Pro
               .filter(Boolean)
               .map((name: string) => ({
                 file_name: name,
-                url: `${req.protocol}://${req.get('host')}/uploads/${encodeURIComponent(name)}`,
+                url: publicUploadUrl(req, name),
               }))
           : [],
     }));
@@ -2438,7 +2438,7 @@ const mapRequestChatRow = (req: Request, row: any) => ({
   id_user: Number(row.id_user),
   id_worker_profile: row.id_worker_profile != null ? Number(row.id_worker_profile) : null,
   message: row.message || null,
-  image_url: row.image_url ? `${req.protocol}://${req.get('host')}/uploads/${encodeURIComponent(row.image_url)}` : null,
+  image_url: publicUploadUrl(req, row.image_url),
   created_at: row.created_at,
 });
 
@@ -2618,7 +2618,7 @@ export const postRequestChatMessage = async (req: AuthRequest, res: Response): P
       id_request: idRequest,
       latest_message_id: createdMessages[createdMessages.length - 1]?.id_message ?? primaryMessageId,
       messages: createdMessages,
-      uploads: uploads.map((name) => `${req.protocol}://${req.get('host')}/uploads/${encodeURIComponent(name)}`),
+      uploads: uploads.map((name) => publicUploadUrl(req, name)),
     });
   } catch (error: any) {
     console.error('Error in postRequestChatMessage:', error);
