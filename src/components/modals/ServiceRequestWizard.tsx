@@ -1,4 +1,5 @@
 import React, { Suspense, lazy, useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useSSE } from '../../hooks/useSSE';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ServiceRequestData } from '../../types';
@@ -650,6 +651,7 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
     const [pendingRenameLocation, setPendingRenameLocation] = useState<SavedLocation | null>(null);
     const [pendingRenameTitle, setPendingRenameTitle] = useState('');
     const [pendingRequestAction, setPendingRequestAction] = useState<{ type: 'cancel' | 'complete'; request: MyServiceRequest } | null>(null);
+    const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
     const [workerProfileRequest, setWorkerProfileRequest] = useState<MyServiceRequest | null>(null);
     const [workerProfileLoading, setWorkerProfileLoading] = useState(false);
     const [workerProfileData, setWorkerProfileData] = useState<RequestWorkerProfileResponse | null>(null);
@@ -2978,6 +2980,7 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                         key={`desktop-${activeTrackedRequest.id_request}`}
                                         leafletReady={leafletReady}
                                         request={activeTrackedRequest}
+                                        onClose={!isDesktopSheet ? onClose : undefined}
                                     />
                                 ) : null}
                             </Suspense>
@@ -3114,7 +3117,1147 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                         onSubmitRequest={submitServiceRequest}
                                     />
                                 </div>
-                                <ServiceRequestHistorySection
+                                <div className="mt-4 pt-4 border-t border-slate-200">
+    <button
+        type="button"
+        onClick={() => setIsHistoryModalOpen(true)}
+        className="w-full flex items-center justify-between gap-3 rounded-2xl bg-slate-50 px-5 py-4 border border-slate-200 hover:border-bird-blue hover:bg-white transition-colors group"
+    >
+        <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-blue-100 text-bird-blue">
+                <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+            </div>
+            <div className="text-left">
+                <p className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-400 group-hover:text-bird-blue transition-colors">History</p>
+                <p className="text-sm font-bold text-slate-900">My Request Story</p>
+            </div>
+        </div>
+        <div className="flex h-8 w-8 items-center justify-center rounded-full bg-slate-200 text-slate-500 group-hover:bg-bird-blue group-hover:text-white transition-colors">
+            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
+        </div>
+    </button>
+</div>
+                            </motion.div>
+                        )}
+                    </AnimatePresence>
+
+                    <AnimatePresence>
+                        {ratingModalRequest && createPortal(
+                            <motion.div
+                                initial={{ opacity: 0 }}
+                                animate={{ opacity: 1 }}
+                                exit={{ opacity: 0 }}
+                                className="fixed inset-0 z-[80] bg-slate-950/35 backdrop-blur-[3px] flex items-center justify-center p-4"
+                            >
+                                <motion.div
+                                    initial={{ opacity: 0, scale: 0.96, y: 12 }}
+                                    animate={{ opacity: 1, scale: 1, y: 0 }}
+                                    exit={{ opacity: 0, scale: 0.96, y: 12 }}
+                                    transition={{ type: 'spring', damping: 24, stiffness: 260 }}
+                                    className="w-full max-w-2xl overflow-hidden rounded-[30px] border border-gray-200 bg-white shadow-2xl"
+                                >
+                                    <div className="bg-gradient-to-r from-bird-blue via-sky-500 to-bird-yellow px-6 py-5 text-white">
+                                        <div className="flex items-start justify-between gap-4">
+                                            <div>
+                                                <p className="text-[11px] font-black uppercase tracking-[0.2em] text-white/80">Fixes review</p>
+                                                <h3 className="mt-1 text-2xl font-black">Rate this completed job</h3>
+                                                <p className="mt-2 text-sm text-white/85">
+                                                    Share how the pro did after finishing <span className="font-black">{ratingModalRequest.service_name}</span>.
+                                                </p>
+                                            </div>
+                                            <button
+                                                type="button"
+                                                onClick={() => setRatingModalRequest(null)}
+                                                className="rounded-full border border-white/30 bg-white/10 px-3 py-1.5 text-xs font-black uppercase tracking-wide text-white hover:bg-white/20"
+                                            >
+                                                Close
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    <div className="p-6">
+                                        <div className="rounded-3xl border border-bird-blue/10 bg-gradient-to-r from-sky-50 via-white to-amber-50 p-4">
+                                            <div className="flex flex-wrap items-center justify-between gap-3">
+                                                <div>
+                                                    <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-900">Completed service</p>
+                                                    <p className="mt-1 text-lg font-black text-slate-900">
+                                                        {ratingModalRequest.service_name}
+                                                    </p>
+                                                    <p className="mt-1 text-sm text-slate-600">
+                                                        {ratingModalRequest.assigned_worker?.name || 'Your pro'}
+                                                    </p>
+                                                </div>
+                                                <span className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-[11px] font-black uppercase tracking-[0.18em] text-emerald-700">
+                                                    Unlocked
+                                                </span>
+                                            </div>
+                                        </div>
+
+                                        <div className="mt-5 space-y-4">
+                                            {(['punctuality', 'quality', 'price_fairness'] as RatingMetricKey[]).map((key) => {
+                                                const currentValue = getRatingDraft(ratingModalRequest.id_request)[key];
+                                                return (
+                                                    <div key={key} className="rounded-3xl border border-slate-200 bg-slate-50 p-4">
+                                                        <div className="flex items-center justify-between gap-3">
+                                                            <div>
+                                                                <p className="text-sm font-black text-slate-900">{RATING_METRIC_LABELS[key]}</p>
+                                                                <p className="mt-1 text-xs text-slate-500">
+                                                                    Leave your Fixes stars for this part of the service.
+                                                                </p>
+                                                            </div>
+                                                            <span className="rounded-full border border-bird-yellow/25 bg-bird-yellow/10 px-3 py-1 text-[11px] font-black text-amber-700">
+                                                                {currentValue}/5
+                                                            </span>
+                                                        </div>
+                                                        <div className="mt-4 flex flex-wrap gap-2">
+                                                            {Array.from({ length: 5 }).map((_, index) => {
+                                                                const starValue = index + 1;
+                                                                const active = starValue <= currentValue;
+                                                                return (
+                                                                    <button
+                                                                        key={`${key}-${starValue}`}
+                                                                        type="button"
+                                                                        onClick={() => updateRatingDraft(ratingModalRequest.id_request, { [key]: starValue })}
+                                                                        className={`flex h-11 w-11 items-center justify-center rounded-2xl border text-xl transition ${
+                                                                            active
+                                                                                ? 'border-bird-yellow/30 bg-bird-yellow/15 text-bird-yellow shadow-sm'
+                                                                                : 'border-slate-200 bg-white text-slate-300 hover:border-bird-blue/20 hover:text-slate-900'
+                                                                        }`}
+                                                                    >
+                                                                        {'★'}
+                                                                    </button>
+                                                                );
+                                                            })}
+                                                        </div>
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+
+                                        <div className="mt-5 rounded-3xl border border-slate-200 bg-white p-4">
+                                            <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">Comment</p>
+                                            <textarea
+                                                value={getRatingDraft(ratingModalRequest.id_request).comment}
+                                                onChange={(e) => updateRatingDraft(ratingModalRequest.id_request, { comment: e.target.value })}
+                                                placeholder="Tell us how the service went, what stood out, or what could be better..."
+                                                className="mt-3 min-h-[120px] w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm text-slate-700 outline-none transition focus:border-bird-blue/40 focus:ring-2 focus:ring-bird-blue/10"
+                                            />
+                                        </div>
+
+                                        <div className="mt-5 flex flex-col gap-3 sm:flex-row sm:justify-end">
+                                            <button
+                                                type="button"
+                                                onClick={() => setRatingModalRequest(null)}
+                                                className="rounded-2xl border border-slate-200 bg-white px-5 py-3 text-sm font-black text-slate-600 transition hover:border-slate-300 hover:bg-slate-50"
+                                            >
+                                                Maybe later
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => submitRating(ratingModalRequest)}
+                                                disabled={ratingBusyId === ratingModalRequest.id_request}
+                                                className="rounded-2xl bg-bird-blue px-5 py-3 text-sm font-black text-white shadow-[0_16px_30px_rgba(0,144,255,0.18)] transition hover:-translate-y-0.5 hover:bg-blue-700 disabled:opacity-50"
+                                            >
+                                                {ratingBusyId === ratingModalRequest.id_request ? 'Sending Fixes...' : 'Submit Fixes'}
+                                            </button>
+                                        </div>
+                                    </div>
+                                    <div className="border-t border-slate-200 bg-white/95 px-6 py-4 backdrop-blur">
+                                        {workerProfileRequest && hasPendingWorkerApproval(workerProfileRequest) ? (
+                                            <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                                                <div className="min-w-0">
+                                                    <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-900">Approve this pro</p>
+                                                    <p className="mt-1 text-sm text-slate-500">
+                                                        Review the profile and portfolio, then confirm this worker to move the request to payment.
+                                                    </p>
+                                                </div>
+                                                <div className="grid grid-cols-2 gap-3 lg:w-[380px]">
+                                                    <button
+                                                        type="button"
+                                                        disabled={workerApprovalBusyId === workerProfileRequest.id_request}
+                                                        onClick={() => handleWorkerApprovalDecision(workerProfileRequest, 'decline')}
+                                                        className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-black text-red-600 transition hover:bg-red-100 disabled:opacity-50"
+                                                    >
+                                                        {workerApprovalBusyId === workerProfileRequest.id_request ? 'Saving...' : 'Decline worker'}
+                                                    </button>
+                                                    <button
+                                                        type="button"
+                                                        disabled={workerApprovalBusyId === workerProfileRequest.id_request}
+                                                        onClick={() => handleWorkerApprovalDecision(workerProfileRequest, 'accept')}
+                                                        className="rounded-2xl bg-gradient-to-r from-bird-blue to-sky-500 px-4 py-3 text-sm font-black text-white shadow-[0_14px_30px_rgba(14,165,233,0.22)] transition hover:translate-y-[-1px] disabled:opacity-50"
+                                                    >
+                                                        {workerApprovalBusyId === workerProfileRequest.id_request ? 'Saving...' : 'Accept this worker'}
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        ) : (
+                                            <div className="flex items-center justify-end">
+                                                <button
+                                                    type="button"
+                                                    onClick={() => {
+                                                        setWorkerProfileRequest(null);
+                                                        setWorkerProfileData(null);
+                                                        setWorkerProfileLoading(false);
+                                                    }}
+                                                    className="rounded-2xl bg-slate-100 px-5 py-3 text-sm font-black text-slate-700 transition hover:bg-slate-200"
+                                                >
+                                                    Close profile
+                                                </button>
+                                            </div>
+                                        )}
+                                    </div>
+                                </motion.div>
+                            </motion.div>
+                        , document.body)}
+                    </AnimatePresence>
+
+                    <AnimatePresence>
+                        {fixesSuccessRequest && (
+                            <ServiceRequestFixesSuccessModal
+                                request={fixesSuccessRequest}
+                                punctuality={getRatingDraft(fixesSuccessRequest.id_request).punctuality}
+                                quality={getRatingDraft(fixesSuccessRequest.id_request).quality}
+                                priceFairness={getRatingDraft(fixesSuccessRequest.id_request).price_fairness}
+                                onClose={() => setFixesSuccessRequest(null)}
+                            />
+                        )}
+                    </AnimatePresence>
+
+                    <AnimatePresence>
+                        {showSavedPlacesModal && (
+                            <motion.div
+                                initial={{ opacity: 0 }}
+                                animate={{ opacity: 1 }}
+                                exit={{ opacity: 0 }}
+                                className="absolute inset-0 z-30 bg-slate-950/20 backdrop-blur-[2px] flex justify-end"
+                            >
+                                <motion.div
+                                    initial={{ x: 36, opacity: 0 }}
+                                    animate={{ x: 0, opacity: 1 }}
+                                    exit={{ x: 36, opacity: 0 }}
+                                    transition={{ type: 'spring', damping: 24, stiffness: 220 }}
+                                    className="h-full w-full max-w-[420px] border-l border-gray-200 bg-white shadow-2xl"
+                                >
+                                    <div className="flex h-full flex-col">
+                                        <div className="border-b border-gray-200 px-5 py-4">
+                                            <div className="flex items-center justify-between gap-4">
+                                                <div>
+                                                    <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-gray-400">Saved places</p>
+                                                    <h3 className="mt-1 text-lg font-black text-gray-900">Your location library</h3>
+                                                </div>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setShowSavedPlacesModal(false)}
+                                                    className="rounded-2xl border-none bg-gray-50/80 hover:bg-gray-100 transition-colors px-3 py-2 text-xs font-bold text-gray-500 hover:text-gray-700"
+                                                >
+                                                    Close
+                                                </button>
+                                            </div>
+
+                                            <div className="mt-4 space-y-3">
+                                                <div className="relative">
+                                                    <svg className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-4.35-4.35m1.85-5.15a7 7 0 11-14 0 7 7 0 0114 0z" />
+                                                    </svg>
+                                                    <input
+                                                        type="text"
+                                                        value={savedPlacesSearch}
+                                                        onChange={(e) => setSavedPlacesSearch(e.target.value)}
+                                                        placeholder="Search by name, address or type"
+                                                        className="w-full rounded-2xl border border-gray-200 bg-gray-50 pl-10 pr-10 py-3 text-sm text-gray-900 focus:border-bird-blue focus:bg-white focus:outline-none"
+                                                    />
+                                                    {savedPlacesSearch.trim() && (
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => setSavedPlacesSearch('')}
+                                                            className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-black text-gray-400 hover:text-gray-600"
+                                                        >
+                                                            x
+                                                        </button>
+                                                    )}
+                                                </div>
+
+                                                <div className="flex flex-wrap gap-2">
+                                                    {[
+                                                        { key: 'all', label: 'All', count: quickAccessLocations.length },
+                                                        { key: 'primary', label: 'Home & Work', count: groupedSavedLocations.primary.length },
+                                                        { key: 'favorite', label: 'Favorites', count: groupedSavedLocations.favorites.length },
+                                                        { key: 'recent', label: 'Recent', count: groupedSavedLocations.recents.length },
+                                                    ].map((option) => (
+                                                        <button
+                                                            key={option.key}
+                                                            type="button"
+                                                            onClick={() => setSavedPlacesFilter(option.key as 'all' | 'primary' | 'favorite' | 'recent')}
+                                                            className={`inline-flex items-center gap-2 rounded-full border px-3 py-2 text-xs font-bold transition ${
+                                                                savedPlacesFilter === option.key
+                                                                    ? 'border-bird-blue bg-bird-blue text-white shadow-sm'
+                                                                    : 'border-gray-200 bg-white text-gray-600 hover:border-bird-blue/40 hover:text-slate-900'
+                                                            }`}
+                                                        >
+                                                            <span>{option.label}</span>
+                                                            <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-black ${
+                                                                savedPlacesFilter === option.key
+                                                                    ? 'bg-white/20 text-white'
+                                                                    : 'bg-gray-100 text-gray-500'
+                                                            }`}>
+                                                                {option.count}
+                                                            </span>
+                                                        </button>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <div className="flex-1 overflow-y-auto p-5 space-y-5">
+                                            {quickAccessLocations.length === 0 ? (
+                                                <div className="rounded-2xl border border-dashed border-gray-300 bg-gray-50 px-4 py-5 text-sm text-gray-500">
+                                                    You do not have saved places yet. Resolve a location first, then use <span className="font-bold text-gray-700">Add location</span>.
+                                                </div>
+                                            ) : filteredSavedLocations.total === 0 ? (
+                                                <div className="rounded-2xl border border-dashed border-gray-300 bg-gray-50 px-4 py-5 text-sm text-gray-500">
+                                                    No saved places match your current search or filter.
+                                                </div>
+                                            ) : (
+                                                <>
+                                                    {filteredSavedLocations.primary.length > 0 && (
+                                                        <div>
+                                                            <p className="mb-3 text-[11px] font-bold uppercase tracking-wide text-gray-400">Home & Work</p>
+                                                            <div className="space-y-3">
+                                                                {filteredSavedLocations.primary.map((location, index) => {
+                                                                    const visual = getLocationVisual(location.kind);
+                                                                    const distanceLabel = currentCoords && !sameCoords(currentCoords, location)
+                                                                        ? formatDistanceLabel(distanceKmBetween(currentCoords, location))
+                                                                        : sameCoords(currentCoords, location)
+                                                                            ? 'Current place'
+                                                                            : null;
+
+                                                                    return (
+                                                                        <div
+                                                                            key={`${location.kind}-modal-${index}-${location.label}`}
+                                                                            className="rounded-2xl border border-gray-200 bg-slate-50 p-3"
+                                                                        >
+                                                                            <div className="flex items-center gap-3">
+                                                                                {renderLocationBadge(location.kind, 'md')}
+                                                                                <button
+                                                                                    type="button"
+                                                                                    onClick={() => handleUseSavedLocation(location)}
+                                                                                    className="min-w-0 flex-1 text-left"
+                                                                                >
+                                                                                    <p className="text-[15px] font-bold text-slate-800">{location.title}</p>
+                                                                                    <p className="mt-1 line-clamp-2 text-xs text-gray-500">{location.label}</p>
+                                                                                    <p className={`mt-1 inline-flex rounded-full border px-2 py-1 text-[11px] font-semibold ${visual.chipClass}`}>
+                                                                                        {distanceLabel || `${location.lat.toFixed(4)}, ${location.lng.toFixed(4)}`}
+                                                                                    </p>
+                                                                                </button>
+                                                                                <div className="shrink-0">
+                                                                                    {renderSavedPlaceActions(location, { compact: true })}
+                                                                                </div>
+                                                                            </div>
+                                                                        </div>
+                                                                    );
+                                                                })}
+                                                            </div>
+                                                        </div>
+                                                    )}
+
+                                                    {filteredSavedLocations.favorites.length > 0 && (
+                                                        <div>
+                                                            <p className="mb-3 text-[11px] font-bold uppercase tracking-wide text-gray-400">Favorites</p>
+                                                            <div className="space-y-3">
+                                                                {filteredSavedLocations.favorites.map((location, index) => {
+                                                                    const visual = getLocationVisual(location.kind);
+                                                                    const distanceLabel = currentCoords && !sameCoords(currentCoords, location)
+                                                                        ? formatDistanceLabel(distanceKmBetween(currentCoords, location))
+                                                                        : sameCoords(currentCoords, location)
+                                                                            ? 'Current place'
+                                                                            : null;
+
+                                                                    return (
+                                                                        <div
+                                                                            key={`${location.kind}-modal-favorite-${index}-${location.label}`}
+                                                                            className="flex items-center gap-3 rounded-2xl border border-gray-200 bg-white p-3"
+                                                                        >
+                                                                            <div className="relative h-16 w-16 shrink-0 overflow-hidden rounded-2xl border border-gray-200 bg-slate-100">
+                                                                                <img src={getPreviewTileUrl(location.lat, location.lng)} alt={location.title} className="h-full w-full object-cover" />
+                                                                                <div className="absolute inset-0 bg-gradient-to-t from-black/25 via-transparent to-white/10" />
+                                                                                <span className="absolute left-2 top-2">
+                                                                                    {renderLocationBadge(location.kind, 'sm')}
+                                                                                </span>
+                                                                            </div>
+                                                                            <button
+                                                                                type="button"
+                                                                                onClick={() => handleUseSavedLocation(location)}
+                                                                                className="min-w-0 flex-1 text-left"
+                                                                            >
+                                                                                <p className="truncate text-[15px] font-bold text-slate-800">{location.title}</p>
+                                                                                <p className="mt-1 truncate text-xs text-gray-500">{location.label}</p>
+                                                                                <p className={`mt-1 inline-flex rounded-full border px-2 py-1 text-[11px] font-semibold ${visual.chipClass}`}>
+                                                                                    {distanceLabel || `${location.lat.toFixed(4)}, ${location.lng.toFixed(4)}`}
+                                                                                </p>
+                                                                            </button>
+                                                                            <div className="shrink-0">
+                                                                                {renderSavedPlaceActions(location, { compact: true })}
+                                                                            </div>
+                                                                        </div>
+                                                                    );
+                                                                })}
+                                                            </div>
+                                                        </div>
+                                                    )}
+
+                                                    {filteredSavedLocations.recents.length > 0 && (
+                                                        <div>
+                                                            <div className="mb-3 flex items-center justify-between gap-3">
+                                                                <p className="text-[11px] font-bold uppercase tracking-wide text-gray-400">Recent</p>
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => void clearRecentLocations()}
+                                                                    className="text-[11px] font-bold text-red-500 hover:text-red-600"
+                                                                >
+                                                                    Clear
+                                                                </button>
+                                                            </div>
+                                                            <div className="flex flex-wrap gap-2">
+                                                                {filteredSavedLocations.recents.map((location, index) => {
+                                                                    const visual = getLocationVisual(location.kind);
+                                                                    return (
+                                                                        <button
+                                                                            key={`${location.kind}-modal-recent-${index}-${location.label}`}
+                                                                            type="button"
+                                                                            onClick={() => handleUseSavedLocation(location)}
+                                                                            className={`inline-flex items-center gap-2 rounded-full border px-3 py-2 text-xs font-bold transition ${visual.chipClass} hover:shadow-sm`}
+                                                                        >
+                                                                            {renderLocationBadge(location.kind, 'sm')}
+                                                                            {location.title}
+                                                                        </button>
+                                                                    );
+                                                                })}
+                                                            </div>
+                                                            <div className="mt-3 space-y-2">
+                                                                {filteredSavedLocations.recents.map((location, index) => (
+                                                                    <div
+                                                                        key={`${location.kind}-actions-${index}-${location.label}`}
+                                                                        className="flex items-center justify-between rounded-2xl border border-gray-200 bg-white px-3 py-2"
+                                                                    >
+                                                                        <div className="min-w-0">
+                                                                            <p className="truncate text-xs font-bold text-gray-800">{location.title}</p>
+                                                                            <p className="truncate text-[11px] text-gray-400">{location.label}</p>
+                                                                        </div>
+                                                                        <div className="shrink-0">
+                                                                            {renderSavedPlaceActions(location, { compact: true })}
+                                                                        </div>
+                                                                    </div>
+                                                                ))}
+                                                            </div>
+                                                        </div>
+                                                    )}
+                                                </>
+                                            )}
+                                        </div>
+                                    </div>
+                                </motion.div>
+                            </motion.div>
+                        )}
+                    </AnimatePresence>
+
+                    {workerProfileRequest && createPortal(
+                            <motion.div
+                                initial={{ opacity: 0 }}
+                                animate={{ opacity: 1 }}
+                                exit={{ opacity: 0 }}
+                                onClick={closeWorkerProfileModal}
+                                className="fixed inset-0 z-[10020] bg-slate-950/60 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-6"
+                            >
+                                <motion.div
+                                    initial={{ opacity: 0, y: 60, scale: 0.97 }}
+                                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                                    exit={{ opacity: 0, y: 60, scale: 0.97 }}
+                                    transition={{ type: 'spring', damping: 28, stiffness: 280 }}
+                                    onClick={(e) => e.stopPropagation()}
+                                    className="flex w-full max-w-2xl max-h-[92vh] sm:max-h-[88vh] flex-col overflow-hidden rounded-t-[2rem] sm:rounded-[2rem] bg-white shadow-2xl"
+                                >
+                                    {/* Drag handle (mobile) */}
+                                    <div className="flex justify-center pt-3 pb-1 sm:hidden shrink-0">
+                                        <div className="w-10 h-1.5 rounded-full bg-slate-200" />
+                                    </div>
+
+                                    {/* Header */}
+                                    <div className="relative bg-slate-900 px-6 py-7 shrink-0 overflow-hidden">
+                                        <div className="absolute inset-0 bg-gradient-to-br from-slate-800 to-slate-950" />
+                                        <button
+                                            type="button"
+                                            onClick={closeWorkerProfileModal}
+                                            className="absolute top-4 right-4 z-10 flex h-9 w-9 items-center justify-center rounded-full bg-white/10 hover:bg-white/20 text-white transition-colors"
+                                        >
+                                            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                            </svg>
+                                        </button>
+                                        <div className="relative z-10 flex items-center gap-4">
+                                            {selectedWorkerProfile?.profile_image_url && !workerAvatarBroken ? (
+                                                <img
+                                                    src={selectedWorkerProfile.profile_image_url}
+                                                    alt={selectedWorkerProfile.name}
+                                                    onError={() => setWorkerAvatarBroken(true)}
+                                                    className="h-16 w-16 shrink-0 rounded-2xl object-cover ring-2 ring-white/20 shadow-lg"
+                                                />
+                                            ) : (
+                                                <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl bg-white/15 text-xl font-black text-white ring-2 ring-white/10">
+                                                    {getInitials(selectedWorkerProfile?.name || 'Pro')}
+                                                </div>
+                                            )}
+                                            <div className="min-w-0 flex-1">
+                                                <div className="flex items-center gap-2 mb-1">
+                                                    <span className="text-[10px] font-black uppercase tracking-widest text-blue-400">Verified Pro</span>
+                                                    {selectedWorkerProfile?.is_online && (
+                                                        <span className="flex items-center gap-1 text-[10px] font-bold text-emerald-400">
+                                                            <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                                                            Online
+                                                        </span>
+                                                    )}
+                                                </div>
+                                                <h3 className="text-xl font-black text-white truncate">
+                                                    {selectedWorkerProfile?.name || 'Assigned Pro'}
+                                                </h3>
+                                                <div className="flex items-center gap-2 mt-1.5">
+                                                    {renderStarSummary(selectedWorkerProfile?.rating_average ?? null)}
+                                                    <span className="text-xs font-bold text-slate-400">
+                                                        {selectedWorkerProfile?.rating_average != null
+                                                            ? `${selectedWorkerProfile.rating_average.toFixed(1)} · ${selectedWorkerProfile.rating_count} reviews`
+                                                            : 'New Pro'}
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        {/* Stats row */}
+                                        <div className="relative z-10 mt-5 grid grid-cols-3 gap-3">
+                                            {[
+                                                { label: 'Jobs', value: selectedWorkerProfile?.completed_jobs ?? 0 },
+                                                { label: 'Experience', value: selectedWorkerProfile?.years_of_experience != null ? `${selectedWorkerProfile.years_of_experience}y` : '--' },
+                                                { label: 'Rating', value: selectedWorkerProfile?.rating_average != null ? selectedWorkerProfile.rating_average.toFixed(1) : '--' },
+                                            ].map((stat) => (
+                                                <div key={stat.label} className="rounded-xl bg-white/8 border border-white/10 px-3 py-2.5 text-center backdrop-blur-sm">
+                                                    <p className="text-base font-black text-white">{stat.value}</p>
+                                                    <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mt-0.5">{stat.label}</p>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+
+                                    {/* Body */}
+                                    <div className="flex-1 overflow-y-auto bg-white">
+                                        {workerProfileLoading ? (
+                                            <div className="flex items-center justify-center gap-3 py-16">
+                                                <div className="h-5 w-5 rounded-full border-2 border-slate-200 border-t-slate-700 animate-spin" />
+                                                <p className="text-sm font-bold text-slate-500">Loading profile...</p>
+                                            </div>
+                                        ) : (
+                                            <div className="divide-y divide-slate-100">
+                                                {/* Bio */}
+                                                {selectedWorkerProfile?.bio && (
+                                                    <div className="px-6 py-5">
+                                                        <p className="text-[11px] font-black uppercase tracking-widest text-slate-400 mb-2">About</p>
+                                                        <p className="text-sm leading-relaxed text-slate-700">{selectedWorkerProfile.bio}</p>
+                                                    </div>
+                                                )}
+
+                                                {/* Info row */}
+                                                <div className="px-6 py-5 grid grid-cols-2 gap-4">
+                                                    <div>
+                                                        <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">Phone</p>
+                                                        <p className="text-sm font-bold text-slate-900">{selectedWorkerProfile?.phone_number || 'Hidden'}</p>
+                                                    </div>
+                                                    <div>
+                                                        <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">Level</p>
+                                                        <p className="text-sm font-bold text-slate-900">{selectedWorkerProfile?.experience_label || '—'}</p>
+                                                    </div>
+                                                </div>
+
+                                                {/* Services */}
+                                                {(selectedWorkerProfile?.services_offered || []).length > 0 && (
+                                                    <div className="px-6 py-5">
+                                                        <p className="text-[11px] font-black uppercase tracking-widest text-slate-400 mb-3">Services</p>
+                                                        <div className="flex flex-wrap gap-2">
+                                                            {selectedWorkerProfile!.services_offered.map((s) => (
+                                                                <span key={s} className="rounded-xl bg-slate-100 border border-slate-200 px-3 py-1.5 text-xs font-bold text-slate-700">
+                                                                    {s}
+                                                                </span>
+                                                            ))}
+                                                        </div>
+                                                    </div>
+                                                )}
+
+                                                {/* Portfolio */}
+                                                <div className="px-6 py-5">
+                                                    <div className="flex items-center justify-between mb-4">
+                                                        <p className="text-[11px] font-black uppercase tracking-widest text-slate-400">Portfolio</p>
+                                                        <span className="text-[10px] font-bold text-slate-500 bg-slate-100 px-2.5 py-1 rounded-full">{workerPortfolio.length} photos</span>
+                                                    </div>
+                                                    {workerPortfolio.length === 0 ? (
+                                                        <div className="border-2 border-dashed border-slate-200 rounded-2xl p-8 flex flex-col items-center text-center">
+                                                            <svg className="w-8 h-8 text-slate-300 mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+                                                            <p className="text-sm font-bold text-slate-500">No portfolio yet</p>
+                                                        </div>
+                                                    ) : (
+                                                        <div className="grid grid-cols-3 gap-2 pb-2">
+                                                            {workerPortfolio.slice(0, 6).map((item, index) => (
+                                                                <button
+                                                                    key={item.id_photo}
+                                                                    type="button"
+                                                                    onClick={() => { setWorkerPortfolioIndex(index); setIsWorkerPortfolioFullscreen(true); }}
+                                                                    className="group relative aspect-square overflow-hidden rounded-xl bg-slate-100 border border-slate-200"
+                                                                >
+                                                                    {item.image_url && !brokenPortfolioPhotos[item.id_photo] ? (
+                                                                        <img
+                                                                            src={item.image_url}
+                                                                            alt=""
+                                                                            onError={() => setBrokenPortfolioPhotos((prev) => ({ ...prev, [item.id_photo]: true }))}
+                                                                            className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+                                                                        />
+                                                                    ) : (
+                                                                        <div className="w-full h-full flex flex-col items-center justify-center bg-slate-100 text-slate-400">
+                                                                            <svg className="w-6 h-6 mb-1" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+                                                                            <span className="text-[9px] font-bold uppercase tracking-wider">Unavailable</span>
+                                                                        </div>
+                                                                    )}
+                                                                    <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center">
+                                                                        <svg className="w-6 h-6 text-white opacity-0 group-hover:opacity-100 transition-opacity drop-shadow" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v3m0 0v3m0-3h3m-3 0H7" /></svg>
+                                                                    </div>
+                                                                </button>
+                                                            ))}
+                                                            {workerPortfolio.length > 6 && (
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => { setWorkerPortfolioIndex(6); setIsWorkerPortfolioFullscreen(true); }}
+                                                                    className="aspect-square rounded-xl bg-slate-900 text-white text-sm font-black flex items-center justify-center hover:bg-black transition-colors"
+                                                                >
+                                                                    +{workerPortfolio.length - 6}
+                                                                </button>
+                                                            )}
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+                                </motion.div>
+                            </motion.div>
+                        , document.body)}
+
+                    {workerProfileRequest && isWorkerPortfolioFullscreen && activeWorkerPortfolioPhoto && createPortal(
+                            <motion.div
+                                initial={{ opacity: 0 }}
+                                animate={{ opacity: 1 }}
+                                exit={{ opacity: 0 }}
+                                className="fixed inset-0 z-[10040] bg-slate-950/80 backdrop-blur-md"
+                                onClick={() => setIsWorkerPortfolioFullscreen(false)}
+                            >
+                                <motion.div
+                                    initial={{ opacity: 0, y: 16, scale: 0.98 }}
+                                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                                    exit={{ opacity: 0, y: 16, scale: 0.98 }}
+                                    transition={{ type: 'spring', damping: 24, stiffness: 260 }}
+                                    className="absolute inset-4 overflow-hidden rounded-[34px] border border-white/10 bg-slate-950 shadow-[0_30px_90px_rgba(15,23,42,0.45)]"
+                                    onClick={(event) => event.stopPropagation()}
+                                >
+                                    <div className="absolute inset-x-0 top-0 z-20 flex items-center justify-between gap-3 p-5">
+                                        <div className="rounded-full border border-white/15 bg-slate-950/70 px-4 py-2 text-white backdrop-blur">
+                                            <p className="text-[10px] font-black uppercase tracking-[0.2em] text-white/60">Portfolio</p>
+                                            <p className="mt-1 text-sm font-black">
+                                                {activeWorkerPortfolioIndex + 1} / {workerPortfolio.length}
+                                            </p>
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                            <button
+                                                type="button"
+                                                onClick={toggleWorkerPortfolioZoom}
+                                                className={`rounded-full border px-4 py-2 text-xs font-black uppercase tracking-[0.16em] backdrop-blur transition ${
+                                                    isWorkerPortfolioZoomed
+                                                        ? 'border-bird-yellow/70 bg-bird-yellow/20 text-bird-yellow'
+                                                        : 'border-white/15 bg-white/10 text-white hover:bg-white/15'
+                                                }`}
+                                            >
+                                                {isWorkerPortfolioZoomed ? 'Zoom out' : 'Zoom in'}
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => setIsWorkerPortfolioFullscreen(false)}
+                                                className="rounded-full border border-white/15 bg-white/10 px-4 py-2 text-xs font-black uppercase tracking-[0.16em] text-white backdrop-blur hover:bg-white/15"
+                                            >
+                                                Close
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    <div className="absolute inset-0">
+                                        {activeWorkerPortfolioPhoto.image_url ? (
+                                            <motion.div
+                                                drag={isWorkerPortfolioZoomed ? false : 'x'}
+                                                dragConstraints={{ left: 0, right: 0 }}
+                                                dragElastic={0.16}
+                                                onTouchStart={handleWorkerPortfolioTouchStart}
+                                                onTouchMove={handleWorkerPortfolioTouchMove}
+                                                onTouchEnd={handleWorkerPortfolioTouchEnd}
+                                                onDragEnd={(_, info) => {
+                                                    if (isWorkerPortfolioZoomed || workerPortfolio.length <= 1) return;
+                                                    if (info.offset.x <= -90) {
+                                                        shiftWorkerPortfolio('next');
+                                                    } else if (info.offset.x >= 90) {
+                                                        shiftWorkerPortfolio('prev');
+                                                    }
+                                                }}
+                                                style={{ touchAction: isWorkerPortfolioZoomed ? 'none' : 'pan-y' }}
+                                                className="flex h-full w-full items-center justify-center px-4 pb-24 pt-24 sm:px-8"
+                                            >
+                                                <motion.img
+                                                    key={`${activeWorkerPortfolioPhoto.id_photo}`}
+                                                    src={activeWorkerPortfolioPhoto.image_url}
+                                                    alt={activeWorkerPortfolioPhoto.description || 'Portfolio work'}
+                                                    initial={{ opacity: 0.45, scale: 0.96 }}
+                                                    animate={{ opacity: 1, scale: workerPortfolioScale }}
+                                                    transition={{ type: 'spring', stiffness: 220, damping: 24 }}
+                                                    onClick={handleWorkerPortfolioImageTap}
+                                                    onDoubleClick={handleWorkerPortfolioImageDoubleTap}
+                                                    style={{ transformOrigin: workerPortfolioTransformOrigin }}
+                                                    className={`max-h-full max-w-full rounded-[28px] object-contain shadow-[0_24px_60px_rgba(15,23,42,0.38)] transition ${
+                                                        isWorkerPortfolioZoomed ? 'cursor-zoom-out' : 'cursor-zoom-in'
+                                                    }`}
+                                                />
+                                            </motion.div>
+                                        ) : (
+                                            <div className="h-full w-full bg-slate-900" />
+                                        )}
+                                        <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-slate-950 via-slate-950/75 to-transparent px-6 pb-6 pt-20 text-white">
+                                            <div className="flex flex-wrap items-end justify-between gap-4">
+                                                <div className="flex flex-wrap items-start gap-4">
+                                                    <div className="flex items-center gap-3 rounded-[24px] border border-white/12 bg-white/10 px-4 py-3 backdrop-blur-md">
+                                                        {selectedWorkerProfile?.profile_image_url ? (
+                                                            <img
+                                                                src={selectedWorkerProfile.profile_image_url}
+                                                                alt={selectedWorkerProfile.name || 'Worker'}
+                                                                className="h-14 w-14 rounded-2xl object-cover ring-2 ring-white/10"
+                                                            />
+                                                        ) : (
+                                                            <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-white/15 text-lg font-black text-white">
+                                                                {getInitials(selectedWorkerProfile?.name || 'Pro')}
+                                                            </div>
+                                                        )}
+                                                        <div>
+                                                            <p className="text-base font-black text-white">
+                                                                {selectedWorkerProfile?.name || 'Assigned pro'}
+                                                            </p>
+                                                            <p className="mt-1 text-xs font-semibold uppercase tracking-[0.14em] text-white/55">
+                                                                {selectedWorkerProfile?.experience_label || 'Verified professional'}
+                                                            </p>
+                                                            <p className="mt-1 text-sm text-white/70">
+                                                                {selectedWorkerProfile?.phone_number || 'Phone shared after approval'}
+                                                            </p>
+                                                        </div>
+                                                    </div>
+                                                    <div>
+                                                        <p className="text-[11px] font-black uppercase tracking-[0.18em] text-white/55">Image note</p>
+                                                        <p className="mt-2 text-lg font-black">
+                                                            {activeWorkerPortfolioPhoto.description || 'Recent portfolio work'}
+                                                        </p>
+                                                        <p className="mt-2 text-sm text-white/70">
+                                                            {activeWorkerPortfolioPhoto.uploaded_at
+                                                                ? new Date(activeWorkerPortfolioPhoto.uploaded_at).toLocaleDateString()
+                                                                : 'Recently uploaded'}
+                                                        </p>
+                                                    </div>
+                                                </div>
+                                                <div className="rounded-full border border-white/15 bg-white/10 px-4 py-2 text-sm font-black backdrop-blur">
+                                                    {(selectedWorkerProfile?.services_offered || []).slice(0, 2).join(' • ') || 'Assigned pro'}
+                                                </div>
+                                            </div>
+                                            <div className="mt-3 flex flex-wrap items-center gap-2 text-[11px] font-bold uppercase tracking-[0.14em] text-white/65">
+                                                <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1">
+                                                    {isWorkerPortfolioZoomed ? `Zoom ${workerPortfolioScale.toFixed(1)}x active` : 'Tap image to zoom'}
+                                                </span>
+                                                {workerPortfolio.length > 1 && !isWorkerPortfolioZoomed && (
+                                                    <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1">
+                                                        Swipe left or right to browse
+                                                    </span>
+                                                )}
+                                                <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1">
+                                                    Pinch with two fingers to zoom
+                                                </span>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {workerPortfolio.length > 1 && (
+                                        <>
+                                            <button
+                                                type="button"
+                                                onClick={() => shiftWorkerPortfolio('prev')}
+                                                className="absolute left-6 top-1/2 z-20 flex h-14 w-14 -translate-y-1/2 items-center justify-center rounded-full border border-white/20 bg-white/10 text-3xl font-black text-white backdrop-blur transition hover:bg-white/20"
+                                            >
+                                                {'‹'}
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => shiftWorkerPortfolio('next')}
+                                                className="absolute right-6 top-1/2 z-20 flex h-14 w-14 -translate-y-1/2 items-center justify-center rounded-full border border-white/20 bg-white/10 text-3xl font-black text-white backdrop-blur transition hover:bg-white/20"
+                                            >
+                                                {'›'}
+                                            </button>
+
+                                            <div className="absolute inset-x-0 bottom-5 z-20 px-6">
+                                                <div className="mx-auto grid max-w-3xl grid-cols-4 gap-3 rounded-[24px] border border-white/10 bg-slate-950/65 p-3 backdrop-blur-md">
+                                                    {workerPortfolio.map((item, index) => (
+                                                        <button
+                                                            key={item.id_photo}
+                                                            type="button"
+                                                            onClick={() => setWorkerPortfolioIndex(index)}
+                                                            className={`group overflow-hidden rounded-2xl border transition ${
+                                                                index === activeWorkerPortfolioIndex
+                                                                    ? 'border-bird-blue bg-bird-blue/10 shadow-[0_12px_28px_rgba(29,78,216,0.2)]'
+                                                                    : 'border-white/10 bg-white/5 hover:border-bird-blue/35'
+                                                            }`}
+                                                        >
+                                                            {item.image_url ? (
+                                                                <img
+                                                                    src={item.image_url}
+                                                                    alt={item.description || 'Portfolio thumbnail'}
+                                                                    className="aspect-square w-full object-cover transition duration-300 group-hover:scale-[1.04]"
+                                                                />
+                                                            ) : (
+                                                                <div className="aspect-square w-full bg-slate-800" />
+                                                            )}
+                                                        </button>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        </>
+                                    )}
+                                </motion.div>
+                            </motion.div>
+                        , document.body)}
+
+                    <AnimatePresence>
+                        {pendingDeleteLocation && (
+                            <motion.div
+                                initial={{ opacity: 0 }}
+                                animate={{ opacity: 1 }}
+                                exit={{ opacity: 0 }}
+                                className="absolute inset-0 z-40 bg-slate-950/35 backdrop-blur-[3px] flex items-center justify-center p-4"
+                            >
+                                <motion.div
+                                    initial={{ opacity: 0, scale: 0.96, y: 12 }}
+                                    animate={{ opacity: 1, scale: 1, y: 0 }}
+                                    exit={{ opacity: 0, scale: 0.96, y: 12 }}
+                                    transition={{ type: 'spring', damping: 24, stiffness: 260 }}
+                                    className="w-full max-w-md overflow-hidden rounded-[28px] border border-gray-200 bg-white shadow-2xl"
+                                >
+                                    <div className="bg-gradient-to-r from-amber-400 via-yellow-300 to-bird-blue px-6 py-5">
+                                        <div className="flex items-center gap-4">
+                                            {renderLocationBadge(pendingDeleteLocation.kind, 'lg')}
+                                            <div className="text-slate-900">
+                                                <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-700">Delete saved place</p>
+                                                <h3 className="mt-1 text-xl font-black">{pendingDeleteLocation.title}</h3>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div className="p-6">
+                                        <div className="rounded-2xl border border-amber-100 bg-amber-50/70 p-4">
+                                            <p className="text-sm font-bold text-slate-900">Are you sure you want to remove this location?</p>
+                                            <p className="mt-2 text-sm text-slate-600">{pendingDeleteLocation.label}</p>
+                                            <div className="mt-3 inline-flex rounded-full border border-bird-blue/20 bg-bird-blue/10 px-3 py-1 text-[11px] font-bold text-slate-900">
+                                                {pendingDeleteLocation.lat.toFixed(4)}, {pendingDeleteLocation.lng.toFixed(4)}
+                                            </div>
+                                        </div>
+
+                                        <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:justify-end">
+                                            <motion.button
+                                                type="button"
+                                                onClick={() => closeDeleteSavedLocationPrompt(true)}
+                                                whileHover={{ y: -2, scale: 1.01 }}
+                                                whileTap={{ scale: 0.98 }}
+                                                className="inline-flex items-center justify-center gap-2 rounded-2xl border border-bird-blue/20 bg-bird-blue/10 px-4 py-3 text-sm font-black text-slate-900 transition hover:bg-bird-blue hover:text-white"
+                                            >
+                                                {renderSavedPlaceActionIcon('use')}
+                                                Keep place
+                                            </motion.button>
+                                            <motion.button
+                                                type="button"
+                                                onClick={() => void confirmDeleteSavedLocation()}
+                                                whileHover={{ y: -2, scale: 1.01 }}
+                                                whileTap={{ scale: 0.98 }}
+                                                className="inline-flex items-center justify-center gap-2 rounded-2xl border border-amber-300 bg-gradient-to-r from-amber-300 to-yellow-300 px-4 py-3 text-sm font-black text-slate-900 transition hover:shadow-[0_12px_28px_rgba(245,158,11,0.28)]"
+                                            >
+                                                {renderSavedPlaceActionIcon('delete')}
+                                                Delete saved place
+                                            </motion.button>
+                                        </div>
+                                    </div>
+                                </motion.div>
+                            </motion.div>
+                        )}
+                    </AnimatePresence>
+
+                    <AnimatePresence>
+                        {pendingRenameLocation && (
+                            <motion.div
+                                initial={{ opacity: 0 }}
+                                animate={{ opacity: 1 }}
+                                exit={{ opacity: 0 }}
+                                className="absolute inset-0 z-40 bg-slate-950/35 backdrop-blur-[3px] flex items-center justify-center p-4"
+                            >
+                                <motion.div
+                                    initial={{ opacity: 0, scale: 0.96, y: 12 }}
+                                    animate={{ opacity: 1, scale: 1, y: 0 }}
+                                    exit={{ opacity: 0, scale: 0.96, y: 12 }}
+                                    transition={{ type: 'spring', damping: 24, stiffness: 260 }}
+                                    className="w-full max-w-md overflow-hidden rounded-[28px] border border-gray-200 bg-white shadow-2xl"
+                                >
+                                    <div className="bg-gradient-to-r from-bird-blue via-sky-500 to-yellow-300 px-6 py-5">
+                                        <div className="flex items-center gap-4">
+                                            {renderLocationBadge(pendingRenameLocation.kind, 'lg')}
+                                            <div className="text-slate-900">
+                                                <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-700">Rename saved place</p>
+                                                <h3 className="mt-1 text-xl font-black">{pendingRenameLocation.title}</h3>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div className="p-6">
+                                        <label className="block text-[11px] font-black uppercase tracking-[0.18em] text-gray-500">
+                                            New label
+                                        </label>
+                                        <input
+                                            type="text"
+                                            value={pendingRenameTitle}
+                                            autoFocus
+                                            autoComplete="off"
+                                            onChange={(e) => setPendingRenameTitle(e.target.value)}
+                                            onKeyDown={(e) => {
+                                                if (e.key === 'Enter') {
+                                                    e.preventDefault();
+                                                    void confirmRenameSavedLocation();
+                                                }
+                                                if (e.key === 'Escape') {
+                                                    e.preventDefault();
+                                                    closeRenameSavedLocationPrompt(true);
+                                                }
+                                            }}
+                                            className="mt-2 w-full rounded-2xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-900 focus:border-bird-blue focus:bg-white focus:outline-none"
+                                            placeholder="Ex: Home, Office, Mom's house"
+                                        />
+                                        <p className="mt-3 text-sm text-gray-500">
+                                            Update the name without touching the saved coordinates.
+                                        </p>
+
+                                        <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:justify-end">
+                                            <motion.button
+                                                type="button"
+                                                onClick={() => closeRenameSavedLocationPrompt(true)}
+                                                whileHover={{ y: -2, scale: 1.01 }}
+                                                whileTap={{ scale: 0.98 }}
+                                                className="inline-flex items-center justify-center gap-2 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-black text-amber-700 transition hover:bg-amber-400 hover:text-white"
+                                            >
+                                                {renderSavedPlaceActionIcon('delete')}
+                                                Cancel
+                                            </motion.button>
+                                            <motion.button
+                                                type="button"
+                                                onClick={() => void confirmRenameSavedLocation()}
+                                                whileHover={{ y: -2, scale: 1.01 }}
+                                                whileTap={{ scale: 0.98 }}
+                                                className="inline-flex items-center justify-center gap-2 rounded-2xl border border-bird-blue/20 bg-bird-blue px-4 py-3 text-sm font-black text-white transition hover:shadow-[0_12px_28px_rgba(29,78,216,0.28)]"
+                                            >
+                                                {renderSavedPlaceActionIcon('rename')}
+                                                Save name
+                                            </motion.button>
+                                        </div>
+                                    </div>
+                                </motion.div>
+                            </motion.div>
+                        )}
+                    </AnimatePresence>
+
+                    {pendingRequestAction && createPortal(
+                        <motion.div
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            exit={{ opacity: 0 }}
+                            className="fixed inset-0 z-[100] bg-slate-950/35 backdrop-blur-[3px] flex items-center justify-center p-4"
+                        >
+                            <motion.div
+                                initial={{ opacity: 0, scale: 0.96, y: 12 }}
+                                animate={{ opacity: 1, scale: 1, y: 0 }}
+                                exit={{ opacity: 0, scale: 0.96, y: 12 }}
+                                transition={{ type: 'spring', damping: 24, stiffness: 260 }}
+                                className="w-full max-w-md overflow-hidden rounded-[28px] border border-gray-200 bg-white shadow-2xl"
+                            >
+                                <div className={`px-6 py-5 ${
+                                    pendingRequestAction.type === 'cancel'
+                                        ? 'bg-gradient-to-r from-amber-400 via-yellow-300 to-orange-300'
+                                        : 'bg-gradient-to-r from-bird-blue via-sky-500 to-cyan-400'
+                                }`}>
+                                    <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-700">
+                                        {pendingRequestAction.type === 'cancel' ? 'Cancel request' : 'Confirm completion'}
+                                    </p>
+                                    <h3 className="mt-2 text-xl font-black text-slate-900">
+                                        #{pendingRequestAction.request.id_request} - {pendingRequestAction.request.service_name}
+                                    </h3>
+                                </div>
+
+                                <div className="p-6">
+                                    <div className={`rounded-2xl border p-4 ${
+                                        pendingRequestAction.type === 'cancel'
+                                            ? 'border-amber-200 bg-amber-50/70'
+                                            : 'border-blue-200 bg-blue-50/70'
+                                    }`}>
+                                        <p className="text-sm font-bold text-slate-900">
+                                            {pendingRequestAction.type === 'cancel'
+                                                ? 'Are you sure you want to cancel this request?'
+                                                : 'Confirm that the work is completed and release the payment?'}
+                                        </p>
+                                        <p className="mt-2 text-sm text-slate-600 line-clamp-3">
+                                            {pendingRequestAction.request.description}
+                                        </p>
+                                    </div>
+
+                                    <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:justify-end">
+                                        <motion.button
+                                            type="button"
+                                            onClick={() => closeRequestActionPrompt(true)}
+                                            whileHover={{ y: -2, scale: 1.01 }}
+                                            whileTap={{ scale: 0.98 }}
+                                            className="inline-flex items-center justify-center gap-2 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-black text-amber-700 transition hover:bg-amber-400 hover:text-white"
+                                        >
+                                            {renderSavedPlaceActionIcon('delete')}
+                                            Back
+                                        </motion.button>
+                                        <motion.button
+                                            type="button"
+                                            onClick={() => void confirmPendingRequestAction()}
+                                            whileHover={{ y: -2, scale: 1.01 }}
+                                            whileTap={{ scale: 0.98 }}
+                                            className={`inline-flex items-center justify-center gap-2 rounded-2xl px-4 py-3 text-sm font-black text-white transition ${
+                                                pendingRequestAction.type === 'cancel'
+                                                    ? 'bg-gradient-to-r from-amber-500 to-orange-500 hover:shadow-[0_12px_28px_rgba(245,158,11,0.28)]'
+                                                    : 'bg-bird-blue hover:shadow-[0_12px_28px_rgba(29,78,216,0.28)]'
+                                            }`}
+                                        >
+                                            {renderSavedPlaceActionIcon(pendingRequestAction.type === 'cancel' ? 'delete' : 'use')}
+                                            {pendingRequestAction.type === 'cancel' ? 'Yes, cancel request' : 'Yes, confirm completion'}
+                                        </motion.button>
+                                    </div>
+                                </div>
+                            </motion.div>
+                        </motion.div>,
+                        document.body
+                    )}
+
+                    <AnimatePresence>
+                        {paymentModalRequest && (
+                            <ServiceRequestPaymentModal
+                                paymentModalRequest={paymentModalRequest}
+                                paymentMethod={paymentMethod}
+                                paymentForm={paymentForm}
+                                paymentBusyId={paymentBusyId}
+                                onClose={() => setPaymentModalRequest(null)}
+                                onSelectMethod={setPaymentMethod}
+                                onPaymentFormChange={(patch) => setPaymentForm((prev) => ({ ...prev, ...patch }))}
+                                onConfirmPayment={() => void confirmPaymentThroughModal()}
+                            />
+                        )}
+                    </AnimatePresence>
+
+                    {/* Searching Overlay */}
+                    <AnimatePresence>
+                        {isSearching && (
+                            <motion.div
+                                initial={{ opacity: 0 }}
+                                animate={{ opacity: 1 }}
+                                exit={{ opacity: 0 }}
+                                className="absolute inset-0 z-30 bg-white/95 backdrop-blur-sm flex flex-col items-center justify-center p-8 text-center"
+                            >
+                                <motion.div
+                                    animate={{ rotate: 360 }}
+                                    transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
+                                    className="w-20 h-20 border-4 border-bird-blue/20 border-t-bird-blue rounded-full mb-6"
+                                />
+                                <motion.h2
+                                    initial={{ opacity: 0, y: 20 }}
+                                    animate={{ opacity: 1, y: 0 }}
+                                    className="text-2xl font-bold text-gray-900 mb-2"
+                                >
+                                    Finding the best pro...
+                                </motion.h2>
+                                <motion.p
+                                    initial={{ opacity: 0, y: 20 }}
+                                    animate={{ opacity: 1, y: 0 }}
+                                    transition={{ delay: 0.1 }}
+                                    className="text-gray-600 mb-8"
+                                >
+                                    This will only take a moment
+                                </motion.p>
+                                <motion.button
+                                    whileHover={{ scale: 1.05 }}
+                                    whileTap={{ scale: 0.95 }}
+                                    onClick={() => setIsSearching(false)}
+                                    className="px-6 py-2 rounded-full border-2 border-gray-200 text-gray-600 font-bold hover:border-gray-300 hover:bg-gray-50 transition-all"
+                                >
+                                    Cancel
+                                </motion.button>
+                            </motion.div>
+                        )}
+                    </AnimatePresence>
+            </ServiceRequestPanelShell>
+
+            {step === 1 && !activeTrackedRequest && (
+                <div className="pointer-events-none absolute inset-x-0 bottom-4 z-[430] flex justify-end px-4 md:bottom-6 md:px-6">
+                    <motion.button
+                        whileHover={{ scale: 1.03 }}
+                        whileTap={{ scale: 0.97 }}
+                        onClick={() => void handleFloatingFindPro()}
+                        disabled={!canSearchPros}
+                        className="pointer-events-auto inline-flex items-center gap-3 rounded-full bg-slate-950 px-6 py-4 text-sm font-black text-white shadow-[0_20px_40px_rgba(15,23,42,0.28)] transition hover:bg-black disabled:opacity-60"
+                    >
+                        <span>Find a Pro</span>
+                        <span className="inline-flex h-8 min-w-8 items-center justify-center rounded-full bg-white/10 px-2 text-xs font-black">
+                            {nearbyWorkers.length}
+                        </span>
+                    </motion.button>
+                </div>
+            )}
+
+
+        
+                    {isHistoryModalOpen && createPortal(
+                            <motion.div
+                                initial={{ opacity: 0 }}
+                                animate={{ opacity: 1 }}
+                                exit={{ opacity: 0 }}
+                                className="fixed inset-0 z-[10000] bg-slate-950/60 backdrop-blur-sm flex justify-end pointer-events-auto"
+                            >
+                                <motion.div
+                                    initial={{ x: '100%' }}
+                                    animate={{ x: 0 }}
+                                    exit={{ x: '100%' }}
+                                    transition={{ type: 'spring', damping: 25, stiffness: 200 }}
+                                    className="w-full md:w-[500px] lg:w-[600px] h-full bg-white shadow-2xl flex flex-col pointer-events-auto"
+                                >
+                                    <div className="flex items-center justify-between px-6 py-5 border-b border-slate-100 shrink-0">
+                                        <div>
+                                            <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">History</p>
+                                            <h2 className="text-xl font-black text-slate-900 mt-1">My Request Story</h2>
+                                        </div>
+                                        <button
+                                            type="button"
+                                            onClick={() => setIsHistoryModalOpen(false)}
+                                            className="flex h-10 w-10 items-center justify-center rounded-full bg-slate-100 text-slate-500 hover:bg-slate-200 hover:text-slate-900 transition-colors"
+                                        >
+                                            <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" /></svg>
+                                        </button>
+                                    </div>
+                                    <div className="flex-1 overflow-y-auto custom-scrollbar p-6 bg-slate-50/50">
+<ServiceRequestHistorySection
                                     historyStatus={historyStatus}
                                     historyLoading={historyLoading}
                                     hasRequests={myRequests.length > 0}
@@ -3585,1105 +4728,11 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                         </div>
                                     )}
                                 </ServiceRequestHistorySection>
-                            </motion.div>
-                        )}
-                    </AnimatePresence>
-
-                    <AnimatePresence>
-                        {ratingModalRequest && (
-                            <motion.div
-                                initial={{ opacity: 0 }}
-                                animate={{ opacity: 1 }}
-                                exit={{ opacity: 0 }}
-                                className="fixed inset-0 z-[80] bg-slate-950/35 backdrop-blur-[3px] flex items-center justify-center p-4"
-                            >
-                                <motion.div
-                                    initial={{ opacity: 0, scale: 0.96, y: 12 }}
-                                    animate={{ opacity: 1, scale: 1, y: 0 }}
-                                    exit={{ opacity: 0, scale: 0.96, y: 12 }}
-                                    transition={{ type: 'spring', damping: 24, stiffness: 260 }}
-                                    className="w-full max-w-2xl overflow-hidden rounded-[30px] border border-gray-200 bg-white shadow-2xl"
-                                >
-                                    <div className="bg-gradient-to-r from-bird-blue via-sky-500 to-bird-yellow px-6 py-5 text-white">
-                                        <div className="flex items-start justify-between gap-4">
-                                            <div>
-                                                <p className="text-[11px] font-black uppercase tracking-[0.2em] text-white/80">Fixes review</p>
-                                                <h3 className="mt-1 text-2xl font-black">Rate this completed job</h3>
-                                                <p className="mt-2 text-sm text-white/85">
-                                                    Share how the pro did after finishing <span className="font-black">{ratingModalRequest.service_name}</span>.
-                                                </p>
-                                            </div>
-                                            <button
-                                                type="button"
-                                                onClick={() => setRatingModalRequest(null)}
-                                                className="rounded-full border border-white/30 bg-white/10 px-3 py-1.5 text-xs font-black uppercase tracking-wide text-white hover:bg-white/20"
-                                            >
-                                                Close
-                                            </button>
-                                        </div>
-                                    </div>
-
-                                    <div className="p-6">
-                                        <div className="rounded-3xl border border-bird-blue/10 bg-gradient-to-r from-sky-50 via-white to-amber-50 p-4">
-                                            <div className="flex flex-wrap items-center justify-between gap-3">
-                                                <div>
-                                                    <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-900">Completed service</p>
-                                                    <p className="mt-1 text-lg font-black text-slate-900">
-                                                        {ratingModalRequest.service_name}
-                                                    </p>
-                                                    <p className="mt-1 text-sm text-slate-600">
-                                                        {ratingModalRequest.assigned_worker?.name || 'Your pro'}
-                                                    </p>
-                                                </div>
-                                                <span className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-[11px] font-black uppercase tracking-[0.18em] text-emerald-700">
-                                                    Unlocked
-                                                </span>
-                                            </div>
-                                        </div>
-
-                                        <div className="mt-5 space-y-4">
-                                            {(['punctuality', 'quality', 'price_fairness'] as RatingMetricKey[]).map((key) => {
-                                                const currentValue = getRatingDraft(ratingModalRequest.id_request)[key];
-                                                return (
-                                                    <div key={key} className="rounded-3xl border border-slate-200 bg-slate-50 p-4">
-                                                        <div className="flex items-center justify-between gap-3">
-                                                            <div>
-                                                                <p className="text-sm font-black text-slate-900">{RATING_METRIC_LABELS[key]}</p>
-                                                                <p className="mt-1 text-xs text-slate-500">
-                                                                    Leave your Fixes stars for this part of the service.
-                                                                </p>
-                                                            </div>
-                                                            <span className="rounded-full border border-bird-yellow/25 bg-bird-yellow/10 px-3 py-1 text-[11px] font-black text-amber-700">
-                                                                {currentValue}/5
-                                                            </span>
-                                                        </div>
-                                                        <div className="mt-4 flex flex-wrap gap-2">
-                                                            {Array.from({ length: 5 }).map((_, index) => {
-                                                                const starValue = index + 1;
-                                                                const active = starValue <= currentValue;
-                                                                return (
-                                                                    <button
-                                                                        key={`${key}-${starValue}`}
-                                                                        type="button"
-                                                                        onClick={() => updateRatingDraft(ratingModalRequest.id_request, { [key]: starValue })}
-                                                                        className={`flex h-11 w-11 items-center justify-center rounded-2xl border text-xl transition ${
-                                                                            active
-                                                                                ? 'border-bird-yellow/30 bg-bird-yellow/15 text-bird-yellow shadow-sm'
-                                                                                : 'border-slate-200 bg-white text-slate-300 hover:border-bird-blue/20 hover:text-slate-900'
-                                                                        }`}
-                                                                    >
-                                                                        {'★'}
-                                                                    </button>
-                                                                );
-                                                            })}
-                                                        </div>
-                                                    </div>
-                                                );
-                                            })}
-                                        </div>
-
-                                        <div className="mt-5 rounded-3xl border border-slate-200 bg-white p-4">
-                                            <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">Comment</p>
-                                            <textarea
-                                                value={getRatingDraft(ratingModalRequest.id_request).comment}
-                                                onChange={(e) => updateRatingDraft(ratingModalRequest.id_request, { comment: e.target.value })}
-                                                placeholder="Tell us how the service went, what stood out, or what could be better..."
-                                                className="mt-3 min-h-[120px] w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm text-slate-700 outline-none transition focus:border-bird-blue/40 focus:ring-2 focus:ring-bird-blue/10"
-                                            />
-                                        </div>
-
-                                        <div className="mt-5 flex flex-col gap-3 sm:flex-row sm:justify-end">
-                                            <button
-                                                type="button"
-                                                onClick={() => setRatingModalRequest(null)}
-                                                className="rounded-2xl border border-slate-200 bg-white px-5 py-3 text-sm font-black text-slate-600 transition hover:border-slate-300 hover:bg-slate-50"
-                                            >
-                                                Maybe later
-                                            </button>
-                                            <button
-                                                type="button"
-                                                onClick={() => submitRating(ratingModalRequest)}
-                                                disabled={ratingBusyId === ratingModalRequest.id_request}
-                                                className="rounded-2xl bg-bird-blue px-5 py-3 text-sm font-black text-white shadow-[0_16px_30px_rgba(0,144,255,0.18)] transition hover:-translate-y-0.5 hover:bg-blue-700 disabled:opacity-50"
-                                            >
-                                                {ratingBusyId === ratingModalRequest.id_request ? 'Sending Fixes...' : 'Submit Fixes'}
-                                            </button>
-                                        </div>
-                                    </div>
-                                    <div className="border-t border-slate-200 bg-white/95 px-6 py-4 backdrop-blur">
-                                        {workerProfileRequest && hasPendingWorkerApproval(workerProfileRequest) ? (
-                                            <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-                                                <div className="min-w-0">
-                                                    <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-900">Approve this pro</p>
-                                                    <p className="mt-1 text-sm text-slate-500">
-                                                        Review the profile and portfolio, then confirm this worker to move the request to payment.
-                                                    </p>
-                                                </div>
-                                                <div className="grid grid-cols-2 gap-3 lg:w-[380px]">
-                                                    <button
-                                                        type="button"
-                                                        disabled={workerApprovalBusyId === workerProfileRequest.id_request}
-                                                        onClick={() => handleWorkerApprovalDecision(workerProfileRequest, 'decline')}
-                                                        className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-black text-red-600 transition hover:bg-red-100 disabled:opacity-50"
-                                                    >
-                                                        {workerApprovalBusyId === workerProfileRequest.id_request ? 'Saving...' : 'Decline worker'}
-                                                    </button>
-                                                    <button
-                                                        type="button"
-                                                        disabled={workerApprovalBusyId === workerProfileRequest.id_request}
-                                                        onClick={() => handleWorkerApprovalDecision(workerProfileRequest, 'accept')}
-                                                        className="rounded-2xl bg-gradient-to-r from-bird-blue to-sky-500 px-4 py-3 text-sm font-black text-white shadow-[0_14px_30px_rgba(14,165,233,0.22)] transition hover:translate-y-[-1px] disabled:opacity-50"
-                                                    >
-                                                        {workerApprovalBusyId === workerProfileRequest.id_request ? 'Saving...' : 'Accept this worker'}
-                                                    </button>
-                                                </div>
-                                            </div>
-                                        ) : (
-                                            <div className="flex items-center justify-end">
-                                                <button
-                                                    type="button"
-                                                    onClick={() => {
-                                                        setWorkerProfileRequest(null);
-                                                        setWorkerProfileData(null);
-                                                        setWorkerProfileLoading(false);
-                                                    }}
-                                                    className="rounded-2xl bg-slate-100 px-5 py-3 text-sm font-black text-slate-700 transition hover:bg-slate-200"
-                                                >
-                                                    Close profile
-                                                </button>
-                                            </div>
-                                        )}
                                     </div>
                                 </motion.div>
-                            </motion.div>
+                            </motion.div>,
+                            document.body
                         )}
-                    </AnimatePresence>
-
-                    <AnimatePresence>
-                        {fixesSuccessRequest && (
-                            <ServiceRequestFixesSuccessModal
-                                request={fixesSuccessRequest}
-                                punctuality={getRatingDraft(fixesSuccessRequest.id_request).punctuality}
-                                quality={getRatingDraft(fixesSuccessRequest.id_request).quality}
-                                priceFairness={getRatingDraft(fixesSuccessRequest.id_request).price_fairness}
-                                onClose={() => setFixesSuccessRequest(null)}
-                            />
-                        )}
-                    </AnimatePresence>
-
-                    <AnimatePresence>
-                        {showSavedPlacesModal && (
-                            <motion.div
-                                initial={{ opacity: 0 }}
-                                animate={{ opacity: 1 }}
-                                exit={{ opacity: 0 }}
-                                className="absolute inset-0 z-30 bg-slate-950/20 backdrop-blur-[2px] flex justify-end"
-                            >
-                                <motion.div
-                                    initial={{ x: 36, opacity: 0 }}
-                                    animate={{ x: 0, opacity: 1 }}
-                                    exit={{ x: 36, opacity: 0 }}
-                                    transition={{ type: 'spring', damping: 24, stiffness: 220 }}
-                                    className="h-full w-full max-w-[420px] border-l border-gray-200 bg-white shadow-2xl"
-                                >
-                                    <div className="flex h-full flex-col">
-                                        <div className="border-b border-gray-200 px-5 py-4">
-                                            <div className="flex items-center justify-between gap-4">
-                                                <div>
-                                                    <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-gray-400">Saved places</p>
-                                                    <h3 className="mt-1 text-lg font-black text-gray-900">Your location library</h3>
-                                                </div>
-                                                <button
-                                                    type="button"
-                                                    onClick={() => setShowSavedPlacesModal(false)}
-                                                    className="rounded-2xl border-none bg-gray-50/80 hover:bg-gray-100 transition-colors px-3 py-2 text-xs font-bold text-gray-500 hover:text-gray-700"
-                                                >
-                                                    Close
-                                                </button>
-                                            </div>
-
-                                            <div className="mt-4 space-y-3">
-                                                <div className="relative">
-                                                    <svg className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-4.35-4.35m1.85-5.15a7 7 0 11-14 0 7 7 0 0114 0z" />
-                                                    </svg>
-                                                    <input
-                                                        type="text"
-                                                        value={savedPlacesSearch}
-                                                        onChange={(e) => setSavedPlacesSearch(e.target.value)}
-                                                        placeholder="Search by name, address or type"
-                                                        className="w-full rounded-2xl border border-gray-200 bg-gray-50 pl-10 pr-10 py-3 text-sm text-gray-900 focus:border-bird-blue focus:bg-white focus:outline-none"
-                                                    />
-                                                    {savedPlacesSearch.trim() && (
-                                                        <button
-                                                            type="button"
-                                                            onClick={() => setSavedPlacesSearch('')}
-                                                            className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-black text-gray-400 hover:text-gray-600"
-                                                        >
-                                                            x
-                                                        </button>
-                                                    )}
-                                                </div>
-
-                                                <div className="flex flex-wrap gap-2">
-                                                    {[
-                                                        { key: 'all', label: 'All', count: quickAccessLocations.length },
-                                                        { key: 'primary', label: 'Home & Work', count: groupedSavedLocations.primary.length },
-                                                        { key: 'favorite', label: 'Favorites', count: groupedSavedLocations.favorites.length },
-                                                        { key: 'recent', label: 'Recent', count: groupedSavedLocations.recents.length },
-                                                    ].map((option) => (
-                                                        <button
-                                                            key={option.key}
-                                                            type="button"
-                                                            onClick={() => setSavedPlacesFilter(option.key as 'all' | 'primary' | 'favorite' | 'recent')}
-                                                            className={`inline-flex items-center gap-2 rounded-full border px-3 py-2 text-xs font-bold transition ${
-                                                                savedPlacesFilter === option.key
-                                                                    ? 'border-bird-blue bg-bird-blue text-white shadow-sm'
-                                                                    : 'border-gray-200 bg-white text-gray-600 hover:border-bird-blue/40 hover:text-slate-900'
-                                                            }`}
-                                                        >
-                                                            <span>{option.label}</span>
-                                                            <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-black ${
-                                                                savedPlacesFilter === option.key
-                                                                    ? 'bg-white/20 text-white'
-                                                                    : 'bg-gray-100 text-gray-500'
-                                                            }`}>
-                                                                {option.count}
-                                                            </span>
-                                                        </button>
-                                                    ))}
-                                                </div>
-                                            </div>
-                                        </div>
-
-                                        <div className="flex-1 overflow-y-auto p-5 space-y-5">
-                                            {quickAccessLocations.length === 0 ? (
-                                                <div className="rounded-2xl border border-dashed border-gray-300 bg-gray-50 px-4 py-5 text-sm text-gray-500">
-                                                    You do not have saved places yet. Resolve a location first, then use <span className="font-bold text-gray-700">Add location</span>.
-                                                </div>
-                                            ) : filteredSavedLocations.total === 0 ? (
-                                                <div className="rounded-2xl border border-dashed border-gray-300 bg-gray-50 px-4 py-5 text-sm text-gray-500">
-                                                    No saved places match your current search or filter.
-                                                </div>
-                                            ) : (
-                                                <>
-                                                    {filteredSavedLocations.primary.length > 0 && (
-                                                        <div>
-                                                            <p className="mb-3 text-[11px] font-bold uppercase tracking-wide text-gray-400">Home & Work</p>
-                                                            <div className="space-y-3">
-                                                                {filteredSavedLocations.primary.map((location, index) => {
-                                                                    const visual = getLocationVisual(location.kind);
-                                                                    const distanceLabel = currentCoords && !sameCoords(currentCoords, location)
-                                                                        ? formatDistanceLabel(distanceKmBetween(currentCoords, location))
-                                                                        : sameCoords(currentCoords, location)
-                                                                            ? 'Current place'
-                                                                            : null;
-
-                                                                    return (
-                                                                        <div
-                                                                            key={`${location.kind}-modal-${index}-${location.label}`}
-                                                                            className="rounded-2xl border border-gray-200 bg-slate-50 p-3"
-                                                                        >
-                                                                            <div className="flex items-center gap-3">
-                                                                                {renderLocationBadge(location.kind, 'md')}
-                                                                                <button
-                                                                                    type="button"
-                                                                                    onClick={() => handleUseSavedLocation(location)}
-                                                                                    className="min-w-0 flex-1 text-left"
-                                                                                >
-                                                                                    <p className="text-[15px] font-bold text-slate-800">{location.title}</p>
-                                                                                    <p className="mt-1 line-clamp-2 text-xs text-gray-500">{location.label}</p>
-                                                                                    <p className={`mt-1 inline-flex rounded-full border px-2 py-1 text-[11px] font-semibold ${visual.chipClass}`}>
-                                                                                        {distanceLabel || `${location.lat.toFixed(4)}, ${location.lng.toFixed(4)}`}
-                                                                                    </p>
-                                                                                </button>
-                                                                                <div className="shrink-0">
-                                                                                    {renderSavedPlaceActions(location, { compact: true })}
-                                                                                </div>
-                                                                            </div>
-                                                                        </div>
-                                                                    );
-                                                                })}
-                                                            </div>
-                                                        </div>
-                                                    )}
-
-                                                    {filteredSavedLocations.favorites.length > 0 && (
-                                                        <div>
-                                                            <p className="mb-3 text-[11px] font-bold uppercase tracking-wide text-gray-400">Favorites</p>
-                                                            <div className="space-y-3">
-                                                                {filteredSavedLocations.favorites.map((location, index) => {
-                                                                    const visual = getLocationVisual(location.kind);
-                                                                    const distanceLabel = currentCoords && !sameCoords(currentCoords, location)
-                                                                        ? formatDistanceLabel(distanceKmBetween(currentCoords, location))
-                                                                        : sameCoords(currentCoords, location)
-                                                                            ? 'Current place'
-                                                                            : null;
-
-                                                                    return (
-                                                                        <div
-                                                                            key={`${location.kind}-modal-favorite-${index}-${location.label}`}
-                                                                            className="flex items-center gap-3 rounded-2xl border border-gray-200 bg-white p-3"
-                                                                        >
-                                                                            <div className="relative h-16 w-16 shrink-0 overflow-hidden rounded-2xl border border-gray-200 bg-slate-100">
-                                                                                <img src={getPreviewTileUrl(location.lat, location.lng)} alt={location.title} className="h-full w-full object-cover" />
-                                                                                <div className="absolute inset-0 bg-gradient-to-t from-black/25 via-transparent to-white/10" />
-                                                                                <span className="absolute left-2 top-2">
-                                                                                    {renderLocationBadge(location.kind, 'sm')}
-                                                                                </span>
-                                                                            </div>
-                                                                            <button
-                                                                                type="button"
-                                                                                onClick={() => handleUseSavedLocation(location)}
-                                                                                className="min-w-0 flex-1 text-left"
-                                                                            >
-                                                                                <p className="truncate text-[15px] font-bold text-slate-800">{location.title}</p>
-                                                                                <p className="mt-1 truncate text-xs text-gray-500">{location.label}</p>
-                                                                                <p className={`mt-1 inline-flex rounded-full border px-2 py-1 text-[11px] font-semibold ${visual.chipClass}`}>
-                                                                                    {distanceLabel || `${location.lat.toFixed(4)}, ${location.lng.toFixed(4)}`}
-                                                                                </p>
-                                                                            </button>
-                                                                            <div className="shrink-0">
-                                                                                {renderSavedPlaceActions(location, { compact: true })}
-                                                                            </div>
-                                                                        </div>
-                                                                    );
-                                                                })}
-                                                            </div>
-                                                        </div>
-                                                    )}
-
-                                                    {filteredSavedLocations.recents.length > 0 && (
-                                                        <div>
-                                                            <div className="mb-3 flex items-center justify-between gap-3">
-                                                                <p className="text-[11px] font-bold uppercase tracking-wide text-gray-400">Recent</p>
-                                                                <button
-                                                                    type="button"
-                                                                    onClick={() => void clearRecentLocations()}
-                                                                    className="text-[11px] font-bold text-red-500 hover:text-red-600"
-                                                                >
-                                                                    Clear
-                                                                </button>
-                                                            </div>
-                                                            <div className="flex flex-wrap gap-2">
-                                                                {filteredSavedLocations.recents.map((location, index) => {
-                                                                    const visual = getLocationVisual(location.kind);
-                                                                    return (
-                                                                        <button
-                                                                            key={`${location.kind}-modal-recent-${index}-${location.label}`}
-                                                                            type="button"
-                                                                            onClick={() => handleUseSavedLocation(location)}
-                                                                            className={`inline-flex items-center gap-2 rounded-full border px-3 py-2 text-xs font-bold transition ${visual.chipClass} hover:shadow-sm`}
-                                                                        >
-                                                                            {renderLocationBadge(location.kind, 'sm')}
-                                                                            {location.title}
-                                                                        </button>
-                                                                    );
-                                                                })}
-                                                            </div>
-                                                            <div className="mt-3 space-y-2">
-                                                                {filteredSavedLocations.recents.map((location, index) => (
-                                                                    <div
-                                                                        key={`${location.kind}-actions-${index}-${location.label}`}
-                                                                        className="flex items-center justify-between rounded-2xl border border-gray-200 bg-white px-3 py-2"
-                                                                    >
-                                                                        <div className="min-w-0">
-                                                                            <p className="truncate text-xs font-bold text-gray-800">{location.title}</p>
-                                                                            <p className="truncate text-[11px] text-gray-400">{location.label}</p>
-                                                                        </div>
-                                                                        <div className="shrink-0">
-                                                                            {renderSavedPlaceActions(location, { compact: true })}
-                                                                        </div>
-                                                                    </div>
-                                                                ))}
-                                                            </div>
-                                                        </div>
-                                                    )}
-                                                </>
-                                            )}
-                                        </div>
-                                    </div>
-                                </motion.div>
-                            </motion.div>
-                        )}
-                    </AnimatePresence>
-
-                    <AnimatePresence>
-                        {workerProfileRequest && (
-                            <motion.div
-                                initial={{ opacity: 0 }}
-                                animate={{ opacity: 1 }}
-                                exit={{ opacity: 0 }}
-                                onClick={closeWorkerProfileModal}
-                                className="fixed inset-0 z-[9999] bg-slate-950/60 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-6"
-                            >
-                                <motion.div
-                                    initial={{ opacity: 0, y: 60, scale: 0.97 }}
-                                    animate={{ opacity: 1, y: 0, scale: 1 }}
-                                    exit={{ opacity: 0, y: 60, scale: 0.97 }}
-                                    transition={{ type: 'spring', damping: 28, stiffness: 280 }}
-                                    onClick={(e) => e.stopPropagation()}
-                                    className="flex w-full max-w-2xl max-h-[92vh] sm:max-h-[88vh] flex-col overflow-hidden rounded-t-[2rem] sm:rounded-[2rem] bg-white shadow-2xl"
-                                >
-                                    {/* Drag handle (mobile) */}
-                                    <div className="flex justify-center pt-3 pb-1 sm:hidden shrink-0">
-                                        <div className="w-10 h-1.5 rounded-full bg-slate-200" />
-                                    </div>
-
-                                    {/* Header */}
-                                    <div className="relative bg-slate-900 px-6 py-7 shrink-0 overflow-hidden">
-                                        <div className="absolute inset-0 bg-gradient-to-br from-slate-800 to-slate-950" />
-                                        <button
-                                            type="button"
-                                            onClick={closeWorkerProfileModal}
-                                            className="absolute top-4 right-4 z-10 flex h-9 w-9 items-center justify-center rounded-full bg-white/10 hover:bg-white/20 text-white transition-colors"
-                                        >
-                                            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                                            </svg>
-                                        </button>
-                                        <div className="relative z-10 flex items-center gap-4">
-                                            {selectedWorkerProfile?.profile_image_url && !workerAvatarBroken ? (
-                                                <img
-                                                    src={selectedWorkerProfile.profile_image_url}
-                                                    alt={selectedWorkerProfile.name}
-                                                    onError={() => setWorkerAvatarBroken(true)}
-                                                    className="h-16 w-16 shrink-0 rounded-2xl object-cover ring-2 ring-white/20 shadow-lg"
-                                                />
-                                            ) : (
-                                                <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl bg-white/15 text-xl font-black text-white ring-2 ring-white/10">
-                                                    {getInitials(selectedWorkerProfile?.name || 'Pro')}
-                                                </div>
-                                            )}
-                                            <div className="min-w-0 flex-1">
-                                                <div className="flex items-center gap-2 mb-1">
-                                                    <span className="text-[10px] font-black uppercase tracking-widest text-blue-400">Verified Pro</span>
-                                                    {selectedWorkerProfile?.is_online && (
-                                                        <span className="flex items-center gap-1 text-[10px] font-bold text-emerald-400">
-                                                            <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                                                            Online
-                                                        </span>
-                                                    )}
-                                                </div>
-                                                <h3 className="text-xl font-black text-white truncate">
-                                                    {selectedWorkerProfile?.name || 'Assigned Pro'}
-                                                </h3>
-                                                <div className="flex items-center gap-2 mt-1.5">
-                                                    {renderStarSummary(selectedWorkerProfile?.rating_average ?? null)}
-                                                    <span className="text-xs font-bold text-slate-400">
-                                                        {selectedWorkerProfile?.rating_average != null
-                                                            ? `${selectedWorkerProfile.rating_average.toFixed(1)} · ${selectedWorkerProfile.rating_count} reviews`
-                                                            : 'New Pro'}
-                                                    </span>
-                                                </div>
-                                            </div>
-                                        </div>
-
-                                        {/* Stats row */}
-                                        <div className="relative z-10 mt-5 grid grid-cols-3 gap-3">
-                                            {[
-                                                { label: 'Jobs', value: selectedWorkerProfile?.completed_jobs ?? 0 },
-                                                { label: 'Experience', value: selectedWorkerProfile?.years_of_experience != null ? `${selectedWorkerProfile.years_of_experience}y` : '--' },
-                                                { label: 'Rating', value: selectedWorkerProfile?.rating_average != null ? selectedWorkerProfile.rating_average.toFixed(1) : '--' },
-                                            ].map((stat) => (
-                                                <div key={stat.label} className="rounded-xl bg-white/8 border border-white/10 px-3 py-2.5 text-center backdrop-blur-sm">
-                                                    <p className="text-base font-black text-white">{stat.value}</p>
-                                                    <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mt-0.5">{stat.label}</p>
-                                                </div>
-                                            ))}
-                                        </div>
-                                    </div>
-
-                                    {/* Body */}
-                                    <div className="flex-1 overflow-y-auto bg-white">
-                                        {workerProfileLoading ? (
-                                            <div className="flex items-center justify-center gap-3 py-16">
-                                                <div className="h-5 w-5 rounded-full border-2 border-slate-200 border-t-slate-700 animate-spin" />
-                                                <p className="text-sm font-bold text-slate-500">Loading profile...</p>
-                                            </div>
-                                        ) : (
-                                            <div className="divide-y divide-slate-100">
-                                                {/* Bio */}
-                                                {selectedWorkerProfile?.bio && (
-                                                    <div className="px-6 py-5">
-                                                        <p className="text-[11px] font-black uppercase tracking-widest text-slate-400 mb-2">About</p>
-                                                        <p className="text-sm leading-relaxed text-slate-700">{selectedWorkerProfile.bio}</p>
-                                                    </div>
-                                                )}
-
-                                                {/* Info row */}
-                                                <div className="px-6 py-5 grid grid-cols-2 gap-4">
-                                                    <div>
-                                                        <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">Phone</p>
-                                                        <p className="text-sm font-bold text-slate-900">{selectedWorkerProfile?.phone_number || 'Hidden'}</p>
-                                                    </div>
-                                                    <div>
-                                                        <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">Level</p>
-                                                        <p className="text-sm font-bold text-slate-900">{selectedWorkerProfile?.experience_label || '—'}</p>
-                                                    </div>
-                                                </div>
-
-                                                {/* Services */}
-                                                {(selectedWorkerProfile?.services_offered || []).length > 0 && (
-                                                    <div className="px-6 py-5">
-                                                        <p className="text-[11px] font-black uppercase tracking-widest text-slate-400 mb-3">Services</p>
-                                                        <div className="flex flex-wrap gap-2">
-                                                            {selectedWorkerProfile!.services_offered.map((s) => (
-                                                                <span key={s} className="rounded-xl bg-slate-100 border border-slate-200 px-3 py-1.5 text-xs font-bold text-slate-700">
-                                                                    {s}
-                                                                </span>
-                                                            ))}
-                                                        </div>
-                                                    </div>
-                                                )}
-
-                                                {/* Portfolio */}
-                                                <div className="px-6 py-5">
-                                                    <div className="flex items-center justify-between mb-4">
-                                                        <p className="text-[11px] font-black uppercase tracking-widest text-slate-400">Portfolio</p>
-                                                        <span className="text-[10px] font-bold text-slate-500 bg-slate-100 px-2.5 py-1 rounded-full">{workerPortfolio.length} photos</span>
-                                                    </div>
-                                                    {workerPortfolio.length === 0 ? (
-                                                        <div className="border-2 border-dashed border-slate-200 rounded-2xl p-8 flex flex-col items-center text-center">
-                                                            <svg className="w-8 h-8 text-slate-300 mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
-                                                            <p className="text-sm font-bold text-slate-500">No portfolio yet</p>
-                                                        </div>
-                                                    ) : (
-                                                        <div className="grid grid-cols-3 gap-2 pb-2">
-                                                            {workerPortfolio.slice(0, 6).map((item, index) => (
-                                                                <button
-                                                                    key={item.id_photo}
-                                                                    type="button"
-                                                                    onClick={() => { setWorkerPortfolioIndex(index); setIsWorkerPortfolioFullscreen(true); }}
-                                                                    className="group relative aspect-square overflow-hidden rounded-xl bg-slate-100 border border-slate-200"
-                                                                >
-                                                                    {item.image_url && !brokenPortfolioPhotos[item.id_photo] ? (
-                                                                        <img
-                                                                            src={item.image_url}
-                                                                            alt=""
-                                                                            onError={() => setBrokenPortfolioPhotos((prev) => ({ ...prev, [item.id_photo]: true }))}
-                                                                            className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
-                                                                        />
-                                                                    ) : (
-                                                                        <div className="w-full h-full flex flex-col items-center justify-center bg-slate-100 text-slate-400">
-                                                                            <svg className="w-6 h-6 mb-1" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
-                                                                            <span className="text-[9px] font-bold uppercase tracking-wider">Unavailable</span>
-                                                                        </div>
-                                                                    )}
-                                                                    <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center">
-                                                                        <svg className="w-6 h-6 text-white opacity-0 group-hover:opacity-100 transition-opacity drop-shadow" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v3m0 0v3m0-3h3m-3 0H7" /></svg>
-                                                                    </div>
-                                                                </button>
-                                                            ))}
-                                                            {workerPortfolio.length > 6 && (
-                                                                <button
-                                                                    type="button"
-                                                                    onClick={() => { setWorkerPortfolioIndex(6); setIsWorkerPortfolioFullscreen(true); }}
-                                                                    className="aspect-square rounded-xl bg-slate-900 text-white text-sm font-black flex items-center justify-center hover:bg-black transition-colors"
-                                                                >
-                                                                    +{workerPortfolio.length - 6}
-                                                                </button>
-                                                            )}
-                                                        </div>
-                                                    )}
-                                                </div>
-                                            </div>
-                                        )}
-                                    </div>
-                                </motion.div>
-                            </motion.div>
-                        )}
-                    </AnimatePresence>
-
-                    <AnimatePresence>
-                        {workerProfileRequest && isWorkerPortfolioFullscreen && activeWorkerPortfolioPhoto && (
-                            <motion.div
-                                initial={{ opacity: 0 }}
-                                animate={{ opacity: 1 }}
-                                exit={{ opacity: 0 }}
-                                className="fixed inset-0 z-[10000] bg-slate-950/80 backdrop-blur-md"
-                                onClick={() => setIsWorkerPortfolioFullscreen(false)}
-                            >
-                                <motion.div
-                                    initial={{ opacity: 0, y: 16, scale: 0.98 }}
-                                    animate={{ opacity: 1, y: 0, scale: 1 }}
-                                    exit={{ opacity: 0, y: 16, scale: 0.98 }}
-                                    transition={{ type: 'spring', damping: 24, stiffness: 260 }}
-                                    className="absolute inset-4 overflow-hidden rounded-[34px] border border-white/10 bg-slate-950 shadow-[0_30px_90px_rgba(15,23,42,0.45)]"
-                                    onClick={(event) => event.stopPropagation()}
-                                >
-                                    <div className="absolute inset-x-0 top-0 z-20 flex items-center justify-between gap-3 p-5">
-                                        <div className="rounded-full border border-white/15 bg-slate-950/70 px-4 py-2 text-white backdrop-blur">
-                                            <p className="text-[10px] font-black uppercase tracking-[0.2em] text-white/60">Portfolio</p>
-                                            <p className="mt-1 text-sm font-black">
-                                                {activeWorkerPortfolioIndex + 1} / {workerPortfolio.length}
-                                            </p>
-                                        </div>
-                                        <div className="flex items-center gap-2">
-                                            <button
-                                                type="button"
-                                                onClick={toggleWorkerPortfolioZoom}
-                                                className={`rounded-full border px-4 py-2 text-xs font-black uppercase tracking-[0.16em] backdrop-blur transition ${
-                                                    isWorkerPortfolioZoomed
-                                                        ? 'border-bird-yellow/70 bg-bird-yellow/20 text-bird-yellow'
-                                                        : 'border-white/15 bg-white/10 text-white hover:bg-white/15'
-                                                }`}
-                                            >
-                                                {isWorkerPortfolioZoomed ? 'Zoom out' : 'Zoom in'}
-                                            </button>
-                                            <button
-                                                type="button"
-                                                onClick={() => setIsWorkerPortfolioFullscreen(false)}
-                                                className="rounded-full border border-white/15 bg-white/10 px-4 py-2 text-xs font-black uppercase tracking-[0.16em] text-white backdrop-blur hover:bg-white/15"
-                                            >
-                                                Close
-                                            </button>
-                                        </div>
-                                    </div>
-
-                                    <div className="absolute inset-0">
-                                        {activeWorkerPortfolioPhoto.image_url ? (
-                                            <motion.div
-                                                drag={isWorkerPortfolioZoomed ? false : 'x'}
-                                                dragConstraints={{ left: 0, right: 0 }}
-                                                dragElastic={0.16}
-                                                onTouchStart={handleWorkerPortfolioTouchStart}
-                                                onTouchMove={handleWorkerPortfolioTouchMove}
-                                                onTouchEnd={handleWorkerPortfolioTouchEnd}
-                                                onDragEnd={(_, info) => {
-                                                    if (isWorkerPortfolioZoomed || workerPortfolio.length <= 1) return;
-                                                    if (info.offset.x <= -90) {
-                                                        shiftWorkerPortfolio('next');
-                                                    } else if (info.offset.x >= 90) {
-                                                        shiftWorkerPortfolio('prev');
-                                                    }
-                                                }}
-                                                style={{ touchAction: isWorkerPortfolioZoomed ? 'none' : 'pan-y' }}
-                                                className="flex h-full w-full items-center justify-center px-4 pb-24 pt-24 sm:px-8"
-                                            >
-                                                <motion.img
-                                                    key={`${activeWorkerPortfolioPhoto.id_photo}`}
-                                                    src={activeWorkerPortfolioPhoto.image_url}
-                                                    alt={activeWorkerPortfolioPhoto.description || 'Portfolio work'}
-                                                    initial={{ opacity: 0.45, scale: 0.96 }}
-                                                    animate={{ opacity: 1, scale: workerPortfolioScale }}
-                                                    transition={{ type: 'spring', stiffness: 220, damping: 24 }}
-                                                    onClick={handleWorkerPortfolioImageTap}
-                                                    onDoubleClick={handleWorkerPortfolioImageDoubleTap}
-                                                    style={{ transformOrigin: workerPortfolioTransformOrigin }}
-                                                    className={`max-h-full max-w-full rounded-[28px] object-contain shadow-[0_24px_60px_rgba(15,23,42,0.38)] transition ${
-                                                        isWorkerPortfolioZoomed ? 'cursor-zoom-out' : 'cursor-zoom-in'
-                                                    }`}
-                                                />
-                                            </motion.div>
-                                        ) : (
-                                            <div className="h-full w-full bg-slate-900" />
-                                        )}
-                                        <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-slate-950 via-slate-950/75 to-transparent px-6 pb-6 pt-20 text-white">
-                                            <div className="flex flex-wrap items-end justify-between gap-4">
-                                                <div className="flex flex-wrap items-start gap-4">
-                                                    <div className="flex items-center gap-3 rounded-[24px] border border-white/12 bg-white/10 px-4 py-3 backdrop-blur-md">
-                                                        {selectedWorkerProfile?.profile_image_url ? (
-                                                            <img
-                                                                src={selectedWorkerProfile.profile_image_url}
-                                                                alt={selectedWorkerProfile.name || 'Worker'}
-                                                                className="h-14 w-14 rounded-2xl object-cover ring-2 ring-white/10"
-                                                            />
-                                                        ) : (
-                                                            <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-white/15 text-lg font-black text-white">
-                                                                {getInitials(selectedWorkerProfile?.name || 'Pro')}
-                                                            </div>
-                                                        )}
-                                                        <div>
-                                                            <p className="text-base font-black text-white">
-                                                                {selectedWorkerProfile?.name || 'Assigned pro'}
-                                                            </p>
-                                                            <p className="mt-1 text-xs font-semibold uppercase tracking-[0.14em] text-white/55">
-                                                                {selectedWorkerProfile?.experience_label || 'Verified professional'}
-                                                            </p>
-                                                            <p className="mt-1 text-sm text-white/70">
-                                                                {selectedWorkerProfile?.phone_number || 'Phone shared after approval'}
-                                                            </p>
-                                                        </div>
-                                                    </div>
-                                                    <div>
-                                                        <p className="text-[11px] font-black uppercase tracking-[0.18em] text-white/55">Image note</p>
-                                                        <p className="mt-2 text-lg font-black">
-                                                            {activeWorkerPortfolioPhoto.description || 'Recent portfolio work'}
-                                                        </p>
-                                                        <p className="mt-2 text-sm text-white/70">
-                                                            {activeWorkerPortfolioPhoto.uploaded_at
-                                                                ? new Date(activeWorkerPortfolioPhoto.uploaded_at).toLocaleDateString()
-                                                                : 'Recently uploaded'}
-                                                        </p>
-                                                    </div>
-                                                </div>
-                                                <div className="rounded-full border border-white/15 bg-white/10 px-4 py-2 text-sm font-black backdrop-blur">
-                                                    {(selectedWorkerProfile?.services_offered || []).slice(0, 2).join(' • ') || 'Assigned pro'}
-                                                </div>
-                                            </div>
-                                            <div className="mt-3 flex flex-wrap items-center gap-2 text-[11px] font-bold uppercase tracking-[0.14em] text-white/65">
-                                                <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1">
-                                                    {isWorkerPortfolioZoomed ? `Zoom ${workerPortfolioScale.toFixed(1)}x active` : 'Tap image to zoom'}
-                                                </span>
-                                                {workerPortfolio.length > 1 && !isWorkerPortfolioZoomed && (
-                                                    <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1">
-                                                        Swipe left or right to browse
-                                                    </span>
-                                                )}
-                                                <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1">
-                                                    Pinch with two fingers to zoom
-                                                </span>
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    {workerPortfolio.length > 1 && (
-                                        <>
-                                            <button
-                                                type="button"
-                                                onClick={() => shiftWorkerPortfolio('prev')}
-                                                className="absolute left-6 top-1/2 z-20 flex h-14 w-14 -translate-y-1/2 items-center justify-center rounded-full border border-white/20 bg-white/10 text-3xl font-black text-white backdrop-blur transition hover:bg-white/20"
-                                            >
-                                                {'‹'}
-                                            </button>
-                                            <button
-                                                type="button"
-                                                onClick={() => shiftWorkerPortfolio('next')}
-                                                className="absolute right-6 top-1/2 z-20 flex h-14 w-14 -translate-y-1/2 items-center justify-center rounded-full border border-white/20 bg-white/10 text-3xl font-black text-white backdrop-blur transition hover:bg-white/20"
-                                            >
-                                                {'›'}
-                                            </button>
-
-                                            <div className="absolute inset-x-0 bottom-5 z-20 px-6">
-                                                <div className="mx-auto grid max-w-3xl grid-cols-4 gap-3 rounded-[24px] border border-white/10 bg-slate-950/65 p-3 backdrop-blur-md">
-                                                    {workerPortfolio.map((item, index) => (
-                                                        <button
-                                                            key={item.id_photo}
-                                                            type="button"
-                                                            onClick={() => setWorkerPortfolioIndex(index)}
-                                                            className={`group overflow-hidden rounded-2xl border transition ${
-                                                                index === activeWorkerPortfolioIndex
-                                                                    ? 'border-bird-blue bg-bird-blue/10 shadow-[0_12px_28px_rgba(29,78,216,0.2)]'
-                                                                    : 'border-white/10 bg-white/5 hover:border-bird-blue/35'
-                                                            }`}
-                                                        >
-                                                            {item.image_url ? (
-                                                                <img
-                                                                    src={item.image_url}
-                                                                    alt={item.description || 'Portfolio thumbnail'}
-                                                                    className="aspect-square w-full object-cover transition duration-300 group-hover:scale-[1.04]"
-                                                                />
-                                                            ) : (
-                                                                <div className="aspect-square w-full bg-slate-800" />
-                                                            )}
-                                                        </button>
-                                                    ))}
-                                                </div>
-                                            </div>
-                                        </>
-                                    )}
-                                </motion.div>
-                            </motion.div>
-                        )}
-                    </AnimatePresence>
-
-                    <AnimatePresence>
-                        {pendingDeleteLocation && (
-                            <motion.div
-                                initial={{ opacity: 0 }}
-                                animate={{ opacity: 1 }}
-                                exit={{ opacity: 0 }}
-                                className="absolute inset-0 z-40 bg-slate-950/35 backdrop-blur-[3px] flex items-center justify-center p-4"
-                            >
-                                <motion.div
-                                    initial={{ opacity: 0, scale: 0.96, y: 12 }}
-                                    animate={{ opacity: 1, scale: 1, y: 0 }}
-                                    exit={{ opacity: 0, scale: 0.96, y: 12 }}
-                                    transition={{ type: 'spring', damping: 24, stiffness: 260 }}
-                                    className="w-full max-w-md overflow-hidden rounded-[28px] border border-gray-200 bg-white shadow-2xl"
-                                >
-                                    <div className="bg-gradient-to-r from-amber-400 via-yellow-300 to-bird-blue px-6 py-5">
-                                        <div className="flex items-center gap-4">
-                                            {renderLocationBadge(pendingDeleteLocation.kind, 'lg')}
-                                            <div className="text-slate-900">
-                                                <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-700">Delete saved place</p>
-                                                <h3 className="mt-1 text-xl font-black">{pendingDeleteLocation.title}</h3>
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    <div className="p-6">
-                                        <div className="rounded-2xl border border-amber-100 bg-amber-50/70 p-4">
-                                            <p className="text-sm font-bold text-slate-900">Are you sure you want to remove this location?</p>
-                                            <p className="mt-2 text-sm text-slate-600">{pendingDeleteLocation.label}</p>
-                                            <div className="mt-3 inline-flex rounded-full border border-bird-blue/20 bg-bird-blue/10 px-3 py-1 text-[11px] font-bold text-slate-900">
-                                                {pendingDeleteLocation.lat.toFixed(4)}, {pendingDeleteLocation.lng.toFixed(4)}
-                                            </div>
-                                        </div>
-
-                                        <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:justify-end">
-                                            <motion.button
-                                                type="button"
-                                                onClick={() => closeDeleteSavedLocationPrompt(true)}
-                                                whileHover={{ y: -2, scale: 1.01 }}
-                                                whileTap={{ scale: 0.98 }}
-                                                className="inline-flex items-center justify-center gap-2 rounded-2xl border border-bird-blue/20 bg-bird-blue/10 px-4 py-3 text-sm font-black text-slate-900 transition hover:bg-bird-blue hover:text-white"
-                                            >
-                                                {renderSavedPlaceActionIcon('use')}
-                                                Keep place
-                                            </motion.button>
-                                            <motion.button
-                                                type="button"
-                                                onClick={() => void confirmDeleteSavedLocation()}
-                                                whileHover={{ y: -2, scale: 1.01 }}
-                                                whileTap={{ scale: 0.98 }}
-                                                className="inline-flex items-center justify-center gap-2 rounded-2xl border border-amber-300 bg-gradient-to-r from-amber-300 to-yellow-300 px-4 py-3 text-sm font-black text-slate-900 transition hover:shadow-[0_12px_28px_rgba(245,158,11,0.28)]"
-                                            >
-                                                {renderSavedPlaceActionIcon('delete')}
-                                                Delete saved place
-                                            </motion.button>
-                                        </div>
-                                    </div>
-                                </motion.div>
-                            </motion.div>
-                        )}
-                    </AnimatePresence>
-
-                    <AnimatePresence>
-                        {pendingRenameLocation && (
-                            <motion.div
-                                initial={{ opacity: 0 }}
-                                animate={{ opacity: 1 }}
-                                exit={{ opacity: 0 }}
-                                className="absolute inset-0 z-40 bg-slate-950/35 backdrop-blur-[3px] flex items-center justify-center p-4"
-                            >
-                                <motion.div
-                                    initial={{ opacity: 0, scale: 0.96, y: 12 }}
-                                    animate={{ opacity: 1, scale: 1, y: 0 }}
-                                    exit={{ opacity: 0, scale: 0.96, y: 12 }}
-                                    transition={{ type: 'spring', damping: 24, stiffness: 260 }}
-                                    className="w-full max-w-md overflow-hidden rounded-[28px] border border-gray-200 bg-white shadow-2xl"
-                                >
-                                    <div className="bg-gradient-to-r from-bird-blue via-sky-500 to-yellow-300 px-6 py-5">
-                                        <div className="flex items-center gap-4">
-                                            {renderLocationBadge(pendingRenameLocation.kind, 'lg')}
-                                            <div className="text-slate-900">
-                                                <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-700">Rename saved place</p>
-                                                <h3 className="mt-1 text-xl font-black">{pendingRenameLocation.title}</h3>
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    <div className="p-6">
-                                        <label className="block text-[11px] font-black uppercase tracking-[0.18em] text-gray-500">
-                                            New label
-                                        </label>
-                                        <input
-                                            type="text"
-                                            value={pendingRenameTitle}
-                                            autoFocus
-                                            autoComplete="off"
-                                            onChange={(e) => setPendingRenameTitle(e.target.value)}
-                                            onKeyDown={(e) => {
-                                                if (e.key === 'Enter') {
-                                                    e.preventDefault();
-                                                    void confirmRenameSavedLocation();
-                                                }
-                                                if (e.key === 'Escape') {
-                                                    e.preventDefault();
-                                                    closeRenameSavedLocationPrompt(true);
-                                                }
-                                            }}
-                                            className="mt-2 w-full rounded-2xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-900 focus:border-bird-blue focus:bg-white focus:outline-none"
-                                            placeholder="Ex: Home, Office, Mom's house"
-                                        />
-                                        <p className="mt-3 text-sm text-gray-500">
-                                            Update the name without touching the saved coordinates.
-                                        </p>
-
-                                        <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:justify-end">
-                                            <motion.button
-                                                type="button"
-                                                onClick={() => closeRenameSavedLocationPrompt(true)}
-                                                whileHover={{ y: -2, scale: 1.01 }}
-                                                whileTap={{ scale: 0.98 }}
-                                                className="inline-flex items-center justify-center gap-2 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-black text-amber-700 transition hover:bg-amber-400 hover:text-white"
-                                            >
-                                                {renderSavedPlaceActionIcon('delete')}
-                                                Cancel
-                                            </motion.button>
-                                            <motion.button
-                                                type="button"
-                                                onClick={() => void confirmRenameSavedLocation()}
-                                                whileHover={{ y: -2, scale: 1.01 }}
-                                                whileTap={{ scale: 0.98 }}
-                                                className="inline-flex items-center justify-center gap-2 rounded-2xl border border-bird-blue/20 bg-bird-blue px-4 py-3 text-sm font-black text-white transition hover:shadow-[0_12px_28px_rgba(29,78,216,0.28)]"
-                                            >
-                                                {renderSavedPlaceActionIcon('rename')}
-                                                Save name
-                                            </motion.button>
-                                        </div>
-                                    </div>
-                                </motion.div>
-                            </motion.div>
-                        )}
-                    </AnimatePresence>
-
-                    <AnimatePresence>
-                        {pendingRequestAction && (
-                            <motion.div
-                                initial={{ opacity: 0 }}
-                                animate={{ opacity: 1 }}
-                                exit={{ opacity: 0 }}
-                                className="fixed inset-0 z-[100] bg-slate-950/35 backdrop-blur-[3px] flex items-center justify-center p-4"
-                            >
-                                <motion.div
-                                    initial={{ opacity: 0, scale: 0.96, y: 12 }}
-                                    animate={{ opacity: 1, scale: 1, y: 0 }}
-                                    exit={{ opacity: 0, scale: 0.96, y: 12 }}
-                                    transition={{ type: 'spring', damping: 24, stiffness: 260 }}
-                                    className="w-full max-w-md overflow-hidden rounded-[28px] border border-gray-200 bg-white shadow-2xl"
-                                >
-                                    <div className={`px-6 py-5 ${
-                                        pendingRequestAction.type === 'cancel'
-                                            ? 'bg-gradient-to-r from-amber-400 via-yellow-300 to-orange-300'
-                                            : 'bg-gradient-to-r from-bird-blue via-sky-500 to-cyan-400'
-                                    }`}>
-                                        <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-700">
-                                            {pendingRequestAction.type === 'cancel' ? 'Cancel request' : 'Confirm completion'}
-                                        </p>
-                                        <h3 className="mt-2 text-xl font-black text-slate-900">
-                                            #{pendingRequestAction.request.id_request} - {pendingRequestAction.request.service_name}
-                                        </h3>
-                                    </div>
-
-                                    <div className="p-6">
-                                        <div className={`rounded-2xl border p-4 ${
-                                            pendingRequestAction.type === 'cancel'
-                                                ? 'border-amber-200 bg-amber-50/70'
-                                                : 'border-blue-200 bg-blue-50/70'
-                                        }`}>
-                                            <p className="text-sm font-bold text-slate-900">
-                                                {pendingRequestAction.type === 'cancel'
-                                                    ? 'Are you sure you want to cancel this request?'
-                                                    : 'Confirm that the work is completed and release the payment?'}
-                                            </p>
-                                            <p className="mt-2 text-sm text-slate-600 line-clamp-3">
-                                                {pendingRequestAction.request.description}
-                                            </p>
-                                        </div>
-
-                                        <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:justify-end">
-                                            <motion.button
-                                                type="button"
-                                                onClick={() => closeRequestActionPrompt(true)}
-                                                whileHover={{ y: -2, scale: 1.01 }}
-                                                whileTap={{ scale: 0.98 }}
-                                                className="inline-flex items-center justify-center gap-2 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-black text-amber-700 transition hover:bg-amber-400 hover:text-white"
-                                            >
-                                                {renderSavedPlaceActionIcon('delete')}
-                                                Back
-                                            </motion.button>
-                                            <motion.button
-                                                type="button"
-                                                onClick={() => void confirmPendingRequestAction()}
-                                                whileHover={{ y: -2, scale: 1.01 }}
-                                                whileTap={{ scale: 0.98 }}
-                                                className={`inline-flex items-center justify-center gap-2 rounded-2xl px-4 py-3 text-sm font-black text-white transition ${
-                                                    pendingRequestAction.type === 'cancel'
-                                                        ? 'bg-gradient-to-r from-amber-500 to-orange-500 hover:shadow-[0_12px_28px_rgba(245,158,11,0.28)]'
-                                                        : 'bg-bird-blue hover:shadow-[0_12px_28px_rgba(29,78,216,0.28)]'
-                                                }`}
-                                            >
-                                                {renderSavedPlaceActionIcon(pendingRequestAction.type === 'cancel' ? 'delete' : 'use')}
-                                                {pendingRequestAction.type === 'cancel' ? 'Yes, cancel request' : 'Yes, confirm completion'}
-                                            </motion.button>
-                                        </div>
-                                    </div>
-                                </motion.div>
-                            </motion.div>
-                        )}
-                    </AnimatePresence>
-
-                    <AnimatePresence>
-                        {paymentModalRequest && (
-                            <ServiceRequestPaymentModal
-                                paymentModalRequest={paymentModalRequest}
-                                paymentMethod={paymentMethod}
-                                paymentForm={paymentForm}
-                                paymentBusyId={paymentBusyId}
-                                onClose={() => setPaymentModalRequest(null)}
-                                onSelectMethod={setPaymentMethod}
-                                onPaymentFormChange={(patch) => setPaymentForm((prev) => ({ ...prev, ...patch }))}
-                                onConfirmPayment={() => void confirmPaymentThroughModal()}
-                            />
-                        )}
-                    </AnimatePresence>
-
-                    {/* Searching Overlay */}
-                    <AnimatePresence>
-                        {isSearching && (
-                            <motion.div
-                                initial={{ opacity: 0 }}
-                                animate={{ opacity: 1 }}
-                                exit={{ opacity: 0 }}
-                                className="absolute inset-0 z-30 bg-white/95 backdrop-blur-sm flex flex-col items-center justify-center p-8 text-center"
-                            >
-                                <motion.div
-                                    animate={{ rotate: 360 }}
-                                    transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
-                                    className="w-20 h-20 border-4 border-bird-blue/20 border-t-bird-blue rounded-full mb-6"
-                                />
-                                <motion.h2
-                                    initial={{ opacity: 0, y: 20 }}
-                                    animate={{ opacity: 1, y: 0 }}
-                                    className="text-2xl font-bold text-gray-900 mb-2"
-                                >
-                                    Finding the best pro...
-                                </motion.h2>
-                                <motion.p
-                                    initial={{ opacity: 0, y: 20 }}
-                                    animate={{ opacity: 1, y: 0 }}
-                                    transition={{ delay: 0.1 }}
-                                    className="text-gray-600 mb-8"
-                                >
-                                    This will only take a moment
-                                </motion.p>
-                                <motion.button
-                                    whileHover={{ scale: 1.05 }}
-                                    whileTap={{ scale: 0.95 }}
-                                    onClick={() => setIsSearching(false)}
-                                    className="px-6 py-2 rounded-full border-2 border-gray-200 text-gray-600 font-bold hover:border-gray-300 hover:bg-gray-50 transition-all"
-                                >
-                                    Cancel
-                                </motion.button>
-                            </motion.div>
-                        )}
-                    </AnimatePresence>
-            </ServiceRequestPanelShell>
-
-            {step === 1 && !activeTrackedRequest && (
-                <div className="pointer-events-none absolute inset-x-0 bottom-4 z-[430] flex justify-end px-4 md:bottom-6 md:px-6">
-                    <motion.button
-                        whileHover={{ scale: 1.03 }}
-                        whileTap={{ scale: 0.97 }}
-                        onClick={() => void handleFloatingFindPro()}
-                        disabled={!canSearchPros}
-                        className="pointer-events-auto inline-flex items-center gap-3 rounded-full bg-slate-950 px-6 py-4 text-sm font-black text-white shadow-[0_20px_40px_rgba(15,23,42,0.28)] transition hover:bg-black disabled:opacity-60"
-                    >
-                        <span>Find a Pro</span>
-                        <span className="inline-flex h-8 min-w-8 items-center justify-center rounded-full bg-white/10 px-2 text-xs font-black">
-                            {nearbyWorkers.length}
-                        </span>
-                    </motion.button>
-                </div>
-            )}
-
-
-        </motion.div>
+</motion.div>
     );
 };
-
-
-
