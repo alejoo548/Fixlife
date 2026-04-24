@@ -41,7 +41,7 @@ export function ServiceRequestPanelShell({
             className={`pointer-events-auto mt-auto flex flex-col bg-white/98 relative z-20 overflow-hidden border border-white/60 shadow-[0_-16px_40px_rgba(0,0,0,0.18)] backdrop-blur-xl transition-[width,height,max-height] duration-300 ${
                 isDesktopSheet
                     ? `ml-4 mb-4 mt-4 h-[calc(100%-2rem)] ${step === 1 && !hasActiveTrackedRequest ? (isRequestPanelExpanded ? 'w-[430px] lg:w-[500px]' : 'w-[340px]') : 'w-[430px] lg:w-[500px]'} rounded-[2rem]`
-                    : `${step === 1 && !hasActiveTrackedRequest ? (isRequestPanelExpanded ? 'h-[78vh]' : 'h-[176px]') : 'h-[72vh]'} w-full rounded-t-[2rem] border-b-0`
+                    : `${step === 1 && !hasActiveTrackedRequest ? (isRequestPanelExpanded ? 'h-[78vh]' : 'h-[176px]') : hasActiveTrackedRequest ? 'hidden' : 'h-[55vh]'} w-full rounded-t-[2rem] border-b-0`
             }`}
         >
             <div className="w-full flex justify-center pt-4 pb-0 md:hidden bg-white">
