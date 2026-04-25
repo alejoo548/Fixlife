@@ -53,6 +53,10 @@ export const AuthSchema = {
       .regex(usernameRegex, 'Invalid username format.')
       .optional()
       .or(z.literal('')),
+    service_ids: z
+      .array(z.number().int().positive())
+      .min(1, 'Select at least one service you offer.')
+      .max(10),
   }),
 
   registerUser: z.object({

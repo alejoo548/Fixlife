@@ -5,14 +5,7 @@ interface ServiceRequestPanelShellProps {
     isDesktopSheet: boolean;
     step: number;
     hasActiveTrackedRequest: boolean;
-    isRequestPanelExpanded: boolean;
-    selectedServiceTitle: string | null;
-    compactLocationLabel: string;
-    nearbyWorkersCount: number;
-    radiusKm: number;
     onClose: () => void;
-    onToggleExpanded: () => void;
-    onOpenBookingDetails: () => void;
     notificationCenter: React.ReactNode;
     children: React.ReactNode;
 }
@@ -21,34 +14,29 @@ export function ServiceRequestPanelShell({
     isDesktopSheet,
     step,
     hasActiveTrackedRequest,
-    isRequestPanelExpanded,
-    selectedServiceTitle,
-    compactLocationLabel,
-    nearbyWorkersCount,
-    radiusKm,
     onClose,
-    onToggleExpanded,
-    onOpenBookingDetails,
     notificationCenter,
     children,
 }: ServiceRequestPanelShellProps) {
     return (
         <motion.div
-            initial={{ y: '100%', opacity: 0 }}
-            animate={{ y: 0, opacity: 1 }}
-            exit={{ y: '100%', opacity: 0 }}
+            initial={isDesktopSheet ? { opacity: 0, x: -16 } : { y: '100%', opacity: 0 }}
+            animate={isDesktopSheet ? { opacity: 1, x: 0 } : { y: 0, opacity: 1 }}
+            exit={isDesktopSheet ? { opacity: 0, x: -16 } : { y: '100%', opacity: 0 }}
             transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-            className={`pointer-events-auto mt-auto flex flex-col bg-white/98 relative z-20 overflow-hidden border border-white/60 shadow-[0_-16px_40px_rgba(0,0,0,0.18)] backdrop-blur-xl transition-[width,height,max-height] duration-300 ${
+            className={`pointer-events-auto flex flex-col bg-white/96 relative z-20 overflow-hidden border-white/70 backdrop-blur-xl ${
                 isDesktopSheet
-                    ? `ml-4 mb-4 mt-4 h-[calc(100%-2rem)] ${step === 1 && !hasActiveTrackedRequest ? (isRequestPanelExpanded ? 'w-[430px] lg:w-[500px]' : 'w-[340px]') : 'w-[430px] lg:w-[500px]'} rounded-[2rem]`
-                    : `${step === 1 && !hasActiveTrackedRequest ? (isRequestPanelExpanded ? 'h-[78vh]' : 'h-[176px]') : hasActiveTrackedRequest ? 'hidden' : 'h-[55vh]'} w-full rounded-t-[2rem] border-b-0`
+                    ? `h-full w-[430px] lg:w-[500px] border-r border-slate-200/80 shadow-[2px_0_24px_rgba(15,23,42,0.10)]`
+                    : `${step === 1 && !hasActiveTrackedRequest ? 'h-[72vh]' : 'h-[72vh]'} w-full rounded-t-[2rem] border border-b-0 shadow-[0_-12px_40px_rgba(15,23,42,0.12)] mt-auto`
             }`}
         >
+            {/* Mobile drag handle */}
             <div className="w-full flex justify-center pt-4 pb-0 md:hidden bg-white">
                 <div className="w-12 h-1.5 bg-gray-300 rounded-full" />
             </div>
 
-            <div className="h-14 flex items-center justify-between px-5 border-b border-gray-200 bg-white shrink-0">
+            {/* Header */}
+            <div className="h-16 flex items-center justify-between px-5 border-b border-slate-200/80 bg-white/95 shrink-0 backdrop-blur">
                 <motion.button
                     whileHover={{ scale: 1.05 }}
                     whileTap={{ scale: 0.95 }}
@@ -64,66 +52,12 @@ export function ServiceRequestPanelShell({
                 </motion.button>
 
                 <div className="flex items-center gap-3">
-                    {step === 1 && !hasActiveTrackedRequest && (
-                        <button
-                            type="button"
-                            onClick={onToggleExpanded}
-                            className="inline-flex items-center gap-2 rounded-full border border-gray-200 bg-gray-50 px-3 py-2 text-[11px] font-black uppercase tracking-[0.12em] text-slate-700 transition hover:border-bird-blue hover:bg-white"
-                        >
-                            {isRequestPanelExpanded ? 'Collapse' : 'Expand'}
-                        </button>
-                    )}
                     {notificationCenter}
                 </div>
             </div>
 
-            {step === 1 && !hasActiveTrackedRequest && !isRequestPanelExpanded && (
-                <div className="border-b border-gray-200 bg-white px-5 py-4">
-                    <div className="flex items-start justify-between gap-3">
-                        <div className="min-w-0">
-                            <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">Selected service</p>
-                            <p className="mt-1 truncate text-base font-black text-slate-900">{selectedServiceTitle || 'Choose a service'}</p>
-                        </div>
-                        <button
-                            type="button"
-                            onClick={onOpenBookingDetails}
-                            className="shrink-0 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-[11px] font-black text-slate-700 transition hover:border-bird-blue hover:bg-white"
-                        >
-                            Add details
-                        </button>
-                    </div>
-                    <div className="mt-3 space-y-2">
-                        <div className="flex items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
-                            <div className="min-w-0">
-                                <p className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">Address</p>
-                                <p className="mt-1 truncate text-sm font-bold text-slate-900">{compactLocationLabel}</p>
-                            </div>
-                            <button
-                                type="button"
-                                onClick={onOpenBookingDetails}
-                                className="shrink-0 text-[11px] font-black text-bird-blue"
-                            >
-                                Edit
-                            </button>
-                        </div>
-                        <div className="flex items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
-                            <div>
-                                <p className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">Coverage</p>
-                                <p className="mt-1 text-sm font-black text-slate-900">{nearbyWorkersCount} pros in {radiusKm} km</p>
-                            </div>
-                            <button
-                                type="button"
-                                onClick={onOpenBookingDetails}
-                                className="shrink-0 text-[11px] font-black text-bird-blue"
-                            >
-                                Radius
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            )}
-
-            <div className={`relative bg-gray-50/30 ${step === 1 && !hasActiveTrackedRequest && !isRequestPanelExpanded ? 'hidden' : 'flex-1 overflow-y-auto custom-scrollbar'}`}>
+            {/* Content */}
+            <div className="flex-1 overflow-y-auto custom-scrollbar relative bg-gradient-to-b from-white to-slate-50/40">
                 {children}
             </div>
         </motion.div>
