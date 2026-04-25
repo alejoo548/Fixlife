@@ -1,11 +1,47 @@
-const runtimeHost = typeof window !== 'undefined' ? window.location.hostname : 'localhost';
-const envApiUrl = String(import.meta.env.VITE_API_URL || '').trim();
-const isLocalEnvApi = /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/i.test(envApiUrl);
-const isRuntimeLocalhost = runtimeHost === 'localhost' || runtimeHost === '127.0.0.1';
+const trimTrailingSlash = (value: string) => value.replace(/\/+$/, '');
 
-export const API_URL = envApiUrl && (!isLocalEnvApi || isRuntimeLocalhost)
-  ? envApiUrl
-  : `http://${runtimeHost}:8000`;
+const stripApiSuffix = (value: string) => {
+  const withoutTrailingSlash = trimTrailingSlash(value.trim());
+  return withoutTrailingSlash.replace(/\/api$/i, '');
+};
+
+const isLocalHost = (hostname: string) =>
+  hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '0.0.0.0';
+
+const isLocalApiUrl = (value: string) =>
+  /^https?:\/\/(localhost|127\.0\.0\.1|0\.0\.0\.0)(:\d+)?(\/api)?\/?$/i.test(value);
+
+const resolveApiUrl = () => {
+  const envApiUrl = String(import.meta.env.VITE_API_URL || '').trim();
+  const runtime =
+    typeof window !== 'undefined'
+      ? {
+          origin: window.location.origin,
+          protocol: window.location.protocol,
+          hostname: window.location.hostname,
+        }
+      : {
+          origin: 'http://localhost:3000',
+          protocol: 'http:',
+          hostname: 'localhost',
+        };
+
+  const runtimeIsLocal = isLocalHost(runtime.hostname);
+
+  if (envApiUrl && (!isLocalApiUrl(envApiUrl) || runtimeIsLocal)) {
+    return stripApiSuffix(envApiUrl);
+  }
+
+  // Local Docker/Vite keeps frontend and backend on separate ports; deployed/proxied
+  // environments default to same-origin so CDN/proxy hostnames do not break API calls.
+  if (runtimeIsLocal) {
+    return `${runtime.protocol}//${runtime.hostname}:8000`;
+  }
+
+  return stripApiSuffix(runtime.origin);
+};
+
+export const API_URL = resolveApiUrl();
 
 export const API_ENDPOINTS = {
   auth: {

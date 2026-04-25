@@ -1,4 +1,3 @@
-import fs from 'fs';
 import path from 'path';
 import bcrypt from 'bcrypt';
 import { Response } from 'express';
@@ -16,6 +15,8 @@ import {
   syncWorkerBonusPayouts,
 } from '../utils/workerRewards';
 import { createUserNotification } from '../utils/notifications';
+import { buildProtectedAssetUrl, buildPublicAssetUrl, deleteUploadIfExists } from '../utils/assets';
+import { shouldRunRuntimeSchemaSync } from '../config/schemaSync';
 
 const servicesController = require(path.join(__dirname, './services.controller'));
 const {
@@ -41,6 +42,10 @@ let pendingEmailChecked = false;
 
 const ensurePendingEmailColumn = async () => {
   if (pendingEmailChecked) return;
+  if (!shouldRunRuntimeSchemaSync()) {
+    pendingEmailChecked = true;
+    return;
+  }
 
   const [rows] = await pool.execute<RowDataPacket[]>(
     `SELECT COUNT(*) AS total
@@ -59,8 +64,7 @@ const ensurePendingEmailColumn = async () => {
 };
 
 const buildAssetUrl = (req: AuthRequest, fileName: string | null) => {
-  if (!fileName) return null;
-  return `${req.protocol}://${req.get('host')}/uploads/${encodeURIComponent(fileName)}`;
+  return buildPublicAssetUrl(req, fileName);
 };
 
 const toSqlDateTime = (date: Date) => date.toISOString().slice(0, 19).replace('T', ' ');
@@ -646,7 +650,7 @@ export const getWorkerRequests = async (req: AuthRequest, res: Response): Promis
               .filter(Boolean)
               .map((name: string) => ({
                 file_name: name,
-                url: buildAssetUrl(req, name),
+                url: buildProtectedAssetUrl(req, name),
               }))
           : [];
 
@@ -1582,16 +1586,7 @@ export const uploadProfileImage = async (req: AuthRequest, res: Response): Promi
     const user = users[0];
     await pool.execute(`UPDATE users SET profile_image = ? WHERE id_user = ?`, [file.filename, userId]);
 
-    if (user.profile_image) {
-      const oldFilePath = path.join(__dirname, '../../uploads', user.profile_image);
-      if (fs.existsSync(oldFilePath)) {
-        try {
-          fs.unlinkSync(oldFilePath);
-        } catch (e) {
-          console.warn('Could not delete old profile image:', oldFilePath);
-        }
-      }
-    }
+    deleteUploadIfExists(user.profile_image, 'public');
 
     await sendProfileChangeNotice(user.email, user.name, ['Profile image updated']);
     res.json({
@@ -1638,11 +1633,11 @@ export const uploadPortfolioImages = async (req: AuthRequest, res: Response): Pr
     }
 
     const description = req.body?.description ? String(req.body.description).trim() : null;
-    for (const file of files) {
+    if (files.length > 0) {
       await pool.execute(
         `INSERT INTO worker_portfolio (id_worker_profile, image_url, description)
-         VALUES (?, ?, ?)`,
-        [profileId, file.filename, description || null]
+         VALUES ${files.map(() => '(?, ?, ?)').join(', ')}`,
+        files.flatMap((file) => [profileId, file.filename, description || null])
       );
     }
 
@@ -1699,16 +1694,7 @@ export const deletePortfolioImage = async (req: AuthRequest, res: Response): Pro
     const imageUrl = rows[0].image_url as string | null;
     await pool.execute(`DELETE FROM worker_portfolio WHERE id_photo = ?`, [idPhoto]);
 
-    if (imageUrl) {
-      const filePath = path.join(__dirname, '../../uploads', imageUrl);
-      if (fs.existsSync(filePath)) {
-        try {
-          fs.unlinkSync(filePath);
-        } catch (e) {
-          console.warn('Could not delete portfolio file:', filePath);
-        }
-      }
-    }
+    deleteUploadIfExists(imageUrl, 'public');
 
     res.json({ success: true, message: 'Portfolio photo deleted.' });
   } catch (error: any) {

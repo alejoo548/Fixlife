@@ -36,44 +36,23 @@ export const StepsSection: React.FC<StepsSectionProps> = ({ onStartBooking }) =>
   return (
     <div className="w-full relative">
       <div className="text-center mb-7">
-        <motion.h3
-          initial={{ opacity: 0, y: 20 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true }}
-          className="text-2xl md:text-3xl font-black text-gray-900 mb-2"
-        >
+        <h3 className="text-2xl md:text-3xl font-black text-gray-900 mb-2">
           How It Works
-        </motion.h3>
-        <motion.p
-          initial={{ opacity: 0, y: 20 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true }}
-          transition={{ delay: 0.1 }}
-          className="text-gray-600 text-sm md:text-base font-medium"
-        >
+        </h3>
+        <p className="text-gray-600 text-sm md:text-base font-medium">
           Get your problem solved in three simple steps
-        </motion.p>
+        </p>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-5 md:gap-8 relative">
         {/* Connecting line for desktop */}
         <div className="hidden md:block absolute top-20 left-[16%] right-[16%] h-1 bg-gradient-to-r from-transparent via-gray-200 to-transparent">
-          <motion.div
-            initial={{ scaleX: 0 }}
-            whileInView={{ scaleX: 1 }}
-            viewport={{ once: true }}
-            transition={{ duration: 1.5, ease: "easeInOut" }}
-            className="h-full bg-gradient-to-r from-bird-blue via-bird-yellow to-green-400 origin-left"
-          />
+          <div className="h-full bg-gradient-to-r from-bird-blue via-bird-yellow to-green-400 origin-left" />
         </div>
 
         {steps.map((step, i) => (
           <motion.div
             key={i}
-            initial={{ opacity: 0, y: 50 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            transition={{ delay: i * 0.2, duration: 0.5 }}
             whileHover={{ y: -10 }}
             className="flex flex-col items-center text-center group relative"
           >
@@ -97,66 +76,36 @@ export const StepsSection: React.FC<StepsSectionProps> = ({ onStartBooking }) =>
               </div>
 
               {/* Step number badge */}
-              <motion.div
-                initial={{ scale: 0 }}
-                whileInView={{ scale: 1 }}
-                viewport={{ once: true }}
-                transition={{ delay: i * 0.2 + 0.3, type: "spring", stiffness: 200 }}
-                className={`absolute -top-3 -right-3 w-9 h-9 rounded-full bg-gradient-to-br ${step.gradient} flex items-center justify-center shadow-lg border-4 border-white`}
-              >
+              <div className={`absolute -top-3 -right-3 w-9 h-9 rounded-full bg-gradient-to-br ${step.gradient} flex items-center justify-center shadow-lg border-4 border-white`}>
                 <span className="text-white font-black text-sm">{step.id}</span>
-              </motion.div>
+              </div>
 
               {/* Pulse effect */}
               <div className={`absolute inset-0 rounded-3xl bg-gradient-to-br ${step.gradient} opacity-20 animate-ping`} style={{ animationDuration: '3s' }} />
             </motion.div>
 
             {/* Content */}
-            <motion.h3
-              initial={{ opacity: 0 }}
-              whileInView={{ opacity: 1 }}
-              viewport={{ once: true }}
-              transition={{ delay: i * 0.2 + 0.2 }}
-              className="text-xl md:text-2xl font-black text-gray-900 mb-2 group-hover:text-transparent group-hover:bg-clip-text group-hover:bg-gradient-to-r group-hover:from-bird-blue group-hover:to-bird-lightBlue transition-all duration-300"
-            >
+            <h3 className="text-xl md:text-2xl font-black text-gray-900 mb-2 group-hover:text-transparent group-hover:bg-clip-text group-hover:bg-gradient-to-r group-hover:from-bird-blue group-hover:to-bird-lightBlue transition-all duration-300">
               {step.title}
-            </motion.h3>
-            <motion.p
-              initial={{ opacity: 0 }}
-              whileInView={{ opacity: 1 }}
-              viewport={{ once: true }}
-              transition={{ delay: i * 0.2 + 0.3 }}
-              className="text-gray-600 text-xs md:text-sm leading-relaxed max-w-xs px-2 font-medium"
-            >
+            </h3>
+            <p className="text-gray-600 text-xs md:text-sm leading-relaxed max-w-xs px-2 font-medium">
               {step.desc}
-            </motion.p>
+            </p>
 
             {/* Arrow connector for mobile */}
             {i < steps.length - 1 && (
-              <motion.div
-                initial={{ opacity: 0, y: -10 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true }}
-                transition={{ delay: i * 0.2 + 0.5 }}
-                className="md:hidden mt-8 mb-4"
-              >
+              <div className="md:hidden mt-8 mb-4">
                 <svg className="w-6 h-6 text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 14l-7 7m0 0l-7-7m7 7V3" />
                 </svg>
-              </motion.div>
+              </div>
             )}
           </motion.div>
         ))}
       </div>
 
       {/* Bottom CTA */}
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        whileInView={{ opacity: 1, y: 0 }}
-        viewport={{ once: true }}
-        transition={{ delay: 0.8 }}
-        className="mt-7 text-center"
-      >
+      <div className="mt-7 text-center">
         <p className="text-gray-600 text-sm mb-3 font-medium">Ready to get started?</p>
         <motion.button
           type="button"
@@ -167,7 +116,7 @@ export const StepsSection: React.FC<StepsSectionProps> = ({ onStartBooking }) =>
         >
           Book a Service Now
         </motion.button>
-      </motion.div>
+      </div>
     </div>
   );
 };

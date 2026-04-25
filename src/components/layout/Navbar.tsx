@@ -1,4 +1,5 @@
 import React, { useState, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { API_URL } from '../../config/api';
 import { NavbarProps, AuthMode } from '../../types';
 import { Logo } from '../common/Logo';
@@ -15,6 +16,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   onNavigateSection,
   onSelectCategory,
 }) => {
+  const navigate = useNavigate();
   const { user, logout } = useAuth();
   const authToken = getToken();
 
@@ -132,8 +134,7 @@ export const Navbar: React.FC<NavbarProps> = ({
       onGoHome();
       return;
     }
-    window.history.pushState({}, '', '/');
-    window.location.reload();
+    navigate('/');
   };
 
   const ITEM_WIDTH = '140px';
