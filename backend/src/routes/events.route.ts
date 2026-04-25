@@ -1,9 +1,9 @@
 import { Router, Request, Response } from 'express';
 import jwt from 'jsonwebtoken';
 import { registerClient, removeClient } from '../services/sseManager';
+import { getJwtSecret } from '../config/security';
 
 const router = Router();
-const JWT_SECRET = process.env.JWT_SECRET || 'super_secret_jwt_key_for_development';
 
 // EventSource doesn't support custom headers, so token comes as query param
 router.get('/', (req: Request, res: Response): void => {
@@ -15,7 +15,7 @@ router.get('/', (req: Request, res: Response): void => {
 
   let decoded: { user_id: number; rol: string };
   try {
-    decoded = jwt.verify(token, JWT_SECRET) as { user_id: number; rol: string };
+    decoded = jwt.verify(token, getJwtSecret()) as { user_id: number; rol: string };
   } catch {
     res.status(401).json({ error: 'Invalid token' });
     return;

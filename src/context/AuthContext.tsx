@@ -2,9 +2,9 @@ import React, { createContext, useContext, useEffect, useState } from 'react';
 
 import {
   AUTH_SESSION_CHANGED_EVENT,
-  clearAuthSession,
   getAuthUser,
   getToken,
+  logoutAuthSession,
   setAuthSession,
   updateStoredAuthUser,
 } from '../utils/session';
@@ -44,7 +44,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     window.addEventListener('storage', syncUserFromStorage);
     window.addEventListener(AUTH_SESSION_CHANGED_EVENT, syncUserFromStorage);
-    window.addEventListener('popstate', syncUserFromStorage);
     window.addEventListener('pageshow', syncUserFromStorage);
     window.addEventListener('focus', syncUserFromStorage);
     document.addEventListener('visibilitychange', handleVisibilityChange);
@@ -52,7 +51,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return () => {
       window.removeEventListener('storage', syncUserFromStorage);
       window.removeEventListener(AUTH_SESSION_CHANGED_EVENT, syncUserFromStorage);
-      window.removeEventListener('popstate', syncUserFromStorage);
       window.removeEventListener('pageshow', syncUserFromStorage);
       window.removeEventListener('focus', syncUserFromStorage);
       document.removeEventListener('visibilitychange', handleVisibilityChange);
@@ -65,7 +63,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const logout = () => {
-    clearAuthSession('client');
+    logoutAuthSession('client');
     setUser(null);
   };
 

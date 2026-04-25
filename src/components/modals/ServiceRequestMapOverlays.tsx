@@ -95,7 +95,7 @@ export function ServiceRequestMapOverlays({
                 </div>
             )}
             {activeTrackedRequest && (
-                <div className="absolute inset-0 z-[420] hidden md:block md:left-[430px] lg:left-[504px]">
+                <div className="absolute inset-0 z-[420] md:left-[430px] lg:left-[504px]">
                     {trackerContent}
                 </div>
             )}

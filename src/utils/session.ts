@@ -120,3 +120,7 @@ export const clearAuthSession = (scope: AuthSessionScope = 'client'): void => {
   keys.forEach((key) => sessionStorage.removeItem(key));
   notifyAuthSessionChanged();
 };
+
+export const logoutAuthSession = (scope: AuthSessionScope = 'client'): void => {
+  clearAuthSession(scope);
+};

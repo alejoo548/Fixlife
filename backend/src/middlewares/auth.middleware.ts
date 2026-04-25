@@ -1,7 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
-
-const JWT_SECRET = process.env.JWT_SECRET || 'super_secret_jwt_key_for_development';
+import { getJwtSecret } from '../config/security';
 
 export interface AuthRequest extends Request {
   user?: { user_id: number; rol: string; pending_worker?: number };
@@ -16,7 +15,7 @@ export const verifyToken = (req: AuthRequest, res: Response, next: NextFunction)
   }
 
   try {
-    const decoded = jwt.verify(token, JWT_SECRET) as { user_id: number; rol: string; pending_worker?: number };
+    const decoded = jwt.verify(token, getJwtSecret()) as { user_id: number; rol: string; pending_worker?: number };
     req.user = decoded;
     next();
   } catch (error) {
@@ -48,7 +47,7 @@ export const verifyTokenOptional = (req: AuthRequest, res: Response, next: NextF
   }
 
   try {
-    const decoded = jwt.verify(token, JWT_SECRET) as { user_id: number; rol: string; pending_worker?: number };
+    const decoded = jwt.verify(token, getJwtSecret()) as { user_id: number; rol: string; pending_worker?: number };
     req.user = decoded;
     next();
   } catch (error) {

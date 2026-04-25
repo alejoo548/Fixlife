@@ -74,36 +74,19 @@ export const SafetySection: React.FC = () => {
   return (
     <div className="relative">
       <div className="text-center mb-12 md:mb-16">
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true }}
-          className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-green-50 border border-green-200 mb-6"
-        >
+        <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-green-50 border border-green-200 mb-6">
           <svg className="w-5 h-5 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
           </svg>
           <span className="text-sm font-bold text-green-700 uppercase tracking-wider">Your Safety is Our Priority</span>
-        </motion.div>
+        </div>
 
-        <motion.h3
-          initial={{ opacity: 0, y: 20 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true }}
-          transition={{ delay: 0.1 }}
-          className="text-3xl md:text-4xl lg:text-5xl font-black text-gray-900 mb-4"
-        >
+        <h3 className="text-3xl md:text-4xl lg:text-5xl font-black text-gray-900 mb-4">
           Trust & Safety Guaranteed
-        </motion.h3>
-        <motion.p
-          initial={{ opacity: 0, y: 20 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true }}
-          transition={{ delay: 0.2 }}
-          className="text-gray-600 text-base md:text-lg max-w-2xl mx-auto font-medium"
-        >
+        </h3>
+        <p className="text-gray-600 text-base md:text-lg max-w-2xl mx-auto font-medium">
           We take security seriously. Every professional is thoroughly vetted, and every transaction is protected.
-        </motion.p>
+        </p>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-8 mb-12">
@@ -112,10 +95,6 @@ export const SafetySection: React.FC = () => {
           return (
             <motion.div
               key={index}
-              initial={{ opacity: 0, y: 30 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
-              transition={{ delay: index * 0.1 }}
               whileHover={{ y: -5 }}
               className="group bg-white/80 backdrop-blur-sm border border-gray-200 rounded-2xl p-6 md:p-8 shadow-sm hover:shadow-xl transition-all duration-300 relative overflow-hidden"
             >
@@ -146,12 +125,7 @@ export const SafetySection: React.FC = () => {
         })}
       </div>
 
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        whileInView={{ opacity: 1, y: 0 }}
-        viewport={{ once: true }}
-        className="bg-gradient-to-br from-gray-50 to-white border border-gray-200 rounded-2xl p-6 md:p-10 relative overflow-hidden"
-      >
+      <div className="bg-gradient-to-br from-gray-50 to-white border border-gray-200 rounded-2xl p-6 md:p-10 relative overflow-hidden">
         <div className="absolute top-0 left-0 w-full h-full opacity-5">
           <div className="absolute top-10 left-10 w-20 h-20 border-4 border-bird-blue rounded-full" />
           <div className="absolute bottom-10 right-10 w-32 h-32 border-4 border-bird-yellow rounded-full" />
@@ -166,13 +140,8 @@ export const SafetySection: React.FC = () => {
 
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-6">
             {trustBadges.map((badge, index) => (
-              <motion.div
+              <div
                 key={index}
-                initial={{ opacity: 0, scale: 0.8 }}
-                whileInView={{ opacity: 1, scale: 1 }}
-                viewport={{ once: true }}
-                transition={{ delay: index * 0.1 }}
-                whileHover={{ scale: 1.05 }}
                 className="bg-white border border-gray-200 rounded-xl p-4 md:p-6 flex flex-col items-center justify-center text-center shadow-sm hover:shadow-md transition-all cursor-pointer group"
               >
                 <div className="w-12 h-12 md:w-14 md:h-14 rounded-full bg-gray-100 flex items-center justify-center mb-3 group-hover:bg-bird-blue transition-colors">
@@ -183,18 +152,13 @@ export const SafetySection: React.FC = () => {
                 <span className="text-xs md:text-sm font-bold text-gray-900 group-hover:text-bird-blue transition-colors">
                   {badge.name}
                 </span>
-              </motion.div>
+              </div>
             ))}
           </div>
         </div>
-      </motion.div>
+      </div>
 
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        whileInView={{ opacity: 1, y: 0 }}
-        viewport={{ once: true }}
-        className="mt-8 bg-gradient-to-r from-green-50 to-emerald-50 border border-green-200 rounded-2xl p-6 md:p-8 flex flex-col md:flex-row items-center gap-6"
-      >
+      <div className="mt-8 bg-gradient-to-r from-green-50 to-emerald-50 border border-green-200 rounded-2xl p-6 md:p-8 flex flex-col md:flex-row items-center gap-6">
         <div className="w-16 h-16 md:w-20 md:h-20 rounded-2xl bg-green-500 flex items-center justify-center shrink-0 shadow-lg shadow-green-500/30">
           <svg className="w-8 h-8 md:w-10 md:h-10 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
@@ -209,7 +173,7 @@ export const SafetySection: React.FC = () => {
         <a href="#" className="px-6 py-3 rounded-xl bg-green-600 text-white font-bold hover:bg-green-700 transition-all shadow-lg shadow-green-600/20 whitespace-nowrap">
           Learn More
         </a>
-      </motion.div>
+      </div>
     </div>
   );
 };

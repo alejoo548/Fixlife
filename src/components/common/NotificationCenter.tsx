@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useSSE } from '../../hooks/useSSE';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Notyf } from 'notyf';
@@ -102,13 +103,6 @@ const formatTimeAgo = (value: string) => {
   return date.toLocaleDateString();
 };
 
-const openNotificationUrl = (actionUrl: string) => {
-  if (!actionUrl) return;
-  window.history.pushState({}, '', actionUrl);
-  window.dispatchEvent(new PopStateEvent('popstate'));
-  window.scrollTo({ top: 0, behavior: 'smooth' });
-};
-
 const renderEventGlyph = (eventType: string) => {
   switch (eventType) {
     case 'payment_secured':
@@ -140,6 +134,7 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({
   variant = 'landing',
   className = '',
 }) => {
+  const navigate = useNavigate();
   const [isOpen, setIsOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
@@ -277,6 +272,12 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({
     } catch (error: any) {
       notyf.error(error?.message || 'Could not mark notifications as read.');
     }
+  };
+
+  const openNotificationUrl = (actionUrl: string) => {
+    if (!actionUrl) return;
+    navigate(actionUrl);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   if (!token) return null;

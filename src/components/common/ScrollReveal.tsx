@@ -1,4 +1,4 @@
-import React, { useRef, useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 
 interface ScrollRevealProps {
   children: React.ReactNode;
@@ -7,35 +7,73 @@ interface ScrollRevealProps {
   direction?: 'up' | 'down' | 'left' | 'right';
 }
 
-export const ScrollReveal: React.FC<ScrollRevealProps> = ({ 
-  children, 
-  className = "", 
+const revealCallbacks = new WeakMap<Element, () => void>();
+let sharedRevealObserver: IntersectionObserver | null = null;
+
+const getSharedRevealObserver = () => {
+  if (typeof window === 'undefined' || !('IntersectionObserver' in window)) {
+    return null;
+  }
+
+  if (!sharedRevealObserver) {
+    sharedRevealObserver = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (!entry.isIntersecting) return;
+          revealCallbacks.get(entry.target)?.();
+        });
+      },
+      {
+        threshold: 0.05,
+        rootMargin: '0px 0px -80px 0px',
+      }
+    );
+  }
+
+  return sharedRevealObserver;
+};
+
+const prefersReducedMotion = () =>
+  typeof window !== 'undefined' &&
+  window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+
+export const ScrollReveal: React.FC<ScrollRevealProps> = ({
+  children,
+  className = '',
   delay = 0,
-  direction = 'up'
+  direction = 'up',
 }) => {
   const [isVisible, setIsVisible] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    const observer = new IntersectionObserver(
-      ([entry]) => {
-        if (entry.isIntersecting) {
-          setIsVisible(true);
-          if (ref.current) observer.unobserve(ref.current);
-        }
-      },
-      {
-        threshold: 0.05,
-        rootMargin: "0px 0px -80px 0px"
-      }
-    );
-
-    if (ref.current) {
-      observer.observe(ref.current);
+    const element = ref.current;
+    if (!element || prefersReducedMotion()) {
+      setIsVisible(true);
+      return;
     }
 
+    const observer = getSharedRevealObserver();
+    if (!observer) {
+      setIsVisible(true);
+      return;
+    }
+
+    let mounted = true;
+    const reveal = () => {
+      if (!mounted) return;
+      setIsVisible(true);
+      observer.unobserve(element);
+      revealCallbacks.delete(element);
+    };
+
+    revealCallbacks.set(element, reveal);
+    observer.observe(element);
+
     return () => {
-      if (ref.current) observer.unobserve(ref.current);
+      mounted = false;
+      observer.unobserve(element);
+      revealCallbacks.delete(element);
     };
   }, []);
 
@@ -44,14 +82,14 @@ export const ScrollReveal: React.FC<ScrollRevealProps> = ({
       up: 'translate-y-16',
       down: '-translate-y-16',
       left: 'translate-x-16',
-      right: '-translate-x-16'
+      right: '-translate-x-16',
     };
     return transforms[direction];
   };
 
   const transitionStyle = {
-    transitionDuration: '800ms',
-    transitionDelay: `${delay}ms`,
+    transitionDuration: prefersReducedMotion() ? '0ms' : '800ms',
+    transitionDelay: isVisible ? `${delay}ms` : '0ms',
     transitionTimingFunction: 'cubic-bezier(0.16, 1, 0.3, 1)',
   };
 
