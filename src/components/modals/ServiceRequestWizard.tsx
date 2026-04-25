@@ -182,7 +182,6 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
     const [ratingForm, setRatingForm] = useState<Record<number, { punctuality: number; quality: number; price_fairness: number; comment: string }>>({});
     const [ratingModalRequest, setRatingModalRequest] = useState<MyServiceRequest | null>(null);
     const [fixesSuccessRequest, setFixesSuccessRequest] = useState<MyServiceRequest | null>(null);
-    const [isRequestPanelExpanded, setIsRequestPanelExpanded] = useState(() => !initialServiceId);
     const isDesktopSheet = useResponsiveSheet();
     const lastToastRef = useRef<{ type: 'success' | 'error' | 'info'; message: string; at: number } | null>(null);
     const previousRequestStatusesRef = useRef<Record<number, string>>({});
@@ -278,7 +277,6 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
         setPaymentMethod('card');
         setRatingModalRequest(null);
         setFixesSuccessRequest(null);
-        setIsRequestPanelExpanded(!initialServiceId);
     }, [isOpen, initialServiceId, initialServiceName]);
 
     useEffect(() => {
@@ -1256,7 +1254,6 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
         if (!matchedService) return;
         setData((prev) => ({ ...prev, category: matchedService.name }));
         setStep(1);
-        setIsRequestPanelExpanded(false);
     }, [data.category, initialServiceId, initialServiceName, isOpen, services]);
 
     useEffect(() => {
@@ -1286,12 +1283,6 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
         return found?.name || data.category;
     }, [data.category, services]);
 
-    const compactLocationLabel = useMemo(() => {
-        if (data.location.trim()) return data.location.trim();
-        if (currentCoords) return `${currentCoords.lat.toFixed(4)}, ${currentCoords.lng.toFixed(4)}`;
-        return 'Choose your address';
-    }, [currentCoords, data.location]);
-
     const canSearchPros = !!data.location.trim() && !resolvingLocation;
     const canSubmitRequest =
         !isSubmittingRequest &&
@@ -1301,24 +1292,8 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
         problemFiles.length > 0 &&
         !resolvingLocation;
 
-    const shouldShowCollapsedBookingCard = step === 1 && !activeTrackedRequest;
-
-    const openBookingDetails = () => {
-        setIsRequestPanelExpanded(true);
-    };
-
-    const collapseBookingDetails = () => {
-        if (step === 1) {
-            setIsRequestPanelExpanded(false);
-        }
-    };
-
     const handleFloatingFindPro = async () => {
-        if (step !== 1) return;
-        if (!isRequestPanelExpanded) {
-            setIsRequestPanelExpanded(true);
-        }
-        if (!canSearchPros) return;
+        if (step !== 1 || !canSearchPros) return;
         setIsSearching(true);
         await fetchNearbyPros();
         setTimeout(() => setIsSearching(false), 700);
@@ -1869,51 +1844,14 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-40 flex font-sans pointer-events-auto bg-black/5"
+            className="fixed inset-0 z-40 font-sans pointer-events-auto flex flex-col md:flex-row"
         >
-            {/* Map View Background */}
-            <div className="absolute inset-0 z-0 bg-gray-100">
-                <div ref={mapContainerRef} className={`absolute inset-0 z-0 ${activeTrackedRequest && isDesktopSheet ? 'md:invisible' : ''}`} />
-                <ServiceRequestMapOverlays
-                    leafletReady={leafletReady}
-                    activeTrackedRequest={activeTrackedRequest ? { id_request: activeTrackedRequest.id_request } : null}
-                    currentCoords={currentCoords}
-                    locationLabel={data.location}
-                    nearbyWorkersCount={nearbyWorkers.length}
-                    radiusKm={radiusKm}
-                    shouldShowCollapsedBookingCard={shouldShowCollapsedBookingCard}
-                    selectedServiceTitle={selectedServiceTitle}
-                    compactLocationLabel={compactLocationLabel}
-                    onOpenBookingDetails={openBookingDetails}
-                    trackerContent={
-                        <TrackerErrorBoundary>
-                            <Suspense fallback={<InlineTrackerFallback />}>
-                                {activeTrackedRequest ? (
-                                    <ClientLiveRequestTracker
-                                        key={`desktop-${activeTrackedRequest.id_request}`}
-                                        leafletReady={leafletReady}
-                                        request={activeTrackedRequest}
-                                        onClose={!isDesktopSheet ? onClose : undefined}
-                                    />
-                                ) : null}
-                            </Suspense>
-                        </TrackerErrorBoundary>
-                    }
-                />
-            </div>
-
+            {/* Sidebar */}
             <ServiceRequestPanelShell
                 isDesktopSheet={isDesktopSheet}
                 step={step}
                 hasActiveTrackedRequest={!!activeTrackedRequest}
-                isRequestPanelExpanded={isRequestPanelExpanded}
-                selectedServiceTitle={selectedServiceTitle}
-                compactLocationLabel={compactLocationLabel}
-                nearbyWorkersCount={nearbyWorkers.length}
-                radiusKm={radiusKm}
                 onClose={onClose}
-                onToggleExpanded={() => setIsRequestPanelExpanded((prev) => !prev)}
-                onOpenBookingDetails={openBookingDetails}
                 notificationCenter={<NotificationCenter token={getToken()} variant="panel" />}
             >
                 <AnimatePresence mode="wait">
@@ -1924,7 +1862,6 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                 onSelectService={(serviceName) => {
                                     setData({ ...data, category: serviceName });
                                     setStep(1);
-                                    setIsRequestPanelExpanded(false);
                                 }}
                             />
                         )}
@@ -1939,10 +1876,7 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                             >
                                 <ServiceRequestDetailsHeader
                                     selectedServiceTitle={selectedServiceTitle}
-                                    onBack={() => {
-                                        setStep(0);
-                                        setIsRequestPanelExpanded(true);
-                                    }}
+                                    onBack={() => setStep(0)}
                                     onChangeService={() => setStep(0)}
                                 />
 
@@ -3066,8 +3000,8 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                         document.body
                     )}
 
-                    <AnimatePresence>
-                        {paymentModalRequest && (
+                    {paymentModalRequest && createPortal(
+                        <AnimatePresence>
                             <ServiceRequestPaymentModal
                                 paymentModalRequest={paymentModalRequest}
                                 paymentMethod={paymentMethod}
@@ -3078,8 +3012,9 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                 onPaymentFormChange={(patch) => setPaymentForm((prev) => ({ ...prev, ...patch }))}
                                 onConfirmPayment={() => void confirmPaymentThroughModal()}
                             />
-                        )}
-                    </AnimatePresence>
+                        </AnimatePresence>,
+                        document.body
+                    )}
 
                     {/* Searching Overlay */}
                     <AnimatePresence>
@@ -3123,22 +3058,32 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                     </AnimatePresence>
             </ServiceRequestPanelShell>
 
-            {step === 1 && !activeTrackedRequest && (
-                <div className="pointer-events-none absolute inset-x-0 bottom-4 z-[430] flex justify-end px-4 md:bottom-6 md:px-6">
-                    <motion.button
-                        whileHover={{ scale: 1.03 }}
-                        whileTap={{ scale: 0.97 }}
-                        onClick={() => void handleFloatingFindPro()}
-                        disabled={!canSearchPros}
-                        className="pointer-events-auto inline-flex items-center gap-3 rounded-full bg-slate-950 px-6 py-4 text-sm font-black text-white shadow-[0_20px_40px_rgba(15,23,42,0.28)] transition hover:bg-black disabled:opacity-60"
-                    >
-                        <span>Find a Pro</span>
-                        <span className="inline-flex h-8 min-w-8 items-center justify-center rounded-full bg-white/10 px-2 text-xs font-black">
-                            {nearbyWorkers.length}
-                        </span>
-                    </motion.button>
-                </div>
-            )}
+            {/* Map — on desktop takes remaining space, on mobile sits behind the bottom-sheet sidebar */}
+            <div className="absolute inset-0 md:static md:flex-1 md:relative z-0 bg-gray-100">
+                <div ref={mapContainerRef} className="absolute inset-0 z-0" />
+                <ServiceRequestMapOverlays
+                    leafletReady={leafletReady}
+                    activeTrackedRequest={activeTrackedRequest ? { id_request: activeTrackedRequest.id_request } : null}
+                    currentCoords={currentCoords}
+                    locationLabel={data.location}
+                    nearbyWorkersCount={nearbyWorkers.length}
+                    radiusKm={radiusKm}
+                    trackerContent={
+                        <TrackerErrorBoundary>
+                            <Suspense fallback={<InlineTrackerFallback />}>
+                                {activeTrackedRequest ? (
+                                    <ClientLiveRequestTracker
+                                        key={`desktop-${activeTrackedRequest.id_request}`}
+                                        leafletReady={leafletReady}
+                                        request={activeTrackedRequest}
+                                        onClose={!isDesktopSheet ? onClose : undefined}
+                                    />
+                                ) : null}
+                            </Suspense>
+                        </TrackerErrorBoundary>
+                    }
+                />
+            </div>
 
 
         
