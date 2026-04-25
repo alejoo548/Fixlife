@@ -27,7 +27,7 @@ import {
 } from '../controllers/admin.controller';
 import { verifyToken, requireAdmin } from '../middlewares/auth.middleware';
 import { sensitiveLimiter } from '../middlewares/security.middleware';
-import { upload } from '../middlewares/upload.middleware';
+import { uploadImageOnly } from '../middlewares/upload.middleware';
 import { validate } from '../middlewares/validate.middleware';
 import { AdminSchema } from '../schemas/admin.schema';
 
@@ -71,13 +71,13 @@ router.put('/hero-slides', sensitiveLimiter, validate(AdminSchema.heroSlides), u
 router.post(
   '/hero-slides/image-upload',
   sensitiveLimiter,
-  upload.single('image'),
+  uploadImageOnly.single('image'),
   uploadHeroImageAsset
 );
 router.post(
   '/hero-slides/:idSlide/image',
   sensitiveLimiter,
-  upload.single('image'),
+  uploadImageOnly.single('image'),
   uploadHeroSlideImage
 );
 

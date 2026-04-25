@@ -1,5 +1,6 @@
 import { RowDataPacket } from 'mysql2';
 import pool from '../config/db';
+import { shouldRunRuntimeSchemaSync } from '../config/schemaSync';
 
 let usersActiveColumnChecked = false;
 let usersPendingWorkerColumnChecked = false;
@@ -7,6 +8,10 @@ let usersPhoneNullableChecked = false;
 
 export const ensureUsersActiveColumn = async (): Promise<void> => {
   if (usersActiveColumnChecked) return;
+  if (!shouldRunRuntimeSchemaSync()) {
+    usersActiveColumnChecked = true;
+    return;
+  }
 
   const [rows] = await pool.execute<RowDataPacket[]>(
     `SELECT COUNT(*) as total
@@ -26,6 +31,10 @@ export const ensureUsersActiveColumn = async (): Promise<void> => {
 
 export const ensureUsersPendingWorkerColumn = async (): Promise<void> => {
   if (usersPendingWorkerColumnChecked) return;
+  if (!shouldRunRuntimeSchemaSync()) {
+    usersPendingWorkerColumnChecked = true;
+    return;
+  }
 
   const [rows] = await pool.execute<RowDataPacket[]>(
     `SELECT COUNT(*) as total
@@ -45,6 +54,10 @@ export const ensureUsersPendingWorkerColumn = async (): Promise<void> => {
 
 export const ensureUsersPhoneNumberNullable = async (): Promise<void> => {
   if (usersPhoneNullableChecked) return;
+  if (!shouldRunRuntimeSchemaSync()) {
+    usersPhoneNullableChecked = true;
+    return;
+  }
 
   const [rows] = await pool.execute<RowDataPacket[]>(
     `SELECT IS_NULLABLE as isNullable

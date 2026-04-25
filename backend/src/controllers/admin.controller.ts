@@ -13,6 +13,8 @@ import { createUserNotification } from '../utils/notifications';
 import { pushToUser } from '../services/sseManager';
 import { ensureServiceCardsTable, ensureServiceRequestTables } from './services.controller';
 import { ensureUsersActiveColumn, ensureUsersPendingWorkerColumn } from '../utils/users';
+import { buildProtectedAssetUrl, buildPublicAssetUrl, deleteUploadIfExists } from '../utils/assets';
+import { shouldRunRuntimeSchemaSync } from '../config/schemaSync';
 
 const SCRIPT_PATTERN = /<\s*script|javascript:|on\w+\s*=|data:text\/html/i;
 
@@ -70,6 +72,10 @@ const parsePositiveInt = (value: unknown, fieldName: string, max = 10000): numbe
   return Math.floor(parsed);
 };
 
+const isServiceCardSortConflict = (error: any) =>
+  error?.code === 'ER_DUP_ENTRY' &&
+  String(error?.message || '').includes('ux_service_cards_sort');
+
 const toPublicRequestStatus = (status: string | null | undefined) => {
   if (!status) return 'pending';
   return status === 'open' ? 'pending' : status;
@@ -96,6 +102,10 @@ let adminActivityTableChecked = false;
 
 const ensureAdminActivityTable = async () => {
   if (adminActivityTableChecked) return;
+  if (!shouldRunRuntimeSchemaSync()) {
+    adminActivityTableChecked = true;
+    return;
+  }
 
   await pool.execute(`
     CREATE TABLE IF NOT EXISTS admin_activity_log (
@@ -218,6 +228,10 @@ let heroSlidesTableChecked = false;
 
 const ensureHeroSlidesTable = async () => {
   if (heroSlidesTableChecked) return;
+  if (!shouldRunRuntimeSchemaSync()) {
+    heroSlidesTableChecked = true;
+    return;
+  }
 
   await pool.execute(`
     CREATE TABLE IF NOT EXISTS hero_slides (
@@ -563,6 +577,10 @@ export const createServiceCard = async (req: AuthRequest, res: Response): Promis
     });
   } catch (error: any) {
     console.error('Error in createServiceCard:', error);
+    if (isServiceCardSortConflict(error)) {
+      res.status(409).json({ error: 'Another service card already uses this sort_order.' });
+      return;
+    }
     if (typeof error?.message === 'string' && error.message.toLowerCase().includes('invalid')) {
       res.status(400).json({ error: error.message });
       return;
@@ -707,6 +725,10 @@ export const updateServiceCard = async (req: AuthRequest, res: Response): Promis
     res.json({ success: true, message: 'Service card updated.' });
   } catch (error: any) {
     console.error('Error in updateServiceCard:', error);
+    if (isServiceCardSortConflict(error)) {
+      res.status(409).json({ error: 'Another service card already uses this sort_order.' });
+      return;
+    }
     if (typeof error?.message === 'string' && error.message.toLowerCase().includes('invalid')) {
       res.status(400).json({ error: error.message });
       return;
@@ -777,17 +799,10 @@ export const getPendingWorkers = async (req: AuthRequest, res: Response): Promis
     );
 
     // Build document URLs
-    const buildUrl = (fileName: string | null) => {
-      if (!fileName) return null;
-      const protocol = req.protocol;
-      const host = req.get('host');
-      return `${protocol}://${host}/uploads/${encodeURIComponent(fileName)}`;
-    };
-
     const result = workersWithServices.map((w: any) => ({
       ...w,
-      dui_document_url: buildUrl(w.dui_document),
-      cert_document_url: buildUrl(w.cert_document),
+      dui_document_url: buildProtectedAssetUrl(req, w.dui_document),
+      cert_document_url: buildProtectedAssetUrl(req, w.cert_document),
     }));
 
     res.json({ success: true, workers: result });
@@ -1632,8 +1647,7 @@ export const updateHeroSlides = async (req: AuthRequest, res: Response): Promise
 
       await connection.execute(`DELETE FROM hero_slides`);
 
-      for (let idx = 0; idx < slides.length; idx += 1) {
-        const slide = slides[idx];
+      const sanitizedSlides = slides.map((slide: any, idx: number) => {
         const sortOrder = idx + 1;
         const image = String(slide?.image || '').trim();
         const tag = String(slide?.tag || '').trim().slice(0, 50);
@@ -1645,12 +1659,14 @@ export const updateHeroSlides = async (req: AuthRequest, res: Response): Promise
           throw new Error(`Invalid slide payload at index ${idx}`);
         }
 
-        await connection.execute<ResultSetHeader>(
-          `INSERT INTO hero_slides (sort_order, image_url, tag, title, description, cta)
-           VALUES (?, ?, ?, ?, ?, ?)`,
-          [sortOrder, image, tag, title, description, cta]
-        );
-      }
+        return [sortOrder, image, tag, title, description, cta];
+      });
+
+      await connection.execute<ResultSetHeader>(
+        `INSERT INTO hero_slides (sort_order, image_url, tag, title, description, cta)
+         VALUES ${sanitizedSlides.map(() => '(?, ?, ?, ?, ?, ?)').join(', ')}`,
+        sanitizedSlides.flat()
+      );
 
       await connection.commit();
     } catch (error: any) {
@@ -1700,11 +1716,17 @@ export const uploadHeroSlideImage = async (req: AuthRequest, res: Response): Pro
 
     const allowed = new Set(['image/png', 'image/jpeg', 'image/jpg', 'image/webp']);
     if (!allowed.has(file.mimetype)) {
+      deleteUploadIfExists(file.filename, 'public');
       res.status(400).json({ error: 'Only PNG/JPG/WEBP images are allowed.' });
       return;
     }
 
-    const imageUrl = `${req.protocol}://${req.get('host')}/uploads/${encodeURIComponent(file.filename)}`;
+    const imageUrl = buildPublicAssetUrl(req, file.filename);
+    if (!imageUrl) {
+      deleteUploadIfExists(file.filename, 'public');
+      res.status(400).json({ error: 'Invalid uploaded image.' });
+      return;
+    }
 
     const [result] = await pool.execute<ResultSetHeader>(
       `UPDATE hero_slides SET image_url = ? WHERE id_slide = ?`,
@@ -1712,6 +1734,7 @@ export const uploadHeroSlideImage = async (req: AuthRequest, res: Response): Pro
     );
 
     if (result.affectedRows === 0) {
+      deleteUploadIfExists(file.filename, 'public');
       res.status(404).json({ error: 'Slide not found' });
       return;
     }
@@ -1940,11 +1963,18 @@ export const uploadHeroImageAsset = async (req: AuthRequest, res: Response): Pro
 
     const allowed = new Set(['image/png', 'image/jpeg', 'image/jpg', 'image/webp']);
     if (!allowed.has(file.mimetype)) {
+      deleteUploadIfExists(file.filename, 'public');
       res.status(400).json({ error: 'Only PNG/JPG/WEBP images are allowed.' });
       return;
     }
 
-    const imageUrl = `${req.protocol}://${req.get('host')}/uploads/${encodeURIComponent(file.filename)}`;
+    const imageUrl = buildPublicAssetUrl(req, file.filename);
+    if (!imageUrl) {
+      deleteUploadIfExists(file.filename, 'public');
+      res.status(400).json({ error: 'Invalid uploaded image.' });
+      return;
+    }
+
     res.json({ success: true, image: imageUrl });
   } catch (error: any) {
     console.error('Error in uploadHeroImageAsset:', error);

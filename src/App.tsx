@@ -1,5 +1,6 @@
 import React, { useState, useEffect, Suspense, lazy } from 'react';
 import { motion } from 'framer-motion';
+import { Navigate, Route, Routes, useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { Navbar } from './components/layout/Navbar';
 import { NavItemType, AuthMode } from './types';
 import { AuthModal } from './components/modals/AuthModal';
@@ -9,22 +10,25 @@ import { ProBento } from './components/sections/ProBento';
 import { StepsSection } from './components/sections/StepsSection';
 import { Footer } from './components/layout/Footer';
 import { ScrollReveal } from './components/common/ScrollReveal';
-import { ParticlesBackground } from './components/effects/ParticlesBackground';
 import { TestimonialsCarousel } from './components/sections/TestimonialsCarousel';
 import { FAQSection } from './components/sections/FAQSection';
 import { Button } from './components/common/Button';
-import { AiSupportChatWidget } from './components/common/AiSupportChatWidget';
 import { ThreeDCard } from './components/common/ThreeDCard';
+import ForgotPassword from './pages/ForgotPassword';
 import UserProfile from './pages/UserProfile';
-import { clearAuthSession, hasRole, isAuthenticated } from './utils/session';
+import { hasRole, isAuthenticated, logoutAuthSession } from './utils/session';
 import { API_ENDPOINTS } from './config/api';
 import { isExternalStockImage, normalizeImageUrl } from './utils/imageUrls';
+import { ProtectedRoute } from './routes/ProtectedRoute';
 
 const ServiceRequestWizard = lazy(() =>
   import('./components/modals/ServiceRequestWizard').then((module) => ({
     default: module.ServiceRequestWizard,
   }))
 );
+const AiSupportChatWidget = lazy(() => import('./components/common/AiSupportChatWidget').then((module) => ({
+  default: module.AiSupportChatWidget,
+})));
 const ProDashboard = lazy(() =>
   import('./components/modals/ProDashboard').then((module) => ({
     default: module.ProDashboard,
@@ -36,6 +40,7 @@ const AdminDashboard = lazy(() =>
   }))
 );
 const PaymentCheckoutPage = lazy(() => import('./pages/PaymentCheckoutPage'));
+const ResetPassword = lazy(() => import('./pages/ResetPassword'));
 
 const navItems: NavItemType[] = [
   { name: "Services" },
@@ -123,163 +128,58 @@ const AppRouteFallback: React.FC<{ title?: string; subtitle?: string }> = ({
   </div>
 );
 
-const getProtectedPathForView = (view: 'landing' | 'app' | 'pro-dashboard' | 'admin-dashboard' | 'profile' | 'checkout') => {
-  switch (view) {
-    case 'pro-dashboard':
-      return '/pro-dashboard';
-    case 'admin-dashboard':
-      return '/admin-dashboard';
-    case 'profile':
-      return '/profile';
-    default:
-      return null;
-  }
+const CheckoutRoute: React.FC<{ onBack: () => void }> = ({ onBack }) => {
+  const params = useParams();
+  const requestId = Number(params.requestId);
+
+  return (
+    <PaymentCheckoutPage
+      requestId={Number.isFinite(requestId) && requestId > 0 ? requestId : null}
+      onBack={onBack}
+    />
+  );
 };
 
-const hasAccessToView = (view: 'landing' | 'app' | 'pro-dashboard' | 'admin-dashboard' | 'profile' | 'checkout') => {
-  switch (view) {
-    case 'pro-dashboard':
-      return isAuthenticated('worker') && hasRole('worker', 'worker');
-    case 'admin-dashboard':
-      return isAuthenticated('admin') && hasRole('admin', 'admin');
-    case 'profile':
-    case 'checkout':
-      return isAuthenticated();
-    default:
-      return true;
-  }
+const ServiceRequestRoute: React.FC<{
+  onClose: () => void;
+  onOpenCheckout: (requestId: number) => void;
+}> = ({ onClose, onOpenCheckout }) => {
+  const [searchParams] = useSearchParams();
+  const serviceId = Number(searchParams.get('serviceId') || 0);
+  const serviceName = searchParams.get('serviceName')?.trim() || undefined;
+
+  return (
+    <ServiceRequestWizard
+      isOpen={true}
+      onClose={onClose}
+      initialServiceId={Number.isFinite(serviceId) && serviceId > 0 ? serviceId : undefined}
+      initialServiceName={serviceName}
+      onOpenCheckout={onOpenCheckout}
+    />
+  );
+};
+
+const buildBookingPath = (service?: { id: number; name: string } | null) => {
+  const params = new URLSearchParams();
+  if (service?.id && service.id > 0) params.set('serviceId', String(service.id));
+  if (service?.name?.trim()) params.set('serviceName', service.name.trim());
+  const query = params.toString();
+  return query ? `/app?${query}` : '/app';
 };
 
 const App: React.FC = () => {
+  const navigate = useNavigate();
+  const location = useLocation();
   const [isAuthOpen, setIsAuthOpen] = useState(false);
   const [authMode, setAuthMode] = useState<AuthMode>('signin');
   const [isWorkerAuthOpen, setIsWorkerAuthOpen] = useState(false);
   const [workerAuthMode, setWorkerAuthMode] = useState<'signin' | 'signup'>('signup');
-  const [currentView, setCurrentView] = useState<'landing' | 'app' | 'pro-dashboard' | 'admin-dashboard' | 'profile' | 'checkout'>('landing');
-  const [checkoutRequestId, setCheckoutRequestId] = useState<number | null>(null);
   const [serviceCards, setServiceCards] = useState<HomeServiceCard[]>([]);
-  const [selectedService, setSelectedService] = useState<{ id: number; name: string } | null>(null);
   const [pendingSection, setPendingSection] = useState<LandingSectionTarget | null>(null);
-
-  const goLandingWithReplace = () => {
-    window.history.replaceState({}, '', '/');
-    setCurrentView('landing');
-  };
-
-  const resolveViewFromPath = (path: string) => {
-    const checkoutMatch = path.match(/^\/checkout\/(\d+)$/);
-    if (checkoutMatch) {
-      const requestId = Number(checkoutMatch[1]);
-      if (isAuthenticated() && requestId > 0) {
-        setCheckoutRequestId(requestId);
-        setCurrentView('checkout');
-      } else {
-        setCheckoutRequestId(null);
-        goLandingWithReplace();
-      }
-      return;
-    }
-
-    if (path === '/app') {
-      setCheckoutRequestId(null);
-      setCurrentView('app');
-      return;
-    }
-
-    if (path === '/profile') {
-      setCheckoutRequestId(null);
-      if (isAuthenticated()) {
-        setCurrentView('profile');
-      } else {
-        goLandingWithReplace();
-      }
-      return;
-    }
-
-    if (path === '/pro-dashboard') {
-      setCheckoutRequestId(null);
-      if (isAuthenticated('worker') && hasRole('worker', 'worker')) {
-        setCurrentView('pro-dashboard');
-      } else {
-        goLandingWithReplace();
-      }
-      return;
-    }
-
-    if (path === '/admin-dashboard') {
-      setCheckoutRequestId(null);
-      if (isAuthenticated('admin') && hasRole('admin', 'admin')) {
-        setCurrentView('admin-dashboard');
-      } else {
-        goLandingWithReplace();
-      }
-      return;
-    }
-
-    setCheckoutRequestId(null);
-    setCurrentView('landing');
-  };
-
-  // Sync with URL on mount and browser navigation
-  useEffect(() => {
-    const handleRoute = () => resolveViewFromPath(window.location.pathname);
-
-    handleRoute();
-    window.addEventListener('popstate', handleRoute);
-
-    return () => window.removeEventListener('popstate', handleRoute);
-  }, []);
-
-  // Guard already-open private views in case session disappears
-  useEffect(() => {
-    if (currentView === 'pro-dashboard' && (!isAuthenticated('worker') || !hasRole('worker', 'worker'))) {
-      goLandingWithReplace();
-      return;
-    }
-
-    if (currentView === 'admin-dashboard' && (!isAuthenticated('admin') || !hasRole('admin', 'admin'))) {
-      goLandingWithReplace();
-      return;
-    }
-
-    if (currentView === 'profile' && !isAuthenticated()) {
-      goLandingWithReplace();
-      return;
-    }
-
-    if (currentView === 'checkout' && !isAuthenticated()) {
-      goLandingWithReplace();
-    }
-  }, [currentView]);
-
-  useEffect(() => {
-    const protectedPath = getProtectedPathForView(currentView);
-    if (!protectedPath || !hasAccessToView(currentView)) {
-      return;
-    }
-
-    const blockProtectedBackNavigation = () => {
-      if (!hasAccessToView(currentView)) {
-        return;
-      }
-
-      const expectedPath = getProtectedPathForView(currentView);
-      if (!expectedPath) {
-        return;
-      }
-
-      window.history.pushState({ fixlifeProtected: true }, '', expectedPath);
-      setCurrentView(currentView);
-      window.scrollTo(0, 0);
-    };
-
-    window.history.pushState({ fixlifeProtected: true }, '', protectedPath);
-    window.addEventListener('popstate', blockProtectedBackNavigation);
-
-    return () => {
-      window.removeEventListener('popstate', blockProtectedBackNavigation);
-    };
-  }, [currentView]);
+  const [pendingBookingPath, setPendingBookingPath] = useState<string | null>(null);
+  const isLandingRoute = location.pathname === '/';
+  const isDashboardRoute = location.pathname === '/admin-dashboard' || location.pathname === '/pro-dashboard';
+  const [canMountAiSupportWidget, setCanMountAiSupportWidget] = useState(false);
 
   useEffect(() => {
     const fetchServiceCards = async () => {
@@ -297,6 +197,18 @@ const App: React.FC = () => {
     fetchServiceCards();
   }, []);
 
+  useEffect(() => {
+    setCanMountAiSupportWidget(false);
+    if (isDashboardRoute) return;
+
+    const delayMs = isLandingRoute ? 1200 : 250;
+    const timer = window.setTimeout(() => {
+      setCanMountAiSupportWidget(true);
+    }, delayMs);
+
+    return () => window.clearTimeout(timer);
+  }, [isDashboardRoute, isLandingRoute]);
+
   const scrollToLandingSectionByTarget = (target: LandingSectionTarget) => {
     const section = document.getElementById(LANDING_SECTION_IDS[target]);
     if (!section) {
@@ -308,7 +220,7 @@ const App: React.FC = () => {
   };
 
   useEffect(() => {
-    if (currentView !== 'landing' || !pendingSection) {
+    if (!isLandingRoute || !pendingSection) {
       return;
     }
 
@@ -318,7 +230,7 @@ const App: React.FC = () => {
     }, 120);
 
     return () => window.clearTimeout(timer);
-  }, [currentView, pendingSection]);
+  }, [isLandingRoute, pendingSection]);
 
   const handleOpenAuth = (mode: AuthMode) => {
     setAuthMode(mode);
@@ -326,29 +238,40 @@ const App: React.FC = () => {
   };
 
   const handleStartBooking = (service?: { id: number; name: string } | null) => {
-    setSelectedService(service || null);
-    window.history.pushState({}, '', '/app');
-    setCurrentView('app');
+    const bookingPath = buildBookingPath(service);
+
+    if (!isAuthenticated()) {
+      setPendingBookingPath(bookingPath);
+      handleOpenAuth('signin');
+      return;
+    }
+
+    navigate(bookingPath);
+    window.scrollTo(0, 0);
+  };
+
+  const handleClientLogin = () => {
+    if (!pendingBookingPath) return;
+    navigate(pendingBookingPath);
+    setPendingBookingPath(null);
     window.scrollTo(0, 0);
   };
 
   const handleOpenProDashboard = () => {
     if (!isAuthenticated('worker') || !hasRole('worker', 'worker')) {
-      goLandingWithReplace();
+      navigate('/', { replace: true });
       return;
     }
-    window.history.replaceState({}, '', '/pro-dashboard');
-    setCurrentView('pro-dashboard');
+    navigate('/pro-dashboard', { replace: true });
     window.scrollTo(0, 0);
   }
 
   const handleOpenAdminDashboard = () => {
     if (!isAuthenticated('admin') || !hasRole('admin', 'admin')) {
-      goLandingWithReplace();
+      navigate('/', { replace: true });
       return;
     }
-    window.history.replaceState({}, '', '/admin-dashboard');
-    setCurrentView('admin-dashboard');
+    navigate('/admin-dashboard', { replace: true });
     window.scrollTo(0, 0);
   }
 
@@ -362,38 +285,36 @@ const App: React.FC = () => {
       handleOpenAuth('signin');
       return;
     }
-    window.history.replaceState({}, '', '/profile');
-    setCurrentView('profile');
+    navigate('/profile', { replace: true });
     window.scrollTo(0, 0);
   }
 
   const handleBackToLanding = () => {
     setPendingSection(null);
     const leavingProtectedView =
-      currentView === 'admin-dashboard' ||
-      currentView === 'pro-dashboard' ||
-      currentView === 'profile' ||
-      currentView === 'checkout';
+      location.pathname === '/admin-dashboard' ||
+      location.pathname === '/pro-dashboard' ||
+      location.pathname === '/profile' ||
+      location.pathname.startsWith('/checkout/');
 
-    if (leavingProtectedView) {
-      window.history.replaceState({}, '', '/');
-    } else {
-      window.history.pushState({}, '', '/');
-    }
-    setCurrentView('landing');
+    navigate('/', { replace: leavingProtectedView });
     window.scrollTo(0, 0);
   };
 
   const handleWorkerSignOut = () => {
-    clearAuthSession('worker');
-    window.history.replaceState({}, '', '/');
-    window.location.reload();
+    logoutAuthSession('worker');
+    navigate('/', { replace: true });
+    window.scrollTo(0, 0);
   };
 
   const handleBackToRequests = () => {
-    window.history.replaceState({}, '', '/app');
-    setCurrentView('app');
-    setCheckoutRequestId(null);
+    navigate('/app', { replace: true });
+    window.scrollTo(0, 0);
+  };
+
+  const handleOpenCheckout = (requestId: number) => {
+    if (!requestId) return;
+    navigate(`/checkout/${requestId}`);
     window.scrollTo(0, 0);
   };
 
@@ -407,7 +328,7 @@ const App: React.FC = () => {
       summary: 'Leak repairs, pipe installation, and sanitary maintenance.',
       cta_label: 'Learn More',
       service_name: 'Plumbing',
-      service_icon: '??',
+      service_icon: 'PL',
     },
     {
       id_card: 0,
@@ -418,7 +339,7 @@ const App: React.FC = () => {
       summary: 'Safe installations, wiring, panels, and short circuit repairs.',
       cta_label: 'Learn More',
       service_name: 'Electrical Services',
-      service_icon: '?',
+      service_icon: 'EL',
     },
     {
       id_card: 0,
@@ -429,7 +350,7 @@ const App: React.FC = () => {
       summary: 'Vehicle diagnostics, oil changes, and mobile repairs.',
       cta_label: 'Learn More',
       service_name: 'Auto Mechanic',
-      service_icon: '??',
+      service_icon: 'AU',
     },
     {
       id_card: 0,
@@ -440,12 +361,12 @@ const App: React.FC = () => {
       summary: 'Furniture design, door repair, and structure assembly.',
       cta_label: 'Learn More',
       service_name: 'Carpentry',
-      service_icon: '??',
+      service_icon: 'CA',
     },
   ];
 
   const cardsToRender = serviceCards.length > 0 ? serviceCards.slice(0, 8) : fallbackCards;
-  const showAiSupportWidget = currentView !== 'admin-dashboard' && currentView !== 'pro-dashboard';
+  const showAiSupportWidget = canMountAiSupportWidget && !isDashboardRoute;
 
   const normalizeLabel = (value: string) => value.toLowerCase().replace(/[^a-z0-9]+/g, '');
 
@@ -456,10 +377,9 @@ const App: React.FC = () => {
 
     const typedTarget = target as LandingSectionTarget;
 
-    if (currentView !== 'landing') {
+    if (!isLandingRoute) {
       setPendingSection(typedTarget);
-      window.history.pushState({}, '', '/');
-      setCurrentView('landing');
+      navigate('/');
       window.scrollTo(0, 0);
       return;
     }
@@ -489,23 +409,16 @@ const App: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-sky-50 via-amber-50 to-orange-50 text-gray-900 selection:bg-bird-blue selection:text-white overflow-x-hidden font-sans flex flex-col relative transition-colors duration-500">
-      {currentView === 'landing' ? (
-        <div className="fixed inset-0 w-full h-full overflow-hidden pointer-events-none z-0">
-          <ParticlesBackground />
-
-          <div className="absolute top-[-10%] left-[-10%] w-[60vw] h-[60vw] bg-bird-lightBlue/20 rounded-full blur-[100px] animate-blob" />
-          <div className="absolute bottom-[-10%] right-[-10%] w-[60vw] h-[60vw] bg-bird-yellow/20 rounded-full blur-[120px] animate-blob animation-delay-2000" />
-
-          <div className="absolute top-[20%] right-[20%] w-[40vw] h-[40vw] bg-bird-orange/15 rounded-full blur-[90px] animate-blob animation-delay-4000" />
-          <div className="absolute bottom-[20%] left-[20%] w-[30vw] h-[30vw] bg-white/40 rounded-full blur-[80px] animate-blob" />
-        </div>
-      ) : null}
-
       <AuthModal
         isOpen={isAuthOpen}
-        onClose={() => setIsAuthOpen(false)}
+        onClose={() => {
+          setIsAuthOpen(false);
+          if (!isAuthenticated()) setPendingBookingPath(null);
+        }}
         initialMode={authMode}
         onAdminLogin={handleOpenAdminDashboard}
+        onClientLogin={handleClientLogin}
+        onWorkerLogin={handleOpenProDashboard}
       />
 
       <WorkerAuthModal
@@ -515,55 +428,93 @@ const App: React.FC = () => {
         onSuccess={handleOpenProDashboard}
       />
 
-      {currentView === 'app' ? (
-        <Suspense fallback={<AppRouteFallback title="Loading booking flow..." subtitle="Getting the service wizard ready." />}>
-          <ServiceRequestWizard
-            isOpen={true}
-            onClose={handleBackToLanding}
-            initialServiceId={selectedService?.id}
-            initialServiceName={selectedService?.name}
-          />
-        </Suspense>
-      ) : currentView === 'checkout' ? (
-        <Suspense fallback={<AppRouteFallback title="Loading checkout..." subtitle="Preparing secure payment." />}>
-          <PaymentCheckoutPage
-            requestId={checkoutRequestId}
-            onBack={handleBackToRequests}
-          />
-        </Suspense>
-      ) : currentView === 'pro-dashboard' ? (
-        isAuthenticated('worker') && hasRole('worker', 'worker') ? (
-          <Suspense fallback={<AppRouteFallback title="Loading worker dashboard..." subtitle="Preparing requests, maps and tools." />}>
-            <ProDashboard
-              isOpen={true}
-              onClose={handleBackToLanding}
-              onSignOut={handleWorkerSignOut}
-            />
-          </Suspense>
-        ) : null
-      ) : currentView === 'admin-dashboard' ? (
-        isAuthenticated('admin') && hasRole('admin', 'admin') ? (
-          <Suspense fallback={<AppRouteFallback title="Loading admin dashboard..." subtitle="Preparing management tools." />}>
-            <AdminDashboard
-              isOpen={true}
-              onClose={handleBackToLanding}
-            />
-          </Suspense>
-        ) : null
-      ) : currentView === 'profile' ? (
-        <>
-          <Navbar
-            navItems={navItems}
-            onOpenAuth={handleOpenAuth}
-            onStartBooking={handleStartBooking}
-            onOpenProfile={handleOpenProfile}
-            onGoHome={handleBackToLanding}
-            onNavigateSection={handleNavigateSection}
-            onSelectCategory={handleSelectCategory}
-          />
-          <UserProfile onBack={handleBackToLanding} />
-        </>
-      ) : (
+      <Routes>
+        <Route
+          path="/app"
+          element={(
+            <ProtectedRoute>
+              <Suspense fallback={<AppRouteFallback title="Loading booking flow..." subtitle="Getting the service wizard ready." />}>
+                <ServiceRequestRoute
+                  onClose={handleBackToLanding}
+                  onOpenCheckout={handleOpenCheckout}
+                />
+              </Suspense>
+            </ProtectedRoute>
+          )}
+        />
+        <Route
+          path="/checkout/:requestId"
+          element={(
+            <ProtectedRoute>
+              <Suspense fallback={<AppRouteFallback title="Loading checkout..." subtitle="Preparing secure payment." />}>
+                <CheckoutRoute onBack={handleBackToRequests} />
+              </Suspense>
+            </ProtectedRoute>
+          )}
+        />
+        <Route
+          path="/pro-dashboard"
+          element={(
+            <ProtectedRoute scope="worker" role="worker">
+              <Suspense fallback={<AppRouteFallback title="Loading worker dashboard..." subtitle="Preparing requests, maps and tools." />}>
+                <ProDashboard
+                  isOpen={true}
+                  onClose={handleBackToLanding}
+                  onSignOut={handleWorkerSignOut}
+                />
+              </Suspense>
+            </ProtectedRoute>
+          )}
+        />
+        <Route
+          path="/admin-dashboard"
+          element={(
+            <ProtectedRoute scope="admin" role="admin">
+              <Suspense fallback={<AppRouteFallback title="Loading admin dashboard..." subtitle="Preparing management tools." />}>
+                <AdminDashboard
+                  isOpen={true}
+                  onClose={handleBackToLanding}
+                />
+              </Suspense>
+            </ProtectedRoute>
+          )}
+        />
+        <Route
+          path="/profile"
+          element={(
+            <ProtectedRoute>
+              <Navbar
+                navItems={navItems}
+                onOpenAuth={handleOpenAuth}
+                onStartBooking={handleStartBooking}
+                onOpenProfile={handleOpenProfile}
+                onGoHome={handleBackToLanding}
+                onNavigateSection={handleNavigateSection}
+                onSelectCategory={handleSelectCategory}
+              />
+              <UserProfile onBack={handleBackToLanding} />
+            </ProtectedRoute>
+          )}
+        />
+        <Route
+          path="/forgot-password"
+          element={(
+            <Suspense fallback={<AppRouteFallback title="Loading recovery..." subtitle="Opening password reset." />}>
+              <ForgotPassword />
+            </Suspense>
+          )}
+        />
+        <Route
+          path="/reset-password"
+          element={(
+            <Suspense fallback={<AppRouteFallback title="Loading recovery..." subtitle="Opening password reset." />}>
+              <ResetPassword />
+            </Suspense>
+          )}
+        />
+        <Route
+          path="/"
+          element={(
         <>
 
           <Navbar
@@ -700,30 +651,13 @@ const App: React.FC = () => {
               <ScrollReveal>
                 <div className="flex items-center justify-between mb-10 px-2">
                   <div>
-                    <motion.h3
-                      initial={{ opacity: 0, x: -20 }}
-                      whileInView={{ opacity: 1, x: 0 }}
-                      viewport={{ once: true }}
-                      className="text-3xl md:text-4xl font-black text-gray-900 flex items-center gap-4"
-                    >
-                      <motion.span
-                        initial={{ scaleY: 0 }}
-                        whileInView={{ scaleY: 1 }}
-                        viewport={{ once: true }}
-                        transition={{ delay: 0.2, type: "spring" }}
-                        className="w-1.5 h-8 rounded-full bg-bird-blue shadow-[0_0_15px_rgba(0,144,255,0.4)] origin-bottom"
-                      />
+                    <h3 className="text-3xl md:text-4xl font-black text-gray-900 flex items-center gap-4">
+                      <span className="w-1.5 h-8 rounded-full bg-bird-blue shadow-[0_0_15px_rgba(0,144,255,0.4)] origin-bottom" />
                       Professional Services
-                    </motion.h3>
-                    <motion.p
-                      initial={{ opacity: 0, x: -20 }}
-                      whileInView={{ opacity: 1, x: 0 }}
-                      viewport={{ once: true }}
-                      transition={{ delay: 0.3 }}
-                      className="text-gray-600 mt-2 ml-6 text-sm font-medium"
-                    >
+                    </h3>
+                    <p className="text-gray-600 mt-2 ml-6 text-sm font-medium">
                       Expert solutions for every home need
-                    </motion.p>
+                    </p>
                   </div>
                   <Button
                     onClick={() => handleStartBooking()}
@@ -768,7 +702,7 @@ const App: React.FC = () => {
                           }}
                           className="absolute top-4 right-4 z-20 w-12 h-12 bg-white/95 backdrop-blur-md rounded-xl border border-gray-200 flex items-center justify-center shadow-lg group-hover:bg-bird-blue group-hover:border-bird-blue group-hover:text-white transition-all duration-300 text-gray-700"
                         >
-                          <span className="text-xl">{item.service_icon && item.service_icon.length <= 2 ? item.service_icon : '??'}</span>
+                          <span className="text-xl">{item.service_icon && item.service_icon.length <= 2 ? item.service_icon : 'FX'}</span>
                         </motion.div>
                       </div>
                       <div className="p-6 flex-1 flex flex-col relative z-20">
@@ -829,9 +763,16 @@ const App: React.FC = () => {
             onNavigateSection={handleNavigateSection}
           />
         </>
-      )}
+          )}
+        />
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
 
-      {showAiSupportWidget ? <AiSupportChatWidget /> : null}
+      {showAiSupportWidget ? (
+        <Suspense fallback={null}>
+          <AiSupportChatWidget />
+        </Suspense>
+      ) : null}
 
     </div>
   );

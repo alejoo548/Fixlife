@@ -96,70 +96,36 @@ export const ProBento: React.FC<ProBentoProps> = ({ onOpenPro, onOpenWorkerAuth 
       <div className="relative z-10 flex flex-col lg:flex-row items-center justify-between gap-12 lg:gap-20">
 
         {/* Left content */}
-        <motion.div
-          initial={{ opacity: 0, x: -50 }}
-          whileInView={{ opacity: 1, x: 0 }}
-          viewport={{ once: true }}
-          transition={{ duration: 0.6 }}
-          className="flex-1 max-w-xl text-center lg:text-left order-2 lg:order-1"
-        >
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            transition={{ delay: 0.2 }}
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-gradient-to-r from-bird-blue/10 to-bird-lightBlue/10 border border-bird-blue/20 text-bird-blue text-xs font-bold tracking-wider mb-6 shadow-sm"
-          >
+        <div className="flex-1 max-w-xl text-center lg:text-left order-2 lg:order-1">
+          <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-gradient-to-r from-bird-blue/10 to-bird-lightBlue/10 border border-bird-blue/20 text-bird-blue text-xs font-bold tracking-wider mb-6 shadow-sm">
             <motion.span
               animate={{ scale: [1, 1.2, 1] }}
               transition={{ duration: 2, repeat: Infinity }}
               className="w-2 h-2 rounded-full bg-bird-blue"
             />
             FOR PROFESSIONALS
-          </motion.div>
+          </div>
 
-          <motion.h2
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            transition={{ delay: 0.3 }}
-            className="text-4xl md:text-5xl lg:text-6xl font-black text-gray-900 mb-6 leading-[1.1] tracking-tight"
-          >
+          <h2 className="text-4xl md:text-5xl lg:text-6xl font-black text-gray-900 mb-6 leading-[1.1] tracking-tight">
             Your work.<br />
             <span className="text-transparent bg-clip-text bg-gradient-to-r from-bird-blue via-bird-lightBlue to-bird-blue animate-gradient">
               Your rules.
             </span>
-          </motion.h2>
+          </h2>
 
-          <motion.p
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            transition={{ delay: 0.4 }}
-            className="text-gray-600 text-base md:text-lg mb-8 leading-relaxed font-medium"
-          >
+          <p className="text-gray-600 text-base md:text-lg mb-8 leading-relaxed font-medium">
             Join the platform that values your craft. No bosses, manage your own schedule and get paid securely every week.
-          </motion.p>
+          </p>
 
           {/* Benefits list */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            transition={{ delay: 0.5 }}
-            className="mb-8 space-y-3"
-          >
+          <div className="mb-8 space-y-3">
             {[
               { icon: "M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z", text: "Earn up to $5,000/month" },
               { icon: "M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z", text: "Flexible schedule" },
               { icon: "M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z", text: "Insurance included" }
             ].map((benefit, i) => (
-              <motion.div
+              <div
                 key={i}
-                initial={{ opacity: 0, x: -20 }}
-                whileInView={{ opacity: 1, x: 0 }}
-                viewport={{ once: true }}
-                transition={{ delay: 0.6 + i * 0.1 }}
                 className="flex items-center gap-3 text-left"
               >
                 <div className="w-10 h-10 rounded-xl bg-bird-blue/10 flex items-center justify-center shrink-0">
@@ -168,18 +134,12 @@ export const ProBento: React.FC<ProBentoProps> = ({ onOpenPro, onOpenWorkerAuth 
                   </svg>
                 </div>
                 <span className="text-gray-700 font-medium">{benefit.text}</span>
-              </motion.div>
+              </div>
             ))}
-          </motion.div>
+          </div>
 
           {!isAuthenticated('worker') && (
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            transition={{ delay: 0.9 }}
-            className="flex flex-col sm:flex-row items-center gap-4 justify-center lg:justify-start"
-          >
+          <div className="flex flex-col sm:flex-row items-center gap-4 justify-center lg:justify-start">
             <motion.button
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
@@ -199,18 +159,12 @@ export const ProBento: React.FC<ProBentoProps> = ({ onOpenPro, onOpenWorkerAuth 
             >
               Pro Sign In
             </motion.button>
-          </motion.div>
+          </div>
           )}
-        </motion.div>
+        </div>
 
         {/* Right content - Profile card */}
-        <motion.div
-          initial={{ opacity: 0, x: 50 }}
-          whileInView={{ opacity: 1, x: 0 }}
-          viewport={{ once: true }}
-          transition={{ duration: 0.6 }}
-          className="flex-1 w-full flex justify-center lg:justify-end order-1 lg:order-2"
-        >
+        <div className="flex-1 w-full flex justify-center lg:justify-end order-1 lg:order-2">
           <div className="relative w-full max-w-[550px]">
             <AnimatePresence mode="wait">
               <motion.div
@@ -336,7 +290,7 @@ export const ProBento: React.FC<ProBentoProps> = ({ onOpenPro, onOpenWorkerAuth 
               ))}
             </div>
           </div>
-        </motion.div>
+        </div>
       </div>
     </div>
   );
