@@ -1,8 +1,6 @@
 import { Request, Response } from 'express';
 import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
-import fs from 'fs';
-import path from 'path';
 import crypto from 'crypto';
 import pool from '../config/db';
 import { ResultSetHeader, RowDataPacket } from 'mysql2';
@@ -10,8 +8,9 @@ import { sendVerificationEmail, sendPasswordResetEmail } from '../utils/email';
 import { ensureUsersActiveColumn, ensureUsersPendingWorkerColumn, ensureUsersPhoneNumberNullable } from '../utils/users';
 import { AuthRequest } from '../middlewares/auth.middleware';
 import { OAuth2Client } from 'google-auth-library';
+import { getJwtSecret } from '../config/security';
+import { deleteUploadIfExists } from '../utils/assets';
 
-const JWT_SECRET = process.env.JWT_SECRET || 'super_secret_jwt_key_for_development';
 const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || '';
 const RECAPTCHA_SECRET_KEY = process.env.RECAPTCHA_SECRET_KEY || '';
 const googleClient = GOOGLE_CLIENT_ID ? new OAuth2Client(GOOGLE_CLIENT_ID) : null;
@@ -65,16 +64,6 @@ const isValidEmail = (value: string): boolean => {
 
 const isValidPassword = (value: string): boolean => {
   return /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{8,128}$/.test(value);
-};
-
-const uploadsDir = path.resolve(process.cwd(), 'uploads');
-
-const deleteLocalUploadIfExists = (filename: string | null | undefined): void => {
-  if (!filename) return;
-  const filePath = path.join(uploadsDir, filename);
-  if (fs.existsSync(filePath)) {
-    fs.unlinkSync(filePath);
-  }
 };
 
 export const registerWorker = async (req: Request, res: Response): Promise<void> => {
@@ -174,10 +163,11 @@ export const registerWorker = async (req: Request, res: Response): Promise<void>
             `DELETE FROM worker_services WHERE id_worker_profile = ?`,
             [existingProfileId]
           );
-          for (const svcId of normalizedServiceIds) {
+          if (normalizedServiceIds.length > 0) {
             await connection.execute(
-              `INSERT IGNORE INTO worker_services (id_worker_profile, id_service) VALUES (?, ?)`,
-              [existingProfileId, svcId]
+              `INSERT IGNORE INTO worker_services (id_worker_profile, id_service)
+               VALUES ${normalizedServiceIds.map(() => '(?, ?)').join(', ')}`,
+              normalizedServiceIds.flatMap((svcId: number) => [existingProfileId, svcId])
             );
           }
 
@@ -232,10 +222,11 @@ export const registerWorker = async (req: Request, res: Response): Promise<void>
 
       // Insert selected services (already validated: at least 1 id)
       const profileId = profileResult.insertId;
-      for (const svcId of normalizedServiceIds) {
+      if (normalizedServiceIds.length > 0) {
         await connection.execute(
-          `INSERT IGNORE INTO worker_services (id_worker_profile, id_service) VALUES (?, ?)`,
-          [profileId, svcId]
+          `INSERT IGNORE INTO worker_services (id_worker_profile, id_service)
+           VALUES ${normalizedServiceIds.map(() => '(?, ?)').join(', ')}`,
+          normalizedServiceIds.flatMap((svcId: number) => [profileId, svcId])
         );
       }
 
@@ -376,7 +367,7 @@ export const verifyWorkerEmail = async (req: Request, res: Response): Promise<vo
 
       const token = jwt.sign(
         { user_id: user.id_user, rol: user.rol, pending_worker: user.pending_worker ? 1 : 0 },
-        JWT_SECRET,
+        getJwtSecret(),
         { expiresIn: '7d' }
       );
 
@@ -501,7 +492,7 @@ export const registerUser = async (req: Request, res: Response): Promise<void> =
 
       const token = jwt.sign(
         { user_id: userId, rol: 'client', pending_worker: 0 },
-        JWT_SECRET,
+        getJwtSecret(),
         { expiresIn: '7d' }
       );
 
@@ -608,7 +599,7 @@ export const login = async (req: Request, res: Response): Promise<void> => {
 
     const token = jwt.sign(
       { user_id: user.id_user, rol: user.rol, pending_worker: user.pending_worker ? 1 : 0 },
-      JWT_SECRET,
+      getJwtSecret(),
       { expiresIn: '7d' }
     );
 
@@ -762,7 +753,7 @@ export const googleLogin = async (req: Request, res: Response): Promise<void> =>
 
       const token = jwt.sign(
         { user_id: userId, rol: userRole, pending_worker: pendingWorker },
-        JWT_SECRET,
+        getJwtSecret(),
         { expiresIn: '7d' }
       );
 
@@ -977,7 +968,7 @@ export const uploadProfileImage = async (req: AuthRequest, res: Response): Promi
       [imageFilename, userId]
     );
 
-    deleteLocalUploadIfExists(existing[0].profile_image);
+    deleteUploadIfExists(existing[0].profile_image, 'public');
 
     res.json({
       success: true,
@@ -1015,7 +1006,7 @@ export const removeProfileImage = async (req: AuthRequest, res: Response): Promi
       [userId]
     );
 
-    deleteLocalUploadIfExists(existing[0].profile_image);
+    deleteUploadIfExists(existing[0].profile_image, 'public');
 
     res.json({
       success: true,

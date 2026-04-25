@@ -20,7 +20,7 @@ import {
 } from '../controllers/worker.controller';
 import { requireWorker, verifyToken } from '../middlewares/auth.middleware';
 import { sensitiveLimiter } from '../middlewares/security.middleware';
-import { upload } from '../middlewares/upload.middleware';
+import { upload, uploadImageOnly } from '../middlewares/upload.middleware';
 import { validate } from '../middlewares/validate.middleware';
 import { WorkerSchema } from '../schemas/worker.schema';
 
@@ -41,8 +41,8 @@ router.put('/settings', sensitiveLimiter, validate(WorkerSchema.settings), updat
 router.put('/change-password', sensitiveLimiter, validate(WorkerSchema.changePassword), changeWorkerPassword);
 router.post('/email-change/request', sensitiveLimiter, validate(WorkerSchema.emailChangeRequest), requestWorkerEmailChangeToken);
 router.post('/email-change/verify', sensitiveLimiter, validate(WorkerSchema.tokenOnly), verifyWorkerEmailChangeToken);
-router.post('/profile-image', sensitiveLimiter, upload.single('profile_image'), uploadProfileImage);
-router.post('/portfolio', sensitiveLimiter, upload.array('portfolio_images', 10), uploadPortfolioImages);
+router.post('/profile-image', sensitiveLimiter, uploadImageOnly.single('profile_image'), uploadProfileImage);
+router.post('/portfolio', sensitiveLimiter, uploadImageOnly.array('portfolio_images', 10), uploadPortfolioImages);
 router.delete('/portfolio/:idPhoto', sensitiveLimiter, deletePortfolioImage);
 
 router.post(

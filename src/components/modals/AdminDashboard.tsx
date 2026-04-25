@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
-  AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
+  AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip,
   BarChart, Bar, Legend
 } from 'recharts';
 import { 
@@ -11,7 +11,7 @@ import {
 import { API_ENDPOINTS } from '../../config/api';
 import { Notyf } from 'notyf';
 import 'notyf/notyf.min.css';
-import { clearAuthSession, getAuthUser, getToken as getSessionToken, isAuthenticated } from '../../utils/session';
+import { getAuthUser, getToken as getSessionToken, isAuthenticated, logoutAuthSession } from '../../utils/session';
 import { DashboardThemeToggle } from '../common/DashboardThemeToggle';
 import { useDashboardTheme } from '../../hooks/useDashboardTheme';
 import {
@@ -24,136 +24,21 @@ import {
   uploadHeroImageAsset,
   uploadHeroSlideImage,
 } from '../../utils/heroSlides';
-
-interface AdminDashboardProps {
-  isOpen: boolean;
-  onClose: () => void;
-}
-
-const StableResponsiveContainer: React.FC<React.PropsWithChildren> = ({ children }) => (
-  <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={240} debounce={150}>
-    {children}
-  </ResponsiveContainer>
-);
-
-interface Service {
-  id_service: number;
-  name: string;
-  description: string | null;
-  icon: string | null;
-  is_active: boolean | number;
-  created_at: string;
-}
-
-interface ServiceCard {
-  id_card: number;
-  id_service: number;
-  image_url: string | null;
-  badge: string | null;
-  headline: string | null;
-  summary: string | null;
-  cta_label: string | null;
-  sort_order: number;
-  is_active: boolean | number;
-  created_at: string;
-  service_name: string;
-  service_icon: string | null;
-}
-
-interface PendingWorker {
-  id_user: number;
-  name: string;
-  lastname: string;
-  email: string;
-  phone_number: string;
-  username: string | null;
-  profile_image: string | null;
-  created_at: string;
-  id_worker_profile: number;
-  dui_document: string | null;
-  cert_document: string | null;
-  dui_document_url: string | null;
-  cert_document_url: string | null;
-  is_verified: number;
-  services: { id_service: number; name: string }[];
-}
-
-interface AdminUser {
-  id_user: number;
-  name: string;
-  lastname: string;
-  email: string;
-  phone_number: string | null;
-  username: string | null;
-  profile_image: string | null;
-  rol: string;
-  created_at: string;
-  last_login: string | null;
-  is_active: number | boolean;
-}
-
-interface AdminRequestHistoryItem {
-  id_request: number;
-  id_user: number | null;
-  id_service: number;
-  service_name: string;
-  description: string;
-  location_text: string;
-  budget: number;
-  radius_km: number;
-  status: 'pending' | 'assigned' | 'in_progress' | 'done' | 'cancelled' | string;
-  created_at: string;
-  images_count: number;
-  client: { id_user: number; name: string; email: string | null } | null;
-  assigned_worker: { id_worker_profile: number; name: string } | null;
-}
-
-interface AdminWorkerRewardsSettings {
-  trial_min_completed_jobs: number;
-  commission_rate: number;
-  royalty_rate: number;
-  royalty_min_jobs: number;
-  royalty_min_completion_rate: number;
-  payout_weekday: number;
-}
-
-interface AdminWorkerRewardsPayout {
-  id_bonus_payout: number;
-  id_worker_profile: number;
-  worker_name: string;
-  bonus_type: 'commission' | 'royalty' | string;
-  cycle_key: string;
-  base_amount: number;
-  bonus_amount: number;
-  payout_status: 'scheduled' | 'paid' | 'cancelled' | string;
-  scheduled_for: string;
-  paid_at: string | null;
-  notes: string | null;
-  source_request_id: number | null;
-  location_text: string | null;
-  service_name: string | null;
-}
-
-interface AdminActivityItem {
-  id_activity: number;
-  action: string;
-  entity: string;
-  entity_id: number | null;
-  summary: string;
-  created_at: string;
-  admin: { id_user: number; name: string; email: string | null } | null;
-  metadata: any;
-}
+import { StableResponsiveContainer } from './AdminStableResponsiveContainer';
+import { DEFAULT_REVENUE_DATA, DEFAULT_TRAFFIC_DATA } from './AdminDashboard.constants';
+import type {
+  AdminActivityItem,
+  AdminDashboardProps,
+  AdminRequestHistoryItem,
+  AdminUser,
+  AdminWorkerRewardsPayout,
+  AdminWorkerRewardsSettings,
+  PendingWorker,
+  Service,
+  ServiceCard,
+} from './AdminDashboard.types';
 
 const notyf = new Notyf({ position: { x: 'right', y: 'bottom' }, ripple: true });
-
-const DEFAULT_REVENUE_DATA = [
-  { name: 'Jan', uv: 0, pv: 0, amt: 0 },
-];
-
-const DEFAULT_TRAFFIC_DATA = [
-  { name: 'Mon', Users: 0, Pros: 0 },
-];
 
 export const AdminDashboard: React.FC<AdminDashboardProps> = ({ isOpen, onClose }) => {
   const { theme, isDark, toggleTheme } = useDashboardTheme('admin');
@@ -231,9 +116,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ isOpen, onClose 
   const getToken = () => getSessionToken('admin') || '';
 
   const handleLogout = () => {
-    clearAuthSession('admin');
+    logoutAuthSession('admin');
     onClose();
-    window.location.replace('/');
   };
 
   useEffect(() => {
@@ -338,6 +222,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ isOpen, onClose 
       return;
     }
     const firstServiceId = String(availableCardServices[0].id_service);
+    const nextSortOrder = Math.max(0, ...serviceCards.map((card) => Number(card.sort_order) || 0)) + 1;
     setEditingCard(null);
     setServiceCardForm({
       id_service: firstServiceId,
@@ -346,7 +231,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ isOpen, onClose 
       headline: '',
       summary: '',
       cta_label: 'Learn More',
-      sort_order: String(serviceCards.length + 1),
+      sort_order: String(nextSortOrder),
       is_active: true,
     });
     setShowCardForm(true);
@@ -392,6 +277,15 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ isOpen, onClose 
       return;
     }
 
+    const sortOrder = Number(serviceCardForm.sort_order) || 1;
+    const hasSortConflict = serviceCards.some(
+      (card) => card.id_card !== editingCard?.id_card && Number(card.sort_order) === sortOrder
+    );
+    if (hasSortConflict) {
+      notyf.error('That display order is already used by another card.');
+      return;
+    }
+
     const payload = {
       id_service: idService,
       image_url: serviceCardForm.image_url.trim() || null,
@@ -399,7 +293,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ isOpen, onClose 
       headline: serviceCardForm.headline.trim() || null,
       summary: serviceCardForm.summary.trim() || null,
       cta_label: serviceCardForm.cta_label.trim() || 'Learn More',
-      sort_order: Number(serviceCardForm.sort_order) || 1,
+      sort_order: sortOrder,
       is_active: serviceCardForm.is_active,
     };
 
@@ -673,6 +567,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ isOpen, onClose 
   useEffect(() => {
     if (activeTab !== 'Overview') return;
     const id = window.setInterval(() => {
+      if (typeof document !== 'undefined' && document.visibilityState !== 'visible') {
+        return;
+      }
       fetchStats(statsServiceId);
     }, 30_000);
     return () => window.clearInterval(id);
@@ -2772,7 +2669,7 @@ const renderRequestsHistoryTab = () => {
     </div>
   );
 
-  // ─── TAB CONTENT ROUTER ───────────────────────────────────────────────
+  // Tab content router
   const renderTabContent = () => {
     switch (activeTab) {
       case 'Services': return renderServicesTab();

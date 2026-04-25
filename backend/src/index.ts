@@ -1,7 +1,6 @@
 import express, { Request, Response } from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
-import path from 'path';
 import helmet from 'helmet';
 import authRoutes from './routes/auth.routes';
 import workerRoutes from './routes/worker.routes';
@@ -10,19 +9,27 @@ import servicesRoutes from './routes/services.routes';
 import aiChatRoutes from './routes/aiChat.routes';
 import notificationsRoutes from './routes/notifications.routes';
 import eventsRoute from './routes/events.route';
+import uploadsRoutes from './routes/uploads.routes';
 import { globalLimiter } from './middlewares/security.middleware';
+import { isUsingGeneratedDevelopmentJwtSecret } from './config/security';
+import {
+  publicUploadsDir,
+  resolvePublicUploadPath,
+  isImageFileName,
+} from './utils/assets';
 
 dotenv.config();
 
-if (!process.env.JWT_SECRET) {
-  if (process.env.NODE_ENV === 'production') {
-    console.error('❌ FATAL: JWT_SECRET is not set. Refusing to start in production.');
-    process.exit(1);
-  }
-  console.warn('⚠️  WARNING: JWT_SECRET not set — using insecure default. Never use this in production.');
-}
-
 const isProduction = process.env.NODE_ENV === 'production';
+
+try {
+  if (isUsingGeneratedDevelopmentJwtSecret()) {
+    console.warn('WARNING: JWT_SECRET is not set. Generated an ephemeral development/test-only secret for this process.');
+  }
+} catch (error: any) {
+  console.error(error?.message || 'JWT configuration error.');
+  process.exit(1);
+}
 
 const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS ?? '')
   .split(',')
@@ -36,7 +43,6 @@ const corsOptions = isProduction && ALLOWED_ORIGINS.length > 0
 const app = express();
 app.set('trust proxy', 1);
 const PORT = process.env.PORT || 8000;
-const uploadsDir = path.resolve(process.cwd(), 'uploads');
 
 app.use(cors(corsOptions));
 app.use(
@@ -48,7 +54,34 @@ app.use(globalLimiter);
 app.use(express.json({ limit: '1mb' }));
 app.use(express.urlencoded({ extended: true, limit: '1mb' }));
 
-app.use('/uploads', express.static(uploadsDir));
+app.use(
+  '/uploads/public',
+  express.static(publicUploadsDir, {
+    setHeaders: (res, filePath) => {
+      res.setHeader('X-Content-Type-Options', 'nosniff');
+      res.setHeader('Content-Disposition', 'inline');
+      res.setHeader('Cache-Control', 'public, max-age=86400');
+    },
+  })
+);
+app.get('/uploads/:fileName', (req: Request, res: Response) => {
+  const fileName = String(req.params.fileName || '');
+  if (!isImageFileName(fileName)) {
+    res.status(404).json({ error: 'Not found' });
+    return;
+  }
+
+  const filePath = resolvePublicUploadPath(fileName);
+  if (!filePath) {
+    res.status(404).json({ error: 'Not found' });
+    return;
+  }
+
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('Content-Disposition', 'inline');
+  res.setHeader('Cache-Control', 'public, max-age=86400');
+  res.sendFile(filePath);
+});
 
 app.use('/api/auth', authRoutes);
 app.use('/api/worker', workerRoutes);
@@ -57,12 +90,13 @@ app.use('/api/services', servicesRoutes);
 app.use('/api', aiChatRoutes);
 app.use('/api/notifications', notificationsRoutes);
 app.use('/api/events', eventsRoute);
+app.use('/api/uploads', uploadsRoutes);
 
 
 app.get('/api/health', (req: Request, res: Response) => {
   res.json({
     success: true,
-    message: '¡El backend de Node.js + Express + TypeScript está funcionando perfectamente en Docker!',
+    message: 'El backend de Node.js + Express + TypeScript esta funcionando correctamente en Docker.',
   });
 });
 
@@ -75,7 +109,7 @@ app.use((err: any, req: Request, res: Response, next: any) => {
   
   if (err.code === 'LIMIT_FILE_SIZE') {
     return res.status(400).json({ 
-      error: 'El archivo es demasiado grande. El límite es de 10MB.' 
+      error: 'El archivo es demasiado grande. El limite es de 10MB.'
     });
   }
 
