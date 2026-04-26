@@ -256,12 +256,20 @@ const fetchNominatimLocations = async (
       q: variant,
     });
 
-    const response = await fetch(`https://nominatim.openstreetmap.org/search?${params.toString()}`, {
-      headers: {
-        'User-Agent': 'Fixlife/1.0 (backend geocoder)',
-        'Accept-Language': 'es-SV,es,en',
-      },
-    });
+    const nominatimAbort = new AbortController();
+    const nominatimTimeout = setTimeout(() => nominatimAbort.abort(), 8000);
+    let response: Response;
+    try {
+      response = await fetch(`https://nominatim.openstreetmap.org/search?${params.toString()}`, {
+        headers: {
+          'User-Agent': 'Fixlife/1.0 (backend geocoder)',
+          'Accept-Language': 'es-SV,es,en',
+        },
+        signal: nominatimAbort.signal,
+      });
+    } finally {
+      clearTimeout(nominatimTimeout);
+    }
 
     if (!response.ok) {
       continue;
@@ -479,12 +487,20 @@ export const reverseGeocodeLocation = async (lat: number, lng: number) => {
         addressdetails: '1',
       });
 
-      const response = await fetch(`https://nominatim.openstreetmap.org/reverse?${params.toString()}`, {
-        headers: {
-          'User-Agent': 'Fixlife/1.0 (backend geocoder)',
-          'Accept-Language': 'es-SV,es,en',
-        },
-      });
+      const reverseAbort = new AbortController();
+      const reverseTimeout = setTimeout(() => reverseAbort.abort(), 8000);
+      let response: Response;
+      try {
+        response = await fetch(`https://nominatim.openstreetmap.org/reverse?${params.toString()}`, {
+          headers: {
+            'User-Agent': 'Fixlife/1.0 (backend geocoder)',
+            'Accept-Language': 'es-SV,es,en',
+          },
+          signal: reverseAbort.signal,
+        });
+      } finally {
+        clearTimeout(reverseTimeout);
+      }
 
       if (!response.ok) {
         return null;

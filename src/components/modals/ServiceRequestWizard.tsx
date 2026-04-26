@@ -1256,27 +1256,6 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
         setStep(1);
     }, [data.category, initialServiceId, initialServiceName, isOpen, services]);
 
-    useEffect(() => {
-        if (!isOpen) return;
-        if (!isAuthenticated() || !getToken()) return;
-
-        void (async () => {
-            const backendCount = await fetchSavedLocationsFromBackend(true);
-            if (backendCount == null) return;
-
-            const cached = readSavedLocations();
-            const cachedCount =
-                (cached.home ? 1 : 0) +
-                (cached.work ? 1 : 0) +
-                (cached.favorites?.length || 0) +
-                (cached.recent?.length || 0);
-
-            if (backendCount === 0 && cachedCount > 0) {
-                await syncLocalSavedLocationsToBackend();
-            }
-        })();
-    }, [isOpen]);
-
     const selectedServiceTitle = useMemo(() => {
         if (!data.category) return null;
         const found = services.find((svc) => svc.name === data.category);

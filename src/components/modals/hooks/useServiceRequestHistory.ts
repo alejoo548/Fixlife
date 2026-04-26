@@ -47,7 +47,8 @@ export const useServiceRequestHistory = <TRequest,>(isOpen: boolean) => {
   useEffect(() => {
     if (!isOpen) return;
     void fetchMyRequests(historyStatus);
-  }, [fetchMyRequests, historyStatus, isOpen]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [historyStatus, isOpen]);
 
   return {
     fetchMyRequests,
