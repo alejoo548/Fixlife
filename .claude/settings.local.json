@@ -1,19 +1,15 @@
 {
   "permissions": {
     "allow": [
-      "Bash(git pull *)",
-      "Bash(git add *)",
-      "Bash(git commit -m ' *)",
-      "Bash(git push *)",
-      "Bash(python -c \"import sys,json; d=json.load\\(sys.stdin\\); [print\\(k,':',v\\) for k,v in d.get\\('scripts',{}\\).items\\(\\)]\")",
-      "mcp__Claude_Preview__preview_start",
-      "Bash(netstat -ano)",
-      "Bash(tasklist /FI \"PID eq 17012\" /FI \"PID eq 16924\")",
-      "Bash(tasklist)",
-      "Bash(docker compose *)",
-      "WebFetch(domain:strapi.io)",
       "Bash(npx tsc *)",
-      "Bash(xargs grep *)"
+      "Bash(git merge *)",
+      "Bash(git add *)",
+      "Bash(git stash *)",
+      "mcp__Claude_Preview__preview_start",
+      "mcp__Claude_in_Chrome__tabs_context_mcp",
+      "Bash(npx vite *)",
+      "Bash(npm install *)",
+      "Bash(git ls-tree *)"
     ]
   }
 }

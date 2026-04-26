@@ -87,7 +87,7 @@ const localServiceImageByName: Record<string, string> = {
 const getLocalServiceImage = (serviceName?: string | null) => {
   const normalized = (serviceName || '').toLowerCase();
   const match = Object.entries(localServiceImageByName).find(([key]) => normalized.includes(key));
-  return match?.[1] || '/service-home.svg';
+  return match?.[1] || '/landing-home-repair.jpg';
 };
 
 const normalizeServiceCardImage = (card: HomeServiceCard): HomeServiceCard => {
@@ -690,7 +690,10 @@ const App: React.FC = () => {
                           src={item.image_url || fallbackCards[0].image_url || ''}
                           alt={item.headline}
                           onError={(e) => {
-                            e.currentTarget.src = getLocalServiceImage(item.service_name);
+                            const fallback = getLocalServiceImage(item.service_name);
+                            if (!e.currentTarget.src.endsWith(fallback)) {
+                              e.currentTarget.src = fallback;
+                            }
                           }}
                           className="w-full h-full object-cover grayscale-[30%] group-hover:grayscale-0 transition-all duration-700"
                         />
