@@ -25,6 +25,7 @@ export interface ServiceRequestData {
   description: string;
   location: string;
   price: string;
+  urgency_level: 'standard' | 'urgent' | 'emergency';
   images: string[];
 }
 

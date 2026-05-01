@@ -90,6 +90,7 @@ export const useServiceRequestSubmit = ({
       form.append('location', data.location.trim());
       form.append('budget', String(budgetValue));
       form.append('radius_km', String(radiusKm));
+      form.append('urgency_level', String(data.urgency_level || 'standard'));
       form.append('lat', String(resolvedCoords.lat));
       form.append('lng', String(resolvedCoords.lng));
       problemFiles.forEach((file) => form.append('problem_images', file));
@@ -115,7 +116,7 @@ export const useServiceRequestSubmit = ({
       setProblemFiles([]);
       setCurrentCoords(null);
       setGeoError(null);
-      setData((prev) => ({ ...prev, description: '', location: '', price: '', images: [] }));
+      setData((prev) => ({ ...prev, description: '', location: '', price: '', urgency_level: 'standard', images: [] }));
       void fetchMyRequests(historyStatus);
     } catch {
       showToast('error', 'Network error creating request.');

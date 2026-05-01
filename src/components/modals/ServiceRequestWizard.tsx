@@ -137,6 +137,7 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
         description: '',
         location: '',
         price: '',
+        urgency_level: 'standard',
         images: []
     });
     const [isSearching, setIsSearching] = useState(false);
@@ -1918,6 +1919,7 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                     <ServiceRequestProblemSection
                                         description={data.description}
                                         price={data.price}
+                                        urgencyLevel={data.urgency_level}
                                         problemFilesCount={problemFiles.length}
                                         problemPreviewUrls={problemPreviewUrls}
                                         nearbyWorkers={nearbyWorkers}
@@ -1926,6 +1928,7 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                         isSubmittingRequest={isSubmittingRequest}
                                         isAuthenticated={isAuthenticated()}
                                         onDescriptionChange={(value) => setData({ ...data, description: value })}
+                                        onUrgencyChange={(value) => setData({ ...data, urgency_level: value })}
                                         onPriceChange={(nextValue) => {
                                             if (nextValue === '') {
                                                 setData({ ...data, price: '' });

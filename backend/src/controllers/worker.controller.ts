@@ -17,6 +17,7 @@ import {
 import { createUserNotification } from '../utils/notifications';
 import { buildProtectedAssetUrl, buildPublicAssetUrl, deleteUploadIfExists } from '../utils/assets';
 import { shouldRunRuntimeSchemaSync } from '../config/schemaSync';
+import { getWorkerPayouts } from '../services/paymentLedger.service';
 
 const servicesController = require(path.join(__dirname, './services.controller'));
 const {
@@ -299,6 +300,7 @@ export const getWorkerRewardsDashboard = async (req: AuthRequest, res: Response)
     );
 
     const bonusPayoutRows = await getWorkerBonusPayouts(profileId);
+    const workerPayoutRows = await getWorkerPayouts(profileId);
 
     await Promise.all(
       bonusPayoutRows
@@ -347,44 +349,90 @@ export const getWorkerRewardsDashboard = async (req: AuthRequest, res: Response)
       (sum, row) => sum + Number(row.worker_payout || 0),
       0
     );
-    const pendingWorkerPayout = Number(pendingWorkerPayoutRows[0]?.total || 0);
-    const releasedWorkerPayout = Number(releasedWorkerPayoutRows[0]?.total || 0);
+    const pendingReleaseWorkerPayout = Number(pendingWorkerPayoutRows[0]?.total || 0);
+    const releasedToPayoutWorkerAmount = Number(releasedWorkerPayoutRows[0]?.total || 0);
+    const scheduledBaseWorkerPayout = workerPayoutRows
+      .filter((row: any) => String(row.payout_status || '').toLowerCase() === 'scheduled')
+      .reduce((sum: number, row: any) => sum + Number(row.net_amount || 0), 0);
+    const paidBaseWorkerPayout = workerPayoutRows
+      .filter((row: any) => String(row.payout_status || '').toLowerCase() === 'paid')
+      .reduce((sum: number, row: any) => sum + Number(row.net_amount || 0), 0);
+    const scheduledBonusPayout = bonusPayoutRows
+      .filter((row: any) => String(row.payout_status || '').toLowerCase() === 'scheduled')
+      .reduce((sum: number, row: any) => sum + Number(row.bonus_amount || 0), 0);
+    const paidBonusPayout = bonusPayoutRows
+      .filter((row: any) => String(row.payout_status || '').toLowerCase() === 'paid')
+      .reduce((sum: number, row: any) => sum + Number(row.bonus_amount || 0), 0);
 
     const groupedCalendar = new Map<
       string,
       {
         date: string;
         label: string;
-        type: 'commission' | 'royalty' | 'combined';
+        type: 'worker_payout' | 'commission' | 'royalty' | 'combined';
         amount: number;
         jobs_count: number;
       }
     >();
 
+    const upsertCalendarItem = (
+      key: string,
+      type: 'worker_payout' | 'commission' | 'royalty',
+      amount: number,
+      jobsCount: number
+    ) => {
+      const baseLabel =
+        type === 'worker_payout'
+          ? 'Base worker payout'
+          : type === 'royalty'
+            ? 'Royalty payout'
+            : 'Commission payout';
+      const existing = groupedCalendar.get(key);
+
+      if (existing) {
+        existing.amount = Number((existing.amount + amount).toFixed(2));
+        existing.jobs_count += jobsCount;
+        if (existing.type !== type) {
+          existing.type = 'combined';
+          existing.label = 'Mixed payout batch';
+        } else {
+          existing.label = baseLabel;
+        }
+        return;
+      }
+
+      groupedCalendar.set(key, {
+        date: key,
+        label: baseLabel,
+        type,
+        amount: Number(amount.toFixed(2)),
+        jobs_count: jobsCount,
+      });
+    };
+
+    workerPayoutRows.forEach((row: any) => {
+      if (String(row.payout_status || '').toLowerCase() === 'cancelled') return;
+      const key = row.scheduled_for ? new Date(row.scheduled_for).toISOString().slice(0, 10) : null;
+      if (!key) return;
+      upsertCalendarItem(
+        key,
+        'worker_payout',
+        Number(row.net_amount || 0),
+        row.id_request != null ? 1 : 0
+      );
+    });
+
     bonusPayoutRows.forEach((row: any) => {
       if (String(row.payout_status || '').toLowerCase() === 'cancelled') return;
       const key = row.scheduled_for ? new Date(row.scheduled_for).toISOString().slice(0, 10) : null;
       if (!key) return;
-      const type = String(row.bonus_type || 'commission').toLowerCase() as 'commission' | 'royalty';
-      const existing = groupedCalendar.get(key);
-      if (existing) {
-        existing.amount = Number((existing.amount + Number(row.bonus_amount || 0)).toFixed(2));
-        existing.jobs_count += type === 'commission' && row.source_request_id ? 1 : 0;
-        existing.type = existing.type === type ? type : 'combined';
-        existing.label = existing.type === 'combined'
-          ? 'Commission + royalty payout'
-          : type === 'royalty'
-            ? 'Royalty payout'
-            : 'Commission payout';
-      } else {
-        groupedCalendar.set(key, {
-          date: key,
-          label: type === 'royalty' ? 'Royalty payout' : 'Commission payout',
-          type,
-          amount: Number(row.bonus_amount || 0),
-          jobs_count: type === 'commission' && row.source_request_id ? 1 : 0,
-        });
-      }
+      const type = String(row.bonus_type || 'commission').toLowerCase() === 'royalty' ? 'royalty' : 'commission';
+      upsertCalendarItem(
+        key,
+        type,
+        Number(row.bonus_amount || 0),
+        type === 'commission' && row.source_request_id ? 1 : 0
+      );
     });
 
     const currentMonthCommission = cycleBonusItems
@@ -395,27 +443,48 @@ export const getWorkerRewardsDashboard = async (req: AuthRequest, res: Response)
       .reduce((sum, row) => sum + Number(row.bonus_amount || 0), 0);
 
     const upcomingCalendar = [...groupedCalendar.values()].sort((left, right) => left.date.localeCompare(right.date));
-    const nextScheduledRows = bonusPayoutRows
-      .filter((row) => String(row.payout_status || '').toLowerCase() === 'scheduled')
-      .sort((left, right) => String(left.scheduled_for || '').localeCompare(String(right.scheduled_for || '')));
+    const nextScheduledCalendar = upcomingCalendar.filter((item) => {
+      const matchingWorkerPayout = workerPayoutRows.some((row: any) => {
+        const rowDate = row.scheduled_for ? new Date(row.scheduled_for).toISOString().slice(0, 10) : null;
+        return rowDate === item.date && String(row.payout_status || '').toLowerCase() === 'scheduled';
+      });
+      const matchingBonusPayout = bonusPayoutRows.some((row: any) => {
+        const rowDate = row.scheduled_for ? new Date(row.scheduled_for).toISOString().slice(0, 10) : null;
+        return rowDate === item.date && String(row.payout_status || '').toLowerCase() === 'scheduled';
+      });
+      return matchingWorkerPayout || matchingBonusPayout;
+    });
 
     let nextPayout: { date: string | null; amount: number; label: string | null } | null = null;
-    if (nextScheduledRows.length > 0) {
-      const nextDateKey = nextScheduledRows[0].scheduled_for
-        ? new Date(nextScheduledRows[0].scheduled_for).toISOString().slice(0, 10)
-        : null;
-      const sameDateRows = nextScheduledRows.filter((row) => {
+    if (nextScheduledCalendar.length > 0) {
+      const nextItem = nextScheduledCalendar[0];
+      const nextDateKey = nextItem.date;
+      const sameDateWorkerPayouts = workerPayoutRows.filter((row: any) => {
         const rowKey = row.scheduled_for ? new Date(row.scheduled_for).toISOString().slice(0, 10) : null;
-        return rowKey === nextDateKey;
+        return rowKey === nextDateKey && String(row.payout_status || '').toLowerCase() === 'scheduled';
       });
-      const hasCommission = sameDateRows.some((row) => String(row.bonus_type || '').toLowerCase() === 'commission');
-      const hasRoyalty = sameDateRows.some((row) => String(row.bonus_type || '').toLowerCase() === 'royalty');
+      const sameDateBonusRows = bonusPayoutRows.filter((row: any) => {
+        const rowKey = row.scheduled_for ? new Date(row.scheduled_for).toISOString().slice(0, 10) : null;
+        return rowKey === nextDateKey && String(row.payout_status || '').toLowerCase() === 'scheduled';
+      });
+      const hasWorkerPayout = sameDateWorkerPayouts.length > 0;
+      const hasCommission = sameDateBonusRows.some((row) => String(row.bonus_type || '').toLowerCase() === 'commission');
+      const hasRoyalty = sameDateBonusRows.some((row) => String(row.bonus_type || '').toLowerCase() === 'royalty');
       nextPayout = {
         date: nextDateKey,
-        amount: Number(sameDateRows.reduce((sum, row) => sum + Number(row.bonus_amount || 0), 0).toFixed(2)),
-        label: hasCommission && hasRoyalty
-          ? 'Commission + royalty payout'
-          : hasRoyalty
+        amount: Number(
+          (
+            sameDateWorkerPayouts.reduce((sum: number, row: any) => sum + Number(row.net_amount || 0), 0) +
+            sameDateBonusRows.reduce((sum: number, row: any) => sum + Number(row.bonus_amount || 0), 0)
+          ).toFixed(2)
+        ),
+        label: hasWorkerPayout && (hasCommission || hasRoyalty)
+          ? 'Mixed payout batch'
+          : hasWorkerPayout
+            ? 'Base worker payout'
+            : hasCommission && hasRoyalty
+              ? 'Mixed payout batch'
+              : hasRoyalty
             ? 'Royalty payout'
             : 'Commission payout',
       };
@@ -424,6 +493,10 @@ export const getWorkerRewardsDashboard = async (req: AuthRequest, res: Response)
     const history = historyRows.map((row) => {
       const completedAt = row.completed_at ? new Date(row.completed_at) : now;
       const workerPayout = Number(row.worker_payout || 0);
+      const basePayout = workerPayoutRows.find(
+        (payout: any) =>
+          payout.id_request != null && Number(payout.id_request) === Number(row.id_request)
+      );
       const commissionPayout = bonusPayoutRows.find(
         (payout: any) =>
           String(payout.bonus_type || '').toLowerCase() === 'commission' &&
@@ -431,8 +504,12 @@ export const getWorkerRewardsDashboard = async (req: AuthRequest, res: Response)
           Number(payout.source_request_id) === Number(row.id_request)
       );
       const commissionBonus = commissionPayout ? Number(commissionPayout.bonus_amount || 0) : 0;
-      const payoutDate = commissionPayout?.scheduled_for
-        ? new Date(commissionPayout.scheduled_for)
+      const payoutDates = [
+        basePayout?.scheduled_for ? new Date(basePayout.scheduled_for) : null,
+        commissionPayout?.scheduled_for ? new Date(commissionPayout.scheduled_for) : null,
+      ].filter((value): value is Date => Boolean(value));
+      const payoutDate = payoutDates.length > 0
+        ? payoutDates.sort((left, right) => left.getTime() - right.getTime())[0]
         : getNextPayoutWeekday(completedAt, settings.payout_weekday);
 
       return {
@@ -444,6 +521,8 @@ export const getWorkerRewardsDashboard = async (req: AuthRequest, res: Response)
         completed_at: completedAt.toISOString(),
         worker_payout: workerPayout,
         payment_status: String(row.payment_status || 'pending'),
+        worker_payout_status: basePayout ? String(basePayout.payout_status || 'scheduled') : String(row.payment_status || 'pending'),
+        worker_payout_paid_at: basePayout?.paid_at ? new Date(basePayout.paid_at).toISOString() : null,
         commission_bonus: commissionBonus,
         royalty_bonus: 0,
         total_bonus: commissionBonus,
@@ -476,10 +555,14 @@ export const getWorkerRewardsDashboard = async (req: AuthRequest, res: Response)
         current_cycle_closed_jobs: currentCycleClosedJobs,
         completion_rate: completionRate,
         cycle_gross_earnings: Number(cycleGrossEarnings.toFixed(2)),
-        released_worker_payout: Number(releasedWorkerPayout.toFixed(2)),
-        pending_worker_payout: Number(pendingWorkerPayout.toFixed(2)),
+        released_worker_payout: Number(paidBaseWorkerPayout.toFixed(2)),
+        pending_worker_payout: Number(scheduledBaseWorkerPayout.toFixed(2)),
+        pending_release_worker_payout: Number(pendingReleaseWorkerPayout.toFixed(2)),
+        released_to_payout_amount: Number(releasedToPayoutWorkerAmount.toFixed(2)),
+        scheduled_bonus_payout: Number(scheduledBonusPayout.toFixed(2)),
+        paid_bonus_payout: Number(paidBonusPayout.toFixed(2)),
         current_month_commission: Number(currentMonthCommission.toFixed(2)),
-        royalty_bonus: royaltyBonus,
+        royalty_bonus: Number(royaltyBonus.toFixed(2)),
         total_bonus: Number((currentMonthCommission + royaltyBonus).toFixed(2)),
         next_payout_date: nextPayout?.date || null,
         next_payout_amount: nextPayout?.amount || 0,

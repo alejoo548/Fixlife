@@ -28,6 +28,7 @@ export interface MyServiceRequest {
     id_request: number;
     id_service: number;
     service_name: string;
+    urgency_level?: 'standard' | 'urgent' | 'emergency' | string;
     description: string;
     location_text: string;
     latitude?: number | null;
@@ -54,7 +55,22 @@ export interface MyServiceRequest {
     payment?: {
         provider: string;
         checkout_reference: string | null;
+        currency_code?: string | null;
         amount: number;
+        platform_fee?: number | null;
+        worker_payout?: number | null;
+        commission_rate?: number | null;
+        promo_code?: string | null;
+        commission_snapshot?: {
+            commission_rate?: number | null;
+            policy_label?: string | null;
+            applied_rules?: Array<{
+                id_rule: number;
+                name: string;
+                rule_type: string;
+                rate_percent: number;
+            }>;
+        } | null;
         status: 'pending' | 'paid' | 'released' | 'refunded' | 'failed' | 'cancelled' | string;
         paid_at: string | null;
         released_at: string | null;

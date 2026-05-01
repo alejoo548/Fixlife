@@ -15,6 +15,7 @@ import {
   geocodeLocation,
   getSavedLocations,
   reverseGeocode,
+  handlePaypalWebhook,
   getRequestChat,
   getActiveServices,
   getMyServiceRequests,
@@ -37,6 +38,7 @@ router.get('/geocode', geocodeLocation);
 router.get('/geocode/suggest', suggestLocations);
 router.get('/geocode/reverse', reverseGeocode);
 router.get('/nearby-workers', getNearbyWorkers);
+router.post('/payments/paypal/webhook', handlePaypalWebhook);
 router.get('/saved-locations', verifyToken, getSavedLocations);
 router.post('/saved-locations', verifyToken, createSavedLocation);
 router.patch('/saved-locations/:idSavedLocation', verifyToken, updateSavedLocation);

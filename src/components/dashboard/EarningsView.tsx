@@ -79,9 +79,9 @@ export const EarningsView: React.FC = () => {
   const upcomingPayouts = data!.calendar.items.slice(0, 4);
   const rewardCards = [
     {
-      title: 'Released earnings',
+      title: 'Base payouts paid',
       value: formatMoney(summary.released_worker_payout),
-      detail: 'Money already released from completed jobs.',
+      detail: `${formatMoney(summary.pending_worker_payout)} still scheduled for the next payout cycle.`,
       accent: 'bg-bird-blue/10',
       glow: 'bg-bird-blue/15',
     },
@@ -97,7 +97,7 @@ export const EarningsView: React.FC = () => {
     {
       title: 'Bonuses this cycle',
       value: formatMoney(summary.total_bonus),
-      detail: `Commission ${Math.round(program.commission_rate * 100)}% + royalty ${Math.round(program.royalty_rate * 100)}%.`,
+      detail: `${formatMoney(summary.scheduled_bonus_payout)} in bonuses still scheduled. Commission ${Math.round(program.commission_rate * 100)}% + royalty ${Math.round(program.royalty_rate * 100)}%.`,
       accent: 'bg-emerald-100',
       glow: 'bg-emerald-200/20',
     },
@@ -257,14 +257,14 @@ export const EarningsView: React.FC = () => {
               <h3 className="mt-2 text-xl font-black text-slate-900">What lands next</h3>
             </div>
             <div className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-black text-emerald-700">
-              {formatMoney(summary.pending_worker_payout)} pending worker payout
+              {formatMoney(summary.pending_worker_payout)} scheduled base payout
             </div>
           </div>
 
           <div className="mt-5 space-y-3">
             {upcomingPayouts.length === 0 ? (
               <div className="rounded-3xl border border-dashed border-slate-200 bg-slate-50 px-4 py-6 text-sm font-semibold text-slate-500">
-                No bonus payouts are scheduled yet. Finish more jobs to populate the next Friday batches.
+                No payouts are scheduled yet. Once a client confirms a job, the base payout and any eligible bonus batches will appear here.
               </div>
             ) : (
               upcomingPayouts.map((item) => (
@@ -306,6 +306,9 @@ export const EarningsView: React.FC = () => {
                         </span>
                         <span className={`rounded-full px-3 py-1 text-[11px] font-black uppercase tracking-[0.16em] ${getBonusStatusBadge(item.bonus_status)}`}>
                           {getBonusStatusLabel(item.bonus_status)}
+                        </span>
+                        <span className={`rounded-full px-3 py-1 text-[11px] font-black uppercase tracking-[0.16em] ${getBonusStatusBadge(item.worker_payout_status)}`}>
+                          {`Base ${getBonusStatusLabel(item.worker_payout_status)}`}
                         </span>
                       </div>
                     </div>

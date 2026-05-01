@@ -2,6 +2,7 @@ import { ResultSetHeader, RowDataPacket } from 'mysql2';
 import pool from '../config/db';
 import { pushToUser } from '../services/sseManager';
 import { shouldRunRuntimeSchemaSync } from '../config/schemaSync';
+import { isDatabaseSchemaReady } from '../services/schemaState.service';
 
 export type NotificationTone = 'info' | 'success' | 'warning';
 
@@ -26,6 +27,10 @@ let notificationsTableChecked = false;
 
 export const ensureNotificationsTable = async () => {
   if (notificationsTableChecked) return;
+  if (isDatabaseSchemaReady()) {
+    notificationsTableChecked = true;
+    return;
+  }
   if (!shouldRunRuntimeSchemaSync()) {
     notificationsTableChecked = true;
     return;

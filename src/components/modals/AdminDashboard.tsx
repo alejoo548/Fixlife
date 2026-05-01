@@ -25,21 +25,36 @@ import {
   uploadHeroSlideImage,
 } from '../../utils/heroSlides';
 import { StableResponsiveContainer } from './AdminStableResponsiveContainer';
-import { DEFAULT_REVENUE_DATA, DEFAULT_TRAFFIC_DATA } from './AdminDashboard.constants';
+import {
+  COMMISSION_TIER_OPTIONS,
+  COMMISSION_URGENCY_OPTIONS,
+  DEFAULT_REVENUE_DATA,
+  DEFAULT_TRAFFIC_DATA,
+  toDateInputValue,
+} from './AdminDashboard.constants';
 import type {
   AdminActivityItem,
+  AdminBackgroundJob,
+  AdminCommissionConfig,
   AdminDashboardProps,
+  AdminFinanceCase,
+  AdminFinanceClosureReport,
+  AdminFinanceReport,
+  AdminPaymentLedgerItem,
   AdminRequestHistoryItem,
+  AdminSystemEvent,
   AdminUser,
+  AdminWorkerPayout,
   AdminWorkerRewardsPayout,
   AdminWorkerRewardsSettings,
+  AdminWorkerTierBenefit,
+  AdminWorkerTierHistoryItem,
   PendingWorker,
   Service,
   ServiceCard,
 } from './AdminDashboard.types';
 
 const notyf = new Notyf({ position: { x: 'right', y: 'bottom' }, ripple: true });
-
 export const AdminDashboard: React.FC<AdminDashboardProps> = ({ isOpen, onClose }) => {
   const { theme, isDark, toggleTheme } = useDashboardTheme('admin');
   const [activeTab, setActiveTab] = useState('Overview');
@@ -75,9 +90,15 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ isOpen, onClose 
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [usersLoading, setUsersLoading] = useState(false);
   const [userActionLoading, setUserActionLoading] = useState<number | null>(null);
+  const [tierUpdateBusyId, setTierUpdateBusyId] = useState<number | null>(null);
   const [userSearch, setUserSearch] = useState('');
   const [roleFilter, setRoleFilter] = useState<'all' | 'client' | 'worker' | 'admin' | 'root'>('all');
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive'>('all');
+  const [tierBenefits, setTierBenefits] = useState<AdminWorkerTierBenefit[]>([]);
+  const [tierBenefitsLoading, setTierBenefitsLoading] = useState(false);
+  const [savingTierBenefits, setSavingTierBenefits] = useState(false);
+  const [workerTierHistory, setWorkerTierHistory] = useState<AdminWorkerTierHistoryItem[]>([]);
+  const [workerTierHistoryLoading, setWorkerTierHistoryLoading] = useState(false);
 
   const [dashboardStats, setDashboardStats] = useState<any>(null);
   const [statsServiceId, setStatsServiceId] = useState<'all' | string>('all');
@@ -94,6 +115,22 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ isOpen, onClose 
   const [workerRewardsLoading, setWorkerRewardsLoading] = useState(false);
   const [workerRewardsStatus, setWorkerRewardsStatus] = useState<'all' | 'scheduled' | 'paid' | 'cancelled'>('all');
   const [workerRewardsSettings, setWorkerRewardsSettings] = useState<AdminWorkerRewardsSettings | null>(null);
+  const [commissionConfig, setCommissionConfig] = useState<AdminCommissionConfig | null>(null);
+  const [commissionLoading, setCommissionLoading] = useState(false);
+  const [savingCommissionConfig, setSavingCommissionConfig] = useState(false);
+  const [commissionForm, setCommissionForm] = useState<{
+    global_rate_percent: string;
+    service_overrides: Record<string, string>;
+    urgency_adjustments: Record<string, string>;
+    worker_tier_adjustments: Record<string, string>;
+    promo_codes: Array<{ promo_code: string; rate_percent: string }>;
+  }>({
+    global_rate_percent: '12',
+    service_overrides: {},
+    urgency_adjustments: {},
+    worker_tier_adjustments: {},
+    promo_codes: [],
+  });
   const [workerRewardsSettingsForm, setWorkerRewardsSettingsForm] = useState({
     trial_min_completed_jobs: '3',
     commission_rate_percent: '7',
@@ -103,8 +140,47 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ isOpen, onClose 
   });
   const [workerRewardsSummary, setWorkerRewardsSummary] = useState<any>(null);
   const [workerRewardsPayouts, setWorkerRewardsPayouts] = useState<AdminWorkerRewardsPayout[]>([]);
+  const [workerPayoutsSummary, setWorkerPayoutsSummary] = useState<any>(null);
+  const [workerPayouts, setWorkerPayouts] = useState<AdminWorkerPayout[]>([]);
+  const [workerPayoutsLoading, setWorkerPayoutsLoading] = useState(false);
+  const [paymentLedgerEntries, setPaymentLedgerEntries] = useState<AdminPaymentLedgerItem[]>([]);
+  const [paymentLedgerLoading, setPaymentLedgerLoading] = useState(false);
+  const [financeReport, setFinanceReport] = useState<AdminFinanceReport | null>(null);
+  const [financeReportLoading, setFinanceReportLoading] = useState(false);
+  const [exportingFinanceReport, setExportingFinanceReport] = useState(false);
+  const [financeCases, setFinanceCases] = useState<AdminFinanceCase[]>([]);
+  const [financeCasesLoading, setFinanceCasesLoading] = useState(false);
+  const [creatingFinanceCase, setCreatingFinanceCase] = useState(false);
+  const [resolvingFinanceCaseId, setResolvingFinanceCaseId] = useState<number | null>(null);
+  const [financeClosureReport, setFinanceClosureReport] = useState<AdminFinanceClosureReport | null>(null);
+  const [financeClosureLoading, setFinanceClosureLoading] = useState(false);
+  const [financeClosurePeriod, setFinanceClosurePeriod] = useState<'weekly' | 'monthly'>('weekly');
+  const [systemEvents, setSystemEvents] = useState<AdminSystemEvent[]>([]);
+  const [systemEventsLoading, setSystemEventsLoading] = useState(false);
+  const [backgroundJobs, setBackgroundJobs] = useState<AdminBackgroundJob[]>([]);
+  const [backgroundJobsLoading, setBackgroundJobsLoading] = useState(false);
+  const [financeReportRange, setFinanceReportRange] = useState(() => {
+    const today = new Date();
+    const from = new Date(today);
+    from.setDate(today.getDate() - 29);
+    return {
+      from: toDateInputValue(from),
+      to: toDateInputValue(today),
+    };
+  });
+  const [financeCaseForm, setFinanceCaseForm] = useState({
+    case_type: 'refund',
+    direction: 'customer_refund',
+    id_request: '',
+    id_payment: '',
+    amount: '',
+    currency_code: 'USD',
+    reason: '',
+    notes: '',
+  });
   const [savingWorkerRewardsSettings, setSavingWorkerRewardsSettings] = useState(false);
   const [markingPayoutId, setMarkingPayoutId] = useState<number | null>(null);
+  const [markingWorkerPayoutId, setMarkingWorkerPayoutId] = useState<number | null>(null);
   const [requestHistoryServiceId, setRequestHistoryServiceId] = useState<'all' | string>('all');
   const [adminActivity, setAdminActivity] = useState<AdminActivityItem[]>([]);
   const [adminActivityLoading, setAdminActivityLoading] = useState(false);
@@ -518,6 +594,148 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ isOpen, onClose 
     }
   };
 
+  const fetchWorkerTierBenefits = async () => {
+    setTierBenefitsLoading(true);
+    try {
+      const res = await fetch(API_ENDPOINTS.admin.workerTierBenefits, {
+        headers: { Authorization: `Bearer ${getToken()}` },
+      });
+      const data = await res.json();
+      if (!res.ok || !data?.success) {
+        notyf.error(data?.error || 'Could not load tier benefits.');
+        return;
+      }
+      setTierBenefits(Array.isArray(data.benefits) ? data.benefits : []);
+    } catch {
+      notyf.error('Connection error loading tier benefits.');
+    } finally {
+      setTierBenefitsLoading(false);
+    }
+  };
+
+  const fetchWorkerTierHistory = async () => {
+    setWorkerTierHistoryLoading(true);
+    try {
+      const res = await fetch(`${API_ENDPOINTS.admin.workerTierHistory}?limit=20`, {
+        headers: { Authorization: `Bearer ${getToken()}` },
+      });
+      const data = await res.json();
+      if (!res.ok || !data?.success) {
+        notyf.error(data?.error || 'Could not load tier history.');
+        return;
+      }
+      setWorkerTierHistory(Array.isArray(data.history) ? data.history : []);
+    } catch {
+      notyf.error('Connection error loading tier history.');
+    } finally {
+      setWorkerTierHistoryLoading(false);
+    }
+  };
+
+  const handleWorkerTierBenefitChange = (
+    tier: AdminWorkerTierBenefit['tier'],
+    field: keyof Omit<AdminWorkerTierBenefit, 'tier' | 'updated_at'>,
+    value: string
+  ) => {
+    setTierBenefits((prev) =>
+      prev.map((item) =>
+        item.tier === tier
+          ? {
+              ...item,
+              [field]:
+                field === 'priority_weight' ||
+                field === 'featured_profile_boost' ||
+                field === 'max_active_leads' ||
+                field === 'monthly_fee'
+                  ? Number(value)
+                  : value,
+            }
+          : item
+      )
+    );
+  };
+
+  const handleSaveWorkerTierBenefits = async () => {
+    setSavingTierBenefits(true);
+    try {
+      const payload = {
+        benefits: tierBenefits.map((item) => ({
+          ...item,
+          priority_weight: Number(item.priority_weight || 0),
+          featured_profile_boost: Number(item.featured_profile_boost || 0),
+          max_active_leads: Number(item.max_active_leads || 0),
+          monthly_fee: Number(item.monthly_fee || 0),
+          benefits_summary: item.benefits_summary || '',
+        })),
+      };
+      const res = await fetch(API_ENDPOINTS.admin.workerTierBenefits, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${getToken()}`,
+        },
+        body: JSON.stringify(payload),
+      });
+      const data = await res.json();
+      if (!res.ok || !data?.success) {
+        notyf.error(data?.error || 'Could not save tier benefits.');
+        return;
+      }
+      setTierBenefits(Array.isArray(data.benefits) ? data.benefits : []);
+      notyf.success('Tier benefits updated.');
+    } catch {
+      notyf.error('Connection error saving tier benefits.');
+    } finally {
+      setSavingTierBenefits(false);
+    }
+  };
+
+  const handleUpdateWorkerTier = async (target: AdminUser, nextTier: string) => {
+    if (!target.id_worker_profile) {
+      notyf.error('This user does not have a worker profile.');
+      return;
+    }
+    if ((target.membership_tier || 'standard') === nextTier) return;
+
+    setTierUpdateBusyId(target.id_user);
+    try {
+      const res = await fetch(API_ENDPOINTS.admin.updateWorkerTier(target.id_user), {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${getToken()}`,
+        },
+        body: JSON.stringify({
+          membership_tier: nextTier,
+          reason: 'Updated from admin dashboard',
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data?.success) {
+        notyf.error(data?.error || 'Could not update worker tier.');
+        return;
+      }
+
+      setUsers((prev) =>
+        prev.map((userItem) =>
+          userItem.id_user === target.id_user
+            ? {
+                ...userItem,
+                membership_tier: nextTier,
+                is_verified: ['verified', 'premium', 'elite'].includes(nextTier) ? 1 : userItem.is_verified,
+              }
+            : userItem
+        )
+      );
+      await fetchWorkerTierHistory();
+      notyf.success('Worker tier updated.');
+    } catch {
+      notyf.error('Connection error updating worker tier.');
+    } finally {
+      setTierUpdateBusyId(null);
+    }
+  };
+
   // ─── Stats API ─────────────────────────────────────────────────────────
   const fetchStats = async (serviceId: 'all' | string = 'all') => {
     try {
@@ -544,12 +762,25 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ isOpen, onClose 
     if (activeTab === 'Users & Pros') {
       fetchPendingWorkers();
       fetchUsers();
+      fetchWorkerTierBenefits();
+      fetchWorkerTierHistory();
     }
     if (activeTab === 'Requests History') {
       fetchRequestsHistory(requestHistoryStatus, requestHistoryServiceId);
       fetchServices();
     }
-    if (activeTab === 'Finance Analytics') fetchWorkerRewardsAdmin(workerRewardsStatus);
+    if (activeTab === 'Finance Analytics') {
+      fetchWorkerRewardsAdmin(workerRewardsStatus);
+      fetchWorkerPayoutsAdmin(workerRewardsStatus);
+      fetchCommissionRulesAdmin();
+      fetchPaymentLedgerAdmin();
+      fetchFinanceReportAdmin();
+      fetchFinanceCases();
+      fetchFinanceClosureReport();
+      fetchSystemEvents();
+      fetchBackgroundJobs();
+      if (services.length === 0) fetchServices();
+    }
     if (activeTab === 'Admin Activity') {
       fetchAdminActivity(activityActionFilter, activityEntityFilter);
     }
@@ -614,8 +845,15 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ isOpen, onClose 
   useEffect(() => {
     if (activeTab === 'Finance Analytics') {
       fetchWorkerRewardsAdmin(workerRewardsStatus);
+      fetchWorkerPayoutsAdmin(workerRewardsStatus);
     }
   }, [workerRewardsStatus]);
+
+  useEffect(() => {
+    if (activeTab === 'Finance Analytics') {
+      fetchFinanceClosureReport(financeClosurePeriod);
+    }
+  }, [financeClosurePeriod, activeTab]);
 
   const updateSlideField = (
     index: number,
@@ -1520,6 +1758,76 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ isOpen, onClose 
   // ─── RENDER: Users & Pros (Pending Workers) Tab ────────────────────────
   const renderUsersTab = () => (
     <div className="space-y-10">
+      <div className="space-y-5">
+        <div className="flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
+          <div>
+            <h2 className="text-2xl font-black text-gray-900">Worker tiers and benefits</h2>
+            <p className="text-sm text-gray-500 font-medium">
+              Control visibility, lead caps, support level and monthly fee for each worker tier.
+            </p>
+          </div>
+          <button
+            onClick={handleSaveWorkerTierBenefits}
+            disabled={savingTierBenefits || tierBenefitsLoading || tierBenefits.length === 0}
+            className="px-5 py-3 rounded-2xl bg-gradient-to-r from-bird-blue to-bird-darkBlue text-white text-sm font-black shadow-lg shadow-bird-blue/20 disabled:opacity-60"
+          >
+            {savingTierBenefits ? 'Saving...' : 'Save tier benefits'}
+          </button>
+        </div>
+
+        {tierBenefitsLoading ? (
+          <div className="rounded-2xl border border-gray-200 bg-white p-10 text-sm font-semibold text-gray-500">
+            Loading tier benefits...
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+            {tierBenefits.map((benefit) => (
+              <div key={benefit.tier} className="rounded-3xl border border-gray-200 bg-white p-5 shadow-sm">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <h3 className="text-lg font-black text-gray-900">{benefit.badge_label || benefit.tier}</h3>
+                    <p className="text-xs font-black uppercase tracking-[0.18em] text-bird-blue">{benefit.tier}</p>
+                  </div>
+                  <span className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-[11px] font-black uppercase tracking-[0.16em] text-emerald-700">
+                    ${Number(benefit.monthly_fee || 0).toFixed(2)}/mo
+                  </span>
+                </div>
+                <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2">
+                  <label className="space-y-1">
+                    <span className="text-[11px] font-black uppercase tracking-[0.16em] text-gray-500">Badge</span>
+                    <input value={benefit.badge_label} onChange={(e) => handleWorkerTierBenefitChange(benefit.tier, 'badge_label', e.target.value)} className="w-full rounded-2xl border border-gray-200 bg-white px-3 py-2 text-sm font-semibold text-gray-900" />
+                  </label>
+                  <label className="space-y-1">
+                    <span className="text-[11px] font-black uppercase tracking-[0.16em] text-gray-500">Support</span>
+                    <input value={benefit.support_level} onChange={(e) => handleWorkerTierBenefitChange(benefit.tier, 'support_level', e.target.value)} className="w-full rounded-2xl border border-gray-200 bg-white px-3 py-2 text-sm font-semibold text-gray-900" />
+                  </label>
+                  <label className="space-y-1">
+                    <span className="text-[11px] font-black uppercase tracking-[0.16em] text-gray-500">Priority</span>
+                    <input type="number" min={1} max={20} value={benefit.priority_weight} onChange={(e) => handleWorkerTierBenefitChange(benefit.tier, 'priority_weight', e.target.value)} className="w-full rounded-2xl border border-gray-200 bg-white px-3 py-2 text-sm font-semibold text-gray-900" />
+                  </label>
+                  <label className="space-y-1">
+                    <span className="text-[11px] font-black uppercase tracking-[0.16em] text-gray-500">Boost</span>
+                    <input type="number" min={1} max={10} step="0.05" value={benefit.featured_profile_boost} onChange={(e) => handleWorkerTierBenefitChange(benefit.tier, 'featured_profile_boost', e.target.value)} className="w-full rounded-2xl border border-gray-200 bg-white px-3 py-2 text-sm font-semibold text-gray-900" />
+                  </label>
+                  <label className="space-y-1">
+                    <span className="text-[11px] font-black uppercase tracking-[0.16em] text-gray-500">Max active leads</span>
+                    <input type="number" min={1} max={500} value={benefit.max_active_leads} onChange={(e) => handleWorkerTierBenefitChange(benefit.tier, 'max_active_leads', e.target.value)} className="w-full rounded-2xl border border-gray-200 bg-white px-3 py-2 text-sm font-semibold text-gray-900" />
+                  </label>
+                  <label className="space-y-1">
+                    <span className="text-[11px] font-black uppercase tracking-[0.16em] text-gray-500">Monthly fee</span>
+                    <input type="number" min={0} max={9999} step="0.01" value={benefit.monthly_fee} onChange={(e) => handleWorkerTierBenefitChange(benefit.tier, 'monthly_fee', e.target.value)} className="w-full rounded-2xl border border-gray-200 bg-white px-3 py-2 text-sm font-semibold text-gray-900" />
+                  </label>
+                  <label className="space-y-1 md:col-span-2">
+                    <span className="text-[11px] font-black uppercase tracking-[0.16em] text-gray-500">Summary</span>
+                    <textarea value={benefit.benefits_summary || ''} onChange={(e) => handleWorkerTierBenefitChange(benefit.tier, 'benefits_summary', e.target.value)} className="min-h-[88px] w-full rounded-2xl border border-gray-200 bg-white px-3 py-2 text-sm font-semibold text-gray-900" />
+                  </label>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
       {/* Users Management */}
       <div className="space-y-4">
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
@@ -1581,6 +1889,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ isOpen, onClose 
                   <tr className="bg-gray-50 text-xs uppercase tracking-wider text-gray-500 font-bold border-b border-gray-100">
                     <th className="px-4 py-3">User</th>
                     <th className="px-4 py-3">Role</th>
+                    <th className="px-4 py-3">Tier</th>
                     <th className="px-4 py-3">Status</th>
                     <th className="px-4 py-3">Created</th>
                     <th className="px-4 py-3">Last Login</th>
@@ -1591,7 +1900,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ isOpen, onClose 
                     const isRoot = account.rol === 'root';
                     const isWorker = account.rol === 'worker';
                     const isActive = account.is_active === true || account.is_active === 1;
-                    const isBusy = userActionLoading === account.id_user;
+                    const isBusy = userActionLoading === account.id_user || tierUpdateBusyId === account.id_user;
                     return (
                       <tr key={account.id_user} className="hover:bg-gray-50/80">
                         <td className="px-4 py-3">
@@ -1614,6 +1923,26 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ isOpen, onClose 
                               <option value="client">Client</option>
                               <option value="admin">Admin</option>
                             </select>
+                          )}
+                        </td>
+                        <td className="px-4 py-3">
+                          {isWorker && account.id_worker_profile ? (
+                            <select
+                              disabled={isBusy}
+                              value={account.membership_tier || 'standard'}
+                              onChange={(e) => handleUpdateWorkerTier(account, e.target.value)}
+                              className="rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs font-bold"
+                            >
+                              {COMMISSION_TIER_OPTIONS.map((option) => (
+                                <option key={option.key} value={option.key}>
+                                  {option.label}
+                                </option>
+                              ))}
+                            </select>
+                          ) : (
+                            <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold bg-gray-100 text-gray-500 border border-gray-200">
+                              n/a
+                            </span>
                           )}
                         </td>
                         <td className="px-4 py-3">
@@ -1648,7 +1977,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ isOpen, onClose 
                 const isRoot = account.rol === 'root';
                 const isWorker = account.rol === 'worker';
                 const isActive = account.is_active === true || account.is_active === 1;
-                const isBusy = userActionLoading === account.id_user;
+                const isBusy = userActionLoading === account.id_user || tierUpdateBusyId === account.id_user;
                 return (
                   <div key={account.id_user} className="bg-white/70 backdrop-blur-xl rounded-2xl border border-white shadow-lg p-5 space-y-4">
                     <div className="flex items-start justify-between">
@@ -1672,6 +2001,25 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ isOpen, onClose 
                       <div>
                         <div className="text-[10px] font-bold uppercase text-gray-400">Last Login</div>
                         <div>{account.last_login ? new Date(account.last_login).toLocaleDateString() : '-'}</div>
+                      </div>
+                      <div className="col-span-2">
+                        <div className="text-[10px] font-bold uppercase text-gray-400">Tier</div>
+                        {isWorker && account.id_worker_profile ? (
+                          <select
+                            disabled={isBusy}
+                            value={account.membership_tier || 'standard'}
+                            onChange={(e) => handleUpdateWorkerTier(account, e.target.value)}
+                            className="mt-1 w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs font-bold"
+                          >
+                            {COMMISSION_TIER_OPTIONS.map((option) => (
+                              <option key={option.key} value={option.key}>
+                                {option.label}
+                              </option>
+                            ))}
+                          </select>
+                        ) : (
+                          <div className="mt-1 text-xs font-semibold text-gray-500">n/a</div>
+                        )}
                       </div>
                     </div>
 
@@ -1708,6 +2056,45 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ isOpen, onClose 
               })}
             </div>
           </>
+        )}
+      </div>
+
+      <div className="space-y-4">
+        <div>
+          <h2 className="text-2xl font-black text-gray-900">Recent tier history</h2>
+          <p className="text-sm text-gray-500 font-medium">Audit trail for worker tier changes.</p>
+        </div>
+
+        {workerTierHistoryLoading ? (
+          <div className="rounded-2xl border border-gray-200 bg-white p-10 text-sm font-semibold text-gray-500">
+            Loading tier history...
+          </div>
+        ) : workerTierHistory.length === 0 ? (
+          <div className="rounded-2xl border border-gray-200 bg-white p-10 text-sm font-semibold text-gray-500">
+            No tier changes yet.
+          </div>
+        ) : (
+          <div className="rounded-3xl border border-gray-200 bg-white p-4 shadow-sm">
+            <div className="space-y-3">
+              {workerTierHistory.map((item) => (
+                <div key={item.id_history} className="rounded-2xl border border-gray-200 bg-slate-50/60 p-4">
+                  <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+                    <div>
+                      <p className="font-black text-gray-900">{item.worker_name}</p>
+                      <p className="text-sm text-gray-500">
+                        {item.previous_tier ? `${item.previous_tier} -> ${item.next_tier}` : `Set to ${item.next_tier}`}
+                      </p>
+                      {item.reason && <p className="mt-1 text-xs text-gray-500">{item.reason}</p>}
+                    </div>
+                    <div className="text-sm text-gray-500">
+                      <div>{item.changed_by_name || 'System'}</div>
+                      <div>{new Date(item.created_at).toLocaleString()}</div>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
         )}
       </div>
 
@@ -2382,6 +2769,758 @@ const renderRequestsHistoryTab = () => {
   // ─── RENDER: Platform Settings Tab ───────────────────────────────────────
   const renderFinanceAnalyticsTab = () => (
     <div className="max-w-[1600px] mx-auto space-y-6 pb-10">
+      <div className="bg-white/80 border border-gray-200 rounded-3xl p-6 md:p-8 shadow-lg">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+          <div>
+            <h2 className="text-2xl font-black text-gray-900">Commission engine</h2>
+            <p className="mt-1 text-gray-600">
+              Define the default platform fee and add service-specific overrides without redeploying the app.
+            </p>
+          </div>
+          <div className="rounded-full border border-emerald-200 bg-emerald-50 px-4 py-2 text-xs font-black uppercase tracking-[0.18em] text-emerald-700">
+            Payment policy
+          </div>
+        </div>
+
+        {commissionLoading ? (
+          <div className="mt-6 rounded-3xl border border-dashed border-gray-200 bg-gray-50/70 px-4 py-10 text-center text-sm font-semibold text-gray-500">
+            Loading commission policy...
+          </div>
+        ) : (
+          <>
+            <div className="mt-6 grid grid-cols-1 gap-4 xl:grid-cols-[0.42fr_0.58fr]">
+              <label className="space-y-2">
+                <span className="text-xs font-black uppercase tracking-[0.18em] text-gray-500">Default platform fee %</span>
+                <input
+                  type="number"
+                  min={0}
+                  max={50}
+                  step="0.1"
+                  value={commissionForm.global_rate_percent}
+                  onChange={(e) =>
+                    setCommissionForm((prev) => ({
+                      ...prev,
+                      global_rate_percent: e.target.value,
+                    }))
+                  }
+                  className="w-full rounded-2xl border border-gray-200 bg-white px-4 py-3 font-semibold text-gray-900 outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10"
+                />
+              </label>
+
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
+                <div className="rounded-2xl border border-gray-200 bg-gradient-to-br from-emerald-50 to-white p-5">
+                  <p className="text-xs font-black uppercase tracking-[0.18em] text-emerald-700">Live default</p>
+                  <p className="mt-3 text-3xl font-black text-gray-900">
+                    {Number(
+                      commissionConfig?.summary?.effective_default_rate_percent ??
+                        commissionForm.global_rate_percent ??
+                        0
+                    ).toFixed(1)}%
+                  </p>
+                  <p className="mt-2 text-sm text-gray-500">Applied when a service does not have its own override.</p>
+                </div>
+                <div className="rounded-2xl border border-gray-200 bg-white p-5">
+                  <p className="text-xs font-black uppercase tracking-[0.18em] text-gray-400">Active service overrides</p>
+                  <p className="mt-3 text-3xl font-black text-gray-900">{commissionConfig?.summary?.service_override_count || 0}</p>
+                  <p className="mt-2 text-sm text-gray-500">Each override replaces the default fee for that service.</p>
+                </div>
+                <div className="rounded-2xl border border-gray-200 bg-white p-5">
+                  <p className="text-xs font-black uppercase tracking-[0.18em] text-gray-400">Urgency rules</p>
+                  <p className="mt-3 text-3xl font-black text-gray-900">{commissionConfig?.summary?.urgency_rule_count || 0}</p>
+                  <p className="mt-2 text-sm text-gray-500">These add a rush premium on urgent or emergency jobs.</p>
+                </div>
+                <div className="rounded-2xl border border-gray-200 bg-white p-5">
+                  <p className="text-xs font-black uppercase tracking-[0.18em] text-gray-400">Tier + promo rules</p>
+                  <p className="mt-3 text-3xl font-black text-gray-900">
+                    {(commissionConfig?.summary?.worker_tier_rule_count || 0) + (commissionConfig?.summary?.promo_rule_count || 0)}
+                  </p>
+                  <p className="mt-2 text-sm text-gray-500">Discount the platform fee for verified pros and active promo codes.</p>
+                </div>
+              </div>
+            </div>
+
+            <div className="mt-6">
+              <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+                <div>
+                  <h3 className="text-lg font-black text-gray-900">Service overrides</h3>
+                  <p className="text-sm text-gray-500">Leave a field empty to inherit the global fee.</p>
+                </div>
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-gray-400">
+                  {services.length} services available
+                </p>
+              </div>
+
+              <div className="mt-4 grid grid-cols-1 gap-3 lg:grid-cols-2">
+                {services.map((service) => (
+                  <label
+                    key={service.id_service}
+                    className="flex items-center justify-between gap-4 rounded-2xl border border-gray-200 bg-white px-4 py-3"
+                  >
+                    <div>
+                      <p className="font-black text-gray-900">{service.name}</p>
+                      <p className="text-xs text-gray-500">
+                        {service.description || 'This service currently inherits the platform default fee.'}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="number"
+                        min={0}
+                        max={50}
+                        step="0.1"
+                        placeholder={commissionForm.global_rate_percent}
+                        value={commissionForm.service_overrides[String(service.id_service)] ?? ''}
+                        onChange={(e) =>
+                          setCommissionForm((prev) => {
+                            const nextOverrides = { ...prev.service_overrides };
+                            const nextValue = e.target.value;
+                            if (!nextValue.trim()) {
+                              delete nextOverrides[String(service.id_service)];
+                            } else {
+                              nextOverrides[String(service.id_service)] = nextValue;
+                            }
+                            return { ...prev, service_overrides: nextOverrides };
+                          })
+                        }
+                        className="w-24 rounded-2xl border border-gray-200 bg-gray-50 px-3 py-2 text-right font-black text-gray-900 outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10"
+                      />
+                      <span className="text-xs font-black uppercase tracking-[0.18em] text-gray-400">%</span>
+                    </div>
+                  </label>
+                ))}
+              </div>
+            </div>
+
+            <div className="mt-6 grid grid-cols-1 gap-4 xl:grid-cols-2">
+              <div className="rounded-3xl border border-gray-200 bg-slate-50/80 p-5">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <h3 className="text-lg font-black text-gray-900">Urgency adjustments</h3>
+                    <p className="text-sm text-gray-500">Adds extra platform fee for faster-response requests.</p>
+                  </div>
+                  <span className="rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-[11px] font-black uppercase tracking-[0.16em] text-amber-700">
+                    additive
+                  </span>
+                </div>
+
+                <div className="mt-4 space-y-3">
+                  {COMMISSION_URGENCY_OPTIONS.map((option) => (
+                    <label
+                      key={option.key}
+                      className="flex items-center justify-between gap-4 rounded-2xl border border-gray-200 bg-white px-4 py-3"
+                    >
+                      <div>
+                        <p className="font-black text-gray-900">{option.label}</p>
+                        <p className="text-xs text-gray-500">{option.description}</p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-black uppercase tracking-[0.18em] text-amber-600">+ fee</span>
+                        <input
+                          type="number"
+                          min={0}
+                          max={50}
+                          step="0.1"
+                          placeholder="0"
+                          value={commissionForm.urgency_adjustments[option.key] ?? ''}
+                          onChange={(e) =>
+                            setCommissionForm((prev) => {
+                              const next = { ...prev.urgency_adjustments };
+                              if (!e.target.value.trim()) delete next[option.key];
+                              else next[option.key] = e.target.value;
+                              return { ...prev, urgency_adjustments: next };
+                            })
+                          }
+                          className="w-24 rounded-2xl border border-gray-200 bg-gray-50 px-3 py-2 text-right font-black text-gray-900 outline-none focus:border-amber-500 focus:ring-4 focus:ring-amber-500/10"
+                        />
+                        <span className="text-xs font-black uppercase tracking-[0.18em] text-gray-400">%</span>
+                      </div>
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              <div className="rounded-3xl border border-gray-200 bg-slate-50/80 p-5">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <h3 className="text-lg font-black text-gray-900">Worker tier discounts</h3>
+                    <p className="text-sm text-gray-500">Subtracts platform fee for better worker tiers.</p>
+                  </div>
+                  <span className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-[11px] font-black uppercase tracking-[0.16em] text-emerald-700">
+                    subtractive
+                  </span>
+                </div>
+
+                <div className="mt-4 space-y-3">
+                  {COMMISSION_TIER_OPTIONS.map((option) => (
+                    <label
+                      key={option.key}
+                      className="flex items-center justify-between gap-4 rounded-2xl border border-gray-200 bg-white px-4 py-3"
+                    >
+                      <div>
+                        <p className="font-black text-gray-900">{option.label}</p>
+                        <p className="text-xs text-gray-500">{option.description}</p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-black uppercase tracking-[0.18em] text-emerald-600">- fee</span>
+                        <input
+                          type="number"
+                          min={0}
+                          max={50}
+                          step="0.1"
+                          placeholder="0"
+                          value={commissionForm.worker_tier_adjustments[option.key] ?? ''}
+                          onChange={(e) =>
+                            setCommissionForm((prev) => {
+                              const next = { ...prev.worker_tier_adjustments };
+                              if (!e.target.value.trim()) delete next[option.key];
+                              else next[option.key] = e.target.value;
+                              return { ...prev, worker_tier_adjustments: next };
+                            })
+                          }
+                          className="w-24 rounded-2xl border border-gray-200 bg-gray-50 px-3 py-2 text-right font-black text-gray-900 outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10"
+                        />
+                        <span className="text-xs font-black uppercase tracking-[0.18em] text-gray-400">%</span>
+                      </div>
+                    </label>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            <div className="mt-6 rounded-3xl border border-gray-200 bg-slate-50/80 p-5">
+              <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                <div>
+                  <h3 className="text-lg font-black text-gray-900">Promo code discounts</h3>
+                  <p className="text-sm text-gray-500">Promo codes reduce the platform fee on matching checkout sessions.</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() =>
+                    setCommissionForm((prev) => ({
+                      ...prev,
+                      promo_codes: [...prev.promo_codes, { promo_code: '', rate_percent: '' }],
+                    }))
+                  }
+                  className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-2 text-sm font-black text-emerald-700 hover:bg-emerald-100"
+                >
+                  Add promo code
+                </button>
+              </div>
+
+              <div className="mt-4 space-y-3">
+                {commissionForm.promo_codes.length === 0 ? (
+                  <div className="rounded-2xl border border-dashed border-gray-200 bg-white px-4 py-6 text-sm font-semibold text-gray-500">
+                    No promo rules yet. Add codes like WELCOME10 or VIPPRO to lower the fee on selected payments.
+                  </div>
+                ) : (
+                  commissionForm.promo_codes.map((rule, index) => (
+                    <div
+                      key={`${rule.promo_code}-${index}`}
+                      className="grid grid-cols-1 gap-3 rounded-2xl border border-gray-200 bg-white p-4 md:grid-cols-[1fr_180px_auto]"
+                    >
+                      <label className="space-y-2">
+                        <span className="text-xs font-black uppercase tracking-[0.18em] text-gray-500">Promo code</span>
+                        <input
+                          value={rule.promo_code}
+                          onChange={(e) =>
+                            setCommissionForm((prev) => ({
+                              ...prev,
+                              promo_codes: prev.promo_codes.map((item, itemIndex) =>
+                                itemIndex === index
+                                  ? {
+                                      ...item,
+                                      promo_code: e.target.value.toUpperCase().replace(/\s+/g, ''),
+                                    }
+                                  : item
+                              ),
+                            }))
+                          }
+                          className="w-full rounded-2xl border border-gray-200 bg-gray-50 px-4 py-3 font-black uppercase tracking-[0.16em] text-gray-900 outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10"
+                          placeholder="WELCOME10"
+                        />
+                      </label>
+                      <label className="space-y-2">
+                        <span className="text-xs font-black uppercase tracking-[0.18em] text-gray-500">Fee discount %</span>
+                        <input
+                          type="number"
+                          min={0}
+                          max={50}
+                          step="0.1"
+                          value={rule.rate_percent}
+                          onChange={(e) =>
+                            setCommissionForm((prev) => ({
+                              ...prev,
+                              promo_codes: prev.promo_codes.map((item, itemIndex) =>
+                                itemIndex === index ? { ...item, rate_percent: e.target.value } : item
+                              ),
+                            }))
+                          }
+                          className="w-full rounded-2xl border border-gray-200 bg-gray-50 px-4 py-3 font-black text-gray-900 outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10"
+                          placeholder="5"
+                        />
+                      </label>
+                      <div className="flex items-end">
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setCommissionForm((prev) => ({
+                              ...prev,
+                              promo_codes: prev.promo_codes.filter((_, itemIndex) => itemIndex !== index),
+                            }))
+                          }
+                          className="w-full rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-black text-red-700 hover:bg-red-100 md:w-auto"
+                        >
+                          Remove
+                        </button>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+
+            <div className="mt-6 flex flex-wrap items-center gap-3">
+              <button
+                onClick={handleSaveCommissionConfig}
+                disabled={savingCommissionConfig || commissionLoading}
+                className="px-6 py-3 rounded-2xl bg-gradient-to-r from-emerald-500 to-emerald-700 text-white font-black shadow-lg shadow-emerald-500/20 hover:scale-[1.02] transition-transform disabled:opacity-60"
+              >
+                {savingCommissionConfig ? 'Saving...' : 'Save commission engine'}
+              </button>
+              <span className="text-sm font-semibold text-gray-500">
+                The selected rate is snapshotted on each payment, so future edits do not rewrite old orders.
+              </span>
+            </div>
+          </>
+        )}
+      </div>
+
+      <div className="bg-white/80 border border-gray-200 rounded-3xl p-6 md:p-8 shadow-lg">
+        <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+          <div>
+            <h2 className="text-2xl font-black text-gray-900">Settlement and invoicing</h2>
+            <p className="mt-1 text-gray-600">
+              Review settled volume, platform revenue, scheduled settlements and recent invoices for any date window.
+            </p>
+          </div>
+          <div className="flex flex-col gap-3 md:flex-row md:items-end">
+            <label className="space-y-2">
+              <span className="text-xs font-black uppercase tracking-[0.18em] text-gray-500">From</span>
+              <input
+                type="date"
+                value={financeReportRange.from}
+                onChange={(e) => setFinanceReportRange((prev) => ({ ...prev, from: e.target.value }))}
+                className="rounded-2xl border border-gray-200 bg-white px-4 py-3 font-semibold text-gray-900 outline-none focus:border-bird-blue focus:ring-4 focus:ring-bird-blue/10"
+              />
+            </label>
+            <label className="space-y-2">
+              <span className="text-xs font-black uppercase tracking-[0.18em] text-gray-500">To</span>
+              <input
+                type="date"
+                value={financeReportRange.to}
+                onChange={(e) => setFinanceReportRange((prev) => ({ ...prev, to: e.target.value }))}
+                className="rounded-2xl border border-gray-200 bg-white px-4 py-3 font-semibold text-gray-900 outline-none focus:border-bird-blue focus:ring-4 focus:ring-bird-blue/10"
+              />
+            </label>
+            <button
+              type="button"
+              onClick={() => fetchFinanceReportAdmin()}
+              disabled={financeReportLoading}
+              className="rounded-2xl border border-bird-blue/20 bg-bird-blue/10 px-5 py-3 text-sm font-black text-bird-darkBlue hover:bg-bird-blue/15 disabled:opacity-60"
+            >
+              {financeReportLoading ? 'Loading...' : 'Load report'}
+            </button>
+            <button
+              type="button"
+              onClick={handleExportFinanceReport}
+              disabled={exportingFinanceReport}
+              className="inline-flex items-center justify-center gap-2 rounded-2xl border border-emerald-200 bg-emerald-50 px-5 py-3 text-sm font-black text-emerald-700 hover:bg-emerald-100 disabled:opacity-60"
+            >
+              <Download size={16} />
+              {exportingFinanceReport ? 'Exporting...' : 'Export CSV'}
+            </button>
+          </div>
+        </div>
+
+        {financeReportLoading && !financeReport ? (
+          <div className="mt-6 rounded-3xl border border-dashed border-gray-200 bg-gray-50 px-4 py-10 text-center text-sm font-semibold text-gray-500">
+            Loading settlement report...
+          </div>
+        ) : financeReport ? (
+          <>
+            <div className="mt-6 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
+              <div className="rounded-2xl border border-gray-200 bg-gradient-to-br from-bird-blue/10 to-white p-5">
+                <p className="text-xs font-black uppercase tracking-[0.18em] text-bird-blue">Gross volume</p>
+                <p className="mt-3 text-3xl font-black text-gray-900">{`$${Number(financeReport.summary.gross_volume || 0).toFixed(2)}`}</p>
+                <p className="mt-2 text-sm text-gray-500">{financeReport.summary.invoice_count} invoices in range</p>
+              </div>
+              <div className="rounded-2xl border border-gray-200 bg-white p-5">
+                <p className="text-xs font-black uppercase tracking-[0.18em] text-gray-400">Platform revenue</p>
+                <p className="mt-3 text-3xl font-black text-gray-900">{`$${Number(financeReport.summary.platform_revenue || 0).toFixed(2)}`}</p>
+                <p className="mt-2 text-sm text-gray-500">Captured in posted fee entries.</p>
+              </div>
+              <div className="rounded-2xl border border-gray-200 bg-white p-5">
+                <p className="text-xs font-black uppercase tracking-[0.18em] text-gray-400">Scheduled settlements</p>
+                <p className="mt-3 text-3xl font-black text-gray-900">{`$${Number(financeReport.summary.scheduled_settlement_total || 0).toFixed(2)}`}</p>
+                <p className="mt-2 text-sm text-gray-500">Includes base payouts waiting for release.</p>
+              </div>
+              <div className="rounded-2xl border border-gray-200 bg-white p-5">
+                <p className="text-xs font-black uppercase tracking-[0.18em] text-gray-400">Paid settlements</p>
+                <p className="mt-3 text-3xl font-black text-gray-900">{`$${Number((financeReport.summary.worker_paid || 0) + (financeReport.summary.bonus_paid || 0)).toFixed(2)}`}</p>
+                <p className="mt-2 text-sm text-gray-500">Worker payouts and bonuses marked as paid.</p>
+              </div>
+            </div>
+
+            <div className="mt-6 grid grid-cols-1 gap-6 xl:grid-cols-[0.85fr_1.15fr]">
+              <div className="rounded-3xl border border-gray-200 bg-slate-50/70 p-5">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <h3 className="text-lg font-black text-gray-900">Top services in range</h3>
+                    <p className="text-sm text-gray-500">Where the billing volume is concentrating right now.</p>
+                  </div>
+                  <div className="rounded-full border border-gray-200 bg-white px-3 py-1 text-[11px] font-black uppercase tracking-[0.16em] text-gray-500">
+                    {financeReport.range.days} days
+                  </div>
+                </div>
+
+                <div className="mt-4 space-y-3">
+                  {financeReport.service_breakdown.length === 0 ? (
+                    <div className="rounded-2xl border border-dashed border-gray-200 bg-white px-4 py-6 text-sm font-semibold text-gray-500">
+                      No billed services were found in this range.
+                    </div>
+                  ) : (
+                    financeReport.service_breakdown.map((item) => (
+                      <div key={item.service_name} className="rounded-2xl border border-gray-200 bg-white p-4">
+                        <div className="flex items-start justify-between gap-3">
+                          <div>
+                            <p className="font-black text-gray-900">{item.service_name}</p>
+                            <p className="mt-1 text-xs font-semibold text-gray-500">{item.invoices} invoice(s)</p>
+                          </div>
+                          <div className="text-right">
+                            <p className="text-sm font-black text-gray-900">{`$${Number(item.gross_volume || 0).toFixed(2)}`}</p>
+                            <p className="mt-1 text-xs text-gray-500">{`Fee $${Number(item.platform_revenue || 0).toFixed(2)} / Paid out $${Number(item.settled_payouts || 0).toFixed(2)}`}</p>
+                          </div>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+
+              <div className="rounded-3xl border border-gray-200 bg-slate-50/70 p-5">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <h3 className="text-lg font-black text-gray-900">Recent invoices</h3>
+                    <p className="text-sm text-gray-500">Latest paid jobs in the selected settlement window.</p>
+                  </div>
+                  <div className="rounded-full border border-gray-200 bg-white px-3 py-1 text-[11px] font-black uppercase tracking-[0.16em] text-gray-500">
+                    email-ready
+                  </div>
+                </div>
+
+                <div className="mt-4 space-y-3">
+                  {financeReport.invoices.length === 0 ? (
+                    <div className="rounded-2xl border border-dashed border-gray-200 bg-white px-4 py-6 text-sm font-semibold text-gray-500">
+                      No invoices were paid in this range yet.
+                    </div>
+                  ) : (
+                    financeReport.invoices.slice(0, 8).map((invoice) => (
+                      <div key={invoice.id_payment} className="rounded-2xl border border-gray-200 bg-white p-4">
+                        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                          <div className="min-w-0">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <p className="text-base font-black text-gray-900">{invoice.invoice_number}</p>
+                              <span className="rounded-full border border-bird-blue/15 bg-bird-blue/10 px-3 py-1 text-[11px] font-black uppercase tracking-[0.16em] text-bird-darkBlue">
+                                {invoice.provider}
+                              </span>
+                              {invoice.promo_code && (
+                                <span className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-[11px] font-black uppercase tracking-[0.16em] text-emerald-700">
+                                  {invoice.promo_code}
+                                </span>
+                              )}
+                            </div>
+                            <p className="mt-2 text-sm font-black text-gray-900">{invoice.service_name}</p>
+                            <div className="mt-2 flex flex-wrap items-center gap-2 text-xs font-semibold text-gray-500">
+                              <span>{invoice.customer_name}</span>
+                              {invoice.customer_email && <span>{`/ ${invoice.customer_email}`}</span>}
+                              <span>{`/ ${new Date(invoice.paid_at).toLocaleDateString()}`}</span>
+                              <span>{`/ ${invoice.urgency_level}`}</span>
+                            </div>
+                            {invoice.policy_label && (
+                              <p className="mt-2 text-xs text-gray-500">{invoice.policy_label}</p>
+                            )}
+                          </div>
+                          <div className="text-right">
+                            <p className="text-lg font-black text-gray-900">{`${invoice.currency_code} $${Number(invoice.amount || 0).toFixed(2)}`}</p>
+                            <p className="mt-1 text-xs text-gray-500">{`Fee $${Number(invoice.platform_fee || 0).toFixed(2)} / Worker $${Number(invoice.worker_payout || 0).toFixed(2)}`}</p>
+                          </div>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+            </div>
+          </>
+        ) : (
+          <div className="mt-6 rounded-3xl border border-dashed border-gray-200 bg-gray-50 px-4 py-10 text-center text-sm font-semibold text-gray-500">
+            Load a date range to see settlement summaries, invoices and exportable finance data.
+          </div>
+        )}
+      </div>
+
+      <div className="grid grid-cols-1 gap-6 xl:grid-cols-[0.9fr_1.1fr]">
+        <div className="bg-white/80 border border-gray-200 rounded-3xl p-6 shadow-lg">
+          <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+            <div>
+              <h2 className="text-2xl font-black text-gray-900">Financial close and reconciliation</h2>
+              <p className="mt-1 text-gray-600">
+                Weekly or monthly closing view with discrepancy checks between captured payments and ledger rows.
+              </p>
+            </div>
+            <div className="flex items-center gap-2">
+              <select
+                value={financeClosurePeriod}
+                onChange={(e) => setFinanceClosurePeriod(e.target.value as 'weekly' | 'monthly')}
+                className="rounded-2xl border border-gray-200 bg-white px-4 py-3 text-sm font-bold text-gray-900"
+              >
+                <option value="weekly">Weekly</option>
+                <option value="monthly">Monthly</option>
+              </select>
+              <button
+                type="button"
+                onClick={() => fetchFinanceClosureReport(financeClosurePeriod)}
+                disabled={financeClosureLoading}
+                className="rounded-2xl border border-bird-blue/20 bg-bird-blue/10 px-5 py-3 text-sm font-black text-bird-darkBlue disabled:opacity-60"
+              >
+                {financeClosureLoading ? 'Loading...' : 'Refresh close'}
+              </button>
+            </div>
+          </div>
+
+          {financeClosureLoading && !financeClosureReport ? (
+            <div className="mt-6 rounded-2xl border border-dashed border-gray-200 bg-gray-50 px-4 py-8 text-sm font-semibold text-gray-500">
+              Loading close report...
+            </div>
+          ) : financeClosureReport ? (
+            <>
+              <div className="mt-6 grid grid-cols-1 gap-4 md:grid-cols-3">
+                <div className="rounded-2xl border border-gray-200 bg-slate-50/60 p-4">
+                  <p className="text-xs font-black uppercase tracking-[0.18em] text-gray-500">Net platform</p>
+                  <p className="mt-2 text-2xl font-black text-gray-900">{`$${Number(financeClosureReport.summary.net_platform || 0).toFixed(2)}`}</p>
+                </div>
+                <div className="rounded-2xl border border-gray-200 bg-slate-50/60 p-4">
+                  <p className="text-xs font-black uppercase tracking-[0.18em] text-gray-500">Open cases</p>
+                  <p className="mt-2 text-2xl font-black text-gray-900">{financeClosureReport.summary.open_case_count || 0}</p>
+                </div>
+                <div className="rounded-2xl border border-gray-200 bg-slate-50/60 p-4">
+                  <p className="text-xs font-black uppercase tracking-[0.18em] text-gray-500">Discrepancies</p>
+                  <p className="mt-2 text-2xl font-black text-gray-900">{financeClosureReport.summary.discrepancy_count || 0}</p>
+                </div>
+              </div>
+
+              <div className="mt-6 space-y-3">
+                {financeClosureReport.periods.map((period) => (
+                  <div key={period.period_key} className="rounded-2xl border border-gray-200 bg-white p-4">
+                    <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+                      <div>
+                        <p className="font-black text-gray-900">{period.period_key}</p>
+                        <p className="text-xs text-gray-500">{`Gross $${period.gross_volume.toFixed(2)} / Fee $${period.platform_fee.toFixed(2)} / Adjustments $${period.adjustments_total.toFixed(2)}`}</p>
+                      </div>
+                      <p className="text-sm font-black text-gray-900">{`Net platform $${period.net_platform.toFixed(2)}`}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <div className="mt-6">
+                <h3 className="text-lg font-black text-gray-900">Discrepancies</h3>
+                <div className="mt-3 space-y-3">
+                  {financeClosureReport.discrepancies.length === 0 ? (
+                    <div className="rounded-2xl border border-dashed border-gray-200 bg-gray-50 px-4 py-6 text-sm font-semibold text-gray-500">
+                      No ledger discrepancies for this range.
+                    </div>
+                  ) : (
+                    financeClosureReport.discrepancies.map((item) => (
+                      <div key={item.id_payment} className="rounded-2xl border border-amber-200 bg-amber-50/60 p-4">
+                        <p className="font-black text-gray-900">{`Payment #${item.id_payment} / Request #${item.id_request}`}</p>
+                        <p className="mt-1 text-xs text-gray-600">{`Expected $${item.expected_amount.toFixed(2)} vs ledger charge $${item.ledger_customer_charge.toFixed(2)}`}</p>
+                        <p className="mt-1 text-xs text-gray-600">{`Expected fee $${item.expected_platform_fee.toFixed(2)} vs ledger fee $${item.ledger_platform_fee.toFixed(2)}`}</p>
+                        <p className="mt-1 text-xs text-gray-600">{`Expected payout $${item.expected_worker_payout.toFixed(2)} vs ledger release $${item.ledger_worker_release.toFixed(2)}`}</p>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+            </>
+          ) : null}
+        </div>
+
+        <div className="bg-white/80 border border-gray-200 rounded-3xl p-6 shadow-lg">
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <h2 className="text-2xl font-black text-gray-900">Finance cases</h2>
+              <p className="mt-1 text-gray-600">Create refunds, disputes or adjustments and resolve them into the ledger.</p>
+            </div>
+            <button
+              type="button"
+              onClick={fetchFinanceCases}
+              disabled={financeCasesLoading}
+              className="rounded-2xl border border-gray-200 bg-white px-4 py-3 text-sm font-black text-gray-700 disabled:opacity-60"
+            >
+              Refresh
+            </button>
+          </div>
+
+          <div className="mt-6 grid grid-cols-1 gap-3 md:grid-cols-2">
+            <select value={financeCaseForm.case_type} onChange={(e) => setFinanceCaseForm((prev) => ({ ...prev, case_type: e.target.value }))} className="rounded-2xl border border-gray-200 bg-white px-4 py-3 text-sm font-semibold text-gray-900">
+              <option value="refund">Refund</option>
+              <option value="dispute">Dispute</option>
+              <option value="adjustment">Adjustment</option>
+            </select>
+            <select value={financeCaseForm.direction} onChange={(e) => setFinanceCaseForm((prev) => ({ ...prev, direction: e.target.value }))} className="rounded-2xl border border-gray-200 bg-white px-4 py-3 text-sm font-semibold text-gray-900">
+              <option value="customer_refund">Customer refund</option>
+              <option value="platform_credit">Platform credit</option>
+              <option value="platform_debit">Platform debit</option>
+              <option value="worker_hold">Worker hold</option>
+              <option value="worker_release">Worker release</option>
+            </select>
+            <input value={financeCaseForm.id_request} onChange={(e) => setFinanceCaseForm((prev) => ({ ...prev, id_request: e.target.value }))} placeholder="Request ID" className="rounded-2xl border border-gray-200 bg-white px-4 py-3 text-sm font-semibold text-gray-900" />
+            <input value={financeCaseForm.id_payment} onChange={(e) => setFinanceCaseForm((prev) => ({ ...prev, id_payment: e.target.value }))} placeholder="Payment ID" className="rounded-2xl border border-gray-200 bg-white px-4 py-3 text-sm font-semibold text-gray-900" />
+            <input value={financeCaseForm.amount} onChange={(e) => setFinanceCaseForm((prev) => ({ ...prev, amount: e.target.value }))} placeholder="Amount" className="rounded-2xl border border-gray-200 bg-white px-4 py-3 text-sm font-semibold text-gray-900" />
+            <input value={financeCaseForm.currency_code} onChange={(e) => setFinanceCaseForm((prev) => ({ ...prev, currency_code: e.target.value }))} placeholder="Currency" className="rounded-2xl border border-gray-200 bg-white px-4 py-3 text-sm font-semibold text-gray-900" />
+            <input value={financeCaseForm.reason} onChange={(e) => setFinanceCaseForm((prev) => ({ ...prev, reason: e.target.value }))} placeholder="Reason" className="rounded-2xl border border-gray-200 bg-white px-4 py-3 text-sm font-semibold text-gray-900 md:col-span-2" />
+            <textarea value={financeCaseForm.notes} onChange={(e) => setFinanceCaseForm((prev) => ({ ...prev, notes: e.target.value }))} placeholder="Notes" className="min-h-[90px] rounded-2xl border border-gray-200 bg-white px-4 py-3 text-sm font-semibold text-gray-900 md:col-span-2" />
+          </div>
+
+          <div className="mt-4 flex justify-end">
+            <button
+              type="button"
+              onClick={handleCreateFinanceCase}
+              disabled={creatingFinanceCase}
+              className="rounded-2xl bg-gradient-to-r from-emerald-500 to-emerald-700 px-5 py-3 text-sm font-black text-white shadow-lg shadow-emerald-500/20 disabled:opacity-60"
+            >
+              {creatingFinanceCase ? 'Creating...' : 'Create finance case'}
+            </button>
+          </div>
+
+          <div className="mt-6 space-y-3">
+            {financeCasesLoading ? (
+              <div className="rounded-2xl border border-dashed border-gray-200 bg-gray-50 px-4 py-6 text-sm font-semibold text-gray-500">
+                Loading finance cases...
+              </div>
+            ) : financeCases.length === 0 ? (
+              <div className="rounded-2xl border border-dashed border-gray-200 bg-gray-50 px-4 py-6 text-sm font-semibold text-gray-500">
+                No finance cases yet.
+              </div>
+            ) : (
+              financeCases.map((item) => (
+                <div key={item.id_case} className="rounded-2xl border border-gray-200 bg-slate-50/60 p-4">
+                  <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                    <div>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <p className="font-black text-gray-900">{`${item.case_type} #${item.id_case}`}</p>
+                        <span className="rounded-full border border-gray-200 bg-white px-3 py-1 text-[11px] font-black uppercase tracking-[0.16em] text-gray-600">
+                          {item.case_status}
+                        </span>
+                      </div>
+                      <p className="mt-1 text-sm text-gray-600">{item.reason || 'No reason'}</p>
+                      <p className="mt-1 text-xs text-gray-500">{`${item.direction} / ${item.currency_code} $${Number(item.amount || 0).toFixed(2)}`}</p>
+                      <p className="mt-1 text-xs text-gray-500">{`Request ${item.id_request || '-'} / Payment ${item.id_payment || '-'}`}</p>
+                    </div>
+                    {item.case_status === 'open' && (
+                      <button
+                        type="button"
+                        onClick={() => handleResolveFinanceCase(item.id_case)}
+                        disabled={resolvingFinanceCaseId === item.id_case}
+                        className="rounded-2xl border border-bird-blue/20 bg-bird-blue/10 px-4 py-2 text-sm font-black text-bird-darkBlue disabled:opacity-60"
+                      >
+                        {resolvingFinanceCaseId === item.id_case ? 'Resolving...' : 'Resolve'}
+                      </button>
+                    )}
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
+        <div className="bg-white/80 border border-gray-200 rounded-3xl p-6 shadow-lg">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <h2 className="text-2xl font-black text-gray-900">System events</h2>
+              <p className="mt-1 text-gray-600">Operational observability for finance, webhooks and jobs.</p>
+            </div>
+            <button type="button" onClick={fetchSystemEvents} disabled={systemEventsLoading} className="rounded-2xl border border-gray-200 bg-white px-4 py-3 text-sm font-black text-gray-700 disabled:opacity-60">
+              Refresh
+            </button>
+          </div>
+          <div className="mt-6 space-y-3">
+            {systemEventsLoading ? (
+              <div className="rounded-2xl border border-dashed border-gray-200 bg-gray-50 px-4 py-6 text-sm font-semibold text-gray-500">Loading events...</div>
+            ) : systemEvents.length === 0 ? (
+              <div className="rounded-2xl border border-dashed border-gray-200 bg-gray-50 px-4 py-6 text-sm font-semibold text-gray-500">No system events recorded yet.</div>
+            ) : (
+              systemEvents.map((event) => (
+                <div key={event.id_event} className="rounded-2xl border border-gray-200 bg-slate-50/60 p-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="font-black text-gray-900">{event.message}</p>
+                      <p className="mt-1 text-xs text-gray-500">{`${event.component} / ${event.event_type}`}</p>
+                    </div>
+                    <span className={`rounded-full px-3 py-1 text-[11px] font-black uppercase tracking-[0.16em] ${
+                      event.level === 'critical' ? 'bg-red-100 text-red-700' :
+                      event.level === 'error' ? 'bg-rose-100 text-rose-700' :
+                      event.level === 'warning' ? 'bg-amber-100 text-amber-700' :
+                      'bg-blue-100 text-blue-700'
+                    }`}>
+                      {event.level}
+                    </span>
+                  </div>
+                  <p className="mt-2 text-xs text-gray-500">{new Date(event.created_at).toLocaleString()}</p>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+
+        <div className="bg-white/80 border border-gray-200 rounded-3xl p-6 shadow-lg">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <h2 className="text-2xl font-black text-gray-900">Background jobs</h2>
+              <p className="mt-1 text-gray-600">Email, payout and webhook queue health with retry visibility.</p>
+            </div>
+            <button type="button" onClick={fetchBackgroundJobs} disabled={backgroundJobsLoading} className="rounded-2xl border border-gray-200 bg-white px-4 py-3 text-sm font-black text-gray-700 disabled:opacity-60">
+              Refresh
+            </button>
+          </div>
+          <div className="mt-6 space-y-3">
+            {backgroundJobsLoading ? (
+              <div className="rounded-2xl border border-dashed border-gray-200 bg-gray-50 px-4 py-6 text-sm font-semibold text-gray-500">Loading jobs...</div>
+            ) : backgroundJobs.length === 0 ? (
+              <div className="rounded-2xl border border-dashed border-gray-200 bg-gray-50 px-4 py-6 text-sm font-semibold text-gray-500">No background jobs queued yet.</div>
+            ) : (
+              backgroundJobs.map((job) => (
+                <div key={job.id_job} className="rounded-2xl border border-gray-200 bg-slate-50/60 p-4">
+                  <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+                    <div>
+                      <p className="font-black text-gray-900">{job.job_type}</p>
+                      <p className="mt-1 text-xs text-gray-500">{`Attempts ${job.attempts_made}/${job.attempts_max} / Run after ${new Date(job.run_after).toLocaleString()}`}</p>
+                      {job.last_error && <p className="mt-1 text-xs text-rose-600">{job.last_error}</p>}
+                    </div>
+                    <span className="rounded-full border border-gray-200 bg-white px-3 py-1 text-[11px] font-black uppercase tracking-[0.16em] text-gray-600">
+                      {job.status}
+                    </span>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+      </div>
+
       <div className="grid grid-cols-1 xl:grid-cols-[0.9fr_1.1fr] gap-6">
         <div className="bg-white/80 border border-gray-200 rounded-3xl p-6 md:p-8 shadow-lg">
           <div className="flex items-start justify-between gap-4">
@@ -2446,6 +3585,168 @@ const renderRequestsHistoryTab = () => {
             <p className="text-xs font-black uppercase tracking-[0.18em] text-gray-400">Total bonus rows</p>
             <p className="mt-3 text-3xl font-black text-gray-900">{workerRewardsSummary?.total_rows || 0}</p>
             <p className="mt-2 text-sm text-gray-500">{`$${Number(workerRewardsSummary?.total_bonus_amount || 0).toFixed(2)} generated`}</p>
+          </div>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 xl:grid-cols-[0.92fr_1.08fr] gap-6">
+        <div className="bg-white/80 border border-gray-200 rounded-3xl p-6 shadow-lg">
+          <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+            <div>
+              <h3 className="text-xl font-black text-gray-900">Base worker payouts</h3>
+              <p className="mt-1 text-sm text-gray-500">
+                These are the core payouts created when customer funds are released after job completion.
+              </p>
+            </div>
+            <div className="rounded-full border border-emerald-200 bg-emerald-50 px-4 py-2 text-xs font-black uppercase tracking-[0.18em] text-emerald-700">
+              ledger-backed
+            </div>
+          </div>
+
+          <div className="mt-5 grid grid-cols-1 gap-4 md:grid-cols-3">
+            <div className="rounded-2xl border border-gray-200 bg-white p-4">
+              <p className="text-xs font-black uppercase tracking-[0.18em] text-gray-400">Scheduled</p>
+              <p className="mt-3 text-3xl font-black text-gray-900">{workerPayoutsSummary?.scheduled_count || 0}</p>
+              <p className="mt-2 text-sm text-gray-500">{`$${Number(workerPayoutsSummary?.scheduled_amount || 0).toFixed(2)} waiting to be paid`}</p>
+            </div>
+            <div className="rounded-2xl border border-gray-200 bg-white p-4">
+              <p className="text-xs font-black uppercase tracking-[0.18em] text-gray-400">Paid</p>
+              <p className="mt-3 text-3xl font-black text-gray-900">{workerPayoutsSummary?.paid_count || 0}</p>
+              <p className="mt-2 text-sm text-gray-500">{`$${Number(workerPayoutsSummary?.paid_amount || 0).toFixed(2)} already released`}</p>
+            </div>
+            <div className="rounded-2xl border border-gray-200 bg-white p-4">
+              <p className="text-xs font-black uppercase tracking-[0.18em] text-gray-400">All base payouts</p>
+              <p className="mt-3 text-3xl font-black text-gray-900">{workerPayoutsSummary?.total_rows || 0}</p>
+              <p className="mt-2 text-sm text-gray-500">{`$${Number(workerPayoutsSummary?.total_amount || 0).toFixed(2)} total tracked`}</p>
+            </div>
+          </div>
+
+          <div className="mt-6 space-y-4">
+            {workerPayoutsLoading ? (
+              <div className="rounded-3xl border border-dashed border-gray-200 bg-gray-50 px-4 py-10 text-center text-sm font-semibold text-gray-500">
+                Loading worker payouts...
+              </div>
+            ) : workerPayouts.length === 0 ? (
+              <div className="rounded-3xl border border-dashed border-gray-200 bg-gray-50 px-4 py-10 text-center text-sm font-semibold text-gray-500">
+                No worker payouts match this filter yet.
+              </div>
+            ) : (
+              workerPayouts.slice(0, 6).map((payout) => (
+                <div key={payout.id_worker_payout} className="rounded-3xl border border-gray-200 bg-gray-50 p-4 md:p-5">
+                  <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <p className="text-lg font-black text-gray-900">{payout.worker_name}</p>
+                        <span className={`rounded-full px-3 py-1 text-[11px] font-black uppercase tracking-[0.16em] ${
+                          payout.payout_status === 'paid'
+                            ? 'border border-emerald-200 bg-emerald-50 text-emerald-700'
+                            : payout.payout_status === 'cancelled'
+                              ? 'border border-gray-200 bg-gray-100 text-gray-500'
+                              : 'border border-amber-200 bg-amber-50 text-amber-700'
+                        }`}>
+                          {payout.payout_status}
+                        </span>
+                      </div>
+                      <p className="mt-2 text-sm text-gray-500">
+                        {payout.service_name ? payout.service_name : 'Service payout'}
+                        {payout.location_text ? ` / ${payout.location_text}` : ''}
+                      </p>
+                      <div className="mt-3 flex flex-wrap items-center gap-2 text-xs font-semibold text-gray-500">
+                        <span>{`Gross: $${Number(payout.gross_amount || 0).toFixed(2)}`}</span>
+                        <span>{` / Fee: $${Number(payout.platform_fee || 0).toFixed(2)}`}</span>
+                        <span>{` / Scheduled: ${new Date(payout.scheduled_for).toLocaleDateString()}`}</span>
+                        {payout.paid_at && <span>{` / Paid: ${new Date(payout.paid_at).toLocaleDateString()}`}</span>}
+                      </div>
+                    </div>
+
+                    <div className="flex flex-col items-start gap-3 md:items-end">
+                      <div className="text-right">
+                        <p className="text-xs font-black uppercase tracking-[0.18em] text-gray-400">Net payout</p>
+                        <p className="mt-1 text-2xl font-black text-gray-900">{`$${Number(payout.net_amount || 0).toFixed(2)}`}</p>
+                      </div>
+                      {payout.payout_status !== 'paid' ? (
+                        <button
+                          onClick={() => handleMarkWorkerPayoutPaid(payout.id_worker_payout)}
+                          disabled={markingWorkerPayoutId === payout.id_worker_payout}
+                          className="rounded-2xl border border-emerald-200 bg-emerald-50 px-5 py-3 text-sm font-black text-emerald-700 hover:bg-emerald-100 disabled:opacity-60"
+                        >
+                          {markingWorkerPayoutId === payout.id_worker_payout ? 'Updating...' : 'Mark as paid'}
+                        </button>
+                      ) : (
+                        <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-black text-emerald-700">
+                          Already paid
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+
+        <div className="bg-white/80 border border-gray-200 rounded-3xl p-6 shadow-lg">
+          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+            <div>
+              <h3 className="text-xl font-black text-gray-900">Recent payment ledger</h3>
+              <p className="mt-1 text-sm text-gray-500">
+                Every charge, fee, escrow movement and payout release is snapshotted here for auditability.
+              </p>
+            </div>
+            <div className="rounded-full border border-gray-200 bg-gray-50 px-4 py-2 text-xs font-black uppercase tracking-[0.18em] text-gray-500">
+              last 40 events
+            </div>
+          </div>
+
+          <div className="mt-5 space-y-3">
+            {paymentLedgerLoading ? (
+              <div className="rounded-3xl border border-dashed border-gray-200 bg-gray-50 px-4 py-10 text-center text-sm font-semibold text-gray-500">
+                Loading payment ledger...
+              </div>
+            ) : paymentLedgerEntries.length === 0 ? (
+              <div className="rounded-3xl border border-dashed border-gray-200 bg-gray-50 px-4 py-10 text-center text-sm font-semibold text-gray-500">
+                No ledger events yet.
+              </div>
+            ) : (
+              paymentLedgerEntries.slice(0, 8).map((entry) => (
+                <div key={entry.id_ledger_entry} className="rounded-3xl border border-gray-200 bg-gray-50 p-4">
+                  <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="rounded-full border border-bird-blue/15 bg-bird-blue/10 px-3 py-1 text-[11px] font-black uppercase tracking-[0.16em] text-bird-darkBlue">
+                          {entry.entry_type.replace(/_/g, ' ')}
+                        </span>
+                        <span className={`rounded-full px-3 py-1 text-[11px] font-black uppercase tracking-[0.16em] ${
+                          entry.entry_status === 'posted'
+                            ? 'border border-emerald-200 bg-emerald-50 text-emerald-700'
+                            : entry.entry_status === 'scheduled'
+                              ? 'border border-amber-200 bg-amber-50 text-amber-700'
+                              : 'border border-gray-200 bg-gray-100 text-gray-500'
+                        }`}>
+                          {entry.entry_status}
+                        </span>
+                      </div>
+                      <p className="mt-2 text-sm font-black text-gray-900">
+                        {entry.service_name || 'Platform payment event'}
+                        {entry.location_text ? ` / ${entry.location_text}` : ''}
+                      </p>
+                      <div className="mt-2 flex flex-wrap items-center gap-2 text-xs font-semibold text-gray-500">
+                        {entry.id_request && <span>{`Request #${entry.id_request}`}</span>}
+                        {entry.id_worker_payout && <span>{` / Payout #${entry.id_worker_payout}`}</span>}
+                        {entry.available_on && <span>{` / Available: ${new Date(entry.available_on).toLocaleDateString()}`}</span>}
+                        <span>{` / Logged: ${new Date(entry.created_at).toLocaleDateString()}`}</span>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-xs font-black uppercase tracking-[0.18em] text-gray-400">Amount</p>
+                      <p className="mt-1 text-xl font-black text-gray-900">
+                        {`${entry.currency_code || 'USD'} $${Number(entry.amount || 0).toFixed(2)}`}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              ))
+            )}
           </div>
         </div>
       </div>
@@ -2726,6 +4027,483 @@ const renderRequestsHistoryTab = () => {
     });
   };
 
+  const hydrateCommissionForm = (config: AdminCommissionConfig) => {
+    const nextOverrides = config.service_overrides.reduce<Record<string, string>>((acc, override) => {
+      if (override.is_active) {
+        acc[String(override.id_service)] = String(override.rate_percent);
+      }
+      return acc;
+    }, {});
+
+    const urgencyAdjustments = config.urgency_adjustments.reduce<Record<string, string>>((acc, rule) => {
+      if (rule.is_active) {
+        acc[rule.urgency_level] = String(rule.rate_percent);
+      }
+      return acc;
+    }, {});
+
+    const workerTierAdjustments = config.worker_tier_adjustments.reduce<Record<string, string>>((acc, rule) => {
+      if (rule.is_active) {
+        acc[rule.worker_tier] = String(rule.rate_percent);
+      }
+      return acc;
+    }, {});
+
+    setCommissionForm({
+      global_rate_percent: String(config.global_rate_percent),
+      service_overrides: nextOverrides,
+      urgency_adjustments: urgencyAdjustments,
+      worker_tier_adjustments: workerTierAdjustments,
+      promo_codes: config.promo_codes
+        .filter((rule) => rule.is_active)
+        .map((rule) => ({
+          promo_code: String(rule.promo_code || ''),
+          rate_percent: String(rule.rate_percent),
+        })),
+    });
+  };
+
+  const normalizeCommissionConfig = (data: any): AdminCommissionConfig => ({
+    global_rate_percent: Number(data?.global_rate_percent || 0),
+    service_overrides: Array.isArray(data?.service_overrides)
+      ? data.service_overrides.map((override: any) => ({
+          id_rule: Number(override.id_rule || 0),
+          id_service: Number(override.id_service || 0),
+          service_name: override.service_name || null,
+          rate_percent: Number(override.rate_percent || 0),
+          is_active: override.is_active !== false,
+          priority: Number(override.priority || 100),
+          adjustment_mode:
+            override.adjustment_mode === 'add_rate' || override.adjustment_mode === 'subtract_rate'
+              ? override.adjustment_mode
+              : 'set_rate',
+        }))
+      : [],
+    urgency_adjustments: Array.isArray(data?.urgency_adjustments)
+      ? data.urgency_adjustments.map((rule: any) => ({
+          id_rule: Number(rule.id_rule || 0),
+          urgency_level:
+            rule.urgency_level === 'urgent' || rule.urgency_level === 'emergency'
+              ? rule.urgency_level
+              : 'standard',
+          rate_percent: Number(rule.rate_percent || 0),
+          is_active: rule.is_active !== false,
+          priority: Number(rule.priority || 200),
+          adjustment_mode:
+            rule.adjustment_mode === 'subtract_rate' || rule.adjustment_mode === 'set_rate'
+              ? rule.adjustment_mode
+              : 'add_rate',
+        }))
+      : [],
+    worker_tier_adjustments: Array.isArray(data?.worker_tier_adjustments)
+      ? data.worker_tier_adjustments.map((rule: any) => ({
+          id_rule: Number(rule.id_rule || 0),
+          worker_tier:
+            rule.worker_tier === 'verified' || rule.worker_tier === 'premium' || rule.worker_tier === 'elite'
+              ? rule.worker_tier
+              : 'standard',
+          rate_percent: Number(rule.rate_percent || 0),
+          is_active: rule.is_active !== false,
+          priority: Number(rule.priority || 300),
+          adjustment_mode:
+            rule.adjustment_mode === 'add_rate' || rule.adjustment_mode === 'set_rate'
+              ? rule.adjustment_mode
+              : 'subtract_rate',
+        }))
+      : [],
+    promo_codes: Array.isArray(data?.promo_codes)
+      ? data.promo_codes.map((rule: any) => ({
+          id_rule: Number(rule.id_rule || 0),
+          promo_code: String(rule.promo_code || ''),
+          rate_percent: Number(rule.rate_percent || 0),
+          is_active: rule.is_active !== false,
+          priority: Number(rule.priority || 400),
+          adjustment_mode:
+            rule.adjustment_mode === 'add_rate' || rule.adjustment_mode === 'set_rate'
+              ? rule.adjustment_mode
+              : 'subtract_rate',
+        }))
+      : [],
+    summary: {
+      effective_default_rate_percent: Number(
+        data?.summary?.effective_default_rate_percent ?? data?.global_rate_percent ?? 0
+      ),
+      service_override_count: Number(data?.summary?.service_override_count || 0),
+      urgency_rule_count: Number(data?.summary?.urgency_rule_count || 0),
+      worker_tier_rule_count: Number(data?.summary?.worker_tier_rule_count || 0),
+      promo_rule_count: Number(data?.summary?.promo_rule_count || 0),
+    },
+  });
+
+  const fetchCommissionRulesAdmin = async () => {
+    setCommissionLoading(true);
+    try {
+      const res = await fetch(API_ENDPOINTS.admin.commissionRules, {
+        headers: { Authorization: `Bearer ${getToken()}` },
+      });
+      const data = await res.json();
+      if (!res.ok || !data?.success) {
+        notyf.error(data?.error || 'Could not load commission rules.');
+        return;
+      }
+
+      const nextConfig = normalizeCommissionConfig(data);
+      setCommissionConfig(nextConfig);
+      hydrateCommissionForm(nextConfig);
+    } catch {
+      notyf.error('Connection error loading commission rules.');
+    } finally {
+      setCommissionLoading(false);
+    }
+  };
+
+  const handleSaveCommissionConfig = async () => {
+    const defaultRate = Number(commissionForm.global_rate_percent);
+    if (!Number.isFinite(defaultRate) || defaultRate < 0 || defaultRate > 50) {
+      notyf.error('Default commission must be between 0% and 50%.');
+      return;
+    }
+
+    const serviceOverrides = Object.entries(commissionForm.service_overrides)
+      .map(([idService, rate]) => ({
+        id_service: Number(idService),
+        rate_percent: Number(rate),
+      }))
+      .filter(
+        (override) =>
+          Number.isFinite(override.id_service) &&
+          Number.isFinite(override.rate_percent) &&
+          override.rate_percent >= 0 &&
+          override.rate_percent <= 50
+      );
+
+    const urgencyAdjustments = Object.entries(commissionForm.urgency_adjustments)
+      .map(([urgency_level, rate_percent]) => ({
+        urgency_level,
+        rate_percent: Number(rate_percent),
+      }))
+      .filter(
+        (rule) =>
+          ['standard', 'urgent', 'emergency'].includes(rule.urgency_level) &&
+          Number.isFinite(rule.rate_percent) &&
+          rule.rate_percent >= 0 &&
+          rule.rate_percent <= 50
+      );
+
+    const workerTierAdjustments = Object.entries(commissionForm.worker_tier_adjustments)
+      .map(([worker_tier, rate_percent]) => ({
+        worker_tier,
+        rate_percent: Number(rate_percent),
+      }))
+      .filter(
+        (rule) =>
+          ['standard', 'verified', 'premium', 'elite'].includes(rule.worker_tier) &&
+          Number.isFinite(rule.rate_percent) &&
+          rule.rate_percent >= 0 &&
+          rule.rate_percent <= 50
+      );
+
+    const promoCodes = commissionForm.promo_codes
+      .map((rule) => ({
+        promo_code: String(rule.promo_code || '').trim().toUpperCase().replace(/\s+/g, ''),
+        rate_percent: Number(rule.rate_percent),
+      }))
+      .filter(
+        (rule) =>
+          rule.promo_code.length > 0 &&
+          Number.isFinite(rule.rate_percent) &&
+          rule.rate_percent >= 0 &&
+          rule.rate_percent <= 50
+      );
+
+    setSavingCommissionConfig(true);
+    try {
+      const res = await fetch(API_ENDPOINTS.admin.commissionRules, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${getToken()}`,
+        },
+        body: JSON.stringify({
+          global_rate_percent: defaultRate,
+          service_overrides: serviceOverrides,
+          urgency_adjustments: urgencyAdjustments,
+          worker_tier_adjustments: workerTierAdjustments,
+          promo_codes: promoCodes,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data?.success) {
+        notyf.error(data?.error || 'Could not update commission rules.');
+        return;
+      }
+
+      const nextConfig = normalizeCommissionConfig(data);
+      setCommissionConfig(nextConfig);
+      hydrateCommissionForm(nextConfig);
+      notyf.success('Commission engine updated.');
+    } catch {
+      notyf.error('Connection error updating commission rules.');
+    } finally {
+      setSavingCommissionConfig(false);
+    }
+  };
+
+  const fetchWorkerPayoutsAdmin = async (status: 'all' | 'scheduled' | 'paid' | 'cancelled' = workerRewardsStatus) => {
+    setWorkerPayoutsLoading(true);
+    try {
+      const res = await fetch(`${API_ENDPOINTS.admin.workerPayouts}?status=${status}`, {
+        headers: { Authorization: `Bearer ${getToken()}` },
+      });
+      const data = await res.json();
+      if (!res.ok || !data?.success) {
+        notyf.error(data?.error || 'Could not load worker payouts.');
+        return;
+      }
+
+      setWorkerPayoutsSummary(data.summary || null);
+      setWorkerPayouts(Array.isArray(data.payouts) ? data.payouts : []);
+    } catch {
+      notyf.error('Connection error loading worker payouts.');
+    } finally {
+      setWorkerPayoutsLoading(false);
+    }
+  };
+
+  const fetchPaymentLedgerAdmin = async () => {
+    setPaymentLedgerLoading(true);
+    try {
+      const res = await fetch(`${API_ENDPOINTS.admin.paymentLedger}?limit=40`, {
+        headers: { Authorization: `Bearer ${getToken()}` },
+      });
+      const data = await res.json();
+      if (!res.ok || !data?.success) {
+        notyf.error(data?.error || 'Could not load payment ledger.');
+        return;
+      }
+
+      setPaymentLedgerEntries(Array.isArray(data.entries) ? data.entries : []);
+    } catch {
+      notyf.error('Connection error loading payment ledger.');
+    } finally {
+      setPaymentLedgerLoading(false);
+    }
+  };
+
+  const fetchFinanceReportAdmin = async (
+    from: string = financeReportRange.from,
+    to: string = financeReportRange.to
+  ) => {
+    setFinanceReportLoading(true);
+    try {
+      const params = new URLSearchParams({ from, to });
+      const res = await fetch(`${API_ENDPOINTS.admin.financeReport}?${params.toString()}`, {
+        headers: { Authorization: `Bearer ${getToken()}` },
+      });
+      const data = await res.json();
+      if (!res.ok || !data?.success) {
+        notyf.error(data?.error || 'Could not load finance report.');
+        return;
+      }
+
+      setFinanceReport(data as AdminFinanceReport);
+    } catch {
+      notyf.error('Connection error loading finance report.');
+    } finally {
+      setFinanceReportLoading(false);
+    }
+  };
+
+  const handleExportFinanceReport = async () => {
+    setExportingFinanceReport(true);
+    try {
+      const params = new URLSearchParams({
+        from: financeReportRange.from,
+        to: financeReportRange.to,
+      });
+      const res = await fetch(`${API_ENDPOINTS.admin.exportFinanceReport}?${params.toString()}`, {
+        headers: { Authorization: `Bearer ${getToken()}` },
+      });
+
+      if (!res.ok) {
+        const data = await res.json().catch(() => null);
+        notyf.error(data?.error || 'Could not export finance report.');
+        return;
+      }
+
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const anchor = document.createElement('a');
+      anchor.href = url;
+      anchor.download = `fixlife-finance-report-${financeReportRange.from}-to-${financeReportRange.to}.csv`;
+      document.body.appendChild(anchor);
+      anchor.click();
+      document.body.removeChild(anchor);
+      window.URL.revokeObjectURL(url);
+      notyf.success('Finance report exported.');
+    } catch {
+      notyf.error('Connection error exporting finance report.');
+    } finally {
+      setExportingFinanceReport(false);
+    }
+  };
+
+  const fetchFinanceCases = async () => {
+    setFinanceCasesLoading(true);
+    try {
+      const res = await fetch(`${API_ENDPOINTS.admin.financeCases}?limit=40`, {
+        headers: { Authorization: `Bearer ${getToken()}` },
+      });
+      const data = await res.json();
+      if (!res.ok || !data?.success) {
+        notyf.error(data?.error || 'Could not load finance cases.');
+        return;
+      }
+      setFinanceCases(Array.isArray(data.cases) ? data.cases : []);
+    } catch {
+      notyf.error('Connection error loading finance cases.');
+    } finally {
+      setFinanceCasesLoading(false);
+    }
+  };
+
+  const handleCreateFinanceCase = async () => {
+    setCreatingFinanceCase(true);
+    try {
+      const res = await fetch(API_ENDPOINTS.admin.financeCases, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${getToken()}`,
+        },
+        body: JSON.stringify({
+          case_type: financeCaseForm.case_type,
+          direction: financeCaseForm.direction,
+          id_request: financeCaseForm.id_request ? Number(financeCaseForm.id_request) : undefined,
+          id_payment: financeCaseForm.id_payment ? Number(financeCaseForm.id_payment) : undefined,
+          amount: Number(financeCaseForm.amount),
+          currency_code: financeCaseForm.currency_code || 'USD',
+          reason: financeCaseForm.reason,
+          notes: financeCaseForm.notes,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data?.success) {
+        notyf.error(data?.error || 'Could not create finance case.');
+        return;
+      }
+      notyf.success('Finance case created.');
+      setFinanceCaseForm({
+        case_type: 'refund',
+        direction: 'customer_refund',
+        id_request: '',
+        id_payment: '',
+        amount: '',
+        currency_code: 'USD',
+        reason: '',
+        notes: '',
+      });
+      await fetchFinanceCases();
+      await fetchFinanceClosureReport();
+    } catch {
+      notyf.error('Connection error creating finance case.');
+    } finally {
+      setCreatingFinanceCase(false);
+    }
+  };
+
+  const handleResolveFinanceCase = async (idCase: number) => {
+    setResolvingFinanceCaseId(idCase);
+    try {
+      const res = await fetch(API_ENDPOINTS.admin.resolveFinanceCase(idCase), {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${getToken()}`,
+        },
+        body: JSON.stringify({
+          apply_ledger: true,
+          resolution_notes: 'Resolved from admin dashboard',
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data?.success) {
+        notyf.error(data?.error || 'Could not resolve finance case.');
+        return;
+      }
+      notyf.success('Finance case resolved.');
+      await fetchFinanceCases();
+      await fetchFinanceClosureReport();
+      await fetchPaymentLedgerAdmin();
+    } catch {
+      notyf.error('Connection error resolving finance case.');
+    } finally {
+      setResolvingFinanceCaseId(null);
+    }
+  };
+
+  const fetchFinanceClosureReport = async (
+    period: 'weekly' | 'monthly' = financeClosurePeriod,
+    from: string = financeReportRange.from,
+    to: string = financeReportRange.to
+  ) => {
+    setFinanceClosureLoading(true);
+    try {
+      const params = new URLSearchParams({ period, from, to });
+      const res = await fetch(`${API_ENDPOINTS.admin.financeClosures}?${params.toString()}`, {
+        headers: { Authorization: `Bearer ${getToken()}` },
+      });
+      const data = await res.json();
+      if (!res.ok || !data?.success) {
+        notyf.error(data?.error || 'Could not load finance closure report.');
+        return;
+      }
+      setFinanceClosureReport(data as AdminFinanceClosureReport);
+    } catch {
+      notyf.error('Connection error loading finance closure report.');
+    } finally {
+      setFinanceClosureLoading(false);
+    }
+  };
+
+  const fetchSystemEvents = async () => {
+    setSystemEventsLoading(true);
+    try {
+      const res = await fetch(`${API_ENDPOINTS.admin.systemEvents}?limit=30`, {
+        headers: { Authorization: `Bearer ${getToken()}` },
+      });
+      const data = await res.json();
+      if (!res.ok || !data?.success) {
+        notyf.error(data?.error || 'Could not load system events.');
+        return;
+      }
+      setSystemEvents(Array.isArray(data.events) ? data.events : []);
+    } catch {
+      notyf.error('Connection error loading system events.');
+    } finally {
+      setSystemEventsLoading(false);
+    }
+  };
+
+  const fetchBackgroundJobs = async () => {
+    setBackgroundJobsLoading(true);
+    try {
+      const res = await fetch(`${API_ENDPOINTS.admin.backgroundJobs}?limit=30`, {
+        headers: { Authorization: `Bearer ${getToken()}` },
+      });
+      const data = await res.json();
+      if (!res.ok || !data?.success) {
+        notyf.error(data?.error || 'Could not load background jobs.');
+        return;
+      }
+      setBackgroundJobs(Array.isArray(data.jobs) ? data.jobs : []);
+    } catch {
+      notyf.error('Connection error loading background jobs.');
+    } finally {
+      setBackgroundJobsLoading(false);
+    }
+  };
+
   const fetchWorkerRewardsAdmin = async (
     status: 'all' | 'scheduled' | 'paid' | 'cancelled' = workerRewardsStatus
   ) => {
@@ -2798,10 +4576,34 @@ const renderRequestsHistoryTab = () => {
 
       notyf.success('Bonus payout marked as paid.');
       await fetchWorkerRewardsAdmin(workerRewardsStatus);
+      await fetchPaymentLedgerAdmin();
     } catch {
       notyf.error('Connection error marking payout as paid.');
     } finally {
       setMarkingPayoutId(null);
+    }
+  };
+
+  const handleMarkWorkerPayoutPaid = async (idWorkerPayout: number) => {
+    setMarkingWorkerPayoutId(idWorkerPayout);
+    try {
+      const res = await fetch(API_ENDPOINTS.admin.markWorkerPayoutPaid(idWorkerPayout), {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${getToken()}` },
+      });
+      const data = await res.json();
+      if (!res.ok || !data?.success) {
+        notyf.error(data?.error || 'Could not mark worker payout as paid.');
+        return;
+      }
+
+      notyf.success('Worker payout marked as paid.');
+      await fetchWorkerPayoutsAdmin(workerRewardsStatus);
+      await fetchPaymentLedgerAdmin();
+    } catch {
+      notyf.error('Connection error marking worker payout as paid.');
+    } finally {
+      setMarkingWorkerPayoutId(null);
     }
   };
 

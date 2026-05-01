@@ -1,6 +1,7 @@
 import { RowDataPacket } from 'mysql2';
 import pool from '../config/db';
 import { shouldRunRuntimeSchemaSync } from '../config/schemaSync';
+import { isDatabaseSchemaReady } from '../services/schemaState.service';
 
 let usersActiveColumnChecked = false;
 let usersPendingWorkerColumnChecked = false;
@@ -8,6 +9,10 @@ let usersPhoneNullableChecked = false;
 
 export const ensureUsersActiveColumn = async (): Promise<void> => {
   if (usersActiveColumnChecked) return;
+  if (isDatabaseSchemaReady()) {
+    usersActiveColumnChecked = true;
+    return;
+  }
   if (!shouldRunRuntimeSchemaSync()) {
     usersActiveColumnChecked = true;
     return;
@@ -31,6 +36,10 @@ export const ensureUsersActiveColumn = async (): Promise<void> => {
 
 export const ensureUsersPendingWorkerColumn = async (): Promise<void> => {
   if (usersPendingWorkerColumnChecked) return;
+  if (isDatabaseSchemaReady()) {
+    usersPendingWorkerColumnChecked = true;
+    return;
+  }
   if (!shouldRunRuntimeSchemaSync()) {
     usersPendingWorkerColumnChecked = true;
     return;
@@ -54,6 +63,10 @@ export const ensureUsersPendingWorkerColumn = async (): Promise<void> => {
 
 export const ensureUsersPhoneNumberNullable = async (): Promise<void> => {
   if (usersPhoneNullableChecked) return;
+  if (isDatabaseSchemaReady()) {
+    usersPhoneNullableChecked = true;
+    return;
+  }
   if (!shouldRunRuntimeSchemaSync()) {
     usersPhoneNullableChecked = true;
     return;

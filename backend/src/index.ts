@@ -17,9 +17,10 @@ import {
   resolvePublicUploadPath,
   isImageFileName,
 } from './utils/assets';
+import { runDatabaseMigrations } from './migrations/runMigrations';
+import { startBackgroundJobWorker } from './services/backgroundJobs.service';
 
 dotenv.config();
-
 const isProduction = process.env.NODE_ENV === 'production';
 
 try {
@@ -33,12 +34,13 @@ try {
 
 const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS ?? '')
   .split(',')
-  .map((o) => o.trim())
+  .map((origin) => origin.trim())
   .filter(Boolean);
 
-const corsOptions = isProduction && ALLOWED_ORIGINS.length > 0
-  ? { origin: ALLOWED_ORIGINS, credentials: true }
-  : {};
+const corsOptions =
+  isProduction && ALLOWED_ORIGINS.length > 0
+    ? { origin: ALLOWED_ORIGINS, credentials: true }
+    : {};
 
 const app = express();
 app.set('trust proxy', 1);
@@ -92,32 +94,61 @@ app.use('/api/notifications', notificationsRoutes);
 app.use('/api/events', eventsRoute);
 app.use('/api/uploads', uploadsRoutes);
 
-
-app.get('/api/health', (req: Request, res: Response) => {
+app.get('/api/health', (_req: Request, res: Response) => {
   res.json({
     success: true,
     message: 'El backend de Node.js + Express + TypeScript esta funcionando correctamente en Docker.',
   });
 });
 
-app.get('/', (req: Request, res: Response) => {
+app.get('/', (_req: Request, res: Response) => {
   res.json({ message: 'FixLife Backend API is running' });
 });
 
-app.use((err: any, req: Request, res: Response, next: any) => {
-  console.error('Error global:', err);
-  
+app.use((err: any, _req: Request, res: Response, _next: any) => {
+  console.error('Global error:', err);
+
   if (err.code === 'LIMIT_FILE_SIZE') {
     return res.status(400).json({ 
       error: 'El archivo es demasiado grande. El limite es de 10MB.'
     });
   }
 
-  res.status(err.status || 500).json({
-    error: err.message || 'Error interno del servidor',
+  return res.status(err.status || 500).json({
+    error: err.message || 'Internal server error',
   });
 });
 
-app.listen(Number(PORT), '0.0.0.0', () => {
-  console.log(`🚀 Servidor Node.js corriendo en http://0.0.0.0:${PORT}`);
+const startServer = async () => {
+  const migrationsMode = String(
+    process.env.DB_MIGRATIONS_MODE || (isProduction ? 'manual' : 'auto')
+  )
+    .trim()
+    .toLowerCase();
+
+  if (!['auto', 'manual'].includes(migrationsMode)) {
+    throw new Error('DB_MIGRATIONS_MODE must be either "auto" or "manual".');
+  }
+
+  const migrationResult = await runDatabaseMigrations({
+    applyPending: migrationsMode === 'auto',
+  });
+
+  if (migrationResult.appliedNow.length > 0) {
+    console.log(`[db] Applied migrations: ${migrationResult.appliedNow.join(', ')}`);
+  } else {
+    console.log('[db] Database schema is up to date.');
+  }
+
+  app.listen(Number(PORT), '0.0.0.0', () => {
+    console.log(`Fixlife backend listening on http://0.0.0.0:${PORT}`);
+  });
+
+  startBackgroundJobWorker();
+  console.log('[jobs] Background worker started.');
+};
+
+void startServer().catch((error) => {
+  console.error('Fatal startup error:', error);
+  process.exit(1);
 });
