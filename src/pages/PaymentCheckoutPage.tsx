@@ -15,6 +15,7 @@ interface MyServiceRequest {
     id_request: number;
     id_service: number;
     service_name: string;
+    urgency_level?: 'standard' | 'urgent' | 'emergency' | string;
     description: string;
     location_text: string;
     initial_budget?: number | null;
@@ -29,6 +30,22 @@ interface MyServiceRequest {
         amount: number;
         platform_fee?: number | null;
         worker_payout?: number | null;
+        commission_rate?: number | null;
+        promo_code?: string | null;
+        commission_snapshot?: {
+            commission_rate?: number | null;
+            policy_label?: string | null;
+            applied_rules?: Array<{
+                id_rule: number;
+                name: string;
+                rule_type: string;
+                id_service: number | null;
+                adjustment_mode: string;
+                rate_percent: number;
+                priority: number;
+                service_name?: string | null;
+            }>;
+        } | null;
         status: string;
         paid_at: string | null;
     } | null;
@@ -153,6 +170,7 @@ const PaymentCheckoutPage: React.FC<PaymentCheckoutPageProps> = ({ requestId, on
     const [loading, setLoading] = useState(true);
     const [request, setRequest] = useState<MyServiceRequest | null>(null);
     const [paymentMethod, setPaymentMethod] = useState<CheckoutPaymentMethod>('paypal');
+    const [promoCode, setPromoCode] = useState('');
     const [isPaying, setIsPaying] = useState(false);
     const [checkoutStage, setCheckoutStage] = useState<CheckoutStage>('form');
     const [checkoutMessage, setCheckoutMessage] = useState('');
@@ -176,6 +194,26 @@ const PaymentCheckoutPage: React.FC<PaymentCheckoutPageProps> = ({ requestId, on
 
         return Number(Math.max(amount - platformFee, 0).toFixed(2));
     }, [amount, platformFee, request?.payment?.worker_payout]);
+    const commissionRate = useMemo(() => {
+        if (request?.payment?.commission_rate != null) {
+            return Number(request.payment.commission_rate);
+        }
+
+        if (amount <= 0) return DEFAULT_PLATFORM_PROTECTION_RATE;
+        return Number((platformFee / amount).toFixed(4));
+    }, [amount, platformFee, request?.payment?.commission_rate]);
+    const commissionLabel = useMemo(
+        () => readString(request?.payment?.commission_snapshot?.policy_label) || 'Protected with the current platform fee policy.',
+        [request?.payment?.commission_snapshot?.policy_label]
+    );
+    const appliedCommissionRules = useMemo(() => {
+        const rules = request?.payment?.commission_snapshot?.applied_rules;
+        if (!Array.isArray(rules) || rules.length === 0) return null;
+
+        return rules
+            .map((rule) => `${rule.name} ${Math.round(Number(rule.rate_percent || 0) * 1000) / 10}%`)
+            .join(' · ');
+    }, [request?.payment?.commission_snapshot?.applied_rules]);
     const isAlreadyPaid = useMemo(
         () =>
             Boolean(
@@ -236,6 +274,7 @@ const PaymentCheckoutPage: React.FC<PaymentCheckoutPageProps> = ({ requestId, on
                 }
 
                 setRequest(matchedRequest);
+                setPromoCode(readString(matchedRequest.payment?.promo_code));
             } catch {
                 notyf.error('Network error loading checkout.');
                 setRequest(null);
@@ -279,6 +318,7 @@ const PaymentCheckoutPage: React.FC<PaymentCheckoutPageProps> = ({ requestId, on
                 body: JSON.stringify({
                     payment_method: 'paypal',
                     paypal_order_id: paypalOrderId,
+                    promo_code: promoCode.trim() || undefined,
                     payer,
                 }),
             });
@@ -302,6 +342,9 @@ const PaymentCheckoutPage: React.FC<PaymentCheckoutPageProps> = ({ requestId, on
                               amount: Number(payPayload?.payment?.amount || amount),
                               platform_fee: Number(payPayload?.payment?.platform_fee ?? prev.payment?.platform_fee ?? platformFee),
                               worker_payout: Number(payPayload?.payment?.worker_payout ?? prev.payment?.worker_payout ?? workerPayout),
+                              commission_rate: Number(payPayload?.payment?.commission_rate ?? prev.payment?.commission_rate ?? commissionRate),
+                              promo_code: payPayload?.payment?.promo_code ?? prev.payment?.promo_code ?? promoCode.trim() ?? null,
+                              commission_snapshot: payPayload?.payment?.commission_snapshot ?? prev.payment?.commission_snapshot ?? null,
                               status: 'paid',
                               paid_at: new Date().toISOString(),
                           },
@@ -394,6 +437,7 @@ const PaymentCheckoutPage: React.FC<PaymentCheckoutPageProps> = ({ requestId, on
                 },
                 body: JSON.stringify({
                     payment_method: selectedMethod,
+                    promo_code: promoCode.trim() || undefined,
                     return_url: `${window.location.origin}/checkout/${request.id_request}?paypal=success`,
                     cancel_url: `${window.location.origin}/checkout/${request.id_request}?paypal=cancel`,
                     payer: {
@@ -629,7 +673,7 @@ const PaymentCheckoutPage: React.FC<PaymentCheckoutPageProps> = ({ requestId, on
                                 <div>
                                     <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">Platform protection</p>
                                     <p className="mt-2 text-lg font-black text-slate-950">${platformFee.toFixed(2)}</p>
-                                    <p className="mt-1 text-[11px] text-slate-500">Applied from the secured charge.</p>
+                                    <p className="mt-1 text-[11px] text-slate-500">{`${(commissionRate * 100).toFixed(1)}% commission`}</p>
                                 </div>
                                 <div>
                                     <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">Pro release</p>
@@ -637,6 +681,37 @@ const PaymentCheckoutPage: React.FC<PaymentCheckoutPageProps> = ({ requestId, on
                                     <p className="mt-1 text-[11px] text-slate-500">Released after the job is confirmed complete.</p>
                                 </div>
                             </div>
+                            <div className="mt-3 rounded-[22px] border border-slate-200 bg-white/70 p-4">
+                                <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">Commission policy</p>
+                                <p className="mt-2 text-sm font-semibold text-slate-700">{commissionLabel}</p>
+                                {appliedCommissionRules && (
+                                    <p className="mt-1 text-xs text-slate-500">{appliedCommissionRules}</p>
+                                )}
+                                {readString(request?.payment?.promo_code || promoCode) && (
+                                    <p className="mt-2 text-xs font-black uppercase tracking-[0.18em] text-emerald-600">
+                                        Promo active: {readString(request?.payment?.promo_code || promoCode)}
+                                    </p>
+                                )}
+                            </div>
+
+                            {!isAlreadyPaid && (
+                                <div className="mt-3 rounded-[22px] border border-slate-200 bg-white/70 p-4">
+                                    <div className="flex items-center justify-between gap-3">
+                                        <div>
+                                            <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">Promo code</p>
+                                            <p className="mt-2 text-sm text-slate-500">
+                                                Apply a platform promo to reduce the fee on this payment split.
+                                            </p>
+                                        </div>
+                                        <input
+                                            value={promoCode}
+                                            onChange={(e) => setPromoCode(e.target.value.toUpperCase().replace(/\s+/g, ''))}
+                                            placeholder="SAVE10"
+                                            className="w-32 rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm font-black uppercase tracking-[0.12em] text-slate-900 outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10"
+                                        />
+                                    </div>
+                                </div>
+                            )}
                             
                             <div className="mt-6 flex items-center justify-center gap-2 opacity-50">
                                 <svg className="h-4 w-4 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">

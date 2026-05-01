@@ -1,6 +1,7 @@
 import { ResultSetHeader, RowDataPacket } from 'mysql2';
 import pool from '../config/db';
 import { shouldRunRuntimeSchemaSync } from '../config/schemaSync';
+import { isDatabaseSchemaReady } from '../services/schemaState.service';
 
 export const DEFAULT_COMMISSION_TRIAL_MIN_JOBS = 3;
 export const DEFAULT_COMMISSION_BONUS_RATE = 0.07;
@@ -76,6 +77,10 @@ export const getCycleRoyaltyPayoutDate = (cycleKey: string, payoutWeekday = DEFA
 
 export const ensureWorkerRewardsTables = async () => {
   if (workerRewardsTablesChecked) return;
+  if (isDatabaseSchemaReady()) {
+    workerRewardsTablesChecked = true;
+    return;
+  }
   if (!shouldRunRuntimeSchemaSync()) {
     workerRewardsTablesChecked = true;
     return;

@@ -5,7 +5,6 @@ import { AuthRequest } from '../middlewares/auth.middleware';
 import { createUserNotification } from '../utils/notifications';
 import { pushToUser } from '../services/sseManager';
 import { getWorkerBonusPayouts, getWorkerRewardsSettings, syncWorkerBonusPayouts } from '../utils/workerRewards';
-import { sendPaymentInvoiceEmail, sendWorkerPaymentSecuredEmail } from '../utils/email';
 import { resolveRequestLocation, reverseGeocodeLocation, suggestLocationTexts } from '../services/geocoding.service';
 import { getProximityBounds, getWorkerBoundsFilter } from '../services/nearbyWorkers.service';
 import { buildProtectedAssetUrl, buildPublicAssetUrl, deleteUploadIfExists } from '../utils/assets';
@@ -16,13 +15,28 @@ import {
   buildInvoiceNumber,
   capturePaypalOrder,
   createPaypalOrder,
-  getPaymentBreakdown,
   getRequestChargeAmount,
   parseRequestedPaymentMethod,
   sanitizePaymentValue,
   sanitizeRedirectUrl,
   type SupportedPaymentMethod,
 } from '../services/requestPayments.service';
+import {
+  calculateCommissionBreakdown,
+  ensureCommissionEngineTables,
+  normalizePromoCode,
+  normalizeUrgencyLevel,
+  resolveWorkerTier,
+} from '../services/commissionEngine.service';
+import {
+  ensurePaymentLedgerTables,
+  recordConfirmedPaymentLedger,
+  scheduleWorkerPayoutForReleasedRequest,
+} from '../services/paymentLedger.service';
+import { enqueueBackgroundJob } from '../services/backgroundJobs.service';
+import { storePaypalWebhookEvent, verifyPaypalWebhookSignature } from '../services/paypalWebhook.service';
+import { isDatabaseSchemaReady } from '../services/schemaState.service';
+import { recordSystemEvent } from '../services/systemEvents.service';
 
 type ServiceCardRow = RowDataPacket & {
   id_card: number;
@@ -265,6 +279,20 @@ const toPublicRequestStatus = (status: string | null | undefined) => {
   return status === 'open' ? 'pending' : status;
 };
 
+const parseCommissionSnapshot = (value: unknown) => {
+  if (typeof value !== 'string' || !value) return null;
+  try {
+    return JSON.parse(value);
+  } catch {
+    return null;
+  }
+};
+
+const resolveRequestWorkerTier = (row: any) =>
+  resolveWorkerTier({
+    membershipTier: row?.worker_membership_tier,
+    isVerified: row?.worker_is_verified,
+  });
 const defaultImageForService = (serviceName: string) => {
   const name = serviceName.toLowerCase();
   if (name.includes('plumb')) return 'https://images.unsplash.com/photo-1585704032915-c3400ca199e7?q=80&w=1400&auto=format&fit=crop';
@@ -378,6 +406,10 @@ const requeueAssignedRequest = async (
 
 export const ensureServiceCardsTable = async () => {
   if (serviceCardsTableChecked) return;
+  if (isDatabaseSchemaReady()) {
+    serviceCardsTableChecked = true;
+    return;
+  }
   if (!shouldRunRuntimeSchemaSync()) {
     serviceCardsTableChecked = true;
     return;
@@ -531,6 +563,10 @@ export const getPublicServiceCards = async (_req: Request, res: Response): Promi
 
 export const ensureWorkerGeoColumns = async () => {
   if (workerGeoColumnsChecked) return;
+  if (isDatabaseSchemaReady()) {
+    workerGeoColumnsChecked = true;
+    return;
+  }
   if (!shouldRunRuntimeSchemaSync()) {
     workerGeoColumnsChecked = true;
     return;
@@ -583,6 +619,10 @@ export const ensureWorkerGeoColumns = async () => {
 
 export const ensureSavedLocationsTable = async () => {
   if (savedLocationsTableChecked) return;
+  if (isDatabaseSchemaReady()) {
+    savedLocationsTableChecked = true;
+    return;
+  }
   if (!shouldRunRuntimeSchemaSync()) {
     savedLocationsTableChecked = true;
     return;
@@ -1062,6 +1102,10 @@ export const clearSavedLocationsByKind = async (req: AuthRequest, res: Response)
 
 export const ensureServiceRequestTables = async () => {
   if (serviceRequestsTablesChecked) return;
+  if (isDatabaseSchemaReady()) {
+    serviceRequestsTablesChecked = true;
+    return;
+  }
   if (!shouldRunRuntimeSchemaSync()) {
     serviceRequestsTablesChecked = true;
     return;
@@ -1291,6 +1335,8 @@ export const ensureServiceRequestTables = async () => {
     await pool.execute(`ALTER TABLE service_request_payments ADD COLUMN currency_code VARCHAR(8) NOT NULL DEFAULT 'USD' AFTER provider_capture_id`);
   }
 
+  await ensureCommissionEngineTables();
+  await ensurePaymentLedgerTables();
   serviceRequestsTablesChecked = true;
 };
 
@@ -1349,6 +1395,7 @@ export const createServiceRequest = async (req: AuthRequest, res: Response): Pro
     const longitudeRaw = req.body?.lng != null && req.body?.lng !== '' ? Number(req.body?.lng) : null;
     const radiusRaw = Number(req.body?.radius_km ?? 8);
     const radiusKm = Number.isFinite(radiusRaw) && radiusRaw > 0 ? Math.min(radiusRaw, 50) : 8;
+    const urgencyLevel = normalizeUrgencyLevel(req.body?.urgency_level);
 
     if (!idService || Number.isNaN(idService)) {
       removeUploadedFiles(files);
@@ -1426,9 +1473,9 @@ export const createServiceRequest = async (req: AuthRequest, res: Response): Pro
 
     const [insertRequest] = await pool.execute<ResultSetHeader>(
       `INSERT INTO service_requests
-       (id_user, id_service, description, location_text, latitude, longitude, initial_budget, budget, final_budget, radius_km, status)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, 'pending')`,
-      [idUser, idService, description, locationText, latitude, longitude, budget, budget, radiusKm]
+       (id_user, id_service, description, location_text, latitude, longitude, initial_budget, budget, final_budget, radius_km, urgency_level, status)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, 'pending')`,
+      [idUser, idService, description, locationText, latitude, longitude, budget, budget, radiusKm, urgencyLevel]
     );
 
     const idRequest = Number(insertRequest.insertId);
@@ -1527,6 +1574,7 @@ export const getMyServiceRequests = async (req: AuthRequest, res: Response): Pro
          sr.budget,
          sr.final_budget,
          sr.radius_km,
+         sr.urgency_level,
          sr.status,
          sr.created_at,
          s.name AS service_name,
@@ -1546,6 +1594,9 @@ export const getMyServiceRequests = async (req: AuthRequest, res: Response): Pro
          srp.amount AS payment_amount,
          srp.platform_fee AS payment_platform_fee,
          srp.worker_payout AS payment_worker_payout,
+         srp.commission_rate AS payment_commission_rate,
+         srp.commission_snapshot_json AS payment_commission_snapshot_json,
+         srp.promo_code AS payment_promo_code,
          srp.payment_status,
          srp.paid_at,
          srp.released_at,
@@ -1565,8 +1616,8 @@ export const getMyServiceRequests = async (req: AuthRequest, res: Response): Pro
        WHERE ${whereParts.join(' AND ')}
        GROUP BY
          sr.id_request, sr.id_service, sr.description, sr.location_text, sr.latitude, sr.longitude,
-         sr.initial_budget, sr.budget, sr.final_budget, sr.radius_km, sr.status, sr.created_at, s.name, s.icon, wp.id_worker_profile, wp.latitude, wp.longitude, wp.is_online, wp.bio, u2.name, u2.lastname, u2.phone_number, u2.profile_image,
-        srp.provider, srp.checkout_reference, srp.currency_code, srp.amount, srp.platform_fee, srp.worker_payout, srp.payment_status, srp.paid_at, srp.released_at,
+         sr.initial_budget, sr.budget, sr.final_budget, sr.radius_km, sr.urgency_level, sr.status, sr.created_at, s.name, s.icon, wp.id_worker_profile, wp.latitude, wp.longitude, wp.is_online, wp.bio, u2.name, u2.lastname, u2.phone_number, u2.profile_image,
+        srp.provider, srp.checkout_reference, srp.currency_code, srp.amount, srp.platform_fee, srp.worker_payout, srp.commission_rate, srp.commission_snapshot_json, srp.promo_code, srp.payment_status, srp.paid_at, srp.released_at,
          srw_assigned.proposed_budget, srw_assigned.counter_message, srw_assigned.counter_status
        ORDER BY sr.created_at DESC
        LIMIT 100`,
@@ -1586,6 +1637,7 @@ export const getMyServiceRequests = async (req: AuthRequest, res: Response): Pro
       budget: Number(row.budget || 0),
       final_budget: row.final_budget != null ? Number(row.final_budget) : null,
       radius_km: Number(row.radius_km || 8),
+      urgency_level: normalizeUrgencyLevel(row.urgency_level),
       status: toPublicRequestStatus(row.status),
       created_at: row.created_at,
       assigned_worker:
@@ -1613,6 +1665,9 @@ export const getMyServiceRequests = async (req: AuthRequest, res: Response): Pro
               amount: row.payment_amount != null ? Number(row.payment_amount) : getRequestChargeAmount(row),
               platform_fee: row.payment_platform_fee != null ? Number(row.payment_platform_fee) : null,
               worker_payout: row.payment_worker_payout != null ? Number(row.payment_worker_payout) : null,
+              commission_rate: row.payment_commission_rate != null ? Number(row.payment_commission_rate) : null,
+              commission_snapshot: parseCommissionSnapshot(row.payment_commission_snapshot_json),
+              promo_code: row.payment_promo_code ? normalizePromoCode(row.payment_promo_code) : null,
               status: row.payment_status || 'pending',
               paid_at: row.paid_at || null,
               released_at: row.released_at || null,
@@ -2258,9 +2313,22 @@ export const createRequestPaymentCheckout = async (req: AuthRequest, res: Respon
 
     await connection.beginTransaction();
 
+    const requestPromoCode = normalizePromoCode(req.body?.promo_code);
+
     const [rows] = await connection.execute<RowDataPacket[]>(
-      `SELECT id_request, id_user, status, assigned_worker_profile, budget, final_budget
-       FROM service_requests
+      `SELECT
+         sr.id_request,
+         sr.id_user,
+         sr.id_service,
+         sr.urgency_level,
+         sr.status,
+         sr.assigned_worker_profile,
+         sr.budget,
+         sr.final_budget,
+         wp.membership_tier AS worker_membership_tier,
+         wp.is_verified AS worker_is_verified
+       FROM service_requests sr
+       LEFT JOIN worker_profiles wp ON wp.id_worker_profile = sr.assigned_worker_profile
        WHERE id_request = ? AND id_user = ?
        LIMIT 1
        FOR UPDATE`,
@@ -2286,7 +2354,21 @@ export const createRequestPaymentCheckout = async (req: AuthRequest, res: Respon
       return;
     }
 
-    const { amount, platformFee, workerPayout } = getPaymentBreakdown(getRequestChargeAmount(requestRow));
+    const commission = await calculateCommissionBreakdown({
+      amount: getRequestChargeAmount(requestRow),
+      idService: requestRow.id_service != null ? Number(requestRow.id_service) : null,
+      urgencyLevel: normalizeUrgencyLevel(requestRow.urgency_level),
+      workerTier: resolveRequestWorkerTier(requestRow),
+      promoCode: requestPromoCode || null,
+      executor: connection,
+    });
+    if (requestPromoCode && !commission.snapshot.applied_rules.some((rule) => rule.rule_type === 'promo')) {
+      await connection.rollback();
+      res.status(400).json({ error: 'Promo code is invalid or inactive.' });
+      return;
+    }
+    const { amount, platformFee, workerPayout } = commission;
+    const commissionSnapshotJson = JSON.stringify(commission.snapshot);
     const checkoutReference = buildCheckoutReference(idRequest);
     const defaultReturnUrl = `http://localhost:3000/checkout/${idRequest}?paypal=success`;
     const defaultCancelUrl = `http://localhost:3000/checkout/${idRequest}?paypal=cancel`;
@@ -2317,8 +2399,8 @@ export const createRequestPaymentCheckout = async (req: AuthRequest, res: Respon
 
     await connection.execute(
       `INSERT INTO service_request_payments
-       (id_request, provider, checkout_reference, provider_payment_id, provider_capture_id, currency_code, amount, platform_fee, worker_payout, payment_status)
-       VALUES (?, ?, ?, ?, NULL, 'USD', ?, ?, ?, 'pending')
+       (id_request, provider, checkout_reference, provider_payment_id, provider_capture_id, currency_code, amount, platform_fee, worker_payout, commission_rate, commission_snapshot_json, promo_code, payment_status)
+       VALUES (?, ?, ?, ?, NULL, 'USD', ?, ?, ?, ?, ?, ?, 'pending')
        ON DUPLICATE KEY UPDATE
          provider = VALUES(provider),
          checkout_reference = VALUES(checkout_reference),
@@ -2328,9 +2410,12 @@ export const createRequestPaymentCheckout = async (req: AuthRequest, res: Respon
          amount = VALUES(amount),
          platform_fee = VALUES(platform_fee),
          worker_payout = VALUES(worker_payout),
+         commission_rate = VALUES(commission_rate),
+         commission_snapshot_json = VALUES(commission_snapshot_json),
+         promo_code = VALUES(promo_code),
          payment_status = CASE WHEN payment_status = 'paid' THEN payment_status ELSE 'pending' END,
          updated_at = CURRENT_TIMESTAMP`,
-      [idRequest, paymentMethod, checkoutReference, paypalOrderId, amount, platformFee, workerPayout]
+      [idRequest, paymentMethod, checkoutReference, paypalOrderId, amount, platformFee, workerPayout, commission.commissionRate, commissionSnapshotJson, requestPromoCode || null]
     );
 
     await connection.commit();
@@ -2346,6 +2431,9 @@ export const createRequestPaymentCheckout = async (req: AuthRequest, res: Respon
         amount,
         platform_fee: platformFee,
         worker_payout: workerPayout,
+        commission_rate: commission.commissionRate,
+        commission_snapshot: commission.snapshot,
+        promo_code: requestPromoCode || null,
       },
     });
   } catch (error: any) {
@@ -2392,14 +2480,19 @@ export const confirmRequestPayment = async (req: AuthRequest, res: Response): Pr
       `SELECT
          sr.id_request,
          sr.id_user,
+         sr.id_service,
+         sr.urgency_level,
          sr.status,
          sr.budget,
          sr.final_budget,
+         sr.location_text,
          sr.assigned_worker_profile,
          s.name AS service_name,
          cu.name AS client_name,
          cu.lastname AS client_lastname,
          cu.email AS client_email,
+         wp.membership_tier AS worker_membership_tier,
+         wp.is_verified AS worker_is_verified,
          wu.name AS worker_name,
          wu.lastname AS worker_lastname,
          wu.email AS worker_email
@@ -2429,7 +2522,7 @@ export const confirmRequestPayment = async (req: AuthRequest, res: Response): Pr
     }
 
     const [paymentRows] = await connection.execute<RowDataPacket[]>(
-      `SELECT id_payment, provider, payment_status, amount, platform_fee, worker_payout, checkout_reference, provider_payment_id, provider_capture_id, currency_code
+      `SELECT id_payment, provider, payment_status, amount, platform_fee, worker_payout, commission_rate, commission_snapshot_json, promo_code, checkout_reference, provider_payment_id, provider_capture_id, currency_code
        FROM service_request_payments
        WHERE id_request = ?
        LIMIT 1
@@ -2437,7 +2530,16 @@ export const confirmRequestPayment = async (req: AuthRequest, res: Response): Pr
       [idRequest]
     );
 
-    const { amount, platformFee, workerPayout } = getPaymentBreakdown(getRequestChargeAmount(requestRow));
+    const requestPromoCode = normalizePromoCode(req.body?.promo_code);
+    const commission = await calculateCommissionBreakdown({
+      amount: getRequestChargeAmount(requestRow),
+      idService: requestRow.id_service != null ? Number(requestRow.id_service) : null,
+      urgencyLevel: normalizeUrgencyLevel(requestRow.urgency_level),
+      workerTier: resolveRequestWorkerTier(requestRow),
+      promoCode: requestPromoCode || null,
+      executor: connection,
+    });
+    const { amount, platformFee, workerPayout } = commission;
     const storedPaymentRow = paymentRows.length > 0 ? paymentRows[0] : null;
     const storedPaymentMethod = storedPaymentRow ? parseRequestedPaymentMethod(storedPaymentRow.provider) : null;
     const paymentMethod: SupportedPaymentMethod = requestedPaymentMethod || storedPaymentMethod || 'paypal';
@@ -2466,6 +2568,26 @@ export const confirmRequestPayment = async (req: AuthRequest, res: Response): Pr
     const expectedAmount = storedPaymentRow?.amount != null ? Number(storedPaymentRow.amount) : amount;
     const expectedPlatformFee = storedPaymentRow?.platform_fee != null ? Number(storedPaymentRow.platform_fee) : platformFee;
     const expectedWorkerPayout = storedPaymentRow?.worker_payout != null ? Number(storedPaymentRow.worker_payout) : workerPayout;
+    const expectedCommissionRate =
+      storedPaymentRow?.commission_rate != null ? Number(storedPaymentRow.commission_rate) : commission.commissionRate;
+    const expectedPromoCode = storedPaymentRow?.promo_code
+      ? normalizePromoCode(storedPaymentRow.promo_code)
+      : requestPromoCode || null;
+    if (requestPromoCode && requestPromoCode !== expectedPromoCode) {
+      await connection.rollback();
+      res.status(409).json({ error: 'Promo code mismatch for this checkout session.' });
+      return;
+    }
+    if (requestPromoCode && !commission.snapshot.applied_rules.some((rule) => rule.rule_type === 'promo') && !storedPaymentRow?.promo_code) {
+      await connection.rollback();
+      res.status(400).json({ error: 'Promo code is invalid or inactive.' });
+      return;
+    }
+    const expectedCommissionSnapshot =
+      typeof storedPaymentRow?.commission_snapshot_json === 'string' && storedPaymentRow.commission_snapshot_json
+        ? storedPaymentRow.commission_snapshot_json
+        : JSON.stringify(commission.snapshot);
+    const resolvedCommissionSnapshot = parseCommissionSnapshot(expectedCommissionSnapshot) || commission.snapshot;
     const expectedCurrencyCode = storedPaymentRow?.currency_code ? String(storedPaymentRow.currency_code).toUpperCase() : 'USD';
     let providerCaptureId: string | null = storedPaymentRow?.provider_capture_id ? String(storedPaymentRow.provider_capture_id) : null;
 
@@ -2477,9 +2599,13 @@ export const confirmRequestPayment = async (req: AuthRequest, res: Response): Pr
         id_request: idRequest,
         payment: {
           provider: String(paymentRows[0].provider || paymentMethod || 'paypal'),
-          amount: Number(paymentRows[0].amount || expectedAmount),
-          platform_fee: Number(paymentRows[0].platform_fee || expectedPlatformFee),
-          worker_payout: Number(paymentRows[0].worker_payout || expectedWorkerPayout),
+          amount: paymentRows[0].amount != null ? Number(paymentRows[0].amount) : expectedAmount,
+          platform_fee: paymentRows[0].platform_fee != null ? Number(paymentRows[0].platform_fee) : expectedPlatformFee,
+          worker_payout: paymentRows[0].worker_payout != null ? Number(paymentRows[0].worker_payout) : expectedWorkerPayout,
+          commission_rate:
+            paymentRows[0].commission_rate != null ? Number(paymentRows[0].commission_rate) : expectedCommissionRate,
+          commission_snapshot: parseCommissionSnapshot(paymentRows[0].commission_snapshot_json) || commission.snapshot,
+          promo_code: paymentRows[0].promo_code ? normalizePromoCode(paymentRows[0].promo_code) : expectedPromoCode,
           status: 'paid',
           checkout_reference: String(paymentRows[0].checkout_reference || checkoutReferenceForPayment),
           currency_code: String(paymentRows[0].currency_code || expectedCurrencyCode),
@@ -2514,9 +2640,9 @@ export const confirmRequestPayment = async (req: AuthRequest, res: Response): Pr
     if (paymentRows.length === 0) {
       await connection.execute(
         `INSERT INTO service_request_payments
-         (id_request, provider, checkout_reference, provider_payment_id, provider_capture_id, currency_code, amount, platform_fee, worker_payout, payment_status, paid_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'paid', CURRENT_TIMESTAMP)`,
-        [idRequest, paymentMethod, checkoutReferenceForPayment, paypalOrderId || null, providerCaptureId, expectedCurrencyCode, expectedAmount, expectedPlatformFee, expectedWorkerPayout]
+         (id_request, provider, checkout_reference, provider_payment_id, provider_capture_id, currency_code, amount, platform_fee, worker_payout, commission_rate, commission_snapshot_json, promo_code, payment_status, paid_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'paid', CURRENT_TIMESTAMP)`,
+        [idRequest, paymentMethod, checkoutReferenceForPayment, paypalOrderId || null, providerCaptureId, expectedCurrencyCode, expectedAmount, expectedPlatformFee, expectedWorkerPayout, expectedCommissionRate, expectedCommissionSnapshot, expectedPromoCode]
       );
     } else {
       if (String(paymentRows[0].payment_status || '').toLowerCase() === 'paid') {
@@ -2534,11 +2660,14 @@ export const confirmRequestPayment = async (req: AuthRequest, res: Response): Pr
              amount = ?,
              platform_fee = ?,
              worker_payout = ?,
+             commission_rate = ?,
+             commission_snapshot_json = ?,
+             promo_code = ?,
              payment_status = 'paid',
              paid_at = CURRENT_TIMESTAMP,
              updated_at = CURRENT_TIMESTAMP
          WHERE id_request = ?`,
-        [paymentMethod, paypalOrderId || null, providerCaptureId, expectedCurrencyCode, expectedAmount, expectedPlatformFee, expectedWorkerPayout, idRequest]
+        [paymentMethod, paypalOrderId || null, providerCaptureId, expectedCurrencyCode, expectedAmount, expectedPlatformFee, expectedWorkerPayout, expectedCommissionRate, expectedCommissionSnapshot, expectedPromoCode, idRequest]
       );
     }
 
@@ -2550,6 +2679,29 @@ export const confirmRequestPayment = async (req: AuthRequest, res: Response): Pr
        WHERE id_request = ?`,
       [idRequest]
     );
+
+    const [persistedPaymentRows] = await connection.execute<RowDataPacket[]>(
+      `SELECT id_payment
+       FROM service_request_payments
+       WHERE id_request = ?
+       LIMIT 1`,
+      [idRequest]
+    );
+    const persistedPaymentId = persistedPaymentRows[0]?.id_payment != null ? Number(persistedPaymentRows[0].id_payment) : null;
+    if (persistedPaymentId) {
+      await recordConfirmedPaymentLedger(connection, {
+        idRequest,
+        idPayment: persistedPaymentId,
+        idWorkerProfile: requestRow.assigned_worker_profile != null ? Number(requestRow.assigned_worker_profile) : null,
+        amount: expectedAmount,
+        platformFee: expectedPlatformFee,
+        workerPayout: expectedWorkerPayout,
+        currencyCode: expectedCurrencyCode,
+        checkoutReference: checkoutReferenceForPayment,
+        promoCode: expectedPromoCode,
+        commissionSnapshot: resolvedCommissionSnapshot,
+      });
+    }
 
     await connection.commit();
 
@@ -2596,29 +2748,43 @@ export const confirmRequestPayment = async (req: AuthRequest, res: Response): Pr
     }
 
     if (clientEmail) {
-      void sendPaymentInvoiceEmail({
-        to: clientEmail,
-        customerName,
-        requestId: idRequest,
-        serviceName,
-        amount: expectedAmount,
-        platformFee: expectedPlatformFee,
-        workerPayout: expectedWorkerPayout,
-        checkoutReference,
-        invoiceNumber,
-        provider: paymentMethod,
-        paidAt,
+      await enqueueBackgroundJob({
+        jobType: 'send_payment_invoice_email',
+        jobKey: `invoice-email-${idRequest}-${checkoutReference}`,
+        payload: {
+          to: clientEmail,
+          customerName,
+          requestId: idRequest,
+          serviceName,
+          amount: expectedAmount,
+          platformFee: expectedPlatformFee,
+          workerPayout: expectedWorkerPayout,
+          checkoutReference,
+          invoiceNumber,
+          provider: paymentMethod,
+          currencyCode: expectedCurrencyCode,
+          locationText: sanitizePaymentValue(requestRow.location_text, 180) || null,
+          urgencyLevel: sanitizePaymentValue(requestRow.urgency_level, 40) || 'standard',
+          commissionRatePercent: Number((expectedCommissionRate * 100).toFixed(2)),
+          policyLabel: resolvedCommissionSnapshot?.policy_label || null,
+          promoCode: expectedPromoCode || null,
+          paidAt,
+        },
       });
     }
 
     if (workerEmail) {
-      void sendWorkerPaymentSecuredEmail({
-        to: workerEmail,
-        workerName,
-        requestId: idRequest,
-        serviceName,
-        amount: expectedWorkerPayout,
-        checkoutReference,
+      await enqueueBackgroundJob({
+        jobType: 'send_worker_payment_secured_email',
+        jobKey: `worker-secured-email-${idRequest}-${checkoutReference}`,
+        payload: {
+          to: workerEmail,
+          workerName,
+          requestId: idRequest,
+          serviceName,
+          amount: expectedWorkerPayout,
+          checkoutReference,
+        },
       });
     }
 
@@ -2631,6 +2797,9 @@ export const confirmRequestPayment = async (req: AuthRequest, res: Response): Pr
         amount: expectedAmount,
         platform_fee: expectedPlatformFee,
         worker_payout: expectedWorkerPayout,
+        commission_rate: expectedCommissionRate,
+        commission_snapshot: resolvedCommissionSnapshot,
+        promo_code: expectedPromoCode,
         status: 'paid',
         checkout_reference: checkoutReference,
         currency_code: expectedCurrencyCode,
@@ -2644,6 +2813,58 @@ export const confirmRequestPayment = async (req: AuthRequest, res: Response): Pr
     res.status(500).json({ error: 'Internal server error' });
   } finally {
     connection.release();
+  }
+};
+
+export const handlePaypalWebhook = async (req: Request, res: Response): Promise<void> => {
+  try {
+    await ensureServiceRequestTables();
+
+    const payload = req.body || {};
+    const verification = await verifyPaypalWebhookSignature({
+      headers: req.headers as Record<string, string | string[] | undefined>,
+      payload,
+    });
+
+    if (!verification.verified && !verification.skipped) {
+      await recordSystemEvent({
+        level: 'warning',
+        component: 'paypal_webhook',
+        eventType: 'signature_rejected',
+        message: 'Rejected PayPal webhook with invalid signature.',
+        metadata: {
+          paypal_event_id: payload?.id || null,
+          reason: verification.reason || null,
+        },
+      });
+      res.status(401).json({ error: 'Invalid webhook signature.' });
+      return;
+    }
+
+    const paypalEventId = await storePaypalWebhookEvent({
+      payload,
+      verified: verification.verified,
+      skipped: verification.skipped,
+    });
+
+    res.json({
+      success: true,
+      queued: true,
+      paypal_event_id: paypalEventId,
+      verification: verification.verified ? 'verified' : verification.skipped ? 'skipped' : 'rejected',
+    });
+  } catch (error: any) {
+    console.error('Error in handlePaypalWebhook:', error);
+    await recordSystemEvent({
+      level: 'error',
+      component: 'paypal_webhook',
+      eventType: 'webhook_error',
+      message: 'PayPal webhook handler failed.',
+      metadata: {
+        error: String(error?.message || 'Unknown webhook error.').slice(0, 600),
+      },
+    }).catch(() => undefined);
+    res.status(500).json({ error: 'Internal server error' });
   }
 };
 
@@ -2705,6 +2926,41 @@ export const confirmServiceCompletion = async (req: AuthRequest, res: Response):
       [idRequest]
     );
 
+    let scheduledWorkerPayout: {
+      id_worker_payout: number;
+      net_amount: number;
+      scheduled_for: string;
+    } | null = null;
+    if (requestRows[0].assigned_worker_profile != null) {
+      const [paymentRows] = await connection.execute<RowDataPacket[]>(
+        `SELECT id_payment, amount, platform_fee, worker_payout, currency_code, payment_status, released_at
+         FROM service_request_payments
+         WHERE id_request = ?
+         LIMIT 1`,
+        [idRequest]
+      );
+      const paymentRow = paymentRows[0];
+      if (paymentRow && String(paymentRow.payment_status || '').toLowerCase() === 'released') {
+        const payout = await scheduleWorkerPayoutForReleasedRequest(connection, {
+          idRequest,
+          idPayment: Number(paymentRow.id_payment),
+          idWorkerProfile: Number(requestRows[0].assigned_worker_profile),
+          grossAmount: Number(paymentRow.amount || 0),
+          platformFee: Number(paymentRow.platform_fee || 0),
+          netAmount: Number(paymentRow.worker_payout || 0),
+          currencyCode: String(paymentRow.currency_code || 'USD'),
+          releasedAt: paymentRow.released_at ? new Date(paymentRow.released_at) : new Date(),
+        });
+        scheduledWorkerPayout = payout
+          ? {
+              id_worker_payout: Number(payout.id_worker_payout),
+              net_amount: Number(payout.net_amount || 0),
+              scheduled_for: String(payout.scheduled_for),
+            }
+          : null;
+      }
+    }
+
     await connection.commit();
 
     const workerUserId = await getWorkerUserIdByProfileId(
@@ -2735,6 +2991,24 @@ export const confirmServiceCompletion = async (req: AuthRequest, res: Response):
         dedupeKey: `request-${idRequest}-completed-worker`,
         metadata: { request_status: 'done' },
       });
+
+      if (scheduledWorkerPayout) {
+        await createUserNotification({
+          userId: workerUserId,
+          eventType: 'payout_scheduled',
+          title: 'Worker payout scheduled',
+          message: `Your base payout of $${Number(scheduledWorkerPayout.net_amount || 0).toFixed(2)} is scheduled for ${scheduledWorkerPayout.scheduled_for ? new Date(scheduledWorkerPayout.scheduled_for).toLocaleDateString() : 'the next cycle'}.`,
+          tone: 'success',
+          requestId: idRequest,
+          actionUrl: '/pro-dashboard',
+          dedupeKey: `worker-base-payout-scheduled-${scheduledWorkerPayout.id_worker_payout}`,
+          metadata: {
+            payout_type: 'worker_payout',
+            scheduled_for: scheduledWorkerPayout.scheduled_for,
+            payout_amount: Number(scheduledWorkerPayout.net_amount || 0),
+          },
+        });
+      }
 
       const workerProfileId = requestRows[0].assigned_worker_profile != null ? Number(requestRows[0].assigned_worker_profile) : null;
       if (workerProfileId) {

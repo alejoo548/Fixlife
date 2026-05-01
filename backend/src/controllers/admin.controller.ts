@@ -15,6 +15,31 @@ import { ensureServiceCardsTable, ensureServiceRequestTables } from './services.
 import { ensureUsersActiveColumn, ensureUsersPendingWorkerColumn } from '../utils/users';
 import { buildProtectedAssetUrl, buildPublicAssetUrl, deleteUploadIfExists } from '../utils/assets';
 import { shouldRunRuntimeSchemaSync } from '../config/schemaSync';
+import {
+  getCommissionRulesAdminConfig,
+  updateCommissionRulesAdminConfig,
+} from '../services/commissionEngine.service';
+import {
+  getAllWorkerPayoutsForAdmin,
+  getRecentPaymentLedger,
+  markWorkerPayoutAsPaid,
+  recordBonusPayoutPaidLedger,
+} from '../services/paymentLedger.service';
+import { buildFinanceSettlementCsv, getFinanceSettlementReport } from '../services/financeReports.service';
+import {
+  getWorkerTierBenefits,
+  getWorkerTierHistory,
+  updateWorkerMembershipTier,
+  updateWorkerTierBenefits,
+} from '../services/workerTier.service';
+import {
+  createFinanceCase,
+  getFinanceCases,
+  getFinanceClosureReport,
+  resolveFinanceCase,
+} from '../services/financeOperations.service';
+import { getSystemEvents } from '../services/systemEvents.service';
+import { enqueueBackgroundJob, getBackgroundJobsAdmin } from '../services/backgroundJobs.service';
 
 const SCRIPT_PATTERN = /<\s*script|javascript:|on\w+\s*=|data:text\/html/i;
 
@@ -849,7 +874,10 @@ export const approveWorker = async (req: AuthRequest, res: Response): Promise<vo
       }
 
       const [result] = await connection.execute<ResultSetHeader>(
-        `UPDATE worker_profiles SET is_verified = 1 WHERE id_user = ? AND is_verified = 0`,
+        `UPDATE worker_profiles
+         SET is_verified = 1,
+             membership_tier = 'verified'
+         WHERE id_user = ? AND is_verified = 0`,
         [userId]
       );
 
@@ -1018,8 +1046,12 @@ export const getUsersAdmin = async (req: AuthRequest, res: Response): Promise<vo
          u.rol,
          u.created_at,
          u.last_login,
-         u.is_active
+         u.is_active,
+         wp.id_worker_profile,
+         wp.is_verified,
+         wp.membership_tier
        FROM users u
+       LEFT JOIN worker_profiles wp ON wp.id_user = u.id_user
        ${whereSql}
        ORDER BY u.created_at DESC
        LIMIT 500`,
@@ -1038,6 +1070,9 @@ export const getUsersAdmin = async (req: AuthRequest, res: Response): Promise<vo
       created_at: row.created_at,
       last_login: row.last_login,
       is_active: row.is_active ? 1 : 0,
+      id_worker_profile: row.id_worker_profile != null ? Number(row.id_worker_profile) : null,
+      is_verified: row.is_verified != null ? Number(row.is_verified) : null,
+      membership_tier: row.membership_tier ? String(row.membership_tier) : null,
     }));
 
     res.json({ success: true, users });
@@ -1893,8 +1928,60 @@ export const updateWorkerRewardsProgram = async (req: AuthRequest, res: Response
   }
 };
 
+export const getCommissionRulesAdmin = async (_req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    await ensureServiceRequestTables();
+    const config = await getCommissionRulesAdminConfig();
+    res.json({
+      success: true,
+      ...config,
+    });
+  } catch (error: any) {
+    console.error('Error in getCommissionRulesAdmin:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
+export const updateCommissionRulesAdmin = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    await ensureServiceRequestTables();
+
+    const globalRatePercent = Number(req.body?.global_rate_percent);
+    const serviceOverrides = Array.isArray(req.body?.service_overrides) ? req.body.service_overrides : [];
+    const urgencyAdjustments = Array.isArray(req.body?.urgency_adjustments) ? req.body.urgency_adjustments : [];
+    const workerTierAdjustments = Array.isArray(req.body?.worker_tier_adjustments)
+      ? req.body.worker_tier_adjustments
+      : [];
+    const promoCodes = Array.isArray(req.body?.promo_codes) ? req.body.promo_codes : [];
+
+    if (!Number.isFinite(globalRatePercent) || globalRatePercent < 0 || globalRatePercent > 50) {
+      res.status(400).json({ error: 'Default commission rate must be between 0 and 50.' });
+      return;
+    }
+
+    const config = await updateCommissionRulesAdminConfig({
+      global_rate_percent: globalRatePercent,
+      service_overrides: serviceOverrides,
+      urgency_adjustments: urgencyAdjustments,
+      worker_tier_adjustments: workerTierAdjustments,
+      promo_codes: promoCodes,
+    });
+
+    res.json({
+      success: true,
+      message: 'Commission engine updated.',
+      ...config,
+    });
+  } catch (error: any) {
+    console.error('Error in updateCommissionRulesAdmin:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
 export const markWorkerBonusPayoutPaidController = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
+    await ensureServiceRequestTables();
+
     const idBonusPayout = Number(req.params.idBonusPayout);
     if (!idBonusPayout || Number.isNaN(idBonusPayout)) {
       res.status(400).json({ error: 'Invalid bonus payout ID.' });
@@ -1909,9 +1996,16 @@ export const markWorkerBonusPayoutPaidController = async (req: AuthRequest, res:
          wbp.bonus_type,
          wbp.bonus_amount,
          wbp.scheduled_for,
-         wp.id_user
+         wp.id_user,
+         u.email,
+         u.name,
+         u.lastname,
+         s.name AS service_name
        FROM worker_bonus_payouts wbp
        INNER JOIN worker_profiles wp ON wp.id_worker_profile = wbp.id_worker_profile
+       INNER JOIN users u ON u.id_user = wp.id_user
+       LEFT JOIN service_requests sr ON sr.id_request = wbp.source_request_id
+       LEFT JOIN services s ON s.id_service = sr.id_service
        WHERE wbp.id_bonus_payout = ?
        LIMIT 1`,
       [idBonusPayout]
@@ -1922,6 +2016,15 @@ export const markWorkerBonusPayoutPaidController = async (req: AuthRequest, res:
     if (!updated) {
       res.status(404).json({ error: 'Bonus payout not found or not scheduled for payment.' });
       return;
+    }
+
+    if (payoutRow) {
+      await recordBonusPayoutPaidLedger({
+        idBonusPayout: Number(payoutRow.id_bonus_payout),
+        idWorkerProfile: Number(payoutRow.id_worker_profile),
+        idRequest: payoutRow.source_request_id != null ? Number(payoutRow.source_request_id) : null,
+        amount: Number(payoutRow.bonus_amount || 0),
+      });
     }
 
     if (payoutRow?.id_user) {
@@ -1943,12 +2046,513 @@ export const markWorkerBonusPayoutPaidController = async (req: AuthRequest, res:
       });
     }
 
+    if (payoutRow?.email) {
+      await enqueueBackgroundJob({
+        jobType: 'send_worker_payout_paid_email',
+        jobKey: `worker-bonus-payout-email-${idBonusPayout}`,
+        payload: {
+          to: String(payoutRow.email),
+          workerName: `${payoutRow.name || ''} ${payoutRow.lastname || ''}`.trim() || 'Fixlife pro',
+          payoutType: 'bonus',
+          amount: Number(payoutRow.bonus_amount || 0),
+          scheduledFor: payoutRow.scheduled_for || null,
+          requestId: payoutRow.source_request_id != null ? Number(payoutRow.source_request_id) : null,
+          serviceName: payoutRow.service_name || null,
+          bonusType: String(payoutRow.bonus_type || 'bonus'),
+          paidAt: new Date(),
+        },
+      });
+    }
+
     res.json({
       success: true,
       message: 'Bonus payout marked as paid.',
     });
   } catch (error: any) {
     console.error('Error in markWorkerBonusPayoutPaidController:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
+export const getWorkerPayoutsAdmin = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    await ensureServiceRequestTables();
+
+    const status = String(req.query.status || 'all').toLowerCase();
+    const payouts = await getAllWorkerPayoutsForAdmin(status);
+
+    const summary = payouts.reduce(
+      (acc, row) => {
+        const normalizedStatus = String(row.payout_status || '').toLowerCase();
+        const amount = Number(row.net_amount || 0);
+        acc.total_rows += 1;
+        acc.total_amount += amount;
+
+        if (normalizedStatus === 'scheduled') {
+          acc.scheduled_count += 1;
+          acc.scheduled_amount += amount;
+        } else if (normalizedStatus === 'paid') {
+          acc.paid_count += 1;
+          acc.paid_amount += amount;
+        } else if (normalizedStatus === 'cancelled') {
+          acc.cancelled_count += 1;
+          acc.cancelled_amount += amount;
+        }
+
+        return acc;
+      },
+      {
+        total_rows: 0,
+        total_amount: 0,
+        scheduled_count: 0,
+        scheduled_amount: 0,
+        paid_count: 0,
+        paid_amount: 0,
+        cancelled_count: 0,
+        cancelled_amount: 0,
+      }
+    );
+
+    res.json({
+      success: true,
+      summary: {
+        total_rows: summary.total_rows,
+        total_amount: Number(summary.total_amount.toFixed(2)),
+        scheduled_count: summary.scheduled_count,
+        scheduled_amount: Number(summary.scheduled_amount.toFixed(2)),
+        paid_count: summary.paid_count,
+        paid_amount: Number(summary.paid_amount.toFixed(2)),
+        cancelled_count: summary.cancelled_count,
+        cancelled_amount: Number(summary.cancelled_amount.toFixed(2)),
+      },
+      payouts: payouts.map((row) => ({
+        id_worker_payout: Number(row.id_worker_payout),
+        id_worker_profile: Number(row.id_worker_profile),
+        id_request: row.id_request != null ? Number(row.id_request) : null,
+        id_payment: row.id_payment != null ? Number(row.id_payment) : null,
+        worker_name: `${row.name || ''} ${row.lastname || ''}`.trim() || 'Worker',
+        gross_amount: Number(row.gross_amount || 0),
+        platform_fee: Number(row.platform_fee || 0),
+        net_amount: Number(row.net_amount || 0),
+        payout_status: String(row.payout_status || 'scheduled'),
+        scheduled_for: row.scheduled_for,
+        paid_at: row.paid_at || null,
+        notes: row.notes || null,
+        location_text: row.location_text || null,
+        service_name: row.service_name || null,
+      })),
+    });
+  } catch (error: any) {
+    console.error('Error in getWorkerPayoutsAdmin:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
+export const markWorkerPayoutPaidController = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    await ensureServiceRequestTables();
+
+    const idWorkerPayout = Number(req.params.idWorkerPayout);
+    if (!idWorkerPayout || Number.isNaN(idWorkerPayout)) {
+      res.status(400).json({ error: 'Invalid worker payout ID.' });
+      return;
+    }
+
+    const [rows] = await pool.execute<RowDataPacket[]>(
+      `SELECT
+         wpayout.id_worker_payout,
+         wpayout.id_worker_profile,
+         wpayout.id_request,
+         wpayout.net_amount,
+         wpayout.scheduled_for,
+         wp.id_user,
+         u.email,
+         u.name,
+         u.lastname,
+         s.name AS service_name
+       FROM worker_payouts wpayout
+       INNER JOIN worker_profiles wp ON wp.id_worker_profile = wpayout.id_worker_profile
+       INNER JOIN users u ON u.id_user = wp.id_user
+       LEFT JOIN service_requests sr ON sr.id_request = wpayout.id_request
+       LEFT JOIN services s ON s.id_service = sr.id_service
+       WHERE wpayout.id_worker_payout = ?
+       LIMIT 1`,
+      [idWorkerPayout]
+    );
+
+    const payoutRow = rows[0];
+    const updated = await markWorkerPayoutAsPaid(idWorkerPayout);
+    if (!updated) {
+      res.status(404).json({ error: 'Worker payout not found or not scheduled for payment.' });
+      return;
+    }
+
+    if (payoutRow?.id_user) {
+      await createUserNotification({
+        userId: Number(payoutRow.id_user),
+        eventType: 'payout_paid',
+        title: 'Worker payout released',
+        message: `Your base payout of $${Number(payoutRow.net_amount || 0).toFixed(2)} was marked as paid.`,
+        tone: 'success',
+        requestId: payoutRow.id_request != null ? Number(payoutRow.id_request) : null,
+        actionUrl: '/pro-dashboard',
+        dedupeKey: `worker-base-payout-paid-${idWorkerPayout}`,
+        metadata: {
+          payout_type: 'worker_payout',
+          scheduled_for: payoutRow.scheduled_for,
+          payout_amount: Number(payoutRow.net_amount || 0),
+        },
+      });
+    }
+
+    if (payoutRow?.email) {
+      await enqueueBackgroundJob({
+        jobType: 'send_worker_payout_paid_email',
+        jobKey: `worker-base-payout-email-${idWorkerPayout}`,
+        payload: {
+          to: String(payoutRow.email),
+          workerName: `${payoutRow.name || ''} ${payoutRow.lastname || ''}`.trim() || 'Fixlife pro',
+          payoutType: 'base',
+          amount: Number(payoutRow.net_amount || 0),
+          scheduledFor: payoutRow.scheduled_for || null,
+          requestId: payoutRow.id_request != null ? Number(payoutRow.id_request) : null,
+          serviceName: payoutRow.service_name || null,
+          paidAt: new Date(),
+        },
+      });
+    }
+
+    res.json({
+      success: true,
+      message: 'Worker payout marked as paid.',
+    });
+  } catch (error: any) {
+    console.error('Error in markWorkerPayoutPaidController:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
+export const getPaymentLedgerAdmin = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    await ensureServiceRequestTables();
+    const limit = Number(req.query.limit || 40);
+    const ledger = await getRecentPaymentLedger(limit);
+
+    res.json({
+      success: true,
+      entries: ledger.map((row) => ({
+        id_ledger_entry: Number(row.id_ledger_entry),
+        id_request: row.id_request != null ? Number(row.id_request) : null,
+        id_payment: row.id_payment != null ? Number(row.id_payment) : null,
+        id_worker_profile: row.id_worker_profile != null ? Number(row.id_worker_profile) : null,
+        id_worker_payout: row.id_worker_payout != null ? Number(row.id_worker_payout) : null,
+        entry_key: String(row.entry_key || ''),
+        entry_type: String(row.entry_type || ''),
+        amount: Number(row.amount || 0),
+        currency_code: String(row.currency_code || 'USD'),
+        entry_status: String(row.entry_status || 'posted'),
+        available_on: row.available_on || null,
+        metadata_json: row.metadata_json || null,
+        created_at: row.created_at,
+        location_text: row.location_text || null,
+        service_name: row.service_name || null,
+      })),
+    });
+  } catch (error: any) {
+    console.error('Error in getPaymentLedgerAdmin:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
+export const getFinanceSettlementReportAdmin = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    await ensureServiceRequestTables();
+    const report = await getFinanceSettlementReport({
+      from: req.query.from,
+      to: req.query.to,
+    });
+
+    res.json({
+      success: true,
+      range: report.range,
+      summary: report.summary,
+      service_breakdown: report.service_breakdown,
+      invoices: report.invoices,
+    });
+  } catch (error: any) {
+    console.error('Error in getFinanceSettlementReportAdmin:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
+export const exportFinanceSettlementReportCsvAdmin = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    await ensureServiceRequestTables();
+    const report = await getFinanceSettlementReport({
+      from: req.query.from,
+      to: req.query.to,
+    });
+    const csv = buildFinanceSettlementCsv(report);
+
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader(
+      'Content-Disposition',
+      `attachment; filename="fixlife-finance-report-${report.range.from}-to-${report.range.to}.csv"`
+    );
+    res.status(200).send(csv);
+  } catch (error: any) {
+    console.error('Error in exportFinanceSettlementReportCsvAdmin:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
+export const getWorkerTierBenefitsAdmin = async (_req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const benefits = await getWorkerTierBenefits();
+    res.json({ success: true, benefits });
+  } catch (error: any) {
+    console.error('Error in getWorkerTierBenefitsAdmin:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
+export const updateWorkerTierBenefitsAdmin = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const benefits = Array.isArray(req.body?.benefits) ? req.body.benefits : [];
+    const updatedBenefits = await updateWorkerTierBenefits(benefits);
+
+    await logAdminActivity(
+      req,
+      'update',
+      'worker_tier_benefits',
+      'Updated worker tier benefit rules.',
+      null,
+      { tier_count: updatedBenefits.length }
+    );
+
+    res.json({
+      success: true,
+      message: 'Worker tier benefits updated.',
+      benefits: updatedBenefits,
+    });
+  } catch (error: any) {
+    console.error('Error in updateWorkerTierBenefitsAdmin:', error);
+    res.status(500).json({ error: error?.message || 'Internal server error' });
+  }
+};
+
+export const updateWorkerTierAdmin = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const userId = parsePositiveInt(req.params.id, 'user id');
+    const membershipTier = sanitizeText(req.body?.membership_tier, 20);
+    const reason = sanitizeOptionalText(req.body?.reason, 255);
+
+    const updated = await updateWorkerMembershipTier({
+      userId,
+      membershipTier: membershipTier as any,
+      changedByUserId: req.user?.user_id ?? null,
+      reason,
+    });
+
+    if (!updated) {
+      res.status(404).json({ error: 'Worker not found.' });
+      return;
+    }
+
+    if (updated.changed) {
+      await logAdminActivity(
+        req,
+        'update',
+        'worker_tier',
+        `Changed worker tier to ${updated.next_tier}.`,
+        Number(updated.id_worker_profile),
+        {
+          previous_tier: updated.previous_tier,
+          next_tier: updated.next_tier,
+          reason,
+        }
+      );
+
+      const [userRows] = await pool.execute<RowDataPacket[]>(
+        `SELECT id_user FROM worker_profiles WHERE id_worker_profile = ? LIMIT 1`,
+        [Number(updated.id_worker_profile)]
+      );
+      const workerUserId = userRows[0]?.id_user != null ? Number(userRows[0].id_user) : null;
+      if (workerUserId) {
+        await createUserNotification({
+          userId: workerUserId,
+          eventType: 'tier_updated',
+          title: 'Membership tier updated',
+          message: `Your professional tier is now ${String(updated.next_tier).toUpperCase()}.`,
+          tone: 'success',
+          actionUrl: '/pro-dashboard',
+          dedupeKey: `worker-tier-${workerUserId}-${updated.next_tier}`,
+          metadata: {
+            previous_tier: updated.previous_tier,
+            next_tier: updated.next_tier,
+            reason,
+          },
+        });
+        pushToUser(workerUserId, 'worker_tier_updated', {
+          membership_tier: updated.next_tier,
+          previous_tier: updated.previous_tier,
+        });
+      }
+    }
+
+    res.json({
+      success: true,
+      message: updated.changed ? 'Worker tier updated.' : 'Worker tier unchanged.',
+      worker: updated,
+    });
+  } catch (error: any) {
+    console.error('Error in updateWorkerTierAdmin:', error);
+    res.status(400).json({ error: error?.message || 'Invalid tier update request.' });
+  }
+};
+
+export const getWorkerTierHistoryAdmin = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const idWorkerProfile = req.query.id_worker_profile ? Number(req.query.id_worker_profile) : null;
+    const limit = req.query.limit ? Number(req.query.limit) : 40;
+    const history = await getWorkerTierHistory({
+      idWorkerProfile: Number.isFinite(idWorkerProfile as number) ? idWorkerProfile : null,
+      limit,
+    });
+    res.json({ success: true, history });
+  } catch (error: any) {
+    console.error('Error in getWorkerTierHistoryAdmin:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
+export const getFinanceCasesAdmin = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const cases = await getFinanceCases({
+      status: req.query.status ? String(req.query.status) : 'all',
+      caseType: req.query.case_type ? String(req.query.case_type) : 'all',
+      limit: req.query.limit ? Number(req.query.limit) : 40,
+    });
+    res.json({ success: true, cases });
+  } catch (error: any) {
+    console.error('Error in getFinanceCasesAdmin:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
+export const createFinanceCaseAdmin = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const idCase = await createFinanceCase({
+      caseType: String(req.body?.case_type || '').toLowerCase() as any,
+      direction: String(req.body?.direction || '').toLowerCase() as any,
+      idRequest: req.body?.id_request ? Number(req.body.id_request) : null,
+      idPayment: req.body?.id_payment ? Number(req.body.id_payment) : null,
+      amount: Number(req.body?.amount || 0),
+      currencyCode: sanitizeOptionalText(req.body?.currency_code, 8) || 'USD',
+      reason: sanitizeOptionalText(req.body?.reason, 255),
+      notes: sanitizeOptionalText(req.body?.notes, 2000),
+      createdByUserId: req.user?.user_id ?? null,
+    });
+
+    await logAdminActivity(
+      req,
+      'create',
+      'finance_case',
+      `Created ${String(req.body?.case_type || 'finance')} case #${idCase}.`,
+      idCase,
+      {
+        case_type: req.body?.case_type,
+        direction: req.body?.direction,
+        amount: Number(req.body?.amount || 0),
+      }
+    );
+
+    res.status(201).json({
+      success: true,
+      message: 'Finance case created.',
+      id_case: idCase,
+    });
+  } catch (error: any) {
+    console.error('Error in createFinanceCaseAdmin:', error);
+    res.status(400).json({ error: error?.message || 'Invalid finance case payload.' });
+  }
+};
+
+export const resolveFinanceCaseAdmin = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const idCase = parsePositiveInt(req.params.idCase, 'finance case id');
+    const resolutionNotes = sanitizeOptionalText(req.body?.resolution_notes, 1500);
+    const applyLedger = req.body?.apply_ledger !== false;
+
+    const resolved = await resolveFinanceCase({
+      idCase,
+      resolvedByUserId: req.user?.user_id ?? null,
+      resolutionNotes,
+      applyLedger,
+    });
+
+    if (!resolved) {
+      res.status(404).json({ error: 'Finance case not found or already resolved.' });
+      return;
+    }
+
+    await logAdminActivity(
+      req,
+      'resolve',
+      'finance_case',
+      `Resolved finance case #${idCase}.`,
+      idCase,
+      {
+        case_type: resolved.case_type,
+        apply_ledger: applyLedger,
+      }
+    );
+
+    res.json({
+      success: true,
+      message: 'Finance case resolved.',
+      case: resolved,
+    });
+  } catch (error: any) {
+    console.error('Error in resolveFinanceCaseAdmin:', error);
+    res.status(400).json({ error: error?.message || 'Invalid finance resolution request.' });
+  }
+};
+
+export const getFinanceClosureReportAdmin = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const report = await getFinanceClosureReport({
+      period: String(req.query.period || 'weekly').toLowerCase() === 'monthly' ? 'monthly' : 'weekly',
+      from: req.query.from,
+      to: req.query.to,
+    });
+    res.json({ success: true, ...report });
+  } catch (error: any) {
+    console.error('Error in getFinanceClosureReportAdmin:', error);
+    res.status(400).json({ error: error?.message || 'Invalid finance closure report request.' });
+  }
+};
+
+export const getSystemEventsAdmin = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const events = await getSystemEvents({
+      limit: req.query.limit ? Number(req.query.limit) : 30,
+      component: req.query.component ? String(req.query.component) : null,
+      level: req.query.level ? String(req.query.level) : null,
+    });
+    res.json({ success: true, events });
+  } catch (error: any) {
+    console.error('Error in getSystemEventsAdmin:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
+export const getBackgroundJobsAdminController = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const jobs = await getBackgroundJobsAdmin(req.query.limit ? Number(req.query.limit) : 30);
+    res.json({ success: true, jobs });
+  } catch (error: any) {
+    console.error('Error in getBackgroundJobsAdminController:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 };

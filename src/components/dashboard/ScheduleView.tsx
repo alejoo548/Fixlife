@@ -130,12 +130,12 @@ export const ScheduleView: React.FC = () => {
           <div className="pointer-events-none absolute inset-x-0 top-0 h-28 bg-gradient-to-r from-bird-blue/10 via-bird-yellow/10 to-transparent" />
           <div className="flex items-center justify-between gap-3 mb-5">
             <div>
-              <p className="text-xs font-black uppercase tracking-[0.18em] text-bird-blue">Commission calendar</p>
+              <p className="text-xs font-black uppercase tracking-[0.18em] text-bird-blue">Payout calendar</p>
               <h2 className="mt-2 text-2xl md:text-3xl font-black text-slate-900">
                 {visibleMonth.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
               </h2>
               <p className="mt-2 text-sm font-semibold text-slate-500">
-                Rewards start counting from January 2026.
+                Base payouts and rewards are grouped here from January 2026 onward.
               </p>
             </div>
             <div className="flex gap-2">
@@ -230,12 +230,12 @@ export const ScheduleView: React.FC = () => {
 
           <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-1">
             <div className="rounded-3xl border border-slate-200 bg-slate-50 p-4">
-              <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">Next bonus payout</p>
+              <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">Next payout batch</p>
               <p className="mt-2 text-2xl font-black text-slate-900">{formatMoney(summary.next_payout_amount)}</p>
               <p className="mt-2 text-sm text-slate-500">
                 {summary.next_payout_date
                   ? `${summary.next_payout_label || 'Scheduled payout'} on ${new Date(summary.next_payout_date).toLocaleDateString()}`
-                  : `Payouts will appear here once the worker unlocks the program.`}
+                  : `Payouts will appear here once the worker has released funds or unlocked bonus batches.`}
               </p>
             </div>
 
@@ -261,7 +261,7 @@ export const ScheduleView: React.FC = () => {
           <div className="mt-6 rounded-3xl border border-bird-blue/15 bg-gradient-to-r from-bird-blue/10 via-sky-50 to-amber-50 p-4">
             <p className="text-[11px] font-black uppercase tracking-[0.18em] text-bird-blue">Demo policy</p>
             <p className="mt-2 text-sm font-semibold leading-6 text-slate-700">
-              We recommend paying commission bonuses every {program.payout_day_label}, after {program.trial_min_completed_jobs} completed jobs. Then add a monthly royalty when the worker closes at least {program.royalty_min_jobs} jobs with a {program.royalty_min_completion_rate}% completion rate.
+              We recommend paying base worker payouts every {program.payout_day_label}, then layering commission bonuses after {program.trial_min_completed_jobs} completed jobs and a monthly royalty once the worker closes at least {program.royalty_min_jobs} jobs with a {program.royalty_min_completion_rate}% completion rate.
             </p>
           </div>
 
@@ -279,7 +279,7 @@ export const ScheduleView: React.FC = () => {
                       <div>
                         <p className="text-sm font-black text-slate-900">{item.label}</p>
                         <p className="mt-1 text-xs font-semibold text-slate-500">
-                          {item.jobs_count > 0 ? `${item.jobs_count} completed job(s)` : 'Cycle performance bonus'}
+                          {item.jobs_count > 0 ? `${item.jobs_count} completed job(s)` : 'Performance payout event'}
                         </p>
                       </div>
                       <span className="text-lg font-black text-bird-blue">{formatMoney(item.amount)}</span>
@@ -325,6 +325,9 @@ export const ScheduleView: React.FC = () => {
                       </span>
                       <span className={`rounded-full px-3 py-1 text-[11px] font-black uppercase tracking-[0.16em] ${getBonusStatusBadge(item.bonus_status)}`}>
                         {getBonusStatusLabel(item.bonus_status)}
+                      </span>
+                      <span className={`rounded-full px-3 py-1 text-[11px] font-black uppercase tracking-[0.16em] ${getBonusStatusBadge(item.worker_payout_status)}`}>
+                        {`Base ${getBonusStatusLabel(item.worker_payout_status)}`}
                       </span>
                     </div>
                     <p className="mt-2 truncate text-sm text-slate-500">{item.location_text}</p>

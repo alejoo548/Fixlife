@@ -5,7 +5,7 @@ import { getToken } from '../utils/session';
 export interface WorkerRewardCalendarItem {
   date: string;
   label: string;
-  type: 'commission' | 'royalty' | 'combined';
+  type: 'worker_payout' | 'commission' | 'royalty' | 'combined';
   amount: number;
   jobs_count: number;
 }
@@ -19,6 +19,8 @@ export interface WorkerRewardHistoryItem {
   completed_at: string;
   worker_payout: number;
   payment_status: string;
+  worker_payout_status: string;
+  worker_payout_paid_at: string | null;
   commission_bonus: number;
   royalty_bonus: number;
   total_bonus: number;
@@ -44,6 +46,10 @@ export interface WorkerRewardsDashboardData {
     cycle_gross_earnings: number;
     released_worker_payout: number;
     pending_worker_payout: number;
+    pending_release_worker_payout: number;
+    released_to_payout_amount: number;
+    scheduled_bonus_payout: number;
+    paid_bonus_payout: number;
     current_month_commission: number;
     royalty_bonus: number;
     total_bonus: number;
