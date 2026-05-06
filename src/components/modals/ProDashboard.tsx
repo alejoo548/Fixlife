@@ -54,6 +54,8 @@ export const ProDashboard: React.FC<ProDashboardProps> = ({ isOpen, onClose, onS
    const [isOnline, setIsOnline] = useState(false);
    const [activeTab, setActiveTab] = useState('requests');
    const [mobileView, setMobileView] = useState<'list' | 'map'>('list');
+   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+   const [isCompactViewport, setIsCompactViewport] = useState(false);
    const [isVerified, setIsVerified] = useState(false); // Por defecto falso
    const [hasUploadedDocs, setHasUploadedDocs] = useState(false); // Por defecto falso
    const [userName, setUserName] = useState('');
@@ -149,6 +151,13 @@ export const ProDashboard: React.FC<ProDashboardProps> = ({ isOpen, onClose, onS
       syncWorkerStatus(token);
    }, [isOpen, token]);
 
+   useEffect(() => {
+      const syncViewport = () => setIsCompactViewport(window.innerWidth < 768);
+      syncViewport();
+      window.addEventListener('resize', syncViewport);
+      return () => window.removeEventListener('resize', syncViewport);
+   }, []);
+
    useSSE({
       token,
       events: { worker_status: () => { if (token) syncWorkerStatus(token); } },
@@ -162,7 +171,7 @@ export const ProDashboard: React.FC<ProDashboardProps> = ({ isOpen, onClose, onS
          initial={{ opacity: 0 }}
          animate={{ opacity: 1 }}
          exit={{ opacity: 0 }}
-         className={`dashboard-theme dashboard-shell dashboard-theme--worker fixed inset-0 z-40 overflow-hidden font-sans ${isDark ? 'dashboard-theme-dark' : 'dashboard-theme-light'} bg-gradient-to-br from-sky-50 via-amber-50 to-orange-50`}
+         className={`dashboard-theme dashboard-shell dashboard-theme--worker fixed inset-0 z-40 min-h-[100dvh] overflow-hidden font-sans ${isDark ? 'dashboard-theme-dark' : 'dashboard-theme-light'} bg-gradient-to-br from-sky-50 via-amber-50 to-orange-50`}
          data-dashboard-theme={theme}
          style={{ colorScheme: theme }}
       >
@@ -192,35 +201,38 @@ export const ProDashboard: React.FC<ProDashboardProps> = ({ isOpen, onClose, onS
             className="absolute top-20 right-20 w-32 h-32 bg-bird-orange/15 rounded-full blur-3xl pointer-events-none"
          />
 
+         <div className="relative z-10 grid h-full min-h-[100dvh] w-full grid-cols-1 overflow-hidden lg:grid-cols-[auto_minmax(0,1fr)]">
          {/* Sidebar */}
          <motion.div
             initial={{ x: -100, opacity: 0 }}
             animate={{ x: 0, opacity: 1 }}
             transition={{ type: "spring", damping: 20 }}
-            className="hidden md:block"
+            className="relative z-30 hidden h-full shrink-0 p-5 lg:block"
          >
             <ProSidebar
                activeItem={activeTab}
                setActiveItem={setActiveTab}
                onClose={onClose}
                onSignOut={handleSignOut}
+               isOpen={isSidebarOpen}
+               setIsOpen={setIsSidebarOpen}
             />
          </motion.div>
 
          {/* Main content */}
-         <div className="relative h-full flex flex-col md:ml-[130px] transition-all duration-300">
+         <div className="relative z-10 h-full min-h-0 min-w-0 overflow-hidden flex flex-col transition-all duration-300">
             {/* Header */}
             <motion.div
                initial={{ y: -20, opacity: 0 }}
                animate={{ y: 0, opacity: 1 }}
                transition={{ delay: 0.2 }}
-               className="h-16 md:h-20 flex items-center justify-between px-4 md:px-8 shrink-0 relative z-20"
+               className="h-16 md:h-20 flex items-center justify-between gap-2 px-3 sm:px-4 md:px-8 shrink-0 relative z-20"
             >
                <div className="flex-1 min-w-0 flex items-center gap-3">
                   <motion.div
                      whileHover={{ scale: 1.05 }}
                      whileTap={{ scale: 0.95 }}
-                     className="md:hidden flex items-center justify-center w-8 h-8 rounded-full bg-gray-100 cursor-pointer shrink-0"
+                     className="lg:hidden flex items-center justify-center w-8 h-8 rounded-full bg-gray-100 cursor-pointer shrink-0"
                      onClick={handleSignOut}
                   >
                      <svg className="w-4 h-4 text-gray-700" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -261,11 +273,13 @@ export const ProDashboard: React.FC<ProDashboardProps> = ({ isOpen, onClose, onS
                   </div>
                </div>
 
-               <div className="flex items-center gap-2 md:gap-3">
+               <div className="flex min-w-0 items-center justify-end gap-1.5 sm:gap-2 md:gap-3">
                   <DashboardThemeToggle
                      theme={theme}
                      onToggle={toggleTheme}
-                     className="min-w-0 bg-white/90 text-slate-700 shadow-[0_14px_30px_rgba(15,23,42,0.08)]"
+                     className="hidden min-w-0 bg-white/90 text-slate-700 shadow-[0_14px_30px_rgba(15,23,42,0.08)] sm:inline-flex"
+                     labelClassName="hidden 2xl:block"
+                     shortLabelClassName="hidden"
                   />
                   <NotificationCenter token={token} variant="panel" />
                   <motion.div
@@ -280,15 +294,15 @@ export const ProDashboard: React.FC<ProDashboardProps> = ({ isOpen, onClose, onS
                      </span>
                      <div className={`w-10 md:w-12 h-6 md:h-7 rounded-full p-1 transition-colors duration-300 relative ${isOnline ? 'bg-emerald-500' : 'bg-gray-300'}`}>
                         <motion.div
-                           animate={{ x: isOnline ? (window.innerWidth < 768 ? 16 : 20) : 0 }}
+                           animate={{ x: isOnline ? (isCompactViewport ? 16 : 20) : 0 }}
                            transition={{ type: "spring", stiffness: 500, damping: 30 }}
                            className="w-4 h-4 md:w-5 md:h-5 rounded-full bg-white shadow-sm"
                         />
                      </div>
                   </motion.div>
 
-                  <div className="flex items-center gap-2 md:gap-3 pl-2 md:pl-4 border-l border-gray-200">
-                     <span className="text-sm font-bold text-gray-700 hidden sm:block truncate max-w-[100px] md:max-w-none">
+                  <div className="flex items-center gap-2 md:gap-3 pl-1.5 md:pl-4 border-l border-gray-200">
+                     <span className="text-sm font-bold text-gray-700 hidden 2xl:block truncate max-w-[120px]">
                         {userName || 'User'}
                      </span>
                      {userAvatar ? (
@@ -365,7 +379,7 @@ export const ProDashboard: React.FC<ProDashboardProps> = ({ isOpen, onClose, onS
                initial={{ opacity: 0, y: 20 }}
                animate={{ opacity: 1, y: 0 }}
                transition={{ delay: 0.3 }}
-               className="flex-1 flex flex-col md:flex-row overflow-hidden relative pb-16 md:pb-0"
+               className="min-h-0 flex-1 flex flex-col lg:flex-row overflow-hidden relative pb-16 lg:pb-0"
             >
                {!isVerified && !hasUploadedDocs ? (
                   <Suspense fallback={<DashboardPanelFallback label="Loading documents..." />}>
@@ -470,7 +484,7 @@ export const ProDashboard: React.FC<ProDashboardProps> = ({ isOpen, onClose, onS
                initial={{ y: 100, opacity: 0 }}
                animate={{ y: 0, opacity: 1 }}
                transition={{ delay: 0.4, type: "spring" }}
-               className="md:hidden fixed bottom-0 left-0 right-0 h-16 bg-white/95 backdrop-blur-xl border-t border-gray-200 flex items-center justify-around px-4 pb-safe z-50 shadow-[0_-5px_20px_rgba(0,0,0,0.1)]"
+               className="lg:hidden fixed bottom-0 left-0 right-0 h-16 bg-white/95 backdrop-blur-xl border-t border-gray-200 flex items-center justify-around px-4 pb-safe z-50 shadow-[0_-5px_20px_rgba(0,0,0,0.1)]"
             >
                {[
                   { id: 'requests', label: 'Requests', icon: 'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2' },
@@ -515,7 +529,7 @@ export const ProDashboard: React.FC<ProDashboardProps> = ({ isOpen, onClose, onS
                      whileHover={{ scale: 1.1 }}
                      whileTap={{ scale: 0.9 }}
                      onClick={() => setMobileView(mobileView === 'list' ? 'map' : 'list')}
-                     className="md:hidden fixed bottom-20 right-4 z-50 w-14 h-14 bg-gradient-to-br from-bird-blue to-bird-lightBlue rounded-full shadow-xl shadow-bird-blue/30 flex items-center justify-center text-white border-2 border-white"
+                     className="lg:hidden fixed bottom-20 right-4 z-50 w-14 h-14 bg-gradient-to-br from-bird-blue to-bird-lightBlue rounded-full shadow-xl shadow-bird-blue/30 flex items-center justify-center text-white border-2 border-white"
                   >
                      {mobileView === 'list' ? (
                         <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -529,6 +543,7 @@ export const ProDashboard: React.FC<ProDashboardProps> = ({ isOpen, onClose, onS
                   </motion.button>
                )}
             </AnimatePresence>
+         </div>
          </div>
       </motion.div>
    );

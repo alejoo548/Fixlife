@@ -736,7 +736,7 @@ const App: React.FC = () => {
             </section>
 
             <ScrollReveal>
-              <section id={LANDING_SECTION_IDS.steps} className="mb-14"><StepsSection onStartBooking={() => handleStartBooking()} /></section>
+              <section id={LANDING_SECTION_IDS.steps} className="mb-14"><StepsSection /></section>
             </ScrollReveal>
 
             <ScrollReveal>

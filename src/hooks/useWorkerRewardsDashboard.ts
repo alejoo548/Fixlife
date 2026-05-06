@@ -8,6 +8,9 @@ export interface WorkerRewardCalendarItem {
   type: 'worker_payout' | 'commission' | 'royalty' | 'combined';
   amount: number;
   jobs_count: number;
+  base_amount: number;
+  commission_amount: number;
+  performance_bonus_amount: number;
 }
 
 export interface WorkerRewardHistoryItem {

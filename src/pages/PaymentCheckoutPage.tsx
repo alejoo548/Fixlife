@@ -130,7 +130,7 @@ const renderStageIcon = (stage: CheckoutStage) => {
                     </motion.svg>
                 </motion.div>
             </div>
-        );
+        );``
     }
 
     return (

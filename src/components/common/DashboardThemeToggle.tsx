@@ -6,12 +6,16 @@ interface DashboardThemeToggleProps {
   theme: DashboardTheme;
   onToggle: () => void;
   className?: string;
+  labelClassName?: string;
+  shortLabelClassName?: string;
 }
 
 export const DashboardThemeToggle: React.FC<DashboardThemeToggleProps> = ({
   theme,
   onToggle,
   className = '',
+  labelClassName = 'hidden sm:block',
+  shortLabelClassName = 'sm:hidden',
 }) => {
   const isDark = theme === 'dark';
 
@@ -32,10 +36,10 @@ export const DashboardThemeToggle: React.FC<DashboardThemeToggleProps> = ({
           className={`absolute h-[18px] w-[18px] transition-all duration-300 ${isDark ? 'translate-y-0 rotate-0 opacity-100' : '-translate-y-6 -rotate-45 opacity-0'}`}
         />
       </span>
-      <span className="hidden sm:block">
+      <span className={labelClassName}>
         {isDark ? 'Dark mode on' : 'Light mode on'}
       </span>
-      <span className="sm:hidden">{isDark ? 'Dark' : 'Light'}</span>
+      <span className={shortLabelClassName}>{isDark ? 'Dark' : 'Light'}</span>
     </button>
   );
 };

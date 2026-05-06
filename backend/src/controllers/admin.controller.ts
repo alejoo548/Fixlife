@@ -40,6 +40,7 @@ import {
 } from '../services/financeOperations.service';
 import { getSystemEvents } from '../services/systemEvents.service';
 import { enqueueBackgroundJob, getBackgroundJobsAdmin } from '../services/backgroundJobs.service';
+import { queueWorkerPayoutStatementEmail } from '../services/workerPayoutStatement.service';
 
 const SCRIPT_PATTERN = /<\s*script|javascript:|on\w+\s*=|data:text\/html/i;
 
@@ -1847,6 +1848,7 @@ export const getWorkerRewardsAdminOverview = async (req: AuthRequest, res: Respo
       payouts: payouts.map((row) => ({
         id_bonus_payout: Number(row.id_bonus_payout),
         id_worker_profile: Number(row.id_worker_profile),
+        id_user: row.id_user != null ? Number(row.id_user) : null,
         worker_name: `${row.name || ''} ${row.lastname || ''}`.trim() || 'Worker',
         bonus_type: String(row.bonus_type || 'commission'),
         cycle_key: String(row.cycle_key || ''),
@@ -2064,6 +2066,14 @@ export const markWorkerBonusPayoutPaidController = async (req: AuthRequest, res:
       });
     }
 
+    if (payoutRow?.id_user) {
+      await queuePaidWorkerStatementEmailForAdmin(
+        Number(payoutRow.id_user),
+        'worker-bonus-payout-paid-statement',
+        String(idBonusPayout)
+      );
+    }
+
     res.json({
       success: true,
       message: 'Bonus payout marked as paid.',
@@ -2128,6 +2138,7 @@ export const getWorkerPayoutsAdmin = async (req: AuthRequest, res: Response): Pr
       payouts: payouts.map((row) => ({
         id_worker_payout: Number(row.id_worker_payout),
         id_worker_profile: Number(row.id_worker_profile),
+        id_user: row.id_user != null ? Number(row.id_user) : null,
         id_request: row.id_request != null ? Number(row.id_request) : null,
         id_payment: row.id_payment != null ? Number(row.id_payment) : null,
         worker_name: `${row.name || ''} ${row.lastname || ''}`.trim() || 'Worker',
@@ -2222,6 +2233,14 @@ export const markWorkerPayoutPaidController = async (req: AuthRequest, res: Resp
       });
     }
 
+    if (payoutRow?.id_user) {
+      await queuePaidWorkerStatementEmailForAdmin(
+        Number(payoutRow.id_user),
+        'worker-base-payout-paid-statement',
+        String(idWorkerPayout)
+      );
+    }
+
     res.json({
       success: true,
       message: 'Worker payout marked as paid.',
@@ -2229,6 +2248,62 @@ export const markWorkerPayoutPaidController = async (req: AuthRequest, res: Resp
   } catch (error: any) {
     console.error('Error in markWorkerPayoutPaidController:', error);
     res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
+const queuePaidWorkerStatementEmailForAdmin = async (
+  userId: number,
+  jobKeyPrefix: string,
+  jobKeySuffix: string
+) => {
+  try {
+    await queueWorkerPayoutStatementEmail(
+      userId,
+      { period: 'month', status: 'paid' },
+      { jobKeyPrefix, jobKeySuffix }
+    );
+  } catch (error) {
+    console.error('Error queueing paid worker statement email:', error);
+  }
+};
+
+export const resendWorkerStatementAdminController = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    await ensureServiceRequestTables();
+
+    const idUser = Number(req.params.idUser);
+    if (!idUser || Number.isNaN(idUser)) {
+      res.status(400).json({ error: 'Invalid worker user ID.' });
+      return;
+    }
+
+    const queuedStatement = await queueWorkerPayoutStatementEmail(
+      idUser,
+      {
+        period: req.query.period ? String(req.query.period) : 'month',
+        status: req.query.status ? String(req.query.status) : 'paid',
+        from: req.query.from ? String(req.query.from) : null,
+        to: req.query.to ? String(req.query.to) : null,
+      },
+      {
+        jobKeyPrefix: 'admin-resend-worker-statement',
+        jobKeySuffix: String(Date.now()),
+      }
+    );
+
+    if (!queuedStatement.queued) {
+      res.status(400).json({ error: queuedStatement.reason || 'Could not queue statement email.' });
+      return;
+    }
+
+    res.json({
+      success: true,
+      message: 'Worker statement email queued.',
+      statement_number: queuedStatement.payload.statementNumber,
+    });
+  } catch (error: any) {
+    console.error('Error in resendWorkerStatementAdminController:', error);
+    res.status(500).json({ error: 'Could not resend worker statement.' });
   }
 };
 

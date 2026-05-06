@@ -3,6 +3,18 @@
 @tailwind utilities;
 
 @layer base {
+  html,
+  body,
+  #root {
+    min-height: 100%;
+    width: 100%;
+  }
+
+  #root {
+    min-height: 100vh;
+    min-height: 100dvh;
+  }
+
   body {
     background: linear-gradient(135deg, #E0F2FE 0%, #FEF3C7 50%, #FED7AA 100%);
     color: #0F172A;

@@ -1,11 +1,7 @@
 import React from 'react';
 import { motion } from 'framer-motion';
 
-interface StepsSectionProps {
-  onStartBooking?: () => void;
-}
-
-export const StepsSection: React.FC<StepsSectionProps> = ({ onStartBooking }) => {
+export const StepsSection: React.FC = () => {
   const steps = [
     {
       id: "01",
@@ -104,19 +100,6 @@ export const StepsSection: React.FC<StepsSectionProps> = ({ onStartBooking }) =>
         ))}
       </div>
 
-      {/* Bottom CTA */}
-      <div className="mt-7 text-center">
-        <p className="text-gray-600 text-sm mb-3 font-medium">Ready to get started?</p>
-        <motion.button
-          type="button"
-          onClick={onStartBooking}
-          whileHover={{ scale: 1.05 }}
-          whileTap={{ scale: 0.95 }}
-          className="px-6 py-3 rounded-xl bg-gradient-to-r from-bird-blue to-bird-lightBlue text-white font-bold shadow-xl shadow-bird-blue/30 hover:shadow-2xl hover:shadow-bird-blue/40 transition-all text-sm"
-        >
-          Book a Service Now
-        </motion.button>
-      </div>
     </div>
   );
 };

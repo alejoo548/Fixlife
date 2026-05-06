@@ -1,4 +1,6 @@
 import nodemailer from 'nodemailer';
+import { existsSync } from 'fs';
+import path from 'path';
 
 const transporter = nodemailer.createTransport({
   service: 'gmail',
@@ -34,6 +36,17 @@ const formatDateTime = (date: Date | string) =>
     hour12: true,
   });
 
+const getFixlifeEmailLogoPath = () => {
+  const candidates = [
+    path.resolve(process.cwd(), 'assets/fixlife-logo.png'),
+    path.resolve(process.cwd(), 'backend/assets/fixlife-logo.png'),
+    path.resolve(__dirname, '../../assets/fixlife-logo.png'),
+    path.resolve(__dirname, '../../../backend/assets/fixlife-logo.png'),
+  ];
+
+  return candidates.find((candidate) => existsSync(candidate)) || null;
+};
+
 const renderEmailShell = (input: {
   eyebrow: string;
   title: string;
@@ -41,6 +54,7 @@ const renderEmailShell = (input: {
   accentStart: string;
   accentEnd: string;
   bodyHtml: string;
+  logoCid?: string | null;
 }) => `
   <div style="margin: 0; background: #f3f7fb; padding: 24px 12px; font-family: Arial, Helvetica, sans-serif;">
     <div style="max-width: 720px; margin: 0 auto; overflow: hidden; border-radius: 24px; border: 1px solid #dbe5f0; background: #ffffff; box-shadow: 0 24px 60px rgba(15, 23, 42, 0.12);">
@@ -48,7 +62,11 @@ const renderEmailShell = (input: {
         <div style="display: inline-block; margin-bottom: 14px; border-radius: 999px; background: rgba(255,255,255,0.16); padding: 8px 14px; font-size: 11px; font-weight: 700; letter-spacing: 0.18em; text-transform: uppercase;">
           ${escapeHtml(input.eyebrow)}
         </div>
-        <div style="font-size: 34px; font-weight: 800; letter-spacing: -0.02em;">Fixlife</div>
+        ${
+          input.logoCid
+            ? `<img src="cid:${escapeHtml(input.logoCid)}" alt="Fixlife" style="display: block; width: 148px; max-width: 60%; height: auto; margin: 0 0 14px;" />`
+            : '<div style="font-size: 34px; font-weight: 800; letter-spacing: -0.02em;">Fixlife</div>'
+        }
         <h1 style="margin: 14px 0 0; font-size: 28px; line-height: 1.2;">${escapeHtml(input.title)}</h1>
         <p style="margin: 10px 0 0; max-width: 520px; font-size: 15px; line-height: 1.6; opacity: 0.95;">${escapeHtml(input.subtitle)}</p>
       </div>
@@ -457,6 +475,134 @@ ${input.requestId ? `Request #${input.requestId}\n` : ''}${input.serviceName ? `
     return true;
   } catch (error) {
     console.error('Error sending worker payout paid email:', error);
+    return false;
+  }
+};
+
+type WorkerStatementEmailInput = {
+  to: string;
+  workerName: string;
+  statementNumber: string;
+  periodLabel: string;
+  jobs: number;
+  base: number;
+  bonuses: number;
+  total: number;
+  paidTotal: number;
+  scheduledTotal: number;
+  generatedAt?: string | Date | null;
+  fileName?: string | null;
+  pdfBase64: string;
+};
+
+export const sendWorkerStatementEmail = async (input: WorkerStatementEmailInput) => {
+  const generatedAt = input.generatedAt || new Date();
+  const logoPath = getFixlifeEmailLogoPath();
+  const logoCid = logoPath ? 'fixlife-statement-logo' : null;
+  const bodyHtml = `
+    <p style="margin: 0 0 18px; font-size: 15px; line-height: 1.7;">
+      Hi ${escapeHtml(input.workerName)}, your latest Fixlife payout statement is attached as a branded PDF for your records.
+    </p>
+
+    <div style="border-radius: 20px; border: 1px solid #dbe5f0; background: linear-gradient(180deg, #f8fbff, #ffffff); padding: 20px;">
+      <div style="display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap;">
+        <div>
+          <div style="font-size: 11px; font-weight: 700; letter-spacing: 0.18em; text-transform: uppercase; color: #2563eb;">Statement number</div>
+          <div style="margin-top: 8px; font-size: 24px; font-weight: 800; color: #0f172a;">${escapeHtml(input.statementNumber)}</div>
+          <div style="margin-top: 8px; font-size: 13px; color: #475569;">Generated ${escapeHtml(formatDateTime(generatedAt))}</div>
+        </div>
+        <div style="min-width: 220px; border-radius: 16px; background: #0f172a; padding: 16px; color: #ffffff;">
+          <div style="font-size: 11px; font-weight: 700; letter-spacing: 0.18em; text-transform: uppercase; opacity: 0.78;">Statement total</div>
+          <div style="margin-top: 8px; font-size: 30px; font-weight: 800;">${escapeHtml(formatMoney(input.total))}</div>
+          <div style="margin-top: 8px; font-size: 13px; opacity: 0.82;">${escapeHtml(input.periodLabel)}</div>
+        </div>
+      </div>
+    </div>
+
+    <div style="margin-top: 18px; display: grid; gap: 14px; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));">
+      <div style="border-radius: 18px; border: 1px solid #e2e8f0; background: #ffffff; padding: 18px;">
+        <div style="font-size: 11px; font-weight: 700; letter-spacing: 0.18em; text-transform: uppercase; color: #64748b;">Jobs included</div>
+        <div style="margin-top: 10px; font-size: 24px; font-weight: 800; color: #0f172a;">${escapeHtml(input.jobs)}</div>
+      </div>
+      <div style="border-radius: 18px; border: 1px solid #e2e8f0; background: #ffffff; padding: 18px;">
+        <div style="font-size: 11px; font-weight: 700; letter-spacing: 0.18em; text-transform: uppercase; color: #64748b;">Base earnings</div>
+        <div style="margin-top: 10px; font-size: 24px; font-weight: 800; color: #0f172a;">${escapeHtml(formatMoney(input.base))}</div>
+      </div>
+      <div style="border-radius: 18px; border: 1px solid #e2e8f0; background: #ffffff; padding: 18px;">
+        <div style="font-size: 11px; font-weight: 700; letter-spacing: 0.18em; text-transform: uppercase; color: #64748b;">Bonuses</div>
+        <div style="margin-top: 10px; font-size: 24px; font-weight: 800; color: #0f172a;">${escapeHtml(formatMoney(input.bonuses))}</div>
+      </div>
+    </div>
+
+    <div style="margin-top: 18px; border-radius: 18px; border: 1px solid #e2e8f0; background: #ffffff; padding: 18px 20px;">
+      <div style="font-size: 11px; font-weight: 700; letter-spacing: 0.18em; text-transform: uppercase; color: #64748b;">Settlement snapshot</div>
+      <table style="width: 100%; border-collapse: collapse; margin-top: 14px;">
+        <tr>
+          <td style="padding: 12px 0; border-bottom: 1px solid #e5edf6; color: #334155;">Already marked as paid</td>
+          <td style="padding: 12px 0; border-bottom: 1px solid #e5edf6; text-align: right; font-weight: 700; color: #0f172a;">${escapeHtml(formatMoney(input.paidTotal))}</td>
+        </tr>
+        <tr>
+          <td style="padding: 12px 0; border-bottom: 1px solid #e5edf6; color: #334155;">Still scheduled</td>
+          <td style="padding: 12px 0; border-bottom: 1px solid #e5edf6; text-align: right; font-weight: 700; color: #0f172a;">${escapeHtml(formatMoney(input.scheduledTotal))}</td>
+        </tr>
+        <tr>
+          <td style="padding: 14px 0 0; color: #0f172a; font-size: 15px; font-weight: 800;">Attached document</td>
+          <td style="padding: 14px 0 0; text-align: right; color: #0f172a; font-size: 15px; font-weight: 800;">PDF statement</td>
+        </tr>
+      </table>
+    </div>
+
+    <div style="margin-top: 18px; border-radius: 18px; background: #f8fafc; padding: 16px 18px; color: #475569; font-size: 13px; line-height: 1.7;">
+      Keep this statement for bookkeeping and payout review. If something looks off, open the Fixlife dashboard and contact support before settlement day so we can review the payout batch with you.
+    </div>
+  `;
+
+  const mailOptions = {
+    from: `"Fixlife Billing" <${process.env.EMAIL_USER || 'no-reply@fixlife.local'}>`,
+    to: input.to,
+    subject: `Fixlife payout statement ${input.statementNumber}`,
+    html: renderEmailShell({
+      eyebrow: 'Statement',
+      title: 'Your payout statement is attached',
+      subtitle: 'A branded PDF copy of your filtered earnings statement is attached for bookkeeping, payout review, and accountant-friendly records.',
+      accentStart: '#1d4ed8',
+      accentEnd: '#0f172a',
+      bodyHtml,
+      logoCid,
+    }),
+    text: `Fixlife payout statement
+Statement number: ${input.statementNumber}
+Period: ${input.periodLabel}
+Jobs: ${input.jobs}
+Base earnings: ${formatMoney(input.base)}
+Bonuses: ${formatMoney(input.bonuses)}
+Total: ${formatMoney(input.total)}
+Paid in statement: ${formatMoney(input.paidTotal)}
+Still scheduled: ${formatMoney(input.scheduledTotal)}`,
+    attachments: [
+      {
+        filename: input.fileName || 'fixlife-payout-statement.pdf',
+        content: Buffer.from(String(input.pdfBase64 || ''), 'base64'),
+        contentType: 'application/pdf',
+      },
+      ...(logoPath
+        ? [
+            {
+              filename: 'fixlife-logo.png',
+              path: logoPath,
+              cid: logoCid as string,
+            },
+          ]
+        : []),
+    ],
+  };
+
+  try {
+    const info = await transporter.sendMail(mailOptions);
+    console.log('Worker statement email sent: %s', info.messageId);
+    return true;
+  } catch (error) {
+    console.error('Error sending worker statement email:', error);
     return false;
   }
 };

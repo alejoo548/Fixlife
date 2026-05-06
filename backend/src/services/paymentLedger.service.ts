@@ -475,6 +475,7 @@ export const getAllWorkerPayoutsForAdmin = async (status = 'all') => {
        wpayout.scheduled_for,
        wpayout.paid_at,
        wpayout.notes,
+       wp.id_user,
        u.name,
        u.lastname,
        sr.location_text,

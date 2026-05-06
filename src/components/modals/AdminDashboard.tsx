@@ -143,6 +143,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ isOpen, onClose 
   const [workerPayoutsSummary, setWorkerPayoutsSummary] = useState<any>(null);
   const [workerPayouts, setWorkerPayouts] = useState<AdminWorkerPayout[]>([]);
   const [workerPayoutsLoading, setWorkerPayoutsLoading] = useState(false);
+  const [resendingStatementUserId, setResendingStatementUserId] = useState<number | null>(null);
   const [paymentLedgerEntries, setPaymentLedgerEntries] = useState<AdminPaymentLedgerItem[]>([]);
   const [paymentLedgerLoading, setPaymentLedgerLoading] = useState(false);
   const [financeReport, setFinanceReport] = useState<AdminFinanceReport | null>(null);
@@ -3673,8 +3674,18 @@ const renderRequestsHistoryTab = () => {
                           {markingWorkerPayoutId === payout.id_worker_payout ? 'Updating...' : 'Mark as paid'}
                         </button>
                       ) : (
-                        <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-black text-emerald-700">
-                          Already paid
+                        <div className="flex flex-wrap justify-start gap-2 md:justify-end">
+                          <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-black text-emerald-700">
+                            Already paid
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => handleResendWorkerStatement(payout.id_user)}
+                            disabled={resendingStatementUserId === payout.id_user}
+                            className="rounded-2xl border border-bird-blue/20 bg-bird-blue/10 px-4 py-3 text-sm font-black text-bird-darkBlue hover:bg-bird-blue/15 disabled:opacity-60"
+                          >
+                            {resendingStatementUserId === payout.id_user ? 'Resending...' : 'Resend statement'}
+                          </button>
                         </div>
                       )}
                     </div>
@@ -3813,8 +3824,18 @@ const renderRequestsHistoryTab = () => {
                         {markingPayoutId === payout.id_bonus_payout ? 'Updating...' : 'Mark as paid'}
                       </button>
                     ) : (
-                      <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-black text-emerald-700">
-                        Already paid
+                      <div className="flex flex-wrap justify-start gap-2 md:justify-end">
+                        <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-black text-emerald-700">
+                          Already paid
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => handleResendWorkerStatement(payout.id_user)}
+                          disabled={resendingStatementUserId === payout.id_user}
+                          className="rounded-2xl border border-bird-blue/20 bg-bird-blue/10 px-4 py-3 text-sm font-black text-bird-darkBlue hover:bg-bird-blue/15 disabled:opacity-60"
+                        >
+                          {resendingStatementUserId === payout.id_user ? 'Resending...' : 'Resend statement'}
+                        </button>
                       </div>
                     )}
                   </div>
@@ -4604,6 +4625,32 @@ const renderRequestsHistoryTab = () => {
       notyf.error('Connection error marking worker payout as paid.');
     } finally {
       setMarkingWorkerPayoutId(null);
+    }
+  };
+
+  const handleResendWorkerStatement = async (idUser: number | null) => {
+    if (!idUser) {
+      notyf.error('Worker user ID is missing for this payout.');
+      return;
+    }
+
+    setResendingStatementUserId(idUser);
+    try {
+      const res = await fetch(API_ENDPOINTS.admin.resendWorkerStatement(idUser), {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${getToken()}` },
+      });
+      const data = await res.json();
+      if (!res.ok || !data?.success) {
+        notyf.error(data?.error || 'Could not resend statement.');
+        return;
+      }
+
+      notyf.success('Statement email queued.');
+    } catch {
+      notyf.error('Connection error resending statement.');
+    } finally {
+      setResendingStatementUserId(null);
     }
   };
 

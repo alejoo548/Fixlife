@@ -5,6 +5,7 @@ import {
   counterOfferWorkerRequest,
   changeWorkerPassword,
   deletePortfolioImage,
+  downloadWorkerRewardsStatementPdf,
   getWorkerMe,
   getWorkerRewardsDashboard,
   getWorkerRequests,
@@ -30,6 +31,7 @@ router.use(verifyToken, requireWorker);
 
 router.get('/me', getWorkerMe);
 router.get('/rewards-dashboard', getWorkerRewardsDashboard);
+router.get('/rewards-dashboard/statement.pdf', downloadWorkerRewardsStatementPdf);
 router.get('/requests', getWorkerRequests);
 router.post('/requests/:idRequest/accept', sensitiveLimiter, acceptWorkerRequest);
 router.post('/requests/:idRequest/reject', sensitiveLimiter, rejectWorkerRequest);

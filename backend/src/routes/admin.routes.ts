@@ -27,6 +27,7 @@ import {
   getBackgroundJobsAdminController,
   markWorkerPayoutPaidController,
   markWorkerBonusPayoutPaidController,
+  resendWorkerStatementAdminController,
   getFinanceCasesAdmin,
   getFinanceClosureReportAdmin,
   updateCommissionRulesAdmin,
@@ -89,6 +90,7 @@ router.put('/worker-rewards/settings', sensitiveLimiter, updateWorkerRewardsProg
 router.post('/worker-rewards/payouts/:idBonusPayout/pay', sensitiveLimiter, markWorkerBonusPayoutPaidController);
 router.get('/worker-payouts', getWorkerPayoutsAdmin);
 router.post('/worker-payouts/:idWorkerPayout/pay', sensitiveLimiter, markWorkerPayoutPaidController);
+router.post('/workers/:idUser/statement/resend', sensitiveLimiter, resendWorkerStatementAdminController);
 router.get('/payment-ledger', getPaymentLedgerAdmin);
 router.get('/finance-report', getFinanceSettlementReportAdmin);
 router.get('/finance-report/export', exportFinanceSettlementReportCsvAdmin);
