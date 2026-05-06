@@ -107,6 +107,7 @@ export const API_ENDPOINTS = {
     markWorkerBonusPaid: (idBonusPayout: number) => `${API_URL}/api/admin/worker-rewards/payouts/${idBonusPayout}/pay`,
     workerPayouts: `${API_URL}/api/admin/worker-payouts`,
     markWorkerPayoutPaid: (idWorkerPayout: number) => `${API_URL}/api/admin/worker-payouts/${idWorkerPayout}/pay`,
+    resendWorkerStatement: (idUser: number) => `${API_URL}/api/admin/workers/${idUser}/statement/resend`,
     paymentLedger: `${API_URL}/api/admin/payment-ledger`,
     financeReport: `${API_URL}/api/admin/finance-report`,
     exportFinanceReport: `${API_URL}/api/admin/finance-report/export`,
@@ -120,6 +121,7 @@ export const API_ENDPOINTS = {
   worker: {
     me: `${API_URL}/api/worker/me`,
     rewardsDashboard: `${API_URL}/api/worker/rewards-dashboard`,
+    rewardsStatementPdf: `${API_URL}/api/worker/rewards-dashboard/statement.pdf`,
     requests: `${API_URL}/api/worker/requests`,
     acceptRequest: (idRequest: number) => `${API_URL}/api/worker/requests/${idRequest}/accept`,
     rejectRequest: (idRequest: number) => `${API_URL}/api/worker/requests/${idRequest}/reject`,

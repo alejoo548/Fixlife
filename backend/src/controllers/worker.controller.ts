@@ -18,6 +18,9 @@ import { createUserNotification } from '../utils/notifications';
 import { buildProtectedAssetUrl, buildPublicAssetUrl, deleteUploadIfExists } from '../utils/assets';
 import { shouldRunRuntimeSchemaSync } from '../config/schemaSync';
 import { getWorkerPayouts } from '../services/paymentLedger.service';
+import {
+  queueWorkerPayoutStatementEmail,
+} from '../services/workerPayoutStatement.service';
 
 const servicesController = require(path.join(__dirname, './services.controller'));
 const {
@@ -295,7 +298,7 @@ export const getWorkerRewardsDashboard = async (req: AuthRequest, res: Response)
          AND sr.status = 'done'
          AND COALESCE(srp.released_at, sr.updated_at, sr.created_at) >= ?
        ORDER BY completed_at DESC
-       LIMIT 18`,
+       LIMIT 60`,
       [profileId, REWARDS_PROGRAM_START_SQL]
     );
 
@@ -372,6 +375,9 @@ export const getWorkerRewardsDashboard = async (req: AuthRequest, res: Response)
         type: 'worker_payout' | 'commission' | 'royalty' | 'combined';
         amount: number;
         jobs_count: number;
+        base_amount: number;
+        commission_amount: number;
+        performance_bonus_amount: number;
       }
     >();
 
@@ -392,6 +398,13 @@ export const getWorkerRewardsDashboard = async (req: AuthRequest, res: Response)
       if (existing) {
         existing.amount = Number((existing.amount + amount).toFixed(2));
         existing.jobs_count += jobsCount;
+        if (type === 'worker_payout') {
+          existing.base_amount = Number((existing.base_amount + amount).toFixed(2));
+        } else if (type === 'commission') {
+          existing.commission_amount = Number((existing.commission_amount + amount).toFixed(2));
+        } else if (type === 'royalty') {
+          existing.performance_bonus_amount = Number((existing.performance_bonus_amount + amount).toFixed(2));
+        }
         if (existing.type !== type) {
           existing.type = 'combined';
           existing.label = 'Mixed payout batch';
@@ -407,6 +420,9 @@ export const getWorkerRewardsDashboard = async (req: AuthRequest, res: Response)
         type,
         amount: Number(amount.toFixed(2)),
         jobs_count: jobsCount,
+        base_amount: type === 'worker_payout' ? Number(amount.toFixed(2)) : 0,
+        commission_amount: type === 'commission' ? Number(amount.toFixed(2)) : 0,
+        performance_bonus_amount: type === 'royalty' ? Number(amount.toFixed(2)) : 0,
       });
     };
 
@@ -591,6 +607,36 @@ export const getWorkerRewardsDashboard = async (req: AuthRequest, res: Response)
   } catch (error: any) {
     console.error('Error in getWorkerRewardsDashboard:', error);
     res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
+export const downloadWorkerRewardsStatementPdf = async (
+  req: AuthRequest,
+  res: Response
+): Promise<void> => {
+  try {
+    const userId = req.user?.user_id;
+    if (!userId) {
+      res.status(401).json({ error: 'Unauthorized' });
+      return;
+    }
+
+    const queuedStatement = await queueWorkerPayoutStatementEmail(userId, {
+      period: req.query.period ? String(req.query.period) : null,
+      status: req.query.status ? String(req.query.status) : null,
+      from: req.query.from ? String(req.query.from) : null,
+      to: req.query.to ? String(req.query.to) : null,
+    });
+    const fileName = queuedStatement.fileName;
+    const pdfBuffer = queuedStatement.pdfBuffer;
+
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
+    res.setHeader('Content-Length', String(pdfBuffer.length));
+    res.send(pdfBuffer);
+  } catch (error: any) {
+    console.error('Error in downloadWorkerRewardsStatementPdf:', error);
+    res.status(500).json({ error: 'Could not generate worker payout statement.' });
   }
 };
 

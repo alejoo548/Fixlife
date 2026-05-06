@@ -25,7 +25,7 @@ export const Footer: React.FC<FooterProps> = ({
   ];
 
   return (
-    <footer className="relative bg-gradient-to-b from-transparent via-orange-50/30 to-gray-50 pt-32 pb-10 border-t border-gray-200">
+    <footer className="relative bg-gradient-to-b from-transparent via-orange-50/30 to-gray-50 pt-16 pb-10 border-t border-gray-200">
       <div className="absolute inset-0 overflow-hidden pointer-events-none z-0">
         <div className="absolute bottom-0 left-[10%] w-[500px] h-[500px] bg-bird-blue/10 rounded-full blur-[100px]" />
         <div className="absolute top-20 right-[10%] w-[400px] h-[400px] bg-bird-yellow/10 rounded-full blur-[100px]" />
@@ -33,35 +33,6 @@ export const Footer: React.FC<FooterProps> = ({
       </div>
 
       <div className="max-w-[1400px] mx-auto px-4 md:px-8 relative z-10">
-        <div className="relative -mt-32 md:-mt-48 mb-20 rounded-3xl p-8 md:p-12 overflow-hidden shadow-2xl shadow-bird-blue/20 border border-bird-blue/20 group bg-gradient-to-r from-bird-blue to-bird-darkBlue">
-          <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-10 mix-blend-overlay" />
-
-          <div className="relative z-10 flex flex-col md:flex-row items-center justify-between gap-8 text-center md:text-left">
-            <div>
-              <h2 className="text-2xl md:text-4xl font-bold text-white mb-3">Ready to get started?</h2>
-              <p className="text-blue-100 text-base md:text-lg max-w-lg mx-auto md:mx-0">
-                Join the Fixlife community today. Book a service or register as a professional.
-              </p>
-            </div>
-            <div className="flex flex-col sm:flex-row gap-4 w-full md:w-auto">
-              <button
-                type="button"
-                onClick={onBookService}
-                className="px-8 py-4 rounded-xl bg-white text-bird-blue font-bold shadow-lg hover:bg-gray-50 transition-all transform hover:-translate-y-1 w-full sm:w-auto"
-              >
-                Book a Service
-              </button>
-              <button
-                type="button"
-                onClick={onOpenPro}
-                className="px-8 py-4 rounded-xl bg-bird-darkBlue/30 border border-white/20 text-white font-bold backdrop-blur-md hover:bg-bird-darkBlue/50 transition-all w-full sm:w-auto"
-              >
-                I'm a Pro
-              </button>
-            </div>
-          </div>
-        </div>
-
         <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-12 gap-8 lg:gap-8 mb-16 text-gray-900">
           <div className="col-span-2 lg:col-span-4 flex flex-col items-start gap-6 mb-8 lg:mb-0">
             <button

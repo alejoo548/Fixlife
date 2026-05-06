@@ -90,6 +90,7 @@ export interface AdminWorkerRewardsSettings {
 export interface AdminWorkerRewardsPayout {
   id_bonus_payout: number;
   id_worker_profile: number;
+  id_user: number | null;
   worker_name: string;
   bonus_type: 'commission' | 'royalty' | string;
   cycle_key: string;
@@ -152,6 +153,7 @@ export interface AdminCommissionConfig {
 export interface AdminWorkerPayout {
   id_worker_payout: number;
   id_worker_profile: number;
+  id_user: number | null;
   id_request: number | null;
   id_payment: number | null;
   worker_name: string;

@@ -1,10 +1,12 @@
-import React, { useState } from 'react';
+import React from 'react';
 
 interface ProSidebarProps {
     activeItem: string;
     setActiveItem: (id: string) => void;
     onClose?: () => void;
     onSignOut?: () => void;
+    isOpen: boolean;
+    setIsOpen: (value: boolean) => void;
 }
 
 const NAV_ITEMS = [
@@ -14,10 +16,7 @@ const NAV_ITEMS = [
     { id: 'settings', label: 'Settings', icon: 'M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065zM15 12a3 3 0 11-6 0 3 3 0 016 0z' },
 ];
 
-export const ProSidebar: React.FC<ProSidebarProps> = ({ activeItem, setActiveItem, onClose, onSignOut }) => {
-    const [isOpen, setIsOpen] = useState(false); // Collapsed by default
-    const [openSubmenu, setOpenSubmenu] = useState<string | null>(null);
-
+export const ProSidebar: React.FC<ProSidebarProps> = ({ activeItem, setActiveItem, onClose, onSignOut, isOpen, setIsOpen }) => {
     const toggleSidebar = () => setIsOpen(!isOpen);
 
     const handleItemClick = (id: string) => {
@@ -26,7 +25,7 @@ export const ProSidebar: React.FC<ProSidebarProps> = ({ activeItem, setActiveIte
 
     return (
         <aside
-            className={`fixed top-6 left-6 bottom-6 z-[60] rounded-[35px] bg-white border border-gray-200 shadow-2xl transition-all duration-300 ease-[cubic-bezier(0.2,0,0,1)] flex flex-col items-center py-6 overflow-hidden ${isOpen ? 'w-[260px] px-4 items-stretch' : 'w-[84px]'
+            className={`h-full rounded-[35px] bg-white border border-gray-200 shadow-2xl transition-all duration-300 ease-[cubic-bezier(0.2,0,0,1)] flex flex-col items-center py-6 overflow-hidden ${isOpen ? 'w-[290px] px-4 items-stretch' : 'w-[84px]'
                 }`}
         >
             <div className={`h-16 flex items-center shrink-0 mb-6 transition-all duration-300 ${isOpen ? 'justify-between' : 'justify-center'}`}>

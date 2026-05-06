@@ -145,35 +145,6 @@ export const FAQSection: React.FC<FAQSectionProps> = ({ onBookService, onNavigat
         ))}
       </div>
 
-      <div className="mt-5 bg-gradient-to-r from-bird-blue to-bird-darkBlue rounded-2xl p-4 md:p-6 text-center relative overflow-hidden">
-        <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-10" />
-        <div className="relative z-10">
-          <h4 className="text-lg md:text-xl font-bold text-white mb-1.5">Ready to solve your issue?</h4>
-          <p className="text-blue-100 mb-4 text-sm">Start a request or review the service flow before booking.</p>
-          <div className="flex flex-col sm:flex-row gap-3 justify-center">
-            <button
-              type="button"
-              onClick={onBookService}
-              className="px-6 py-3 rounded-xl bg-white text-bird-blue font-bold hover:bg-gray-100 transition-all shadow-lg inline-flex items-center justify-center gap-2"
-            >
-              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" />
-              </svg>
-              Book a Service
-            </button>
-            <button
-              type="button"
-              onClick={() => onNavigateSection?.('services')}
-              className="px-6 py-3 rounded-xl bg-bird-darkBlue/50 border border-white/20 text-white font-bold hover:bg-bird-darkBlue/70 transition-all inline-flex items-center justify-center gap-2"
-            >
-              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
-              </svg>
-              Explore Services
-            </button>
-          </div>
-        </div>
-      </div>
     </div>
   );
 };

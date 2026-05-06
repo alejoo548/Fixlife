@@ -547,6 +547,7 @@ export const getAllBonusPayoutsForAdmin = async (status: string = 'all') => {
        wbp.notes,
        wbp.source_request_id,
        wp.id_worker_profile,
+       wp.id_user,
        u.name,
        u.lastname,
        sr.location_text,

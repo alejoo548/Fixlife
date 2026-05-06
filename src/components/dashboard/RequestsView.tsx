@@ -88,6 +88,21 @@ const PRESENCE_PUSH_BACKGROUND_MS = 60000;
 const getLatestChatMessageId = (messages: ChatMessage[]) =>
   messages.length > 0 ? Number(messages[messages.length - 1].id_message || 0) : 0;
 
+const toFiniteNumber = (value: unknown): number | null => {
+  if (value === null || value === undefined || value === '') return null;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+};
+
+const isValidCoord = (coords: { lat: number; lng: number } | null | undefined) =>
+  !!coords && Number.isFinite(coords.lat) && Number.isFinite(coords.lng);
+
+const isValidLatLngTuple = (point: [number, number] | null | undefined) =>
+  Array.isArray(point) && Number.isFinite(point[0]) && Number.isFinite(point[1]);
+
+const isValidLatLngList = (points: [number, number][] | null | undefined) =>
+  Array.isArray(points) && points.length > 0 && points.every(isValidLatLngTuple);
+
 const mergeChatMessages = (current: ChatMessage[], incoming: ChatMessage[]) => {
   const byId = new Map<number, ChatMessage>();
 
@@ -113,6 +128,13 @@ const formatEta = (durationMin: number) => {
   const hours = Math.floor(durationMin / 60);
   const minutes = Math.ceil(durationMin % 60);
   return minutes > 0 ? `${hours}h ${minutes}m` : `${hours}h`;
+};
+
+const getServiceIconLabel = (icon: string | null | undefined, serviceName = 'Service') => {
+  const normalized = String(icon || '').trim();
+  if (normalized && normalized.length <= 3) return normalized;
+  const initial = String(serviceName || 'Service').trim().charAt(0).toUpperCase();
+  return initial || 'F';
 };
 
 const workerRequestStatusLabel = (statusRaw: string) => {
@@ -353,6 +375,11 @@ const getRemainingRoutePoints = (
   points: [number, number][],
   currentCoords: { lat: number; lng: number } | null
 ) => {
+  const safePoints = points.filter(isValidLatLngTuple);
+  if (safePoints.length === 0) return [];
+  if (!isValidCoord(currentCoords)) return safePoints;
+  points = safePoints;
+
   if (!currentCoords || points.length === 0) return points;
   if (points.length === 1) {
     return [
@@ -389,6 +416,7 @@ const getLiveViewportPoints = (
   currentCoords: { lat: number; lng: number } | null,
   mode: 'balanced' | 'close'
 ) => {
+  if (!isValidLatLngList(points)) return [];
   const remainingPoints = getRemainingRoutePoints(points, currentCoords);
   if (remainingPoints.length <= 2) return remainingPoints;
 
@@ -442,7 +470,7 @@ const focusRouteViewport = (
   isLiveRoute: boolean,
   mode: 'balanced' | 'close' = 'balanced'
 ) => {
-  if (!map || !L || !points.length) return;
+  if (!map || !L || !isValidLatLngList(points)) return;
 
   const isDesktop = typeof window !== 'undefined' ? window.innerWidth >= 1280 : true;
   const firstPoint = points[0];
@@ -561,8 +589,13 @@ export const RequestsView: React.FC<RequestsViewProps> = ({ isOnline, mobileView
     () => requests.find((r) => r.id_request === selectedRequestId) || requests[0] || null,
     [requests, selectedRequestId]
   );
+  const selectedRequestCoords = useMemo(() => {
+    const lat = toFiniteNumber(selectedRequest?.latitude);
+    const lng = toFiniteNumber(selectedRequest?.longitude);
+    return lat == null || lng == null ? null : { lat, lng };
+  }, [selectedRequest?.latitude, selectedRequest?.longitude]);
   const isInPageRouteActive = !!selectedRequest && activeRouteRequestId === selectedRequest.id_request;
-  const displayedWorkerCoords = routeFollowerCoords || workerCoords;
+  const displayedWorkerCoords = isValidCoord(routeFollowerCoords) ? routeFollowerCoords : workerCoords;
   const routeDistanceProfile = useMemo(
     () => (routePreview ? buildRouteDistanceProfile(routePreview.points) : null),
     [routePreview]
@@ -619,7 +652,7 @@ export const RequestsView: React.FC<RequestsViewProps> = ({ isOnline, mobileView
         : isOnline
           ? `Live updates on change${presenceBusy ? ' - syncing location' : ''}`
           : 'Go online to receive nearby requests';
-  const selectedServiceIcon = selectedRequest?.service_icon || 'Fix';
+  const selectedServiceIcon = getServiceIconLabel(selectedRequest?.service_icon, selectedRequest?.service_name);
   const routeStatusDisplayLabel =
     routeStatusLabel === 'Idle'
       ? 'Ready'
@@ -745,10 +778,10 @@ export const RequestsView: React.FC<RequestsViewProps> = ({ isOnline, mobileView
 
   useEffect(() => {
     const loadRoutePreview = async () => {
-      if (!workerCoords || selectedRequest?.latitude == null || selectedRequest.longitude == null) {
+      if (!isValidCoord(workerCoords) || !selectedRequestCoords) {
         setRoutePreview(null);
         setLiveRouteMetrics(null);
-        setRouteError(null);
+        setRouteError(selectedRequest && !selectedRequestCoords ? 'Client location is missing for this request.' : null);
         setRouteLoading(false);
         return;
       }
@@ -787,14 +820,11 @@ export const RequestsView: React.FC<RequestsViewProps> = ({ isOnline, mobileView
       };
 
       const buildStraightLineFallback = () => {
-        const straightDistanceKm = haversineKm(workerCoords!, {
-          lat: selectedRequest!.latitude!,
-          lng: selectedRequest!.longitude!,
-        });
+        const straightDistanceKm = haversineKm(workerCoords!, selectedRequestCoords);
         const estimatedDurationMin = straightDistanceKm * 2.4;
         const points: [number, number][] = [
           [workerCoords!.lat, workerCoords!.lng],
-          [selectedRequest!.latitude!, selectedRequest!.longitude!],
+          [selectedRequestCoords.lat, selectedRequestCoords.lng],
         ];
         return { points, distanceKm: straightDistanceKm, durationMin: estimatedDurationMin };
       };
@@ -807,7 +837,7 @@ export const RequestsView: React.FC<RequestsViewProps> = ({ isOnline, mobileView
         });
         const url =
           `https://router.project-osrm.org/route/v1/driving/` +
-          `${workerCoords.lng},${workerCoords.lat};${selectedRequest.longitude},${selectedRequest.latitude}?${params.toString()}`;
+          `${workerCoords.lng},${workerCoords.lat};${selectedRequestCoords.lng},${selectedRequestCoords.lat}?${params.toString()}`;
 
         const timeoutId = setTimeout(() => controller.abort(), 6000);
         let res: Response;
@@ -833,9 +863,14 @@ export const RequestsView: React.FC<RequestsViewProps> = ({ isOnline, mobileView
           return;
         }
 
-        const points = route.geometry.coordinates.map(
-          ([lng, lat]: [number, number]) => [lat, lng] as [number, number]
-        );
+        const points = route.geometry.coordinates
+          .map(([lng, lat]: [number, number]) => [Number(lat), Number(lng)] as [number, number])
+          .filter(isValidLatLngTuple);
+
+        if (points.length < 2) {
+          setRoutePreview(buildStraightLineFallback());
+          return;
+        }
 
         if (
           points.length > 0 &&
@@ -847,11 +882,11 @@ export const RequestsView: React.FC<RequestsViewProps> = ({ isOnline, mobileView
         if (
           points.length > 0 &&
           haversineKm(
-            { lat: selectedRequest.latitude, lng: selectedRequest.longitude },
+            selectedRequestCoords,
             { lat: points[points.length - 1][0], lng: points[points.length - 1][1] }
           ) > 0.02
         ) {
-          points.push([selectedRequest.latitude, selectedRequest.longitude]);
+          points.push([selectedRequestCoords.lat, selectedRequestCoords.lng]);
         }
 
         const routedDistanceKm = Number(route.distance || 0) / 1000;
@@ -882,7 +917,7 @@ export const RequestsView: React.FC<RequestsViewProps> = ({ isOnline, mobileView
     return () => {
       routeAbortRef.current?.abort();
     };
-  }, [workerCoords?.lat, workerCoords?.lng, selectedRequest?.id_request, selectedRequest?.latitude, selectedRequest?.longitude, isInPageRouteActive]);
+  }, [workerCoords?.lat, workerCoords?.lng, selectedRequest?.id_request, selectedRequestCoords?.lat, selectedRequestCoords?.lng, isInPageRouteActive]);
 
   useEffect(() => {
     if (!routePreview || !selectedRequest) {
@@ -902,6 +937,10 @@ export const RequestsView: React.FC<RequestsViewProps> = ({ isOnline, mobileView
     }
 
     if (!isInPageRouteActive || !routePreview || !routeDistanceProfile || routePreview.points.length < 2) {
+      setRouteFollowerCoords(null);
+      return;
+    }
+    if (!isValidLatLngList(routePreview.points)) {
       setRouteFollowerCoords(null);
       return;
     }
@@ -955,7 +994,7 @@ export const RequestsView: React.FC<RequestsViewProps> = ({ isOnline, mobileView
   ]);
 
   useEffect(() => {
-    if (!routePreview || !displayedWorkerCoords) {
+    if (!routePreview || !isValidCoord(displayedWorkerCoords) || !isValidLatLngList(routePreview.points)) {
       setLiveRouteMetrics(null);
       return;
     }
@@ -1000,60 +1039,71 @@ export const RequestsView: React.FC<RequestsViewProps> = ({ isOnline, mobileView
     });
     routeLayersRef.current = [];
 
-    if (visibleRoutePoints?.length && displayedWorkerCoords && selectedRequest?.latitude != null && selectedRequest.longitude != null) {
-      const routeGlow = L.polyline(visibleRoutePoints, {
-        color: '#60a5fa',
-        weight: 12,
-        opacity: 0.2,
-        lineCap: 'round',
-        lineJoin: 'round',
-        className: 'worker-route-glow',
-      }).addTo(map);
+    if (isValidLatLngList(visibleRoutePoints) && isValidCoord(displayedWorkerCoords) && selectedRequestCoords) {
+      try {
+        const routeGlow = L.polyline(visibleRoutePoints, {
+          color: '#60a5fa',
+          weight: 12,
+          opacity: 0.2,
+          lineCap: 'round',
+          lineJoin: 'round',
+          className: 'worker-route-glow',
+        }).addTo(map);
 
-      const routeLine = L.polyline(visibleRoutePoints, {
-        color: '#2563eb',
-        weight: 6,
-        opacity: 0.95,
-        lineCap: 'round',
-        lineJoin: 'round',
-        dashArray: isInPageRouteActive ? '20 14' : '14 10',
-        className: isInPageRouteActive ? 'worker-route-line worker-route-live' : 'worker-route-line',
-      }).addTo(map);
+        const routeLine = L.polyline(visibleRoutePoints, {
+          color: '#2563eb',
+          weight: 6,
+          opacity: 0.95,
+          lineCap: 'round',
+          lineJoin: 'round',
+          dashArray: isInPageRouteActive ? '20 14' : '14 10',
+          className: isInPageRouteActive ? 'worker-route-line worker-route-live' : 'worker-route-line',
+        }).addTo(map);
 
-      routeLayersRef.current.push(routeGlow, routeLine);
+        routeLayersRef.current.push(routeGlow, routeLine);
 
-      const viewportKey = `${selectedRequest.id_request}-${isInPageRouteActive ? 'live' : 'preview'}-${routeCameraMode}`;
-      const viewportPoints = isInPageRouteActive && routePreview?.points?.length
-        ? (liveViewportPoints || visibleRoutePoints)
-        : visibleRoutePoints;
-      if (lastRouteViewportKeyRef.current !== viewportKey) {
-        focusRouteViewport(map, L, viewportPoints, isInPageRouteActive, routeCameraMode);
-        lastRouteViewportKeyRef.current = viewportKey;
-      }
+        const viewportKey = `${selectedRequest.id_request}-${isInPageRouteActive ? 'live' : 'preview'}-${routeCameraMode}`;
+        const viewportPoints = isInPageRouteActive && isValidLatLngList(routePreview?.points)
+          ? (liveViewportPoints || visibleRoutePoints)
+          : visibleRoutePoints;
+        if (lastRouteViewportKeyRef.current !== viewportKey && isValidLatLngList(viewportPoints)) {
+          focusRouteViewport(map, L, viewportPoints, isInPageRouteActive, routeCameraMode);
+          lastRouteViewportKeyRef.current = viewportKey;
+        }
 
-      if (trafficEnabled && simulatedTraffic?.segments?.length) {
-        simulatedTraffic.segments.forEach((segment) => {
-          const visibleTrafficPoints = isInPageRouteActive
-            ? getRemainingRoutePoints(segment.points, displayedWorkerCoords)
-            : segment.points;
-          if (visibleTrafficPoints.length < 2) return;
-          const trafficSegment = L.polyline(visibleTrafficPoints, {
-            color: segment.color,
-            weight: 4,
-            opacity: 0.92,
-            lineCap: 'round',
-            lineJoin: 'round',
-            dashArray: '10 14',
-            className: 'worker-route-traffic',
-          }).addTo(map);
-          routeLayersRef.current.push(trafficSegment);
-        });
+        if (trafficEnabled && simulatedTraffic?.segments?.length) {
+          simulatedTraffic.segments.forEach((segment) => {
+            const visibleTrafficPoints = isInPageRouteActive
+              ? getRemainingRoutePoints(segment.points, displayedWorkerCoords)
+              : segment.points.filter(isValidLatLngTuple);
+            if (visibleTrafficPoints.length < 2) return;
+            try {
+              const trafficSegment = L.polyline(visibleTrafficPoints, {
+                color: segment.color,
+                weight: 4,
+                opacity: 0.92,
+                lineCap: 'round',
+                lineJoin: 'round',
+                dashArray: '10 14',
+                className: 'worker-route-traffic',
+              }).addTo(map);
+              routeLayersRef.current.push(trafficSegment);
+            } catch {
+              // Ignore invalid traffic preview coordinates.
+            }
+          });
+        }
+      } catch {
+        setRoutePreview(null);
+        setLiveRouteMetrics(null);
+        setRouteFollowerCoords(null);
+        setRouteError('Route preview is unavailable because a coordinate was invalid.');
       }
     }
   }, [
     selectedRequest?.id_request,
-    selectedRequest?.latitude,
-    selectedRequest?.longitude,
+    selectedRequestCoords?.lat,
+    selectedRequestCoords?.lng,
     visibleRoutePoints,
     liveViewportPoints,
     routePreview?.points,
@@ -1080,59 +1130,70 @@ export const RequestsView: React.FC<RequestsViewProps> = ({ isOnline, mobileView
     requestMarkersRef.current = [];
 
     requests.forEach((request) => {
-      if (request.latitude == null || request.longitude == null) return;
-      const isSelected = request.id_request === selectedRequest?.id_request;
-      const routeEndPoint =
-        isSelected && routePreview?.points?.length
-          ? routePreview.points[routePreview.points.length - 1]
-          : null;
-      const point: [number, number] = [
-        routeEndPoint ? routeEndPoint[0] : request.latitude,
-        routeEndPoint ? routeEndPoint[1] : request.longitude,
-      ];
+      try {
+        const requestLat = toFiniteNumber(request.latitude);
+        const requestLng = toFiniteNumber(request.longitude);
+        if (requestLat == null || requestLng == null) return;
+        const isSelected = request.id_request === selectedRequest?.id_request;
+        const routeEndPoint =
+          isSelected && isValidLatLngList(routePreview?.points)
+            ? routePreview.points[routePreview.points.length - 1]
+            : null;
+        const point: [number, number] = [
+          routeEndPoint ? routeEndPoint[0] : requestLat,
+          routeEndPoint ? routeEndPoint[1] : requestLng,
+        ];
+        if (!isValidLatLngTuple(point)) return;
 
-      const marker = isSelected
-        ? L.marker(point, {
-            icon: createDestinationPinIcon(L, true),
-            zIndexOffset: 900,
-          })
-        : L.circleMarker(point, {
-            radius: 7,
-            color: '#ffffff',
-            weight: 2,
-            fillColor: '#0284c7',
-            fillOpacity: 0.96,
-            className: 'worker-destination-marker',
-          });
+        const marker = isSelected
+          ? L.marker(point, {
+              icon: createDestinationPinIcon(L, true),
+              zIndexOffset: 900,
+            })
+          : L.circleMarker(point, {
+              radius: 7,
+              color: '#ffffff',
+              weight: 2,
+              fillColor: '#0284c7',
+              fillOpacity: 0.96,
+              className: 'worker-destination-marker',
+            });
 
-      marker
-        .addTo(map)
-        .bindPopup(
-          `<b>${request.service_name}</b><br/>$${request.budget.toFixed(2)}<br/>${
-            request.distance_km != null ? `${request.distance_km.toFixed(1)} km` : ''
-          }`
-        );
-      marker.on('click', () => setSelectedRequestId(request.id_request));
-      requestMarkersRef.current.push(marker);
+        marker
+          .addTo(map)
+          .bindPopup(
+            `<b>${request.service_name}</b><br/>$${request.budget.toFixed(2)}<br/>${
+              request.distance_km != null ? `${request.distance_km.toFixed(1)} km` : ''
+            }`
+          );
+        marker.on('click', () => setSelectedRequestId(request.id_request));
+        requestMarkersRef.current.push(marker);
+      } catch {
+        // Ignore markers with invalid backend coordinates.
+      }
     });
 
-    if (routePreview?.points?.length && selectedRequest?.latitude != null && selectedRequest.longitude != null) {
+    if (isValidLatLngList(routePreview?.points) && selectedRequestCoords) {
       return;
     }
 
-    if (selectedRequest?.latitude != null && selectedRequest.longitude != null) {
-      map.setView([selectedRequest.latitude, selectedRequest.longitude], 13);
-    } else if (workerCoords) {
-      map.setView([workerCoords.lat, workerCoords.lng], 12);
+    try {
+      if (selectedRequestCoords) {
+        map.setView([selectedRequestCoords.lat, selectedRequestCoords.lng], 13);
+      } else if (isValidCoord(workerCoords)) {
+        map.setView([workerCoords.lat, workerCoords.lng], 12);
+      }
+    } catch {
+      // Ignore invalid camera coordinates.
     }
-  }, [requests, selectedRequest, workerCoords, routePreview]);
+  }, [requests, selectedRequest, selectedRequestCoords, workerCoords, routePreview]);
 
   useEffect(() => {
     if (!mapInstanceRef.current || !window.L) return;
     const L = window.L;
     const map = mapInstanceRef.current;
 
-    if (!displayedWorkerCoords) {
+    if (!isValidCoord(displayedWorkerCoords)) {
       if (workerMarkerRef.current) {
         try {
           map.removeLayer(workerMarkerRef.current);
@@ -1152,7 +1213,16 @@ export const RequestsView: React.FC<RequestsViewProps> = ({ isOnline, mobileView
       workerMarkerRef.current &&
       workerMarkerRef.current.__routeActive === isInPageRouteActive
     ) {
-      workerMarkerRef.current.setLatLng([displayedWorkerCoords.lat, displayedWorkerCoords.lng]);
+      try {
+        workerMarkerRef.current.setLatLng([displayedWorkerCoords.lat, displayedWorkerCoords.lng]);
+      } catch {
+        try {
+          map.removeLayer(workerMarkerRef.current);
+        } catch {
+          // ignore
+        }
+        workerMarkerRef.current = null;
+      }
       return;
     }
 
@@ -1165,21 +1235,25 @@ export const RequestsView: React.FC<RequestsViewProps> = ({ isOnline, mobileView
       workerMarkerRef.current = null;
     }
 
-    workerMarkerRef.current = L.circleMarker([displayedWorkerCoords.lat, displayedWorkerCoords.lng], {
-      radius: 10,
-      color: '#ffffff',
-      weight: 3,
-      fillColor: '#38bdf8',
-      fillOpacity: 1,
-      className: markerClassName,
-    })
-      .addTo(map)
-      .bindPopup(isInPageRouteActive ? 'You are moving on this route' : 'Your position');
-    workerMarkerRef.current.__routeActive = isInPageRouteActive;
+    try {
+      workerMarkerRef.current = L.circleMarker([displayedWorkerCoords.lat, displayedWorkerCoords.lng], {
+        radius: 10,
+        color: '#ffffff',
+        weight: 3,
+        fillColor: '#38bdf8',
+        fillOpacity: 1,
+        className: markerClassName,
+      })
+        .addTo(map)
+        .bindPopup(isInPageRouteActive ? 'You are moving on this route' : 'Your position');
+      workerMarkerRef.current.__routeActive = isInPageRouteActive;
+    } catch {
+      workerMarkerRef.current = null;
+    }
   }, [displayedWorkerCoords?.lat, displayedWorkerCoords?.lng, isInPageRouteActive]);
 
   useEffect(() => {
-    if (!mapInstanceRef.current || !window.L || !displayedWorkerCoords || !selectedRequest || !isInPageRouteActive || !routePreview?.points?.length) {
+    if (!mapInstanceRef.current || !window.L || !isValidCoord(displayedWorkerCoords) || !selectedRequest || !isInPageRouteActive || !isValidLatLngList(routePreview?.points)) {
       return;
     }
 
@@ -1189,7 +1263,7 @@ export const RequestsView: React.FC<RequestsViewProps> = ({ isOnline, mobileView
 
     const map = mapInstanceRef.current;
     const L = window.L;
-    const viewportPoints = liveViewportPoints || routePreview.points;
+    const viewportPoints = isValidLatLngList(liveViewportPoints) ? liveViewportPoints : routePreview.points;
     const timer = window.setTimeout(() => {
       try {
         if (typeof map.stop === 'function') {
@@ -1213,7 +1287,7 @@ export const RequestsView: React.FC<RequestsViewProps> = ({ isOnline, mobileView
   ]);
 
   useEffect(() => {
-    if (!isInPageRouteActive || !selectedRequest || !routePreview || !displayedWorkerCoords) {
+    if (!isInPageRouteActive || !selectedRequest || !routePreview || !isValidCoord(displayedWorkerCoords) || !isValidLatLngList(routePreview.points)) {
       setRouteStatusLabel('Idle');
       return;
     }
@@ -1312,12 +1386,24 @@ export const RequestsView: React.FC<RequestsViewProps> = ({ isOnline, mobileView
         return;
       }
 
-      const data = Array.isArray(payload.requests) ? payload.requests : [];
+      const data = Array.isArray(payload.requests)
+        ? payload.requests.map((request) => ({
+            ...request,
+            id_request: Number(request.id_request),
+            id_service: Number(request.id_service),
+            budget: Number(request.budget || 0),
+            distance_km: toFiniteNumber(request.distance_km),
+            latitude: toFiniteNumber(request.latitude),
+            longitude: toFiniteNumber(request.longitude),
+          }))
+        : [];
       setRequests(data);
-      if (payload.worker_profile?.latitude != null && payload.worker_profile?.longitude != null) {
+      const workerLat = toFiniteNumber(payload.worker_profile?.latitude);
+      const workerLng = toFiniteNumber(payload.worker_profile?.longitude);
+      if (workerLat != null && workerLng != null) {
         const nextCoords = {
-          lat: Number(payload.worker_profile.latitude),
-          lng: Number(payload.worker_profile.longitude),
+          lat: workerLat,
+          lng: workerLng,
         };
         setWorkerCoords((prev) => {
           if (!prev) return nextCoords;
@@ -1734,16 +1820,16 @@ export const RequestsView: React.FC<RequestsViewProps> = ({ isOnline, mobileView
         initial={mobileView === 'list' ? { y: 0 } : { y: "100%" }}
         animate={{ y: 0 }}
         transition={{ type: "spring", damping: 25, stiffness: 200 }}
-        className={`w-full h-[60vh] mt-auto md:mt-0 md:h-full md:w-[400px] lg:w-[450px] flex flex-col bg-white/95 backdrop-blur-lg relative z-20 shadow-[0_-10px_40px_rgba(0,0,0,0.15)] md:shadow-2xl overflow-hidden rounded-t-[2rem] md:rounded-none md:border-r border-gray-200 ${
-          mobileView === 'map' ? 'hidden md:flex' : 'flex'
+        className={`w-full h-full min-h-0 lg:h-full lg:w-[430px] xl:w-[450px] flex flex-col bg-white/95 backdrop-blur-lg relative z-20 shadow-[0_-10px_40px_rgba(0,0,0,0.15)] lg:shadow-2xl overflow-hidden lg:rounded-none lg:border-r border-gray-200 ${
+          mobileView === 'map' ? 'hidden lg:flex' : 'flex'
         }`}
       >
         {/* Mobile Drag Handle */}
-        <div className="w-full flex justify-center pt-4 pb-0 md:hidden bg-white/95">
+        <div className="w-full flex justify-center pt-2 pb-0 lg:hidden bg-white/95">
             <div className="w-12 h-1.5 bg-gray-300 rounded-full" />
         </div>
 
-        <div className="p-4 border-b border-gray-200 bg-white/95">
+        <div className="p-3 sm:p-4 border-b border-gray-200 bg-white/95">
           <div className="grid grid-cols-3 gap-2">
             {(['new', 'accepted', 'rejected'] as const).map((tab) => (
               <button
@@ -1772,7 +1858,7 @@ export const RequestsView: React.FC<RequestsViewProps> = ({ isOnline, mobileView
           )}
         </div>
 
-        <div className="flex-1 overflow-y-auto custom-scrollbar p-3 space-y-3 pb-20 md:pb-4">
+        <div className="min-h-0 flex-1 overflow-y-auto custom-scrollbar p-3 space-y-3 pb-24 lg:pb-4">
           {loading ? (
             <div className="rounded-2xl border border-bird-blue/10 bg-white/85 px-4 py-6 text-center shadow-sm">
               <div className="mx-auto h-3.5 w-3.5 rounded-full border-2 border-bird-blue/25 border-t-bird-blue animate-spin" />
@@ -1810,9 +1896,13 @@ export const RequestsView: React.FC<RequestsViewProps> = ({ isOnline, mobileView
                   }`}
                 >
                   <div className="flex items-start justify-between gap-2">
-                    <div className="min-w-0">
+                    <div className="flex min-w-0 items-start gap-3">
+                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-bird-blue/10 text-sm font-black text-bird-blue">
+                        {getServiceIconLabel(req.service_icon, req.service_name)}
+                      </div>
+                      <div className="min-w-0">
                       <h3 className="font-bold text-gray-900 text-base truncate">
-                        {req.service_icon || 'Fix'} {req.service_name}
+                        {req.service_name}
                       </h3>
                       <div className="mt-0.5 flex flex-wrap items-center gap-1.5">
                         <p className="text-xs text-gray-500">
@@ -1823,6 +1913,7 @@ export const RequestsView: React.FC<RequestsViewProps> = ({ isOnline, mobileView
                             {workerRequestStatusLabel(req.request_status)}
                           </span>
                         )}
+                      </div>
                       </div>
                     </div>
                     <span className="font-black text-bird-orange text-lg">${req.budget.toFixed(0)}</span>
@@ -1949,7 +2040,7 @@ export const RequestsView: React.FC<RequestsViewProps> = ({ isOnline, mobileView
         </div>
       </motion.div>
 
-      <div className={`flex-1 relative overflow-hidden ${mobileView === 'map' ? 'block' : 'hidden md:block'}`}>
+      <div className={`flex-1 relative overflow-hidden ${mobileView === 'map' ? 'block' : 'hidden lg:block'}`}>
         <div className="absolute inset-0 z-0 bg-gray-100">
           <div ref={mapContainerRef} className="absolute inset-0 z-0" />
           {!leafletReady && <div className="absolute right-4 top-4 z-[500] h-2.5 w-2.5 rounded-full bg-bird-blue/40 animate-pulse" />}
@@ -1962,7 +2053,7 @@ export const RequestsView: React.FC<RequestsViewProps> = ({ isOnline, mobileView
         </div>
 
         {selectedRequest && (
-          <div className="absolute left-4 top-4 z-[500] w-[340px] max-w-[calc(100%-2rem)] pointer-events-auto">
+          <div className="absolute inset-x-3 bottom-4 z-[500] pointer-events-auto lg:inset-x-auto lg:bottom-auto lg:left-4 lg:top-4 lg:w-[340px] lg:max-w-[calc(100%-2rem)]">
             <div className="rounded-[2rem] border border-white/75 bg-white/92 p-5 shadow-[0_24px_70px_rgba(15,23,42,0.14)] backdrop-blur-xl">
               <div className="flex items-start justify-between gap-3">
                 <div className="inline-flex items-center gap-2 rounded-full bg-bird-blue/10 px-3 py-1 text-[10px] font-black uppercase tracking-[0.22em] text-bird-blue">
@@ -2001,16 +2092,16 @@ export const RequestsView: React.FC<RequestsViewProps> = ({ isOnline, mobileView
                 </div>
               </div>
 
-              <div className="mt-4 grid grid-cols-3 gap-3">
-                <div className="rounded-2xl border border-blue-100 bg-blue-50/90 px-3 py-3">
+              <div className="mt-4 grid grid-cols-3 gap-2 sm:gap-3">
+                <div className="rounded-2xl border border-blue-100 bg-blue-50/90 px-2 py-3 sm:px-3">
                   <p className="text-[10px] font-bold uppercase tracking-wide text-blue-700">ETA</p>
-                  <p className="mt-1 text-lg font-black text-blue-950">{routeEtaLabel}</p>
+                  <p className="mt-1 text-base font-black text-blue-950 sm:text-lg">{routeEtaLabel}</p>
                 </div>
-                <div className="rounded-2xl border border-emerald-100 bg-emerald-50/90 px-3 py-3">
+                <div className="rounded-2xl border border-emerald-100 bg-emerald-50/90 px-2 py-3 sm:px-3">
                   <p className="text-[10px] font-bold uppercase tracking-wide text-emerald-700">Distance</p>
-                  <p className="mt-1 text-lg font-black text-emerald-950">{routeDistanceLabel}</p>
+                  <p className="mt-1 text-base font-black text-emerald-950 sm:text-lg">{routeDistanceLabel}</p>
                 </div>
-                <div className="rounded-2xl border border-amber-100 bg-amber-50/90 px-3 py-3">
+                <div className="rounded-2xl border border-amber-100 bg-amber-50/90 px-2 py-3 sm:px-3">
                   <p className="text-[10px] font-bold uppercase tracking-wide text-amber-700">Status</p>
                   <p className="mt-1 text-sm font-black text-amber-950">{routeStatusDisplayLabel}</p>
                 </div>

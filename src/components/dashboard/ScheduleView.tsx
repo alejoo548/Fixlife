@@ -1,29 +1,21 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
 import { useWorkerRewardsDashboard, type WorkerRewardCalendarItem } from '../../hooks/useWorkerRewardsDashboard';
+import {
+  formatDate,
+  formatMoney,
+  getCalendarBatchSummary,
+  getCalendarItemLabel,
+  getCalendarItemTone,
+  getNextPayoutLabel,
+  getPayoutStatusBadge,
+  getPayoutStatusLabel,
+} from './workerRewardsUi';
 
-const formatMoney = (value: number) => `$${Number(value || 0).toFixed(2)}`;
 const REWARDS_PROGRAM_START = new Date(2026, 0, 1);
-
-const getBonusStatusBadge = (status: string) => {
-  const normalized = String(status || '').toLowerCase();
-  if (normalized === 'paid') return 'border border-emerald-200 bg-emerald-50 text-emerald-700';
-  if (normalized === 'scheduled') return 'border border-amber-200 bg-amber-50 text-amber-700';
-  if (normalized === 'cancelled') return 'border border-slate-200 bg-slate-100 text-slate-500';
-  return 'border border-slate-200 bg-slate-50 text-slate-500';
-};
-
-const getBonusStatusLabel = (status: string) => {
-  const normalized = String(status || '').toLowerCase();
-  if (normalized === 'paid') return 'Paid';
-  if (normalized === 'scheduled') return 'Scheduled';
-  if (normalized === 'cancelled') return 'Cancelled';
-  return 'Not eligible';
-};
 
 const buildMonthGrid = (anchor: Date) => {
   const start = new Date(anchor.getFullYear(), anchor.getMonth(), 1);
-  const end = new Date(anchor.getFullYear(), anchor.getMonth() + 1, 0);
   const jsDay = start.getDay();
   const mondayOffset = (jsDay + 6) % 7;
   const gridStart = new Date(start);
@@ -40,10 +32,21 @@ const buildMonthGrid = (anchor: Date) => {
   });
 };
 
+const getDayLabel = (items: WorkerRewardCalendarItem[]) => {
+  if (items.length === 0) return null;
+  const distinctTypes = new Set(items.map((item) => item.type));
+  if (distinctTypes.size > 1 || items.some((item) => item.type === 'combined')) return 'Mixed';
+  const type = items[0].type;
+  if (type === 'worker_payout') return 'Base';
+  if (type === 'commission') return 'Commission';
+  if (type === 'royalty') return 'Monthly';
+  return 'Mixed';
+};
+
 const ScheduleSkeleton: React.FC = () => (
-  <div className="w-full h-full overflow-y-auto custom-scrollbar p-3 md:p-6 lg:p-8 pb-20 md:pb-8 flex flex-col gap-4 md:gap-6 animate-fade-in">
-    <div className="h-64 rounded-3xl border border-gray-200 bg-white animate-pulse" />
-    <div className="h-80 rounded-3xl border border-gray-200 bg-white animate-pulse" />
+  <div className="flex h-full w-full flex-col gap-4 overflow-y-auto custom-scrollbar p-3 pb-20 animate-fade-in md:gap-6 md:p-6 md:pb-8 lg:p-8">
+    <div className="h-64 animate-pulse rounded-3xl border border-gray-200 bg-white" />
+    <div className="h-80 animate-pulse rounded-3xl border border-gray-200 bg-white" />
   </div>
 );
 
@@ -57,14 +60,12 @@ export const ScheduleView: React.FC = () => {
     [data?.calendar.anchor_date]
   );
 
-  const visibleMonth = useMemo(
-    () => {
-      const nextMonth = new Date(anchorDate.getFullYear(), anchorDate.getMonth() + monthOffset, 1);
-      if (nextMonth < REWARDS_PROGRAM_START) return new Date(REWARDS_PROGRAM_START);
-      return nextMonth;
-    },
-    [anchorDate, monthOffset]
-  );
+  const visibleMonth = useMemo(() => {
+    const nextMonth = new Date(anchorDate.getFullYear(), anchorDate.getMonth() + monthOffset, 1);
+    if (nextMonth < REWARDS_PROGRAM_START) return new Date(REWARDS_PROGRAM_START);
+    return nextMonth;
+  }, [anchorDate, monthOffset]);
+
   const canGoPreviousMonth =
     visibleMonth.getFullYear() > REWARDS_PROGRAM_START.getFullYear() ||
     (visibleMonth.getFullYear() === REWARDS_PROGRAM_START.getFullYear() &&
@@ -101,12 +102,13 @@ export const ScheduleView: React.FC = () => {
   }, [data?.calendar.items, visibleMonth]);
 
   const selectedItems = selectedDateKey ? calendarItemsByDate.get(selectedDateKey) || [] : [];
+  const selectedBreakdown = getCalendarBatchSummary(selectedItems);
 
   if (loading && !data) return <ScheduleSkeleton />;
 
   if (error && !data) {
     return (
-      <div className="w-full h-full overflow-y-auto custom-scrollbar p-3 md:p-6 lg:p-8 pb-20 md:pb-8">
+      <div className="h-full w-full overflow-y-auto custom-scrollbar p-3 pb-20 md:p-6 md:pb-8 lg:p-8">
         <div className="rounded-[28px] border border-red-200 bg-red-50 px-5 py-4 text-sm font-semibold text-red-700">
           {error}
         </div>
@@ -120,71 +122,90 @@ export const ScheduleView: React.FC = () => {
   const history = data!.history;
 
   return (
-    <div className="w-full h-full overflow-y-auto custom-scrollbar p-3 md:p-6 lg:p-8 pb-20 md:pb-8 flex flex-col gap-4 md:gap-6 animate-fade-in">
-      <div className="grid grid-cols-1 xl:grid-cols-[1.15fr_0.85fr] gap-4 md:gap-6">
+    <div className="flex h-full w-full flex-col gap-4 overflow-y-auto custom-scrollbar p-3 pb-20 animate-fade-in md:gap-6 md:p-6 md:pb-8 lg:p-8">
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-[1.15fr_0.85fr] md:gap-6">
         <motion.div
           initial={{ opacity: 0, y: 14 }}
           animate={{ opacity: 1, y: 0 }}
-          className="bg-white rounded-3xl border border-gray-200 p-4 md:p-6 shadow-sm overflow-hidden"
+          className="relative overflow-hidden rounded-3xl border border-gray-200 bg-white p-4 shadow-sm md:p-6"
         >
           <div className="pointer-events-none absolute inset-x-0 top-0 h-28 bg-gradient-to-r from-bird-blue/10 via-bird-yellow/10 to-transparent" />
-          <div className="flex items-center justify-between gap-3 mb-5">
+          <div className="mb-5 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
             <div>
-              <p className="text-xs font-black uppercase tracking-[0.18em] text-bird-blue">Payout calendar</p>
-              <h2 className="mt-2 text-2xl md:text-3xl font-black text-slate-900">
+              <p className="text-xs font-black uppercase tracking-[0.18em] text-bird-blue">Payment calendar</p>
+              <h2 className="mt-2 text-2xl font-black text-slate-900 md:text-3xl">
                 {visibleMonth.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
               </h2>
               <p className="mt-2 text-sm font-semibold text-slate-500">
-                Base payouts and rewards are grouped here from January 2026 onward.
+                Highlighted dates show money already scheduled to land in the worker payout cycle.
               </p>
             </div>
-            <div className="flex gap-2">
-              <button
-                type="button"
-                onClick={() => canGoPreviousMonth && setMonthOffset((prev) => prev - 1)}
-                disabled={!canGoPreviousMonth}
-                className="rounded-2xl border border-gray-200 bg-gray-50 p-3 text-slate-600 transition hover:border-bird-blue/30 hover:bg-bird-blue/5 disabled:cursor-not-allowed disabled:opacity-40"
-              >
-                <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.2} d="M15 19l-7-7 7-7" />
-                </svg>
-              </button>
-              <button
-                type="button"
-                onClick={() => setMonthOffset((prev) => prev + 1)}
-                className="rounded-2xl border border-gray-200 bg-gray-50 p-3 text-slate-600 transition hover:border-bird-blue/30 hover:bg-bird-blue/5"
-              >
-                <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.2} d="M9 5l7 7-7 7" />
-                </svg>
-              </button>
+
+            <div className="flex flex-wrap items-center gap-2">
+              {(['worker_payout', 'commission', 'royalty', 'combined'] as WorkerRewardCalendarItem['type'][]).map((type) => {
+                const tone = getCalendarItemTone(type);
+                const label = getCalendarItemLabel({ type, label: '' });
+                return (
+                  <span
+                    key={type}
+                    className={`inline-flex items-center gap-2 rounded-full px-3 py-2 text-[11px] font-black uppercase tracking-[0.14em] ${tone.chip}`}
+                  >
+                    <span className={`h-2 w-2 rounded-full ${tone.dot}`} />
+                    {label}
+                  </span>
+                );
+              })}
             </div>
           </div>
 
-          <div className="grid grid-cols-7 gap-2 text-center">
+          <div className="mb-5 flex gap-2">
+            <button
+              type="button"
+              onClick={() => canGoPreviousMonth && setMonthOffset((prev) => prev - 1)}
+              disabled={!canGoPreviousMonth}
+              className="rounded-2xl border border-gray-200 bg-gray-50 p-3 text-slate-600 transition hover:border-bird-blue/30 hover:bg-bird-blue/5 disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.2} d="M15 19l-7-7 7-7" />
+              </svg>
+            </button>
+            <button
+              type="button"
+              onClick={() => setMonthOffset((prev) => prev + 1)}
+              className="rounded-2xl border border-gray-200 bg-gray-50 p-3 text-slate-600 transition hover:border-bird-blue/30 hover:bg-bird-blue/5"
+            >
+              <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.2} d="M9 5l7 7-7 7" />
+              </svg>
+            </button>
+          </div>
+
+          <div className="grid grid-cols-7 gap-1 text-center sm:gap-2">
             {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((day) => (
-              <div key={day} className="pb-2 text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">
+              <div key={day} className="pb-2 text-[9px] font-black uppercase tracking-[0.08em] text-slate-400 sm:text-[11px] sm:tracking-[0.18em]">
                 {day}
               </div>
             ))}
-              {monthGrid.map((cell) => {
-                const key = cell.date.toISOString().slice(0, 10);
-                const cellItems = calendarItemsByDate.get(key) || [];
-                const totalAmount = cellItems.reduce((sum, item) => sum + item.amount, 0);
-                const isSelected = selectedDateKey === key;
-                const isBlocked = cell.date < REWARDS_PROGRAM_START;
 
-                return (
-                  <button
-                    key={key}
-                    type="button"
-                    onClick={() => !isBlocked && setSelectedDateKey(key)}
-                    disabled={isBlocked}
-                    className={`min-h-[88px] rounded-2xl border p-2 text-left transition ${
-                      isBlocked
-                        ? 'cursor-not-allowed border-transparent bg-slate-50/40 text-slate-300 opacity-45'
-                        :
-                      isSelected
+            {monthGrid.map((cell) => {
+              const key = cell.date.toISOString().slice(0, 10);
+              const cellItems = calendarItemsByDate.get(key) || [];
+              const totalAmount = cellItems.reduce((sum, item) => sum + item.amount, 0);
+              const isSelected = selectedDateKey === key;
+              const isBlocked = cell.date < REWARDS_PROGRAM_START;
+              const dayLabel = getDayLabel(cellItems);
+              const tone = cellItems.length ? getCalendarItemTone(cellItems[0].type) : null;
+
+              return (
+                <button
+                  key={key}
+                  type="button"
+                  onClick={() => !isBlocked && setSelectedDateKey(key)}
+                  disabled={isBlocked}
+                  className={`min-h-[64px] rounded-xl border p-1.5 text-left transition sm:min-h-[102px] sm:rounded-2xl sm:p-2 ${
+                    isBlocked
+                      ? 'cursor-not-allowed border-transparent bg-slate-50/40 text-slate-300 opacity-45'
+                      : isSelected
                         ? 'border-bird-blue bg-bird-blue text-white shadow-lg shadow-bird-blue/15'
                         : cell.isCurrentMonth
                           ? 'border-gray-200 bg-gray-50 hover:border-bird-blue/25 hover:bg-white'
@@ -192,22 +213,32 @@ export const ScheduleView: React.FC = () => {
                   }`}
                 >
                   <div className="flex items-center justify-between">
-                    <span className={`text-sm font-black ${isSelected ? 'text-white' : cell.isCurrentMonth ? 'text-slate-900' : 'text-slate-300'}`}>
+                    <span
+                      className={`text-xs font-black sm:text-sm ${
+                        isSelected ? 'text-white' : cell.isCurrentMonth ? 'text-slate-900' : 'text-slate-300'
+                      }`}
+                    >
                       {cell.date.getDate()}
                     </span>
                     {cell.isToday && (
                       <span className={`h-2 w-2 rounded-full ${isSelected ? 'bg-white' : 'bg-bird-orange'}`} />
                     )}
                   </div>
-                  {cellItems.length > 0 && (
-                    <div className="mt-3 space-y-2">
-                      <div className={`inline-flex rounded-full px-2 py-1 text-[10px] font-black ${
-                        isSelected ? 'bg-white/15 text-white' : 'bg-bird-blue/10 text-bird-blue'
-                      }`}>
-                        {cellItems.length} payout
+
+                  {cellItems.length > 0 && tone && (
+                    <div className="mt-1 space-y-1 sm:mt-3 sm:space-y-2">
+                      <div
+                        className={`inline-flex max-w-full truncate rounded-full px-1.5 py-0.5 text-[8px] font-black uppercase tracking-[0.06em] sm:px-2 sm:py-1 sm:text-[10px] sm:tracking-[0.14em] ${
+                          isSelected ? 'bg-white/15 text-white' : tone.chip
+                        }`}
+                      >
+                        {dayLabel}
                       </div>
-                      <div className={`text-xs font-black ${isSelected ? 'text-white' : 'text-slate-900'}`}>
+                      <div className={`truncate text-[10px] font-black sm:text-xs ${isSelected ? 'text-white' : 'text-slate-900'}`}>
                         {formatMoney(totalAmount)}
+                      </div>
+                      <div className={`hidden text-[11px] font-semibold sm:block ${isSelected ? 'text-white/80' : 'text-slate-500'}`}>
+                        {cellItems.length} event{cellItems.length === 1 ? '' : 's'}
                       </div>
                     </div>
                   )}
@@ -221,34 +252,66 @@ export const ScheduleView: React.FC = () => {
           initial={{ opacity: 0, y: 18 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.06 }}
-          className="bg-white rounded-3xl border border-gray-200 p-4 md:p-6 shadow-sm"
+          className="rounded-3xl border border-gray-200 bg-white p-4 shadow-sm md:p-6"
         >
-          <p className="text-xs font-black uppercase tracking-[0.18em] text-bird-blue">Payout snapshot</p>
+          <p className="text-xs font-black uppercase tracking-[0.18em] text-bird-blue">Selected payout day</p>
           <h3 className="mt-2 text-2xl font-black text-slate-900">
-            {selectedDateKey ? new Date(selectedDateKey).toLocaleDateString() : 'No payout selected'}
+            {selectedDateKey ? formatDate(selectedDateKey, { month: 'numeric', day: 'numeric', year: 'numeric' }) : 'No payout selected'}
           </h3>
 
-          <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-1">
+          <div className="mt-5 grid gap-3">
             <div className="rounded-3xl border border-slate-200 bg-slate-50 p-4">
               <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">Next payout batch</p>
               <p className="mt-2 text-2xl font-black text-slate-900">{formatMoney(summary.next_payout_amount)}</p>
               <p className="mt-2 text-sm text-slate-500">
                 {summary.next_payout_date
-                  ? `${summary.next_payout_label || 'Scheduled payout'} on ${new Date(summary.next_payout_date).toLocaleDateString()}`
-                  : `Payouts will appear here once the worker has released funds or unlocked bonus batches.`}
+                  ? `${getNextPayoutLabel(summary.next_payout_label)} on ${formatDate(summary.next_payout_date)}.`
+                  : 'Once work moves into a payout cycle, the next batch will show here.'}
               </p>
             </div>
 
             <div className="rounded-3xl border border-slate-200 bg-slate-50 p-4">
-              <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">How much is left</p>
+              <div className="flex items-center justify-between gap-3">
+                <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">Selected day breakdown</p>
+                <span className="text-xs font-black text-slate-500">
+                  {selectedBreakdown.jobs} linked job{selectedBreakdown.jobs === 1 ? '' : 's'}
+                </span>
+              </div>
+
               <div className="mt-3 space-y-2 text-sm font-semibold text-slate-600">
                 <div className="flex items-center justify-between gap-3">
-                  <span>To unlock commissions</span>
-                  <span className="font-black text-slate-900">{progress.jobs_until_trial} job(s)</span>
+                  <span>Base earnings</span>
+                  <span className="font-black text-slate-900">{formatMoney(selectedBreakdown.base)}</span>
                 </div>
                 <div className="flex items-center justify-between gap-3">
-                  <span>To unlock royalty jobs</span>
-                  <span className="font-black text-slate-900">{progress.jobs_until_royalty} job(s)</span>
+                  <span>Commission bonus</span>
+                  <span className="font-black text-amber-700">{formatMoney(selectedBreakdown.commission)}</span>
+                </div>
+                <div className="flex items-center justify-between gap-3">
+                  <span>Monthly performance bonus</span>
+                  <span className="font-black text-emerald-700">{formatMoney(selectedBreakdown.performance)}</span>
+                </div>
+                <div className="flex items-center justify-between gap-3 border-t border-slate-200 pt-3">
+                  <span>Total scheduled that day</span>
+                  <span className="text-lg font-black text-bird-blue">{formatMoney(selectedBreakdown.total)}</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="rounded-3xl border border-slate-200 bg-slate-50 p-4">
+              <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">What is still locked</p>
+              <div className="mt-3 space-y-2 text-sm font-semibold text-slate-600">
+                <div className="flex items-center justify-between gap-3">
+                  <span>Commission bonus</span>
+                  <span className="font-black text-slate-900">
+                    {summary.trial_unlocked ? 'Unlocked' : `${progress.jobs_until_trial} job(s) left`}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between gap-3">
+                  <span>Monthly performance bonus</span>
+                  <span className="font-black text-slate-900">
+                    {summary.royalty_unlocked ? 'Unlocked' : `${progress.jobs_until_royalty} job(s) left`}
+                  </span>
                 </div>
                 <div className="flex items-center justify-between gap-3">
                   <span>Completion rate gap</span>
@@ -259,33 +322,38 @@ export const ScheduleView: React.FC = () => {
           </div>
 
           <div className="mt-6 rounded-3xl border border-bird-blue/15 bg-gradient-to-r from-bird-blue/10 via-sky-50 to-amber-50 p-4">
-            <p className="text-[11px] font-black uppercase tracking-[0.18em] text-bird-blue">Demo policy</p>
+            <p className="text-[11px] font-black uppercase tracking-[0.18em] text-bird-blue">Payout policy</p>
             <p className="mt-2 text-sm font-semibold leading-6 text-slate-700">
-              We recommend paying base worker payouts every {program.payout_day_label}, then layering commission bonuses after {program.trial_min_completed_jobs} completed jobs and a monthly royalty once the worker closes at least {program.royalty_min_jobs} jobs with a {program.royalty_min_completion_rate}% completion rate.
+              Base earnings are paid in scheduled batches every {program.payout_day_label}. Commission bonuses start after {program.trial_min_completed_jobs} lifetime completed jobs, and the monthly performance bonus unlocks after {program.royalty_min_jobs} jobs with a {program.royalty_min_completion_rate}% completion rate in the same cycle.
             </p>
           </div>
 
           <div className="mt-6">
-            <p className="text-xs font-black uppercase tracking-[0.18em] text-slate-400">Selected day</p>
+            <p className="text-xs font-black uppercase tracking-[0.18em] text-slate-400">Selected day events</p>
             <div className="mt-3 space-y-3">
               {selectedItems.length === 0 ? (
                 <div className="rounded-3xl border border-dashed border-slate-200 bg-slate-50 px-4 py-6 text-sm font-semibold text-slate-500">
-                  No payout events scheduled for this date yet.
+                  No payout events are scheduled for this date yet.
                 </div>
               ) : (
-                selectedItems.map((item) => (
-                  <div key={`${item.date}-${item.label}-${item.type}`} className="rounded-3xl border border-slate-200 bg-slate-50 p-4">
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <p className="text-sm font-black text-slate-900">{item.label}</p>
-                        <p className="mt-1 text-xs font-semibold text-slate-500">
-                          {item.jobs_count > 0 ? `${item.jobs_count} completed job(s)` : 'Performance payout event'}
-                        </p>
+                selectedItems.map((item) => {
+                  const tone = getCalendarItemTone(item.type);
+                  return (
+                    <div key={`${item.date}-${item.label}-${item.type}`} className="rounded-3xl border border-slate-200 bg-slate-50 p-4">
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <span className={`inline-flex rounded-full px-3 py-1 text-[11px] font-black uppercase tracking-[0.16em] ${tone.chip}`}>
+                            {getCalendarItemLabel(item)}
+                          </span>
+                          <p className="mt-3 text-sm font-semibold text-slate-600">
+                            {item.jobs_count > 0 ? `${item.jobs_count} linked job(s)` : 'Performance payout event'}
+                          </p>
+                        </div>
+                        <span className={`text-lg font-black ${tone.amount}`}>{formatMoney(item.amount)}</span>
                       </div>
-                      <span className="text-lg font-black text-bird-blue">{formatMoney(item.amount)}</span>
                     </div>
-                  </div>
-                ))
+                  );
+                })
               )}
             </div>
           </div>
@@ -296,15 +364,15 @@ export const ScheduleView: React.FC = () => {
         initial={{ opacity: 0, y: 18 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.1 }}
-        className="bg-white rounded-3xl border border-gray-200 p-4 md:p-6 shadow-sm"
+        className="rounded-3xl border border-gray-200 bg-white p-4 shadow-sm md:p-6"
       >
         <div className="flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
           <div>
-            <p className="text-xs font-black uppercase tracking-[0.18em] text-slate-400">Completed work history</p>
-            <h3 className="mt-2 text-2xl font-black text-slate-900">Jobs already finished by this worker</h3>
+            <p className="text-xs font-black uppercase tracking-[0.18em] text-slate-400">Recent payout activity</p>
+            <h3 className="mt-2 text-2xl font-black text-slate-900">Completed jobs and their payout status</h3>
           </div>
           <div className="rounded-full border border-slate-200 bg-slate-50 px-4 py-2 text-xs font-bold text-slate-600">
-            {summary.lifetime_completed_jobs} finished jobs total
+            {summary.lifetime_completed_jobs} completed jobs total
           </div>
         </div>
 
@@ -314,44 +382,53 @@ export const ScheduleView: React.FC = () => {
               Completed jobs will show up here after the client confirms them.
             </div>
           ) : (
-            history.map((item) => (
-              <div key={item.id_request} className="rounded-3xl border border-slate-200 bg-slate-50 p-4">
-                <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-                  <div className="min-w-0">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <p className="truncate text-lg font-black text-slate-900">{item.service_name}</p>
-                      <span className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-[11px] font-black uppercase tracking-[0.16em] text-emerald-700">
-                        Completed
-                      </span>
-                      <span className={`rounded-full px-3 py-1 text-[11px] font-black uppercase tracking-[0.16em] ${getBonusStatusBadge(item.bonus_status)}`}>
-                        {getBonusStatusLabel(item.bonus_status)}
-                      </span>
-                      <span className={`rounded-full px-3 py-1 text-[11px] font-black uppercase tracking-[0.16em] ${getBonusStatusBadge(item.worker_payout_status)}`}>
-                        {`Base ${getBonusStatusLabel(item.worker_payout_status)}`}
-                      </span>
-                    </div>
-                    <p className="mt-2 truncate text-sm text-slate-500">{item.location_text}</p>
-                    <div className="mt-3 flex flex-wrap items-center gap-2 text-xs font-semibold text-slate-500">
-                      <span>{new Date(item.completed_at).toLocaleDateString()}</span>
-                      {item.client_name && <span>{' / Client: ' + item.client_name}</span>}
-                      <span>{' / Payout target: ' + new Date(item.scheduled_payout_date).toLocaleDateString()}</span>
-                      {item.paid_at && <span>{' / Paid on: ' + new Date(item.paid_at).toLocaleDateString()}</span>}
-                    </div>
-                  </div>
+            history.map((item) => {
+              const totalFromJob = Number(item.worker_payout || 0) + Number(item.total_bonus || 0);
 
-                  <div className="grid grid-cols-2 gap-3 lg:min-w-[280px]">
-                    <div className="rounded-2xl border border-slate-200 bg-white p-3">
-                      <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">Job payout</p>
-                      <p className="mt-2 text-xl font-black text-slate-900">{formatMoney(item.worker_payout)}</p>
+              return (
+                <div key={item.id_request} className="rounded-3xl border border-slate-200 bg-slate-50 p-4">
+                  <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <p className="truncate text-lg font-black text-slate-900">{item.service_name}</p>
+                        <span
+                          className={`rounded-full px-3 py-1 text-[11px] font-black uppercase tracking-[0.16em] ${getPayoutStatusBadge(item.worker_payout_status)}`}
+                        >
+                          Base {getPayoutStatusLabel(item.worker_payout_status)}
+                        </span>
+                        <span
+                          className={`rounded-full px-3 py-1 text-[11px] font-black uppercase tracking-[0.16em] ${getPayoutStatusBadge(item.bonus_status)}`}
+                        >
+                          Bonus {getPayoutStatusLabel(item.bonus_status)}
+                        </span>
+                      </div>
+                      <p className="mt-2 truncate text-sm text-slate-500">{item.location_text}</p>
+                      <div className="mt-3 flex flex-wrap items-center gap-2 text-xs font-semibold text-slate-500">
+                        <span>{formatDate(item.completed_at)}</span>
+                        {item.client_name && <span>{`/ Client: ${item.client_name}`}</span>}
+                        <span>{`/ Scheduled: ${formatDate(item.scheduled_payout_date)}`}</span>
+                        {item.worker_payout_paid_at && <span>{`/ Paid: ${formatDate(item.worker_payout_paid_at)}`}</span>}
+                      </div>
                     </div>
-                    <div className="rounded-2xl border border-bird-blue/15 bg-bird-blue/10 p-3">
-                      <p className="text-[11px] font-black uppercase tracking-[0.18em] text-bird-blue">Commission bonus</p>
-                      <p className="mt-2 text-xl font-black text-bird-blue">{formatMoney(item.commission_bonus)}</p>
+
+                    <div className="grid min-w-full gap-3 sm:grid-cols-3 lg:min-w-[360px] lg:max-w-[420px]">
+                      <div className="rounded-2xl border border-white/70 bg-white p-3">
+                        <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">Base earnings</p>
+                        <p className="mt-2 text-xl font-black text-slate-900">{formatMoney(item.worker_payout)}</p>
+                      </div>
+                      <div className="rounded-2xl border border-amber-200 bg-amber-50 p-3">
+                        <p className="text-[11px] font-black uppercase tracking-[0.18em] text-amber-700">Bonus total</p>
+                        <p className="mt-2 text-xl font-black text-amber-700">{formatMoney(item.total_bonus)}</p>
+                      </div>
+                      <div className="rounded-2xl border border-bird-blue/15 bg-bird-blue/10 p-3">
+                        <p className="text-[11px] font-black uppercase tracking-[0.18em] text-bird-blue">Combined total</p>
+                        <p className="mt-2 text-xl font-black text-bird-blue">{formatMoney(totalFromJob)}</p>
+                      </div>
                     </div>
                   </div>
                 </div>
-              </div>
-            ))
+              );
+            })
           )}
         </div>
       </motion.div>

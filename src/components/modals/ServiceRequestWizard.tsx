@@ -3041,7 +3041,7 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
             </ServiceRequestPanelShell>
 
             {/* Map — on desktop takes remaining space, on mobile sits behind the bottom-sheet sidebar */}
-            <div className="absolute inset-0 md:static md:flex-1 md:relative z-0 bg-gray-100">
+            <div className="absolute inset-0 z-0 bg-gray-100 md:relative md:inset-auto md:flex-1">
                 <div ref={mapContainerRef} className="absolute inset-0 z-0" />
                 <ServiceRequestMapOverlays
                     leafletReady={leafletReady}

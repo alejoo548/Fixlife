@@ -7,6 +7,7 @@ export type BackgroundJobType =
   | 'send_payment_invoice_email'
   | 'send_worker_payment_secured_email'
   | 'send_worker_payout_paid_email'
+  | 'send_worker_statement_email'
   | 'process_paypal_webhook';
 
 type BackgroundJobRow = RowDataPacket & {
@@ -121,6 +122,12 @@ const runJobHandler = async (row: BackgroundJobRow) => {
   if (row.job_type === 'send_worker_payout_paid_email') {
     const { sendWorkerPayoutPaidEmail } = require('../utils/email');
     await sendWorkerPayoutPaidEmail(payload);
+    return;
+  }
+
+  if (row.job_type === 'send_worker_statement_email') {
+    const { sendWorkerStatementEmail } = require('../utils/email');
+    await sendWorkerStatementEmail(payload);
     return;
   }
 
