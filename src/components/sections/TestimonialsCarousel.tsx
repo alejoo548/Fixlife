@@ -1,11 +1,25 @@
 import React, { useState, useEffect } from 'react';
 
+const AVATAR_COLORS = ['#0090ff', '#f59e0b', '#10b981', '#8b5cf6', '#ef4444'];
+
+const buildAvatarUri = (name: string, index: number): string => {
+  const initials = name
+    .split(' ')
+    .map((w) => w[0])
+    .join('')
+    .slice(0, 2)
+    .toUpperCase();
+  const bg = AVATAR_COLORS[index % AVATAR_COLORS.length];
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="80" height="80"><rect width="80" height="80" rx="16" fill="${bg}"/><text x="50%" y="54%" dominant-baseline="middle" text-anchor="middle" fill="#fff" font-family="Inter,system-ui,sans-serif" font-weight="700" font-size="28">${initials}</text></svg>`;
+  return `data:image/svg+xml,${encodeURIComponent(svg)}`;
+};
+
 const testimonials = [
   {
     id: 1,
     name: "Sarah Mitchell",
     role: "Homeowner",
-    image: "https://randomuser.me/api/portraits/women/44.jpg",
+    image: buildAvatarUri("Sarah Mitchell", 0),
     rating: 5,
     text: "Fixlife connected me with an amazing plumber who fixed my leak in under an hour. The whole process was seamless and professional. Highly recommend!",
     service: "Plumbing"
@@ -14,7 +28,7 @@ const testimonials = [
     id: 2,
     name: "Michael Chen",
     role: "Business Owner",
-    image: "https://randomuser.me/api/portraits/men/32.jpg",
+    image: buildAvatarUri("Michael Chen", 1),
     rating: 5,
     text: "I needed urgent electrical work done at my office. The electrician arrived within 30 minutes and solved the issue quickly. Outstanding service!",
     service: "Electrical"
@@ -23,7 +37,7 @@ const testimonials = [
     id: 3,
     name: "Emily Rodriguez",
     role: "Property Manager",
-    image: "https://randomuser.me/api/portraits/women/68.jpg",
+    image: buildAvatarUri("Emily Rodriguez", 2),
     rating: 5,
     text: "Managing multiple properties means I need reliable professionals. Fixlife has become my go-to platform for all maintenance needs. Simply the best!",
     service: "Multiple Services"
@@ -32,7 +46,7 @@ const testimonials = [
     id: 4,
     name: "David Thompson",
     role: "Homeowner",
-    image: "https://randomuser.me/api/portraits/men/52.jpg",
+    image: buildAvatarUri("David Thompson", 3),
     rating: 5,
     text: "The transparency in pricing and the quality of work exceeded my expectations. I've used Fixlife three times now and will continue to do so.",
     service: "Carpentry"
@@ -41,7 +55,7 @@ const testimonials = [
     id: 5,
     name: "Jessica Park",
     role: "Apartment Resident",
-    image: "https://randomuser.me/api/portraits/women/28.jpg",
+    image: buildAvatarUri("Jessica Park", 4),
     rating: 5,
     text: "Fast, affordable, and trustworthy. The professional was courteous and cleaned up after the job. This is how home services should be!",
     service: "Cleaning"

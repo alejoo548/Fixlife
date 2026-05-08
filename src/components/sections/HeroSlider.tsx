@@ -9,6 +9,18 @@ import {
   HERO_SLIDES_UPDATED_EVENT,
 } from '../../utils/heroSlides';
 
+const preloadedHeroImages = new Set<string>();
+
+const preloadHeroImages = (images: string[]) => {
+  images.forEach((image) => {
+    if (!image || preloadedHeroImages.has(image)) return;
+    preloadedHeroImages.add(image);
+    const preload = new Image();
+    preload.decoding = 'async';
+    preload.src = image;
+  });
+};
+
 export const HeroSlider: React.FC<HeroSliderProps> = ({ onStartBooking }) => {
   const [slides, setSlides] = useState(() => getHeroSlides());
   const [current, setCurrent] = useState(0);
@@ -50,6 +62,10 @@ export const HeroSlider: React.FC<HeroSliderProps> = ({ onStartBooking }) => {
     if (current > slides.length - 1) setCurrent(0);
   }, [current, slides.length]);
 
+  useEffect(() => {
+    preloadHeroImages(slides.map((slide) => slide.image));
+  }, [slides]);
+
   return (
     <motion.div
       initial={{ opacity: 0, scale: 0.95 }}
@@ -78,6 +94,9 @@ export const HeroSlider: React.FC<HeroSliderProps> = ({ onStartBooking }) => {
                   transition={{ duration: 6, ease: "easeOut" }}
                   src={slide.image}
                   alt={slide.title}
+                  loading={index === 0 ? 'eager' : 'lazy'}
+                  decoding="async"
+                  fetchPriority={index === 0 ? 'high' : 'low'}
                   className="w-full h-full object-cover"
                   onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
                 />

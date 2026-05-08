@@ -39,6 +39,10 @@ export default defineConfig(({ mode }) => {
     },
     plugins: [react()],
     build: {
+      target: 'es2020',
+      cssMinify: true,
+      reportCompressedSize: false,
+      chunkSizeWarningLimit: 600,
       rollupOptions: {
         output: {
           manualChunks(id) {
