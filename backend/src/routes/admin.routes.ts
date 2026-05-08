@@ -15,6 +15,7 @@ import {
   updateUserRole,
   updateUserStatus,
   getDashboardStats,
+  exportDashboardStatsPdfAdmin,
   getRequestsHistory,
   getAdminActivity,
   getHeroSlidesPublic,
@@ -82,6 +83,7 @@ router.put('/users/:id/status', sensitiveLimiter, updateUserStatus);
 
 // Dashboard Stats
 router.get('/stats', getDashboardStats);
+router.get('/stats/export-pdf', exportDashboardStatsPdfAdmin);
 router.get('/requests-history', getRequestsHistory);
 router.get('/commission-rules', getCommissionRulesAdmin);
 router.put('/commission-rules', sensitiveLimiter, validate(AdminSchema.commissionRules), updateCommissionRulesAdmin);

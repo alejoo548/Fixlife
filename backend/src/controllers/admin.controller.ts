@@ -1,4 +1,5 @@
 import { Response } from 'express';
+import PDFDocument from 'pdfkit';
 import { ResultSetHeader, RowDataPacket } from 'mysql2';
 import pool from '../config/db';
 import { AuthRequest } from '../middlewares/auth.middleware';
@@ -109,6 +110,14 @@ const toPublicRequestStatus = (status: string | null | undefined) => {
 
 const ALLOWED_USER_ROLES = new Set(['client', 'worker', 'admin', 'root']);
 const ASSIGNABLE_USER_ROLES = new Set(['client', 'admin']);
+
+const formatMoneyUsd = (value: number) =>
+  new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: 'USD',
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(Number(value || 0));
 
 type AdminActivityRow = RowDataPacket & {
   id_activity: number;
@@ -1226,223 +1235,347 @@ export const updateUserStatus = async (req: AuthRequest, res: Response): Promise
 
 // ─── Dashboard Stats ──────────────────────────────────────────────────────────
 
-export const getDashboardStats = async (req: AuthRequest, res: Response): Promise<void> => {
-  try {
-    await ensureUsersPendingWorkerColumn();
-    await ensureServiceRequestTables();
+const parseRequestedAdminStatsServiceId = (req: AuthRequest): number | null => {
+  const requestedServiceIdRaw = req.query.service_id;
+  if (requestedServiceIdRaw === undefined) return null;
+  const parsed = Number(requestedServiceIdRaw);
+  if (!parsed || Number.isNaN(parsed) || parsed < 1) {
+    throw new Error('Invalid service filter.');
+  }
+  return parsed;
+};
 
-    const requestedServiceIdRaw = req.query.service_id;
-    let requestedServiceId: number | null = null;
-    if (requestedServiceIdRaw !== undefined) {
-      const parsed = Number(requestedServiceIdRaw);
-      if (!parsed || Number.isNaN(parsed) || parsed < 1) {
-        res.status(400).json({ error: 'Invalid service filter.' });
-        return;
-      }
-      requestedServiceId = parsed;
-    }
+const getDashboardStatsPayload = async (req: AuthRequest) => {
+  await ensureUsersPendingWorkerColumn();
+  await ensureServiceRequestTables();
 
-    const [[{ total_services }]] = await pool.execute<RowDataPacket[]>(`SELECT COUNT(*) as total_services FROM services`);
-    
-    const [[{ total_pros }]] = await pool.execute<RowDataPacket[]>(`
-      SELECT COUNT(*) as total_pros FROM users u
-      INNER JOIN worker_profiles wp ON u.id_user = wp.id_user
-      WHERE u.rol = 'worker' AND wp.is_verified = 1
-    `);
-    
-    const [[{ pending_pros }]] = await pool.execute<RowDataPacket[]>(`
-      SELECT COUNT(*) as pending_pros FROM users u
-      INNER JOIN worker_profiles wp ON u.id_user = wp.id_user
-      WHERE u.pending_worker = 1 AND wp.is_verified = 0 AND u.verification_token IS NULL
-    `);
-    
-    const [[{ total_users }]] = await pool.execute<RowDataPacket[]>(`SELECT COUNT(*) as total_users FROM users WHERE rol = 'client'`);
-    const [[{ total_admins }]] = await pool.execute<RowDataPacket[]>(`SELECT COUNT(*) as total_admins FROM users WHERE rol IN ('admin', 'root')`);
+  const requestedServiceId = parseRequestedAdminStatsServiceId(req);
 
-    const [trafficRows] = await pool.execute<RowDataPacket[]>(`
-      SELECT 
-        DATE_FORMAT(created_at, '%a') as name,
-        SUM(CASE WHEN rol = 'client' THEN 1 ELSE 0 END) as Users,
-        SUM(CASE WHEN rol = 'worker' THEN 1 ELSE 0 END) as Pros,
-        SUM(CASE WHEN rol IN ('admin', 'root') THEN 1 ELSE 0 END) as Admins
-      FROM users
-      WHERE created_at >= DATE_SUB(CURDATE(), INTERVAL 6 DAY)
-      GROUP BY DATE(created_at), DATE_FORMAT(created_at, '%a')
-      ORDER BY DATE(created_at) ASC
-    `);
+  const [[{ total_services }]] = await pool.execute<RowDataPacket[]>(`SELECT COUNT(*) as total_services FROM services`);
+  const [[{ total_pros }]] = await pool.execute<RowDataPacket[]>(`
+    SELECT COUNT(*) as total_pros FROM users u
+    INNER JOIN worker_profiles wp ON u.id_user = wp.id_user
+    WHERE u.rol = 'worker' AND wp.is_verified = 1
+  `);
+  const [[{ pending_pros }]] = await pool.execute<RowDataPacket[]>(`
+    SELECT COUNT(*) as pending_pros FROM users u
+    INNER JOIN worker_profiles wp ON u.id_user = wp.id_user
+    WHERE u.pending_worker = 1 AND wp.is_verified = 0 AND u.verification_token IS NULL
+  `);
+  const [[{ total_users }]] = await pool.execute<RowDataPacket[]>(`SELECT COUNT(*) as total_users FROM users WHERE rol = 'client'`);
+  const [[{ total_admins }]] = await pool.execute<RowDataPacket[]>(`SELECT COUNT(*) as total_admins FROM users WHERE rol IN ('admin', 'root')`);
 
-    const [serviceCategoryRows] = await pool.execute<RowDataPacket[]>(`
-      SELECT
-        s.name as name,
-        COUNT(sr.id_request) as value
-      FROM services s
-      LEFT JOIN service_requests sr
-        ON sr.id_service = s.id_service
-       AND sr.created_at >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)
-      GROUP BY s.id_service
-      ORDER BY value DESC, s.name ASC
-      LIMIT 5
-    `);
+  const [trafficRows] = await pool.execute<RowDataPacket[]>(`
+    SELECT 
+      DATE_FORMAT(created_at, '%a') as name,
+      SUM(CASE WHEN rol = 'client' THEN 1 ELSE 0 END) as Users,
+      SUM(CASE WHEN rol = 'worker' THEN 1 ELSE 0 END) as Pros,
+      SUM(CASE WHEN rol IN ('admin', 'root') THEN 1 ELSE 0 END) as Admins
+    FROM users
+    WHERE created_at >= DATE_SUB(CURDATE(), INTERVAL 6 DAY)
+    GROUP BY DATE(created_at), DATE_FORMAT(created_at, '%a')
+    ORDER BY DATE(created_at) ASC
+  `);
 
-    const completedWhereParts: string[] = [
-      `status = 'done'`,
-      `updated_at >= DATE_SUB(CURDATE(), INTERVAL 6 DAY)`,
-    ];
-    const completedParams: any[] = [];
-    if (requestedServiceId != null) {
-      completedWhereParts.push(`id_service = ?`);
-      completedParams.push(requestedServiceId);
-    }
+  const [serviceCategoryRows] = await pool.execute<RowDataPacket[]>(`
+    SELECT
+      s.name as name,
+      COUNT(sr.id_request) as value
+    FROM services s
+    LEFT JOIN service_requests sr
+      ON sr.id_service = s.id_service
+     AND sr.created_at >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)
+    GROUP BY s.id_service
+    ORDER BY value DESC, s.name ASC
+    LIMIT 5
+  `);
 
-    const [completedRows] = await pool.execute<RowDataPacket[]>(`
-      SELECT
-        DATE(updated_at) as day,
-        COUNT(*) as value
-      FROM service_requests
-      WHERE ${completedWhereParts.join(' AND ')}
-      GROUP BY DATE(updated_at)
-      ORDER BY day ASC
-    `, completedParams);
+  const completedWhereParts: string[] = [`status = 'done'`, `updated_at >= DATE_SUB(CURDATE(), INTERVAL 6 DAY)`];
+  const completedParams: any[] = [];
+  if (requestedServiceId != null) {
+    completedWhereParts.push(`id_service = ?`);
+    completedParams.push(requestedServiceId);
+  }
+  const [completedRows] = await pool.execute<RowDataPacket[]>(`
+    SELECT DATE(updated_at) as day, COUNT(*) as value
+    FROM service_requests
+    WHERE ${completedWhereParts.join(' AND ')}
+    GROUP BY DATE(updated_at)
+    ORDER BY day ASC
+  `, completedParams);
 
-    const completedPrevWhereParts: string[] = [
-      `status = 'done'`,
-      `updated_at >= DATE_SUB(CURDATE(), INTERVAL 13 DAY)`,
-      `updated_at < DATE_SUB(CURDATE(), INTERVAL 6 DAY)`,
-    ];
-    const completedPrevParams: any[] = [];
-    if (requestedServiceId != null) {
-      completedPrevWhereParts.push(`id_service = ?`);
-      completedPrevParams.push(requestedServiceId);
-    }
+  const completedPrevWhereParts: string[] = [
+    `status = 'done'`,
+    `updated_at >= DATE_SUB(CURDATE(), INTERVAL 13 DAY)`,
+    `updated_at < DATE_SUB(CURDATE(), INTERVAL 6 DAY)`,
+  ];
+  const completedPrevParams: any[] = [];
+  if (requestedServiceId != null) {
+    completedPrevWhereParts.push(`id_service = ?`);
+    completedPrevParams.push(requestedServiceId);
+  }
+  const [[{ completed_prev_total }]] = await pool.execute<RowDataPacket[]>(
+    `SELECT COUNT(*) as completed_prev_total
+     FROM service_requests
+     WHERE ${completedPrevWhereParts.join(' AND ')}`,
+    completedPrevParams
+  );
 
-    const [[{ completed_prev_total }]] = await pool.execute<RowDataPacket[]>(
-      `SELECT COUNT(*) as completed_prev_total
-       FROM service_requests
-       WHERE ${completedPrevWhereParts.join(' AND ')}`,
-      completedPrevParams
-    );
+  const locationWhereParts: string[] = [`created_at >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)`];
+  const locationParams: any[] = [];
+  if (requestedServiceId != null) {
+    locationWhereParts.push(`id_service = ?`);
+    locationParams.push(requestedServiceId);
+  }
+  const [locationRows] = await pool.execute<RowDataPacket[]>(`
+    SELECT location_text as name, COUNT(*) as value
+    FROM service_requests
+    WHERE ${locationWhereParts.join(' AND ')}
+    GROUP BY location_text
+    ORDER BY value DESC, location_text ASC
+    LIMIT 5
+  `, locationParams);
 
-    const locationWhereParts: string[] = [
-      `created_at >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)`,
-    ];
-    const locationParams: any[] = [];
-    if (requestedServiceId != null) {
-      locationWhereParts.push(`id_service = ?`);
-      locationParams.push(requestedServiceId);
-    }
+  const revenueWhereParts: string[] = [
+    `srp.payment_status IN ('paid', 'released')`,
+    `srp.paid_at >= DATE_SUB(DATE_FORMAT(CURDATE(), '%Y-%m-01'), INTERVAL 5 MONTH)`,
+  ];
+  const revenueParams: any[] = [];
+  if (requestedServiceId != null) {
+    revenueWhereParts.push(`sr.id_service = ?`);
+    revenueParams.push(requestedServiceId);
+  }
+  const [revenueRows] = await pool.execute<RowDataPacket[]>(`
+    SELECT DATE_FORMAT(srp.paid_at, '%Y-%m-01') as month_start, SUM(srp.platform_fee) as uv
+    FROM service_request_payments srp
+    INNER JOIN service_requests sr ON sr.id_request = srp.id_request
+    WHERE ${revenueWhereParts.join(' AND ')}
+    GROUP BY month_start
+    ORDER BY month_start ASC
+  `, revenueParams);
 
-    const [locationRows] = await pool.execute<RowDataPacket[]>(`
-      SELECT
-        location_text as name,
-        COUNT(*) as value
-      FROM service_requests
-      WHERE ${locationWhereParts.join(' AND ')}
-      GROUP BY location_text
-      ORDER BY value DESC, location_text ASC
-      LIMIT 5
-    `, locationParams);
+  const formatYmd = (date: Date) => {
+    const yyyy = date.getFullYear();
+    const mm = String(date.getMonth() + 1).padStart(2, '0');
+    const dd = String(date.getDate()).padStart(2, '0');
+    return `${yyyy}-${mm}-${dd}`;
+  };
 
-    const revenueWhereParts: string[] = [
-      `srp.payment_status IN ('paid', 'released')`,
-      `srp.paid_at >= DATE_SUB(DATE_FORMAT(CURDATE(), '%Y-%m-01'), INTERVAL 5 MONTH)`,
-    ];
-    const revenueParams: any[] = [];
-    if (requestedServiceId != null) {
-      revenueWhereParts.push(`sr.id_service = ?`);
-      revenueParams.push(requestedServiceId);
-    }
+  const weekdayFormatter = new Intl.DateTimeFormat('en-US', { weekday: 'short' });
+  const monthFormatter = new Intl.DateTimeFormat('en-US', { month: 'short' });
+  const today = new Date();
 
-    const [revenueRows] = await pool.execute<RowDataPacket[]>(`
-      SELECT
-        DATE_FORMAT(srp.paid_at, '%Y-%m-01') as month_start,
-        SUM(srp.platform_fee) as uv
-      FROM service_request_payments srp
-      INNER JOIN service_requests sr ON sr.id_request = srp.id_request
-      WHERE ${revenueWhereParts.join(' AND ')}
-      GROUP BY month_start
-      ORDER BY month_start ASC
-    `, revenueParams);
+  const completedMap = new Map<string, number>();
+  for (const row of completedRows as any[]) {
+    completedMap.set(String(row.day), Number(row.value || 0));
+  }
 
-    const formatYmd = (date: Date) => {
-      const yyyy = date.getFullYear();
-      const mm = String(date.getMonth() + 1).padStart(2, '0');
-      const dd = String(date.getDate()).padStart(2, '0');
-      return `${yyyy}-${mm}-${dd}`;
+  const completedServicesWeekly: Array<{ name: string; value: number }> = [];
+  for (let offset = 6; offset >= 0; offset -= 1) {
+    const d = new Date(today.getFullYear(), today.getMonth(), today.getDate() - offset);
+    completedServicesWeekly.push({
+      name: weekdayFormatter.format(d),
+      value: Number(completedMap.get(formatYmd(d)) || 0),
+    });
+  }
+
+  const revenueMap = new Map<string, number>();
+  for (const row of revenueRows as any[]) {
+    revenueMap.set(String(row.month_start), Number(row.uv || 0));
+  }
+
+  const revenueData: Array<{ name: string; uv: number; pv: number; amt?: number }> = [];
+  const firstMonth = new Date(today.getFullYear(), today.getMonth() - 5, 1);
+  for (let idx = 0; idx < 6; idx += 1) {
+    const d = new Date(firstMonth.getFullYear(), firstMonth.getMonth() + idx, 1);
+    revenueData.push({
+      name: monthFormatter.format(d),
+      uv: Number(revenueMap.get(formatYmd(d)) || 0),
+      pv: 0,
+    });
+  }
+  for (let idx = 0; idx < revenueData.length; idx += 1) {
+    revenueData[idx].pv = idx === 0 ? revenueData[idx].uv : revenueData[idx - 1].uv;
+  }
+
+  const trafficData = (trafficRows as any[]).map((row) => ({
+    name: String(row.name),
+    Users: Number(row.Users || 0),
+    Pros: Number(row.Pros || 0),
+    Admins: Number(row.Admins || 0),
+  }));
+
+  return {
+    total_services: Number(total_services),
+    total_pros: Number(total_pros),
+    pending_pros: Number(pending_pros),
+    total_users: Number(total_users),
+    total_admins: Number(total_admins),
+    trafficData,
+    selected_service_id: requestedServiceId,
+    serviceCategoryStats: (serviceCategoryRows as any[]).map((row) => ({
+      name: String(row.name),
+      value: Number(row.value || 0),
+    })),
+    completedServicesWeekly,
+    completedServicesPrevTotal: Number(completed_prev_total || 0),
+    popularLocations: (locationRows as any[]).map((row) => ({
+      name: String(row.name),
+      value: Number(row.value || 0),
+    })),
+    revenueData,
+  };
+};
+
+const buildAdminStatsPdf = async (stats: Awaited<ReturnType<typeof getDashboardStatsPayload>>, serviceName: string) => {
+  const doc = new PDFDocument({ size: 'A4', margin: 40 });
+  const chunks: Buffer[] = [];
+  const pdfDone = new Promise<Buffer>((resolve, reject) => {
+    doc.on('data', (chunk: Buffer) => chunks.push(Buffer.from(chunk)));
+    doc.on('end', () => resolve(Buffer.concat(chunks)));
+    doc.on('error', reject);
+  });
+
+  const pageWidth = doc.page.width - doc.page.margins.left - doc.page.margins.right;
+  const cardGap = 10;
+  const cardWidth = (pageWidth - cardGap) / 2;
+  const pageBottom = () => doc.page.height - doc.page.margins.bottom;
+
+  const ensureSpace = (height: number) => {
+    if (doc.y + height <= pageBottom()) return;
+    doc.addPage();
+  };
+
+  const section = (eyebrow: string, title: string, subtitle: string) => {
+    ensureSpace(62);
+    doc.font('Helvetica-Bold').fontSize(9).fillColor('#64748B').text(eyebrow.toUpperCase(), { characterSpacing: 1.5 });
+    doc.moveDown(0.35);
+    doc.fontSize(17).fillColor('#0F172A').text(title);
+    doc.moveDown(0.2);
+    doc.font('Helvetica').fontSize(10).fillColor('#475569').text(subtitle);
+    doc.moveDown(0.8);
+  };
+
+  const table = (title: string, subtitle: string, headers: string[], rows: string[][]) => {
+    section('Report block', title, subtitle);
+    const widths = headers.length === 2 ? [pageWidth * 0.68, pageWidth * 0.32] : [pageWidth * 0.42, pageWidth * 0.29, pageWidth * 0.29];
+    const drawHeader = () => {
+      const headerY = doc.y;
+      doc.roundedRect(doc.page.margins.left, headerY, pageWidth, 24, 10).fill('#EFF6FF');
+      let headerX = doc.page.margins.left + 10;
+      headers.forEach((header, index) => {
+        doc.font('Helvetica-Bold').fontSize(9).fillColor('#1E3A8A').text(header.toUpperCase(), headerX, headerY + 7, {
+          width: widths[index] - 8,
+          lineBreak: false,
+        });
+        headerX += widths[index];
+      });
+      doc.y = headerY + 28;
     };
 
-    const weekdayFormatter = new Intl.DateTimeFormat('en-US', { weekday: 'short' });
-    const monthFormatter = new Intl.DateTimeFormat('en-US', { month: 'short' });
+    drawHeader();
 
-    const completedMap = new Map<string, number>();
-    for (const row of completedRows as any[]) {
-      completedMap.set(String(row.day), Number(row.value || 0));
+    if (rows.length === 0) {
+      const emptyY = doc.y;
+      doc.font('Helvetica').fontSize(10).fillColor('#64748B').text('No data available.', doc.page.margins.left + 4, emptyY + 2);
+      doc.y = emptyY + 20;
+      return;
     }
 
-    const completedServicesWeekly: Array<{ name: string; value: number }> = [];
-    const today = new Date();
-    for (let offset = 6; offset >= 0; offset -= 1) {
-      const d = new Date(today.getFullYear(), today.getMonth(), today.getDate() - offset);
-      const key = formatYmd(d);
-      completedServicesWeekly.push({
-        name: weekdayFormatter.format(d),
-        value: Number(completedMap.get(key) || 0),
-      });
-    }
-
-    const revenueMap = new Map<string, number>();
-    for (const row of revenueRows as any[]) {
-      revenueMap.set(String(row.month_start), Number(row.uv || 0));
-    }
-
-    const revenueData: Array<{ name: string; uv: number; pv: number; amt?: number }> = [];
-    const firstMonth = new Date(today.getFullYear(), today.getMonth() - 5, 1);
-    for (let idx = 0; idx < 6; idx += 1) {
-      const d = new Date(firstMonth.getFullYear(), firstMonth.getMonth() + idx, 1);
-      const key = formatYmd(d);
-      revenueData.push({
-        name: monthFormatter.format(d),
-        uv: Number(revenueMap.get(key) || 0),
-        pv: 0,
-      });
-    }
-    for (let idx = 0; idx < revenueData.length; idx += 1) {
-      revenueData[idx].pv = idx === 0 ? revenueData[idx].uv : revenueData[idx - 1].uv;
-    }
-
-    const trafficData = (trafficRows as any[]).map((row) => ({
-      name: String(row.name),
-      Users: Number(row.Users || 0),
-      Pros: Number(row.Pros || 0),
-      Admins: Number(row.Admins || 0),
-    }));
-
-    res.json({
-      success: true,
-      stats: {
-        total_services: Number(total_services),
-        total_pros: Number(total_pros),
-        pending_pros: Number(pending_pros),
-        total_users: Number(total_users),
-        total_admins: Number(total_admins),
-        trafficData,
-        selected_service_id: requestedServiceId,
-        serviceCategoryStats: (serviceCategoryRows as any[]).map((row) => ({
-          name: String(row.name),
-          value: Number(row.value || 0),
-        })),
-        completedServicesWeekly,
-        completedServicesPrevTotal: Number(completed_prev_total || 0),
-        popularLocations: (locationRows as any[]).map((row) => ({
-          name: String(row.name),
-          value: Number(row.value || 0),
-        })),
-        revenueData,
+    rows.forEach((row) => {
+      if (doc.y + 24 > pageBottom()) {
+        doc.addPage();
+        drawHeader();
       }
-    });
 
+      const rowY = doc.y;
+      doc.moveTo(doc.page.margins.left, rowY + 19).lineTo(doc.page.margins.left + pageWidth, rowY + 19).strokeColor('#E2E8F0').stroke();
+      let rowX = doc.page.margins.left + 10;
+      row.forEach((cell, index) => {
+        doc.font('Helvetica').fontSize(10).fillColor('#0F172A').text(cell, rowX, rowY + 5, {
+          width: widths[index] - 8,
+          lineBreak: false,
+          ellipsis: true,
+        });
+        rowX += widths[index];
+      });
+      doc.y = rowY + 24;
+    });
+    doc.y += 4;
+  };
+
+  doc.roundedRect(40, 36, pageWidth, 88, 22).fill('#0F172A');
+  doc.font('Helvetica-Bold').fontSize(9).fillColor('#93C5FD').text('FIXLIFE ADMIN OVERVIEW', 58, 56, { characterSpacing: 1.7 });
+  doc.fontSize(24).fillColor('#FFFFFF').text('Platform statistics report', 58, 74);
+  doc.font('Helvetica').fontSize(10).fillColor('#CBD5E1').text(`Service filter: ${serviceName}    Generated: ${new Date().toLocaleString('en-US')}`, 58, 100);
+  doc.y = 146;
+
+  section('Snapshot', 'Summary metrics', 'A compact summary of the admin overview counters currently visible in the dashboard.');
+  const startY = doc.y;
+  const card = (x: number, y: number, label: string, value: string) => {
+    doc.roundedRect(x, y, cardWidth, 56, 14).fillAndStroke('#F8FAFC', '#E2E8F0');
+    doc.font('Helvetica-Bold').fontSize(9).fillColor('#64748B').text(label.toUpperCase(), x + 12, y + 11, {
+      width: cardWidth - 24,
+      characterSpacing: 1.1,
+      lineBreak: false,
+    });
+    doc.fontSize(22).fillColor('#0F172A').text(value, x + 12, y + 25, { width: cardWidth - 24, lineBreak: false });
+  };
+  card(doc.page.margins.left, startY, 'Total users', String(stats.total_users));
+  card(doc.page.margins.left + cardWidth + cardGap, startY, 'Active pros', String(stats.total_pros));
+  card(doc.page.margins.left, startY + 66, 'Admins', String(stats.total_admins));
+  card(doc.page.margins.left + cardWidth + cardGap, startY + 66, 'Pending approvals', String(stats.pending_pros));
+  card(doc.page.margins.left, startY + 132, 'Services', String(stats.total_services));
+  doc.y = startY + 204;
+
+  table('Service categories', 'Current distribution by service category.', ['Category', 'Share'], stats.serviceCategoryStats.map((row) => [String(row.name), String(row.value)]));
+  table('Completed services', 'Weekly completion trend for the selected filter.', ['Period', 'Completed'], stats.completedServicesWeekly.map((row) => [String(row.name), String(row.value)]));
+  table('Top locations', 'Areas with the highest request volume during the recent window.', ['Location', 'Requests'], stats.popularLocations.map((row) => [String(row.name), String(row.value)]));
+  table('Revenue overview', 'Actual platform revenue against projected revenue.', ['Period', 'Actual', 'Projected'], stats.revenueData.map((row) => [String(row.name), formatMoneyUsd(Number(row.uv || 0)), formatMoneyUsd(Number(row.pv || 0))]));
+  table('User growth', 'Weekly active registrations for clients and pros.', ['Period', 'Users', 'Pros'], stats.trafficData.map((row) => [String(row.name), String(row.Users), String(row.Pros)]));
+
+  doc.end();
+  return pdfDone;
+};
+
+export const getDashboardStats = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const stats = await getDashboardStatsPayload(req);
+    res.json({ success: true, stats });
   } catch (error: any) {
     console.error('Error in getDashboardStats:', error);
+    if (String(error?.message || '').includes('Invalid service filter')) {
+      res.status(400).json({ error: 'Invalid service filter.' });
+      return;
+    }
     res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
+export const exportDashboardStatsPdfAdmin = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const stats = await getDashboardStatsPayload(req);
+    let serviceName = 'All services';
+    if (stats.selected_service_id != null) {
+      const [serviceRows] = await pool.execute<RowDataPacket[]>(`SELECT name FROM services WHERE id_service = ? LIMIT 1`, [stats.selected_service_id]);
+      if (serviceRows.length > 0 && serviceRows[0]?.name) {
+        serviceName = String(serviceRows[0].name);
+      }
+    }
+    const pdfBuffer = await buildAdminStatsPdf(stats, serviceName);
+    const safeServiceName = serviceName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'all-services';
+    const fileName = `fixlife-admin-statistics-${safeServiceName}-${new Date().toISOString().slice(0, 10)}.pdf`;
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
+    res.setHeader('Content-Length', String(pdfBuffer.length));
+    res.send(pdfBuffer);
+  } catch (error: any) {
+    console.error('Error in exportDashboardStatsPdfAdmin:', error);
+    if (String(error?.message || '').includes('Invalid service filter')) {
+      res.status(400).json({ error: 'Invalid service filter.' });
+      return;
+    }
+    res.status(500).json({ error: 'Could not generate admin statistics PDF.' });
   }
 };
 

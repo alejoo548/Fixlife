@@ -484,7 +484,7 @@ export const renderWorkerPayoutStatementPdf = async (payload: WorkerStatementPay
   const chunks: Buffer[] = [];
   const logoPath = getWorkerStatementLogoPath();
 
-  doc.on('data', (chunk) => chunks.push(Buffer.from(chunk)));
+  doc.on('data', (chunk: Buffer) => chunks.push(Buffer.from(chunk)));
 
   const done = new Promise<Buffer>((resolve, reject) => {
     doc.on('end', () => resolve(Buffer.concat(chunks)));

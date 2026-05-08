@@ -55,6 +55,23 @@ import type {
 } from './AdminDashboard.types';
 
 const notyf = new Notyf({ position: { x: 'right', y: 'bottom' }, ripple: true });
+
+const formatAdminCurrency = (value: number) =>
+  new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: 'USD',
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(Number(value || 0));
+
+const escapePrintHtml = (value: string | number) =>
+  String(value)
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#39;');
+
 export const AdminDashboard: React.FC<AdminDashboardProps> = ({ isOpen, onClose }) => {
   const { theme, isDark, toggleTheme } = useDashboardTheme('admin');
   const [activeTab, setActiveTab] = useState('Overview');
@@ -102,6 +119,11 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ isOpen, onClose 
 
   const [dashboardStats, setDashboardStats] = useState<any>(null);
   const [statsServiceId, setStatsServiceId] = useState<'all' | string>('all');
+  const [overviewStatsPreview, setOverviewStatsPreview] = useState<{
+    title: string;
+    fileName: string;
+    html: string;
+  } | null>(null);
   const [previewDoc, setPreviewDoc] = useState<{ url: string, name: string } | null>(null);
 
   const [heroSlidesDraft, setHeroSlidesDraft] = useState<HeroSlideContent[]>([]);
@@ -1134,6 +1156,30 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ isOpen, onClose 
     return normalized.length > 0 ? normalized : [{ name: 'No data', value: 0 }];
   }, [dashboardStats]);
 
+  const revenueOverviewData = useMemo(() => {
+    const raw = Array.isArray(dashboardStats?.revenueData) ? dashboardStats.revenueData : DEFAULT_REVENUE_DATA;
+    const normalized = raw
+      .map((item: any) => ({
+        name: String(item?.name || '').trim(),
+        actual: Number(item?.uv || 0),
+        projected: Number(item?.pv || 0),
+      }))
+      .filter((item: any) => item.name.length > 0);
+    return normalized.length > 0 ? normalized : [{ name: 'No data', actual: 0, projected: 0 }];
+  }, [dashboardStats]);
+
+  const userGrowthData = useMemo(() => {
+    const raw = Array.isArray(dashboardStats?.trafficData) ? dashboardStats.trafficData : DEFAULT_TRAFFIC_DATA;
+    const normalized = raw
+      .map((item: any) => ({
+        name: String(item?.name || '').trim(),
+        users: Number(item?.Users || 0),
+        pros: Number(item?.Pros || 0),
+      }))
+      .filter((item: any) => item.name.length > 0);
+    return normalized.length > 0 ? normalized : [{ name: 'No data', users: 0, pros: 0 }];
+  }, [dashboardStats]);
+
   const navItems = [
     { name: "Overview", icon: LayoutDashboard },
     { name: "Users & Pros", icon: Users },
@@ -1168,6 +1214,352 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ isOpen, onClose 
   }, [statsServiceId, services]);
 
   const statsServiceSuffix = statsServiceId === 'all' ? '' : ` (${selectedStatsServiceName || 'Selected'})`;
+
+  const buildOverviewStatsReportHtml = () => {
+    const reportTitle = `Fixlife Admin Statistics${statsServiceSuffix}`;
+    const generatedAt = new Date().toLocaleString();
+    const summaryCardsHtml = stats
+      .map(
+        (stat) => `
+          <div class="metric-card">
+            <div class="metric-label">${escapePrintHtml(stat.title)}</div>
+            <div class="metric-value">${escapePrintHtml(stat.value)}</div>
+          </div>
+        `
+      )
+      .join('');
+
+    const serviceCategoryRows = serviceCategoryStats
+      .map(
+        (item) => `
+          <tr>
+            <td>${escapePrintHtml(item.name)}</td>
+            <td>${escapePrintHtml(item.value)}</td>
+          </tr>
+        `
+      )
+      .join('');
+
+    const completedRows = completedServicesWeekly
+      .map(
+        (item) => `
+          <tr>
+            <td>${escapePrintHtml(item.name)}</td>
+            <td>${escapePrintHtml(item.value)}</td>
+          </tr>
+        `
+      )
+      .join('');
+
+    const locationRows = popularLocations
+      .map(
+        (item) => `
+          <tr>
+            <td>${escapePrintHtml(item.name)}</td>
+            <td>${escapePrintHtml(item.value)}</td>
+          </tr>
+        `
+      )
+      .join('');
+
+    const revenueRows = revenueOverviewData
+      .map(
+        (item) => `
+          <tr>
+            <td>${escapePrintHtml(item.name)}</td>
+            <td>${escapePrintHtml(formatAdminCurrency(item.actual))}</td>
+            <td>${escapePrintHtml(formatAdminCurrency(item.projected))}</td>
+          </tr>
+        `
+      )
+      .join('');
+
+    const growthRows = userGrowthData
+      .map(
+        (item) => `
+          <tr>
+            <td>${escapePrintHtml(item.name)}</td>
+            <td>${escapePrintHtml(item.users)}</td>
+            <td>${escapePrintHtml(item.pros)}</td>
+          </tr>
+        `
+      )
+      .join('');
+
+    return `
+      <!doctype html>
+      <html lang="en">
+        <head>
+          <meta charset="UTF-8" />
+          <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+          <title>${escapePrintHtml(reportTitle)}</title>
+          <style>
+            :root {
+              color-scheme: light;
+            }
+            * {
+              box-sizing: border-box;
+            }
+            body {
+              margin: 0;
+              padding: 32px;
+              font-family: Inter, Arial, sans-serif;
+              color: #0f172a;
+              background: #f8fafc;
+            }
+            .report-shell {
+              max-width: 1100px;
+              margin: 0 auto;
+            }
+            .hero {
+              background: linear-gradient(135deg, #0ea5e9, #1d4ed8 58%, #f59e0b 100%);
+              color: #fff;
+              border-radius: 28px;
+              padding: 28px 30px;
+            }
+            .eyebrow {
+              margin: 0 0 8px;
+              font-size: 11px;
+              font-weight: 900;
+              letter-spacing: 0.18em;
+              text-transform: uppercase;
+              opacity: 0.82;
+            }
+            h1 {
+              margin: 0;
+              font-size: 30px;
+              line-height: 1.08;
+            }
+            .hero-meta {
+              margin-top: 14px;
+              display: flex;
+              flex-wrap: wrap;
+              gap: 12px;
+              font-size: 13px;
+              font-weight: 600;
+            }
+            .metrics {
+              display: grid;
+              grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+              gap: 14px;
+              margin: 22px 0 26px;
+            }
+            .metric-card,
+            .panel {
+              background: #fff;
+              border: 1px solid #e2e8f0;
+              border-radius: 22px;
+              padding: 18px 20px;
+            }
+            .metric-label,
+            .panel-kicker {
+              font-size: 11px;
+              font-weight: 900;
+              letter-spacing: 0.16em;
+              text-transform: uppercase;
+              color: #64748b;
+            }
+            .metric-value {
+              margin-top: 8px;
+              font-size: 28px;
+              font-weight: 900;
+              color: #0f172a;
+            }
+            .grid {
+              display: grid;
+              grid-template-columns: 1fr 1fr;
+              gap: 16px;
+            }
+            .panel h2 {
+              margin: 8px 0 6px;
+              font-size: 20px;
+            }
+            .panel p {
+              margin: 0 0 14px;
+              color: #475569;
+              font-size: 13px;
+              line-height: 1.5;
+            }
+            table {
+              width: 100%;
+              border-collapse: collapse;
+              font-size: 13px;
+            }
+            th, td {
+              padding: 10px 0;
+              text-align: left;
+              border-bottom: 1px solid #e2e8f0;
+            }
+            th {
+              font-size: 11px;
+              font-weight: 900;
+              letter-spacing: 0.12em;
+              text-transform: uppercase;
+              color: #64748b;
+            }
+            .summary-note {
+              margin: 18px 0 0;
+              padding: 14px 16px;
+              border-radius: 18px;
+              background: #eff6ff;
+              color: #1e3a8a;
+              font-size: 13px;
+              font-weight: 600;
+            }
+            @media print {
+              body {
+                padding: 0;
+                background: #fff;
+              }
+              .report-shell {
+                max-width: none;
+              }
+              .panel,
+              .metric-card,
+              .hero {
+                break-inside: avoid;
+              }
+            }
+          </style>
+        </head>
+        <body>
+          <main class="report-shell">
+            <section class="hero">
+              <p class="eyebrow">Fixlife Admin Overview</p>
+              <h1>${escapePrintHtml(reportTitle)}</h1>
+              <div class="hero-meta">
+                <span>Service filter: ${escapePrintHtml(selectedStatsServiceName || 'All services')}</span>
+                <span>Generated: ${escapePrintHtml(generatedAt)}</span>
+                <span>Completed services (7d): ${escapePrintHtml(completedServicesWeeklyTotal.toLocaleString())}</span>
+              </div>
+            </section>
+
+            <section class="metrics">
+              ${summaryCardsHtml}
+            </section>
+
+            <section class="grid">
+              <article class="panel">
+                <div class="panel-kicker">Distribution</div>
+                <h2>Service Categories</h2>
+                <p>Current request mix by service category.</p>
+                <table>
+                  <thead>
+                    <tr><th>Category</th><th>Share</th></tr>
+                  </thead>
+                  <tbody>${serviceCategoryRows}</tbody>
+                </table>
+              </article>
+
+              <article class="panel">
+                <div class="panel-kicker">Operations</div>
+                <h2>Completed Services</h2>
+                <p>Weekly completion trend for the active filter.</p>
+                <table>
+                  <thead>
+                    <tr><th>Period</th><th>Completed</th></tr>
+                  </thead>
+                  <tbody>${completedRows}</tbody>
+                </table>
+                ${
+                  completedServicesWeeklyDeltaText
+                    ? `<div class="summary-note">${escapePrintHtml(completedServicesWeeklyDeltaText)}</div>`
+                    : ''
+                }
+              </article>
+
+              <article class="panel">
+                <div class="panel-kicker">Demand</div>
+                <h2>Top Locations</h2>
+                <p>Areas with the highest request volume.</p>
+                <table>
+                  <thead>
+                    <tr><th>Location</th><th>Requests</th></tr>
+                  </thead>
+                  <tbody>${locationRows}</tbody>
+                </table>
+              </article>
+
+              <article class="panel">
+                <div class="panel-kicker">Revenue</div>
+                <h2>Revenue Overview</h2>
+                <p>Actual monthly revenue against projected revenue.</p>
+                <table>
+                  <thead>
+                    <tr><th>Period</th><th>Actual</th><th>Projected</th></tr>
+                  </thead>
+                  <tbody>${revenueRows}</tbody>
+                </table>
+              </article>
+
+              <article class="panel">
+                <div class="panel-kicker">Growth</div>
+                <h2>User Growth</h2>
+                <p>Weekly active registrations for clients and pros.</p>
+                <table>
+                  <thead>
+                    <tr><th>Period</th><th>Users</th><th>Pros</th></tr>
+                  </thead>
+                  <tbody>${growthRows}</tbody>
+                </table>
+              </article>
+            </section>
+          </main>
+        </body>
+      </html>
+    `;
+  };
+
+  const handlePreviewOverviewStats = () => {
+    setOverviewStatsPreview({
+      title: `Admin statistics${statsServiceSuffix}`,
+      fileName: `fixlife-admin-statistics-${statsServiceId === 'all' ? 'all-services' : String(statsServiceId)}-${new Date().toISOString().slice(0, 10)}.html`,
+      html: buildOverviewStatsReportHtml(),
+    });
+  };
+
+  const handleDownloadOverviewStats = () => {
+    const token = getToken();
+    if (!token) {
+      notyf.error('Session expired. Please sign in again.');
+      return;
+    }
+
+    const params = new URLSearchParams();
+    if (statsServiceId !== 'all') params.set('service_id', String(statsServiceId));
+
+    void fetch(`${API_ENDPOINTS.admin.exportStatsPdf}?${params.toString()}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then(async (response) => {
+        if (!response.ok) {
+          const payload = await response.json().catch(() => null);
+          throw new Error(payload?.error || 'Could not generate the PDF report.');
+        }
+
+        return {
+          blob: await response.blob(),
+          fileName:
+            response.headers
+              .get('Content-Disposition')
+              ?.match(/filename="?([^"]+)"?/)?.[1]
+              ?.trim() || `fixlife-admin-statistics-${new Date().toISOString().slice(0, 10)}.pdf`,
+        };
+      })
+      .then(({ blob, fileName }) => {
+        const url = window.URL.createObjectURL(blob);
+        const anchor = document.createElement('a');
+        anchor.href = url;
+        anchor.download = fileName;
+        document.body.appendChild(anchor);
+        anchor.click();
+        document.body.removeChild(anchor);
+        window.URL.revokeObjectURL(url);
+      })
+      .catch((error) => {
+        notyf.error(error instanceof Error ? error.message : 'Could not generate the PDF report.');
+      });
+  };
 
   const activityActionOptions = useMemo(() => {
     const actions = Array.from(new Set(adminActivity.map((item) => item.action))).sort();
@@ -2518,7 +2910,15 @@ const renderRequestsHistoryTab = () => {
           <h2 className="text-2xl font-black text-gray-900">Overview</h2>
           <p className="text-sm text-gray-500 font-medium">Platform statistics updated from the database</p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={handlePreviewOverviewStats}
+            className="flex items-center gap-2 rounded-2xl border border-bird-blue/20 bg-white px-4 py-2.5 text-sm font-black text-bird-darkBlue shadow-sm transition hover:border-bird-blue/40 hover:bg-bird-blue/5 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            <Download size={16} />
+            Preview report
+          </button>
           <span className="text-xs font-bold text-gray-500">Service</span>
           <select
             value={statsServiceId}
@@ -4694,6 +5094,50 @@ const renderRequestsHistoryTab = () => {
       </div>
 
       {/* Document Preview Modal */}
+      <AnimatePresence>
+        {overviewStatsPreview && (
+          <div className="fixed inset-0 z-[210] flex items-center justify-center p-4">
+            <div
+              className="absolute inset-0 bg-black/80 backdrop-blur-sm animate-fade-in-up"
+              style={{ animationDuration: '0.3s' }}
+              onClick={() => setOverviewStatsPreview(null)}
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className="bg-white rounded-3xl shadow-2xl overflow-hidden relative z-10 w-full max-w-5xl max-h-[92vh] flex flex-col"
+            >
+              <div className="flex justify-between items-center p-4 border-b border-gray-100 bg-gray-50/80 backdrop-blur-md">
+                <h3 className="font-bold text-gray-900 flex items-center gap-2">
+                  <FileText size={18} className="text-bird-blue" />
+                  {overviewStatsPreview.title}
+                </h3>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={handleDownloadOverviewStats}
+                    className="px-4 py-2 bg-gradient-to-r from-bird-blue to-bird-darkBlue text-white text-sm font-bold rounded-xl shadow-lg shadow-bird-blue/20 hover:scale-[1.02] transition-all flex items-center gap-2"
+                  >
+                    <Download size={16} /> Download
+                  </button>
+                  <button onClick={() => setOverviewStatsPreview(null)} className="p-2 text-gray-500 hover:bg-red-50 hover:text-red-500 rounded-xl transition-colors">
+                    <X size={20} />
+                  </button>
+                </div>
+              </div>
+              <div className="flex-1 overflow-auto bg-gray-100/50 p-4 min-h-[520px]">
+                <iframe
+                  srcDoc={overviewStatsPreview.html}
+                  className="w-full h-full min-h-[520px] rounded-2xl shadow-sm border border-gray-200 bg-white"
+                  title={overviewStatsPreview.title}
+                />
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
       <AnimatePresence>
         {previewDoc && (
           <div className="fixed inset-0 z-[200] flex items-center justify-center p-4">
