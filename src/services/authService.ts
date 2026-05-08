@@ -1,58 +1,84 @@
-import axios from 'axios';
 import { API_ENDPOINTS } from '../config/api';
 
-export const forgotPassword = (email: string) => {
-  return axios.post(API_ENDPOINTS.auth.forgotPassword, { email });
+interface FetchLikeResponse<T = any> {
+  data: T;
+}
+
+interface FetchLikeError {
+  response?: { data?: any };
+  message: string;
+}
+
+const request = async <T = any>(
+  url: string,
+  options: RequestInit = {},
+): Promise<FetchLikeResponse<T>> => {
+  const res = await fetch(url, options);
+  const data = await res.json().catch(() => ({}));
+
+  if (!res.ok) {
+    const err: FetchLikeError = {
+      response: { data },
+      message: data?.error || data?.message || `Request failed (${res.status})`,
+    };
+    throw err;
+  }
+
+  return { data } as FetchLikeResponse<T>;
 };
 
-export const resetPassword = (
-  email: string,
-  token: string,
-  newPassword: string
-) => {
-  return axios.post(API_ENDPOINTS.auth.resetPassword, {
-    email,
-    token,
-    newPassword,
-  });
-};
+const jsonHeaders = (token?: string): HeadersInit => ({
+  'Content-Type': 'application/json',
+  ...(token ? { Authorization: `Bearer ${token}` } : {}),
+});
 
-export const verifyResetToken = (
-  email: string,
-  token: string
-) => {
-  return axios.post(API_ENDPOINTS.auth.verifyResetToken, {
-    email,
-    token
+const authHeaders = (token: string): HeadersInit => ({
+  Authorization: `Bearer ${token}`,
+});
+
+export const forgotPassword = (email: string) =>
+  request(API_ENDPOINTS.auth.forgotPassword, {
+    method: 'POST',
+    headers: jsonHeaders(),
+    body: JSON.stringify({ email }),
   });
-};
+
+export const resetPassword = (email: string, token: string, newPassword: string) =>
+  request(API_ENDPOINTS.auth.resetPassword, {
+    method: 'POST',
+    headers: jsonHeaders(),
+    body: JSON.stringify({ email, token, newPassword }),
+  });
+
+export const verifyResetToken = (email: string, token: string) =>
+  request(API_ENDPOINTS.auth.verifyResetToken, {
+    method: 'POST',
+    headers: jsonHeaders(),
+    body: JSON.stringify({ email, token }),
+  });
 
 export const uploadProfileImage = (file: File, token: string) => {
   const formData = new FormData();
   formData.append('profile_image', file);
-
-  return axios.post(API_ENDPOINTS.auth.uploadProfileImage, formData, {
-    headers: {
-      Authorization: `Bearer ${token}`
-    }
+  return request(API_ENDPOINTS.auth.uploadProfileImage, {
+    method: 'POST',
+    headers: authHeaders(token),
+    body: formData,
   });
 };
 
-export const removeProfileImage = (token: string) => {
-  return axios.delete(API_ENDPOINTS.auth.removeProfileImage, {
-    headers: {
-      Authorization: `Bearer ${token}`
-    }
+export const removeProfileImage = (token: string) =>
+  request(API_ENDPOINTS.auth.removeProfileImage, {
+    method: 'DELETE',
+    headers: authHeaders(token),
   });
-};
 
 export const updateProfile = (
   payload: { name: string; lastname: string; phone_number: string; username: string },
-  token: string
-) => {
-  return axios.put(API_ENDPOINTS.auth.updateProfile, payload, {
-    headers: {
-      Authorization: `Bearer ${token}`
-    }
+  token: string,
+) =>
+  request(API_ENDPOINTS.auth.updateProfile, {
+    method: 'PUT',
+    headers: jsonHeaders(token),
+    body: JSON.stringify(payload),
   });
-};

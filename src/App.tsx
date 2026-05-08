@@ -689,6 +689,8 @@ const App: React.FC = () => {
                           transition={{ duration: 0.6 }}
                           src={item.image_url || fallbackCards[0].image_url || ''}
                           alt={item.headline}
+                          loading="lazy"
+                          decoding="async"
                           onError={(e) => {
                             const fallback = getLocalServiceImage(item.service_name);
                             if (!e.currentTarget.src.endsWith(fallback)) {

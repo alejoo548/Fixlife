@@ -11,7 +11,6 @@
   "dependencies": {
     "@paypal/react-paypal-js": "^9.1.0",
     "@react-oauth/google": "^0.12.2",
-    "axios": "^1.13.6",
     "framer-motion": "^12.34.3",
     "lucide-react": "^0.575.0",
     "notyf": "^3.10.0",

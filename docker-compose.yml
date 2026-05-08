@@ -22,8 +22,6 @@ services:
       dockerfile: Dockerfile
     container_name: fixlife_backend
     restart: unless-stopped
-    env_file:
-      - ./.env
     command: sh -c "npm install && npm run dev"
     volumes:
       - ./backend:/app
@@ -37,10 +35,24 @@ services:
       - DB_USER=root
       - DB_PASSWORD=${DB_PASSWORD:-Info2026/*-}
       - NODE_ENV=development
-      - JWT_SECRET=${JWT_SECRET:-}
+      - PORT=8000
+      - DB_MIGRATIONS_MODE=${DB_MIGRATIONS_MODE:-auto}
+      - ENABLE_RUNTIME_SCHEMA_SYNC=${ENABLE_RUNTIME_SCHEMA_SYNC:-false}
+      - JWT_SECRET=${JWT_SECRET:-fixlife_dev_only_change_me_please_2026}
       - GROQ_API_KEY=${GROQ_API_KEY:-}
+      - GEMINI_API_KEY=${GEMINI_API_KEY:-}
       - EMAIL_USER=${EMAIL_USER:-}
       - EMAIL_PASS=${EMAIL_PASS:-}
+      - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID:-}
+      - RECAPTCHA_SECRET_KEY=${RECAPTCHA_SECRET_KEY:-}
+      - PAYPAL_MODE=${PAYPAL_MODE:-sandbox}
+      - PAYPAL_CLIENT_ID=${PAYPAL_CLIENT_ID:-}
+      - PAYPAL_CLIENT_SECRET=${PAYPAL_CLIENT_SECRET:-}
+      - PAYPAL_WEBHOOK_ID=${PAYPAL_WEBHOOK_ID:-}
+      - PLATFORM_FEE_RATE=${PLATFORM_FEE_RATE:-0.12}
+      - FRONTEND_ORIGIN=${FRONTEND_ORIGIN:-http://127.0.0.1:3000}
+      - FRONTEND_URL=${FRONTEND_URL:-http://127.0.0.1:3000}
+      - PUBLIC_APP_URL=${PUBLIC_APP_URL:-http://127.0.0.1:3000}
       - ALLOWED_ORIGINS=${ALLOWED_ORIGINS:-}
     depends_on:
       mysql:
