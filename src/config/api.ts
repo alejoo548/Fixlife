@@ -100,6 +100,7 @@ export const API_ENDPOINTS = {
     updateUserRole: (id: number) => `${API_URL}/api/admin/users/${id}/role`,
     updateUserStatus: (id: number) => `${API_URL}/api/admin/users/${id}/status`,
     stats: `${API_URL}/api/admin/stats`,
+    exportStatsPdf: `${API_URL}/api/admin/stats/export-pdf`,
     requestsHistory: `${API_URL}/api/admin/requests-history`,
     commissionRules: `${API_URL}/api/admin/commission-rules`,
     workerRewards: `${API_URL}/api/admin/worker-rewards`,
