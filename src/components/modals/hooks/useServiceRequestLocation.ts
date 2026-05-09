@@ -31,6 +31,9 @@ interface UseServiceRequestLocationOptions {
 
 const LOCATION_SUGGESTION_MIN_CHARS = 3;
 const LOCATION_SUGGESTION_DEBOUNCE_MS = 350;
+const GEOLOCATION_TIMEOUT_MS = 16000;
+const GEOLOCATION_SAMPLE_MS = 6500;
+const GEOLOCATION_TARGET_ACCURACY_M = 35;
 
 export function useServiceRequestLocation({
   isOpen,
@@ -145,32 +148,78 @@ export function useServiceRequestLocation({
     setGeoLoading(true);
     setGeoError(null);
 
-    navigator.geolocation.getCurrentPosition(
+    let bestPosition: GeolocationPosition | null = null;
+    let settled = false;
+    let watchId: number | null = null;
+    let fallbackTimer: number | null = null;
+
+    const clearWatch = () => {
+      if (watchId !== null) {
+        navigator.geolocation.clearWatch(watchId);
+        watchId = null;
+      }
+      if (fallbackTimer !== null) {
+        window.clearTimeout(fallbackTimer);
+        fallbackTimer = null;
+      }
+    };
+
+    const applyPosition = (pos: GeolocationPosition) => {
+      if (settled) return;
+      settled = true;
+      clearWatch();
+
+      const lat = Number(pos.coords.latitude.toFixed(7));
+      const lng = Number(pos.coords.longitude.toFixed(7));
+      const accuracy = Number.isFinite(pos.coords.accuracy) ? Math.round(pos.coords.accuracy) : null;
+      setCurrentCoords({ lat, lng });
+      void (async () => {
+        try {
+          await reverseGeocodeCoords(
+            { lat, lng },
+            {
+              toastMessage: accuracy ? `Current location detected within ~${accuracy} m.` : 'Current location detected.',
+              fallbackLabel: `${lat}, ${lng}`,
+            }
+          );
+        } finally {
+          setGeoLoading(false);
+        }
+      })();
+    };
+
+    watchId = navigator.geolocation.watchPosition(
       (pos) => {
-        const lat = Number(pos.coords.latitude.toFixed(7));
-        const lng = Number(pos.coords.longitude.toFixed(7));
-        setCurrentCoords({ lat, lng });
-        void (async () => {
-          try {
-            await reverseGeocodeCoords(
-              { lat, lng },
-              {
-                toastMessage: 'Current location detected.',
-                fallbackLabel: `${lat}, ${lng}`,
-              }
-            );
-          } finally {
-            setGeoLoading(false);
-          }
-        })();
+        if (!bestPosition || pos.coords.accuracy < bestPosition.coords.accuracy) {
+          bestPosition = pos;
+        }
+        if (pos.coords.accuracy <= GEOLOCATION_TARGET_ACCURACY_M) {
+          applyPosition(pos);
+        }
       },
       () => {
-        setGeoError('Could not access your location. Allow permission and try again.');
-        showToast('error', 'Could not read your location.');
+        if (bestPosition) {
+          applyPosition(bestPosition);
+          return;
+        }
+        clearWatch();
+        setGeoError('Could not access your exact location. Allow permission and try again.');
+        showToast('error', 'Could not read your exact location.');
         setGeoLoading(false);
       },
-      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+      { enableHighAccuracy: true, timeout: GEOLOCATION_TIMEOUT_MS, maximumAge: 0 }
     );
+
+    fallbackTimer = window.setTimeout(() => {
+      if (bestPosition) {
+        applyPosition(bestPosition);
+        return;
+      }
+      clearWatch();
+      setGeoError('Still looking for GPS signal. Try outdoors, enable precise location, or tap the map.');
+      showToast('info', 'Still looking for a precise GPS signal. You can drag the pin to fine-tune.');
+      setGeoLoading(false);
+    }, GEOLOCATION_SAMPLE_MS);
   };
 
   return {

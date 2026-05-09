@@ -561,6 +561,7 @@ export const RequestsView: React.FC<RequestsViewProps> = ({ isOnline, mobileView
   const routeLayersRef = useRef<any[]>([]);
   const requestMarkersRef = useRef<any[]>([]);
   const workerMarkerRef = useRef<any>(null);
+  const lastCameraTargetRef = useRef<string | null>(null);
   const routeAbortRef = useRef<AbortController | null>(null);
   const routeAnimationFrameRef = useRef<number | null>(null);
   const routeAlertTimerRef = useRef<number | null>(null);
@@ -1172,21 +1173,31 @@ export const RequestsView: React.FC<RequestsViewProps> = ({ isOnline, mobileView
         // Ignore markers with invalid backend coordinates.
       }
     });
+  }, [requests, selectedRequest, routePreview]);
 
-    if (isValidLatLngList(routePreview?.points) && selectedRequestCoords) {
-      return;
-    }
+  useEffect(() => {
+    if (!mapInstanceRef.current) return;
+    if (isValidLatLngList(routePreview?.points) && selectedRequestCoords) return;
+
+    const targetKey = selectedRequestCoords
+      ? `${selectedRequestCoords.lat},${selectedRequestCoords.lng},13`
+      : isValidCoord(workerCoords)
+      ? `${workerCoords!.lat},${workerCoords!.lng},12`
+      : null;
+
+    if (!targetKey || targetKey === lastCameraTargetRef.current) return;
+    lastCameraTargetRef.current = targetKey;
 
     try {
       if (selectedRequestCoords) {
-        map.setView([selectedRequestCoords.lat, selectedRequestCoords.lng], 13);
+        mapInstanceRef.current.setView([selectedRequestCoords.lat, selectedRequestCoords.lng], 13);
       } else if (isValidCoord(workerCoords)) {
-        map.setView([workerCoords.lat, workerCoords.lng], 12);
+        mapInstanceRef.current.setView([workerCoords!.lat, workerCoords!.lng], 12);
       }
     } catch {
       // Ignore invalid camera coordinates.
     }
-  }, [requests, selectedRequest, selectedRequestCoords, workerCoords, routePreview]);
+  }, [selectedRequestCoords, workerCoords, routePreview]);
 
   useEffect(() => {
     if (!mapInstanceRef.current || !window.L) return;
@@ -1452,7 +1463,17 @@ export const RequestsView: React.FC<RequestsViewProps> = ({ isOnline, mobileView
 
   useSSE({
     token,
-    events: { request_updated: () => { if (isOnline) fetchRequests(true); } },
+    events: {
+      request_updated: () => { if (isOnline) fetchRequests(true); },
+      chat_message: (data: unknown) => {
+        const d = data as { id_request?: number } | null;
+        if (!selectedRequest?.id_request) return;
+        if (!canUseChatWithClient || !chatPanelOpen) return;
+        if (d?.id_request == null || d.id_request === selectedRequest.id_request) {
+          void fetchRequestChat(selectedRequest.id_request, { silent: true, incremental: true });
+        }
+      },
+    },
     enabled: !!token && isOnline,
   });
 
@@ -1783,21 +1804,6 @@ export const RequestsView: React.FC<RequestsViewProps> = ({ isOnline, mobileView
     fetchRequestChat(selectedRequest.id_request);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedRequest?.id_request, token, canUseChatWithClient, chatPanelOpen]);
-
-  useSSE({
-    token,
-    events: {
-      chat_message: (data: unknown) => {
-        const d = data as { id_request?: number } | null;
-        if (!selectedRequest?.id_request) return;
-        if (!canUseChatWithClient || !chatPanelOpen) return;
-        if (d?.id_request == null || d.id_request === selectedRequest.id_request) {
-          void fetchRequestChat(selectedRequest.id_request, { silent: true, incremental: true });
-        }
-      },
-    },
-    enabled: !!token && !!selectedRequest?.id_request && canUseChatWithClient && chatPanelOpen,
-  });
 
   useEffect(() => {
     if (!selectedRequest?.id_request || !canUseChatWithClient) {

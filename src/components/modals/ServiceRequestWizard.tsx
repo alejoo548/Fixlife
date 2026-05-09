@@ -111,7 +111,7 @@ class TrackerErrorBoundary extends React.Component<
     }
 }
 
-const notyf = new Notyf({ position: { x: 'left', y: 'bottom' }, ripple: true });
+const notyf = new Notyf({ position: { x: 'right', y: 'bottom' }, ripple: true });
 
 const InlineTrackerFallback: React.FC = () => (
     <div className="rounded-[28px] border border-bird-blue/10 bg-white/95 p-4 shadow-[0_18px_38px_rgba(15,23,42,0.05)]">

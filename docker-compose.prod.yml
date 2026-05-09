@@ -3,7 +3,78 @@ services:
     build:
       context: .
       dockerfile: docker/Dockerfile.prod
+      args:
+        VITE_API_URL: ${VITE_API_URL:-}
+        VITE_GOOGLE_CLIENT_ID: ${VITE_GOOGLE_CLIENT_ID:-}
+        VITE_RECAPTCHA_SITE_KEY: ${VITE_RECAPTCHA_SITE_KEY:-}
+        VITE_TOMTOM_TRAFFIC_KEY: ${VITE_TOMTOM_TRAFFIC_KEY:-}
+        GEMINI_API_KEY: ${GEMINI_API_KEY:-}
     container_name: fixlife_frontend_prod
+    restart: unless-stopped
     ports:
       - "80:80"
+    depends_on:
+      - backend
+    networks:
+      - fixlife-network
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: fixlife_backend_prod
     restart: unless-stopped
+    environment:
+      - DB_HOST=mysql
+      - DB_PORT=3306
+      - DB_NAME=${MYSQL_DATABASE:-fixlife_db}
+      - DB_USER=root
+      - DB_PASSWORD=${DB_PASSWORD}
+      - NODE_ENV=production
+      - PORT=8000
+      - DB_MIGRATIONS_MODE=${DB_MIGRATIONS_MODE:-auto}
+      - JWT_SECRET=${JWT_SECRET}
+      - GROQ_API_KEY=${GROQ_API_KEY:-}
+      - GEMINI_API_KEY=${GEMINI_API_KEY:-}
+      - EMAIL_USER=${EMAIL_USER:-}
+      - EMAIL_PASS=${EMAIL_PASS:-}
+      - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID:-}
+      - RECAPTCHA_SECRET_KEY=${RECAPTCHA_SECRET_KEY:-}
+      - PAYPAL_MODE=${PAYPAL_MODE:-live}
+      - PAYPAL_CLIENT_ID=${PAYPAL_CLIENT_ID:-}
+      - PAYPAL_CLIENT_SECRET=${PAYPAL_CLIENT_SECRET:-}
+      - PAYPAL_WEBHOOK_ID=${PAYPAL_WEBHOOK_ID:-}
+      - PLATFORM_FEE_RATE=${PLATFORM_FEE_RATE:-0.12}
+      - FRONTEND_ORIGIN=${FRONTEND_ORIGIN}
+      - FRONTEND_URL=${FRONTEND_URL}
+      - PUBLIC_APP_URL=${PUBLIC_APP_URL}
+      - ALLOWED_ORIGINS=${ALLOWED_ORIGINS:-}
+    depends_on:
+      mysql:
+        condition: service_healthy
+    networks:
+      - fixlife-network
+
+  mysql:
+    image: mysql:8.0
+    container_name: fixlife_mysql_prod
+    restart: unless-stopped
+    environment:
+      - MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD}
+      - MYSQL_DATABASE=${MYSQL_DATABASE:-fixlife_db}
+    volumes:
+      - mysql_data_prod:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      timeout: 30s
+      retries: 5
+      interval: 10s
+    networks:
+      - fixlife-network
+
+networks:
+  fixlife-network:
+    driver: bridge
+
+volumes:
+  mysql_data_prod:
