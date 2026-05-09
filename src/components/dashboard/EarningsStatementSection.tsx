@@ -1,5 +1,5 @@
-import React, { useMemo, useState } from 'react';
-import { motion } from 'framer-motion';
+import React, { useEffect, useMemo, useState } from 'react';
+import { AnimatePresence, motion } from 'framer-motion';
 import type { WorkerRewardHistoryItem } from '../../hooks/useWorkerRewardsDashboard';
 import { API_ENDPOINTS } from '../../config/api';
 import { getToken } from '../../utils/session';
@@ -80,8 +80,17 @@ export const EarningsStatementSection: React.FC<EarningsStatementSectionProps> =
   const [toDate, setToDate] = useState('');
   const [pdfLoading, setPdfLoading] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [pdfPreview, setPdfPreview] = useState<{ url: string; fileName: string } | null>(null);
 
   const today = useMemo(() => new Date(), []);
+
+  useEffect(() => {
+    return () => {
+      if (pdfPreview?.url) {
+        URL.revokeObjectURL(pdfPreview.url);
+      }
+    };
+  }, [pdfPreview]);
 
   const resolvedDateRange = useMemo(() => {
     if (periodFilter === 'week') {
@@ -209,7 +218,7 @@ export const EarningsStatementSection: React.FC<EarningsStatementSectionProps> =
     URL.revokeObjectURL(url);
   };
 
-  const handleDownloadStatementPdf = () => {
+  const fetchStatementPdf = () => {
     if (exportRows.length === 0 || pdfLoading) return;
     setActionError(null);
     const token = getToken('worker');
@@ -225,7 +234,7 @@ export const EarningsStatementSection: React.FC<EarningsStatementSectionProps> =
     if (resolvedDateRange.to) params.set('to', resolvedDateRange.to);
 
     setPdfLoading(true);
-    void fetch(`${API_ENDPOINTS.worker.rewardsStatementPdf}?${params.toString()}`, {
+    return fetch(`${API_ENDPOINTS.worker.rewardsStatementPdf}?${params.toString()}`, {
       headers: { Authorization: `Bearer ${token}` },
     })
       .then(async (response) => {
@@ -243,22 +252,34 @@ export const EarningsStatementSection: React.FC<EarningsStatementSectionProps> =
               ?.trim() || `fixlife-worker-statement-${new Date().toISOString().slice(0, 10)}.pdf`,
         };
       })
-      .then(({ blob, fileName }) => {
-        const url = URL.createObjectURL(blob);
-        const anchor = document.createElement('a');
-        anchor.href = url;
-        anchor.download = fileName;
-        document.body.appendChild(anchor);
-        anchor.click();
-        anchor.remove();
-        URL.revokeObjectURL(url);
-      })
       .catch((reason) => {
         setActionError(reason instanceof Error ? reason.message : 'Could not generate the PDF statement.');
+        return null;
       })
       .finally(() => {
         setPdfLoading(false);
       });
+  };
+
+  const handlePreviewStatementPdf = () => {
+    void fetchStatementPdf()?.then((result) => {
+      if (!result) return;
+      if (pdfPreview?.url) {
+        URL.revokeObjectURL(pdfPreview.url);
+      }
+      const url = URL.createObjectURL(result.blob);
+      setPdfPreview({ url, fileName: result.fileName });
+    });
+  };
+
+  const handleDownloadStatementPdf = () => {
+    if (!pdfPreview) return;
+    const anchor = document.createElement('a');
+    anchor.href = pdfPreview.url;
+    anchor.download = pdfPreview.fileName;
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
   };
 
   return (
@@ -280,11 +301,11 @@ export const EarningsStatementSection: React.FC<EarningsStatementSectionProps> =
           <div className="flex flex-wrap gap-2">
             <button
               type="button"
-              onClick={handleDownloadStatementPdf}
+              onClick={handlePreviewStatementPdf}
               disabled={exportRows.length === 0}
               className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-black text-slate-700 transition hover:border-bird-blue/30 hover:bg-bird-blue/5 disabled:cursor-not-allowed disabled:opacity-45"
             >
-              {pdfLoading ? 'Generating PDF...' : 'Download + email PDF'}
+              {pdfLoading ? 'Generating PDF...' : 'Preview PDF'}
             </button>
             <button
               type="button"
@@ -302,6 +323,59 @@ export const EarningsStatementSection: React.FC<EarningsStatementSectionProps> =
             {actionError}
           </div>
         )}
+
+        <AnimatePresence>
+          {pdfPreview && (
+            <div className="fixed inset-0 z-[220] flex items-center justify-center p-4">
+              <div
+                className="absolute inset-0 bg-slate-950/70 backdrop-blur-sm"
+                onClick={() => {
+                  URL.revokeObjectURL(pdfPreview.url);
+                  setPdfPreview(null);
+                }}
+              />
+              <motion.div
+                initial={{ opacity: 0, scale: 0.96, y: 18 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.96, y: 18 }}
+                className="relative z-10 flex max-h-[92vh] w-full max-w-5xl flex-col overflow-hidden rounded-[28px] border border-slate-200 bg-white shadow-2xl"
+              >
+                <div className="flex items-center justify-between gap-3 border-b border-slate-200 bg-slate-50 px-4 py-4">
+                  <div>
+                    <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">Payout statement</p>
+                    <h3 className="text-lg font-black text-slate-900">PDF preview</h3>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={handleDownloadStatementPdf}
+                      className="rounded-2xl bg-bird-blue px-4 py-2.5 text-sm font-black text-white transition hover:opacity-90"
+                    >
+                      Download PDF
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        URL.revokeObjectURL(pdfPreview.url);
+                        setPdfPreview(null);
+                      }}
+                      className="rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-black text-slate-600 transition hover:border-red-200 hover:bg-red-50 hover:text-red-600"
+                    >
+                      Close
+                    </button>
+                  </div>
+                </div>
+                <div className="min-h-[540px] flex-1 overflow-auto bg-slate-100/70 p-4">
+                  <iframe
+                    src={pdfPreview.url}
+                    title="Worker payout statement preview"
+                    className="h-full min-h-[540px] w-full rounded-3xl border border-slate-200 bg-white shadow-sm"
+                  />
+                </div>
+              </motion.div>
+            </div>
+          )}
+        </AnimatePresence>
 
         <div className="rounded-3xl border border-slate-200 bg-slate-50 p-4">
           <div className="grid gap-4 xl:grid-cols-[1.2fr_1fr_1fr]">

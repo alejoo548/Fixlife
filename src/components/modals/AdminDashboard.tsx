@@ -102,6 +102,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ isOpen, onClose 
 
   const [dashboardStats, setDashboardStats] = useState<any>(null);
   const [statsServiceId, setStatsServiceId] = useState<'all' | string>('all');
+  const [exportingStatsPdf, setExportingStatsPdf] = useState(false);
   const [previewDoc, setPreviewDoc] = useState<{ url: string, name: string } | null>(null);
 
   const [heroSlidesDraft, setHeroSlidesDraft] = useState<HeroSlideContent[]>([]);
@@ -749,6 +750,54 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ isOpen, onClose 
       const data = await res.json();
       if (data.success) setDashboardStats(data.stats);
     } catch { /* silent */ }
+  };
+
+  const handleExportStatsPdf = async () => {
+    if (exportingStatsPdf) return;
+    const token = getToken();
+    if (!token) {
+      notyf.error('Session expired. Please sign in again.');
+      return;
+    }
+
+    const params = new URLSearchParams();
+    if (statsServiceId !== 'all') params.set('service_id', statsServiceId);
+    const url = params.toString()
+      ? `${API_ENDPOINTS.admin.exportStatsPdf}?${params.toString()}`
+      : API_ENDPOINTS.admin.exportStatsPdf;
+
+    setExportingStatsPdf(true);
+    try {
+      const res = await fetch(url, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      if (!res.ok) {
+        const data = await res.json().catch(() => null);
+        notyf.error(data?.error || 'Could not export stats PDF.');
+        return;
+      }
+
+      const blob = await res.blob();
+      const fileName =
+        res.headers
+          .get('Content-Disposition')
+          ?.match(/filename="?([^"]+)"?/)?.[1]
+          ?.trim() || `fixlife-admin-stats-${new Date().toISOString().slice(0, 10)}.pdf`;
+      const downloadUrl = URL.createObjectURL(blob);
+      const anchor = document.createElement('a');
+      anchor.href = downloadUrl;
+      anchor.download = fileName;
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+      URL.revokeObjectURL(downloadUrl);
+      notyf.success('Stats PDF exported.');
+    } catch {
+      notyf.error('Connection error exporting stats PDF.');
+    } finally {
+      setExportingStatsPdf(false);
+    }
   };
 
   useEffect(() => {
@@ -2518,7 +2567,7 @@ const renderRequestsHistoryTab = () => {
           <h2 className="text-2xl font-black text-gray-900">Overview</h2>
           <p className="text-sm text-gray-500 font-medium">Platform statistics updated from the database</p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <span className="text-xs font-bold text-gray-500">Service</span>
           <select
             value={statsServiceId}
@@ -2532,6 +2581,15 @@ const renderRequestsHistoryTab = () => {
               </option>
             ))}
           </select>
+          <button
+            type="button"
+            onClick={handleExportStatsPdf}
+            disabled={exportingStatsPdf}
+            className="inline-flex items-center gap-2 rounded-xl bg-bird-blue px-4 py-2 text-sm font-black text-white transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            <Download size={16} />
+            {exportingStatsPdf ? 'Exporting...' : 'Export PDF'}
+          </button>
         </div>
       </div>
       {/* Stats Grid */}
@@ -5010,5 +5068,3 @@ const renderRequestsHistoryTab = () => {
     </div>
   );
 };
-
-
