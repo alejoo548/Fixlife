@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { API_ENDPOINTS } from '../../../config/api';
 import { useSSE } from '../../../hooks/useSSE';
 
@@ -60,6 +60,8 @@ export function useServiceRequestChat<TRequest extends ServiceRequestChatRequest
 }: UseServiceRequestChatOptions<TRequest>) {
   const [openChatRequestId, setOpenChatRequestId] = useState<number | null>(null);
   const [chatByRequest, setChatByRequest] = useState<Record<number, ServiceRequestChatMessage[]>>({});
+  const chatByRequestRef = useRef(chatByRequest);
+  useEffect(() => { chatByRequestRef.current = chatByRequest; }, [chatByRequest]);
   const [chatMessage, setChatMessage] = useState<Record<number, string>>({});
   const [chatImage, setChatImage] = useState<Record<number, File | null>>({});
   const [chatBusyId, setChatBusyId] = useState<number | null>(null);
@@ -78,7 +80,7 @@ export function useServiceRequestChat<TRequest extends ServiceRequestChatRequest
     async (idRequest: number, options: { silent?: boolean; incremental?: boolean } = {}) => {
       if (!token) return;
       const silent = options.silent === true;
-      const currentChat = chatByRequest[idRequest] || [];
+      const currentChat = chatByRequestRef.current[idRequest] || [];
       const afterId = options.incremental ? getLatestChatMessageId(currentChat) : 0;
       const chatUrl =
         afterId > 0
@@ -116,7 +118,7 @@ export function useServiceRequestChat<TRequest extends ServiceRequestChatRequest
         }
       }
     },
-    [token, chatByRequest, showToast]
+    [token, showToast]
   );
 
   const sendRequestChat = useCallback(

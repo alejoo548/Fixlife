@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import { useSSE } from '../../hooks/useSSE';
 import { AnimatePresence, motion } from 'framer-motion';
@@ -141,6 +142,9 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({
   const [unreadCount, setUnreadCount] = useState(0);
   const [activeFilter, setActiveFilter] = useState<NotificationFilter>('all');
   const rootRef = useRef<HTMLDivElement | null>(null);
+  const buttonRef = useRef<HTMLButtonElement | null>(null);
+  const dropdownRef = useRef<HTMLDivElement | null>(null);
+  const [dropdownPos, setDropdownPos] = useState<{ top: number; right: number } | null>(null);
 
   const fetchNotifications = async (silent = false) => {
     if (!token) {
@@ -189,7 +193,8 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({
 
   useEffect(() => {
     const handleOutsideClick = (event: MouseEvent) => {
-      if (!rootRef.current?.contains(event.target as Node)) {
+      const target = event.target as Node;
+      if (!rootRef.current?.contains(target) && !dropdownRef.current?.contains(target)) {
         setIsOpen(false);
       }
     };
@@ -200,6 +205,26 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({
 
     return () => document.removeEventListener('mousedown', handleOutsideClick);
   }, [isOpen]);
+
+  useEffect(() => {
+    if (!isOpen || variant !== 'panel' || !buttonRef.current) {
+      setDropdownPos(null);
+      return;
+    }
+
+    const updatePos = () => {
+      if (!buttonRef.current) return;
+      const rect = buttonRef.current.getBoundingClientRect();
+      setDropdownPos({
+        top: rect.bottom + 8,
+        right: window.innerWidth - rect.right,
+      });
+    };
+
+    updatePos();
+    window.addEventListener('resize', updatePos);
+    return () => window.removeEventListener('resize', updatePos);
+  }, [isOpen, variant]);
 
   const unreadItems = useMemo(
     () => notifications.filter((item) => !item.is_read).slice(0, 3),
@@ -282,9 +307,187 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({
 
   if (!token) return null;
 
+  const dropdown = (
+    <motion.div
+      ref={dropdownRef}
+      initial={{ opacity: 0, y: -8, scale: 0.98 }}
+      animate={{ opacity: 1, y: 0, scale: 1 }}
+      exit={{ opacity: 0, y: -8, scale: 0.98 }}
+      transition={{ duration: 0.2, ease: 'easeOut' }}
+      className={`w-[360px] max-w-[calc(100vw-2rem)] overflow-hidden rounded-[28px] border border-white/70 bg-white/96 shadow-[0_24px_60px_rgba(15,23,42,0.16)] backdrop-blur-xl ${
+        variant === 'panel'
+          ? 'fixed z-[9999]'
+          : 'absolute right-0 top-14 z-[160]'
+      }`}
+      style={
+        variant === 'panel' && dropdownPos
+          ? { top: dropdownPos.top, right: dropdownPos.right }
+          : undefined
+      }
+    >
+      <div className="relative overflow-hidden border-b border-slate-100 bg-gradient-to-r from-sky-50 via-white to-amber-50 px-5 py-4">
+        <div className="pointer-events-none absolute -left-8 top-0 h-24 w-24 rounded-full bg-bird-blue/10 blur-2xl" />
+        <div className="pointer-events-none absolute right-0 top-2 h-20 w-20 rounded-full bg-bird-yellow/20 blur-2xl" />
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <p className="text-[11px] font-black uppercase tracking-[0.18em] text-bird-blue">Notification Center</p>
+            <h3 className="mt-1 text-lg font-black text-slate-900">Recent activity</h3>
+            <p className="mt-1 text-xs text-slate-500">
+              {unreadCount > 0
+                ? `${unreadCount} unread event${unreadCount === 1 ? '' : 's'} waiting`
+                : 'Everything is up to date.'}
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => void markAllRead()}
+            className="rounded-full border border-bird-blue/15 bg-white px-3 py-1.5 text-[11px] font-black text-bird-blue shadow-sm transition hover:border-bird-blue hover:bg-bird-blue hover:text-white"
+          >
+            Read all
+          </button>
+        </div>
+        {unreadItems.length > 0 && (
+          <div className="mt-3 flex flex-wrap gap-2">
+            {unreadItems.map((item) => (
+              <span
+                key={`peek-${item.id_notification}`}
+                className={`rounded-full border px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.14em] ${toneClasses[item.tone]}`}
+              >
+                {item.title}
+              </span>
+            ))}
+          </div>
+        )}
+        <div className="mt-4 flex flex-wrap gap-2">
+          {filterOptions.map((filter) => {
+            const isActive = activeFilter === filter.id;
+            return (
+              <button
+                key={filter.id}
+                type="button"
+                onClick={() => setActiveFilter(filter.id)}
+                className={`rounded-full px-3 py-1.5 text-[11px] font-black transition ${
+                  isActive
+                    ? 'bg-bird-blue text-white shadow-sm shadow-blue-200'
+                    : 'border border-slate-200 bg-white text-slate-500 hover:border-bird-blue/25 hover:text-bird-blue'
+                }`}
+              >
+                <span className="inline-flex items-center gap-1.5">
+                  {filter.label}
+                  <span
+                    className={`rounded-full px-1.5 py-0.5 text-[10px] ${
+                      isActive ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-500'
+                    }`}
+                  >
+                    {filterCounts[filter.id]}
+                  </span>
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      <div className="max-h-[420px] overflow-y-auto px-4 py-4">
+        {loading ? (
+          <div className="space-y-3">
+            {Array.from({ length: 3 }).map((_, index) => (
+              <div key={`notif-skeleton-${index}`} className="animate-pulse rounded-2xl border border-slate-100 p-4">
+                <div className="h-3 w-24 rounded-full bg-slate-200" />
+                <div className="mt-3 h-4 w-3/4 rounded-full bg-slate-100" />
+                <div className="mt-2 h-3 w-full rounded-full bg-slate-100" />
+              </div>
+            ))}
+          </div>
+        ) : filteredNotifications.length === 0 ? (
+          <div className="rounded-3xl border border-dashed border-slate-200 bg-slate-50 px-5 py-8 text-center">
+            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-white shadow-sm">
+              <svg className="h-6 w-6 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M15 17h5l-1.4-1.4a2 2 0 01-.6-1.4V11a6 6 0 10-12 0v3.2a2 2 0 01-.6 1.4L4 17h5m6 0a3 3 0 11-6 0" />
+              </svg>
+            </div>
+            <p className="mt-4 text-sm font-bold text-slate-700">
+              {activeFilter === 'all' ? 'No notifications yet' : `No ${activeFilter} notifications`}
+            </p>
+            <p className="mt-1 text-xs text-slate-500">
+              {activeFilter === 'all'
+                ? "We'll save request, payment and payout events here."
+                : 'Try another filter or check back in a moment.'}
+            </p>
+          </div>
+        ) : (
+          <motion.div layout className="space-y-3">
+            <AnimatePresence initial={false}>
+              {filteredNotifications.map((item, index) => (
+                <motion.div
+                  key={item.id_notification}
+                  layout
+                  initial={{ opacity: 0, y: 14, scale: 0.98 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: -10, scale: 0.98 }}
+                  transition={{ duration: 0.2, delay: index * 0.03 }}
+                  className={`rounded-3xl border p-4 transition ${
+                    item.is_read
+                      ? 'border-slate-100 bg-slate-50/75 hover:border-slate-200 hover:bg-white'
+                      : 'border-bird-blue/15 bg-white shadow-[0_16px_32px_rgba(37,99,235,0.08)] hover:-translate-y-0.5 hover:shadow-[0_20px_36px_rgba(37,99,235,0.14)]'
+                  }`}
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div
+                      className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br text-lg shadow-sm ${
+                        eventAccentClasses[item.event_type] || 'from-slate-500 to-slate-400 text-white'
+                      }`}
+                    >
+                      <span>{renderEventGlyph(item.event_type)}</span>
+                    </div>
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className={`rounded-full border px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.14em] ${toneClasses[item.tone]}`}>
+                          {eventLabelMap[item.event_type] || item.event_type.replace(/_/g, ' ')}
+                        </span>
+                        {!item.is_read && <span className="h-2.5 w-2.5 rounded-full bg-bird-orange shadow-[0_0_0_4px_rgba(255,140,0,0.15)]" />}
+                        <span className="text-[11px] font-semibold text-slate-400">{formatTimeAgo(item.created_at)}</span>
+                      </div>
+                      <p className="mt-2 text-sm font-black text-slate-900">{item.title}</p>
+                      <p className="mt-1 text-xs leading-5 text-slate-600">{item.message}</p>
+                    </div>
+                  </div>
+
+                  <div className="mt-3 flex items-center justify-between gap-2">
+                    <button
+                      type="button"
+                      onClick={() => void markOneRead(item.id_notification)}
+                      className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-[11px] font-black text-slate-600 transition hover:-translate-y-0.5 hover:border-bird-blue/25 hover:text-bird-blue"
+                    >
+                      {item.is_read ? 'Read' : 'Mark read'}
+                    </button>
+                    {item.action_url && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          void markOneRead(item.id_notification);
+                          openNotificationUrl(item.action_url!);
+                          setIsOpen(false);
+                        }}
+                        className="rounded-full bg-bird-blue px-3 py-1.5 text-[11px] font-black text-white shadow-sm shadow-blue-200 transition hover:-translate-y-0.5 hover:bg-blue-700"
+                      >
+                        Open
+                      </button>
+                    )}
+                  </div>
+                </motion.div>
+              ))}
+            </AnimatePresence>
+          </motion.div>
+        )}
+      </div>
+    </motion.div>
+  );
+
   return (
     <div ref={rootRef} className={`relative ${className}`}>
       <button
+        ref={buttonRef}
         type="button"
         onClick={() => setIsOpen((prev) => !prev)}
         className={`relative flex h-11 w-11 items-center justify-center rounded-2xl border transition duration-300 ${
@@ -312,177 +515,13 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({
         )}
       </button>
 
-      <AnimatePresence>
-        {isOpen && (
-          <motion.div
-            initial={{ opacity: 0, y: -8, scale: 0.98 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: -8, scale: 0.98 }}
-            transition={{ duration: 0.2, ease: 'easeOut' }}
-            className="absolute right-0 top-14 z-[160] w-[360px] max-w-[calc(100vw-2rem)] overflow-hidden rounded-[28px] border border-white/70 bg-white/96 shadow-[0_24px_60px_rgba(15,23,42,0.16)] backdrop-blur-xl"
-          >
-            <div className="relative overflow-hidden border-b border-slate-100 bg-gradient-to-r from-sky-50 via-white to-amber-50 px-5 py-4">
-              <div className="pointer-events-none absolute -left-8 top-0 h-24 w-24 rounded-full bg-bird-blue/10 blur-2xl" />
-              <div className="pointer-events-none absolute right-0 top-2 h-20 w-20 rounded-full bg-bird-yellow/20 blur-2xl" />
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <p className="text-[11px] font-black uppercase tracking-[0.18em] text-bird-blue">Notification Center</p>
-                  <h3 className="mt-1 text-lg font-black text-slate-900">Recent activity</h3>
-                  <p className="mt-1 text-xs text-slate-500">
-                    {unreadCount > 0
-                      ? `${unreadCount} unread event${unreadCount === 1 ? '' : 's'} waiting`
-                      : 'Everything is up to date.'}
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => void markAllRead()}
-                  className="rounded-full border border-bird-blue/15 bg-white px-3 py-1.5 text-[11px] font-black text-bird-blue shadow-sm transition hover:border-bird-blue hover:bg-bird-blue hover:text-white"
-                >
-                  Read all
-                </button>
-              </div>
-              {unreadItems.length > 0 && (
-                <div className="mt-3 flex flex-wrap gap-2">
-                  {unreadItems.map((item) => (
-                    <span
-                      key={`peek-${item.id_notification}`}
-                      className={`rounded-full border px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.14em] ${toneClasses[item.tone]}`}
-                    >
-                      {item.title}
-                    </span>
-                  ))}
-                </div>
-              )}
-              <div className="mt-4 flex flex-wrap gap-2">
-                {filterOptions.map((filter) => {
-                  const isActive = activeFilter === filter.id;
-                  return (
-                    <button
-                      key={filter.id}
-                      type="button"
-                      onClick={() => setActiveFilter(filter.id)}
-                      className={`rounded-full px-3 py-1.5 text-[11px] font-black transition ${
-                        isActive
-                          ? 'bg-bird-blue text-white shadow-sm shadow-blue-200'
-                          : 'border border-slate-200 bg-white text-slate-500 hover:border-bird-blue/25 hover:text-bird-blue'
-                      }`}
-                    >
-                      <span className="inline-flex items-center gap-1.5">
-                        {filter.label}
-                        <span
-                          className={`rounded-full px-1.5 py-0.5 text-[10px] ${
-                            isActive ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-500'
-                          }`}
-                        >
-                          {filterCounts[filter.id]}
-                        </span>
-                      </span>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-
-            <div className="max-h-[420px] overflow-y-auto px-4 py-4">
-              {loading ? (
-                <div className="space-y-3">
-                  {Array.from({ length: 3 }).map((_, index) => (
-                    <div key={`notif-skeleton-${index}`} className="animate-pulse rounded-2xl border border-slate-100 p-4">
-                      <div className="h-3 w-24 rounded-full bg-slate-200" />
-                      <div className="mt-3 h-4 w-3/4 rounded-full bg-slate-100" />
-                      <div className="mt-2 h-3 w-full rounded-full bg-slate-100" />
-                    </div>
-                  ))}
-                </div>
-              ) : filteredNotifications.length === 0 ? (
-                <div className="rounded-3xl border border-dashed border-slate-200 bg-slate-50 px-5 py-8 text-center">
-                  <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-white shadow-sm">
-                    <svg className="h-6 w-6 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M15 17h5l-1.4-1.4a2 2 0 01-.6-1.4V11a6 6 0 10-12 0v3.2a2 2 0 01-.6 1.4L4 17h5m6 0a3 3 0 11-6 0" />
-                    </svg>
-                  </div>
-                  <p className="mt-4 text-sm font-bold text-slate-700">
-                    {activeFilter === 'all' ? 'No notifications yet' : `No ${activeFilter} notifications`}
-                  </p>
-                  <p className="mt-1 text-xs text-slate-500">
-                    {activeFilter === 'all'
-                      ? "We'll save request, payment and payout events here."
-                      : 'Try another filter or check back in a moment.'}
-                  </p>
-                </div>
-              ) : (
-                <motion.div
-                  layout
-                  className="space-y-3"
-                >
-                  <AnimatePresence initial={false}>
-                    {filteredNotifications.map((item, index) => (
-                    <motion.div
-                      key={item.id_notification}
-                      layout
-                      initial={{ opacity: 0, y: 14, scale: 0.98 }}
-                      animate={{ opacity: 1, y: 0, scale: 1 }}
-                      exit={{ opacity: 0, y: -10, scale: 0.98 }}
-                      transition={{ duration: 0.2, delay: index * 0.03 }}
-                      className={`rounded-3xl border p-4 transition ${
-                        item.is_read
-                          ? 'border-slate-100 bg-slate-50/75 hover:border-slate-200 hover:bg-white'
-                          : 'border-bird-blue/15 bg-white shadow-[0_16px_32px_rgba(37,99,235,0.08)] hover:-translate-y-0.5 hover:shadow-[0_20px_36px_rgba(37,99,235,0.14)]'
-                      }`}
-                    >
-                      <div className="flex items-start justify-between gap-3">
-                        <div
-                          className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br text-lg shadow-sm ${
-                            eventAccentClasses[item.event_type] || 'from-slate-500 to-slate-400 text-white'
-                          }`}
-                        >
-                          <span>{renderEventGlyph(item.event_type)}</span>
-                        </div>
-                        <div className="min-w-0">
-                          <div className="flex flex-wrap items-center gap-2">
-                            <span className={`rounded-full border px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.14em] ${toneClasses[item.tone]}`}>
-                              {eventLabelMap[item.event_type] || item.event_type.replace(/_/g, ' ')}
-                            </span>
-                            {!item.is_read && <span className="h-2.5 w-2.5 rounded-full bg-bird-orange shadow-[0_0_0_4px_rgba(255,140,0,0.15)]" />}
-                            <span className="text-[11px] font-semibold text-slate-400">{formatTimeAgo(item.created_at)}</span>
-                          </div>
-                          <p className="mt-2 text-sm font-black text-slate-900">{item.title}</p>
-                          <p className="mt-1 text-xs leading-5 text-slate-600">{item.message}</p>
-                        </div>
-                      </div>
-
-                      <div className="mt-3 flex items-center justify-between gap-2">
-                        <button
-                          type="button"
-                          onClick={() => void markOneRead(item.id_notification)}
-                          className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-[11px] font-black text-slate-600 transition hover:-translate-y-0.5 hover:border-bird-blue/25 hover:text-bird-blue"
-                        >
-                          {item.is_read ? 'Read' : 'Mark read'}
-                        </button>
-                        {item.action_url && (
-                          <button
-                            type="button"
-                            onClick={() => {
-                              void markOneRead(item.id_notification);
-                              openNotificationUrl(item.action_url);
-                              setIsOpen(false);
-                            }}
-                            className="rounded-full bg-bird-blue px-3 py-1.5 text-[11px] font-black text-white shadow-sm shadow-blue-200 transition hover:-translate-y-0.5 hover:bg-blue-700"
-                          >
-                            Open
-                          </button>
-                        )}
-                      </div>
-                    </motion.div>
-                  ))}
-                  </AnimatePresence>
-                </motion.div>
-              )}
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      {variant === 'panel'
+        ? createPortal(
+            <AnimatePresence>{isOpen && dropdown}</AnimatePresence>,
+            document.body
+          )
+        : <AnimatePresence>{isOpen && dropdown}</AnimatePresence>
+      }
     </div>
   );
 };

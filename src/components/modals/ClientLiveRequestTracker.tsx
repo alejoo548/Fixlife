@@ -558,7 +558,7 @@ const ClientLiveRequestTracker: React.FC<ClientLiveRequestTrackerProps> = ({ lea
             return;
         }
 
-        let aborted = false;
+        const controller = new AbortController();
 
         const loadRoute = async () => {
             setRouteLoading(true);
@@ -569,7 +569,7 @@ const ClientLiveRequestTracker: React.FC<ClientLiveRequestTrackerProps> = ({ lea
                     steps: 'false',
                 });
                 const routeUrl = `https://router.project-osrm.org/route/v1/driving/${workerStartCoords.lng},${workerStartCoords.lat};${destinationCoords.lng},${destinationCoords.lat}?${params.toString()}`;
-                const res = await fetch(routeUrl);
+                const res = await fetch(routeUrl, { signal: controller.signal });
                 const payload = await res.json();
                 const route = payload?.routes?.[0];
                 const coordinates = Array.isArray(route?.geometry?.coordinates)
@@ -617,7 +617,7 @@ const ClientLiveRequestTracker: React.FC<ClientLiveRequestTrackerProps> = ({ lea
                     2
                 );
 
-                if (!aborted) {
+                if (!controller.signal.aborted) {
                     setRoutePreview({
                         points,
                         distanceKm: Number(exactDistanceKm.toFixed(2)),
@@ -625,14 +625,15 @@ const ClientLiveRequestTracker: React.FC<ClientLiveRequestTrackerProps> = ({ lea
                         cumulativeKm: profile.cumulativeKm,
                     });
                 }
-            } catch {
+            } catch (err) {
+                if ((err as DOMException)?.name === 'AbortError') return;
                 const fallbackDistanceKm = haversineKm(workerStartCoords, destinationCoords);
                 const points: [number, number][] = [
                     [workerStartCoords.lat, workerStartCoords.lng],
                     [destinationCoords.lat, destinationCoords.lng],
                 ];
                 const profile = buildRouteDistanceProfile(points);
-                if (!aborted) {
+                if (!controller.signal.aborted) {
                     setRoutePreview({
                         points,
                         distanceKm: Number(fallbackDistanceKm.toFixed(2)),
@@ -641,14 +642,14 @@ const ClientLiveRequestTracker: React.FC<ClientLiveRequestTrackerProps> = ({ lea
                     });
                 }
             } finally {
-                if (!aborted) setRouteLoading(false);
+                if (!controller.signal.aborted) setRouteLoading(false);
             }
         };
 
         void loadRoute();
 
         return () => {
-            aborted = true;
+            controller.abort();
         };
     }, [destinationCoords, request.id_request, workerStartCoords]);
 

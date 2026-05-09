@@ -191,8 +191,10 @@ export function useServiceRequestMap({
         }
         currentRadiusRef.current = null;
       }
-      map.setView([13.6929, -89.2182], 12);
-      lastCenteredCoordsRef.current = null;
+      if (lastCenteredCoordsRef.current !== null) {
+        map.setView([13.6929, -89.2182], 12);
+        lastCenteredCoordsRef.current = null;
+      }
       return;
     }
 

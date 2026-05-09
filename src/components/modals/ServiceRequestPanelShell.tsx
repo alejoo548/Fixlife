@@ -24,10 +24,10 @@ export function ServiceRequestPanelShell({
             animate={isDesktopSheet ? { opacity: 1, x: 0 } : { y: 0, opacity: 1 }}
             exit={isDesktopSheet ? { opacity: 0, x: -16 } : { y: '100%', opacity: 0 }}
             transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-            className={`pointer-events-auto flex flex-col bg-white/96 relative z-20 overflow-hidden border-white/70 backdrop-blur-xl ${
+            className={`pointer-events-auto flex flex-col bg-white/96 relative z-20 border-white/70 backdrop-blur-xl ${
                 isDesktopSheet
-                    ? `h-full w-[430px] lg:w-[500px] border-r border-slate-200/80 shadow-[2px_0_24px_rgba(15,23,42,0.10)]`
-                    : `${step === 1 && !hasActiveTrackedRequest ? 'h-[72vh]' : 'h-[72vh]'} w-full rounded-t-[2rem] border border-b-0 shadow-[0_-12px_40px_rgba(15,23,42,0.12)] mt-auto`
+                    ? `h-full w-[430px] lg:w-[500px] border-r border-slate-200/80 shadow-[2px_0_24px_rgba(15,23,42,0.10)] overflow-visible`
+                    : `${step === 1 && !hasActiveTrackedRequest ? 'h-[72vh]' : 'h-[72vh]'} w-full rounded-t-[2rem] border border-b-0 shadow-[0_-12px_40px_rgba(15,23,42,0.12)] mt-auto overflow-hidden`
             }`}
         >
             {/* Mobile drag handle */}

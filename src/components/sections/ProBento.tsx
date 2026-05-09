@@ -138,7 +138,7 @@ export const ProBento: React.FC<ProBentoProps> = ({ onOpenPro, onOpenWorkerAuth 
             ))}
           </div>
 
-          {!isAuthenticated('worker') && (
+          {!isAuthenticated('worker') && !isAuthenticated() && (
           <div className="flex flex-col sm:flex-row items-center gap-4 justify-center lg:justify-start">
             <motion.button
               whileHover={{ scale: 1.05 }}
