@@ -7,7 +7,7 @@ type SqlExecutor = {
 };
 
 export const URGENCY_LEVELS = ['standard', 'urgent', 'emergency'] as const;
-export const WORKER_TIERS = ['standard', 'verified', 'premium', 'elite'] as const;
+export const WORKER_TIERS = ['standard', 'verified', 'trusted', 'elite'] as const;
 
 export type CommissionUrgencyLevel = (typeof URGENCY_LEVELS)[number];
 export type CommissionWorkerTier = (typeof WORKER_TIERS)[number];
@@ -162,7 +162,7 @@ export const normalizeUrgencyLevel = (value: unknown): CommissionUrgencyLevel =>
 export const normalizeWorkerTier = (value: unknown): CommissionWorkerTier => {
   const normalized = String(value || '').trim().toLowerCase();
   if (normalized === 'verified') return 'verified';
-  if (normalized === 'premium') return 'premium';
+  if (normalized === 'trusted' || normalized === 'premium') return 'trusted';
   if (normalized === 'elite') return 'elite';
   return 'standard';
 };
@@ -247,7 +247,7 @@ export const ensureCommissionEngineTables = async (executor: SqlExecutor = pool)
       rule_type ENUM('global', 'service', 'urgency', 'worker_tier', 'promo') NOT NULL DEFAULT 'global',
       id_service INT NULL,
       urgency_level ENUM('standard', 'urgent', 'emergency') NULL,
-      worker_tier ENUM('standard', 'verified', 'premium', 'elite') NULL,
+      worker_tier ENUM('standard', 'verified', 'trusted', 'premium', 'elite') NULL,
       promo_code VARCHAR(40) NULL,
       adjustment_mode ENUM('set_rate', 'add_rate', 'subtract_rate') NOT NULL DEFAULT 'set_rate',
       rate_percent DECIMAL(6,4) NOT NULL DEFAULT 0.1200,
@@ -289,9 +289,19 @@ export const ensureCommissionEngineTables = async (executor: SqlExecutor = pool)
   if (!commissionColSet.has('worker_tier')) {
     await executor.execute(
       `ALTER TABLE commission_rules
-       ADD COLUMN worker_tier ENUM('standard', 'verified', 'premium', 'elite') NULL AFTER urgency_level`
+       ADD COLUMN worker_tier ENUM('standard', 'verified', 'trusted', 'premium', 'elite') NULL AFTER urgency_level`
     );
+  } else {
+    await executor.execute(`
+      ALTER TABLE commission_rules
+      MODIFY COLUMN worker_tier ENUM('standard', 'verified', 'trusted', 'premium', 'elite') NULL
+    `);
   }
+  await executor.execute(`
+    UPDATE commission_rules
+    SET worker_tier = 'trusted'
+    WHERE worker_tier = 'premium'
+  `);
   if (!commissionColSet.has('promo_code')) {
     await executor.execute(
       `ALTER TABLE commission_rules
@@ -324,9 +334,20 @@ export const ensureCommissionEngineTables = async (executor: SqlExecutor = pool)
   if (!workerProfileColSet.has('membership_tier')) {
     await executor.execute(
       `ALTER TABLE worker_profiles
-       ADD COLUMN membership_tier ENUM('standard', 'verified', 'premium', 'elite') NOT NULL DEFAULT 'standard'`
+       ADD COLUMN membership_tier ENUM('standard', 'verified', 'trusted', 'premium', 'elite') NOT NULL DEFAULT 'standard'`
     );
+  } else {
+    await executor.execute(`
+      ALTER TABLE worker_profiles
+      MODIFY COLUMN membership_tier ENUM('standard', 'verified', 'trusted', 'premium', 'elite') NOT NULL DEFAULT 'standard'
+    `);
   }
+
+  await executor.execute(`
+    UPDATE worker_profiles
+    SET membership_tier = 'trusted'
+    WHERE membership_tier = 'premium'
+  `);
   await executor.execute(`
     UPDATE worker_profiles
     SET membership_tier = CASE

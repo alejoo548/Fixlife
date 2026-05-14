@@ -6,6 +6,10 @@ import { AuthProvider } from './context/AuthContext';
 import { BrowserRouter } from 'react-router-dom';
 import { AppErrorBoundary } from './components/common/AppErrorBoundary';
 
+if (window.location.hostname === '127.0.0.1' && window.location.port === '3000') {
+  window.location.replace(`http://localhost:3000${window.location.pathname}${window.location.search}${window.location.hash}`);
+}
+
 const rootElement = document.getElementById('root');
 if (!rootElement) {
   throw new Error("Could not find root element to mount to");

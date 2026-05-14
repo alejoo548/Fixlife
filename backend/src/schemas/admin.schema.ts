@@ -188,7 +188,7 @@ export const AdminSchema = {
     worker_tier_adjustments: z
       .array(
         z.object({
-          worker_tier: z.enum(['standard', 'verified', 'premium', 'elite']),
+          worker_tier: z.enum(['standard', 'verified', 'trusted', 'premium', 'elite']),
           rate_percent: z
             .coerce
             .number()
@@ -220,7 +220,7 @@ export const AdminSchema = {
   workerTierBenefits: z.object({
     benefits: z.array(
       z.object({
-        tier: z.enum(['standard', 'verified', 'premium', 'elite']),
+        tier: z.enum(['standard', 'verified', 'trusted', 'premium', 'elite']),
         priority_weight: z.coerce.number().int().min(1).max(20),
         featured_profile_boost: z.coerce.number().min(1).max(10),
         max_active_leads: z.coerce.number().int().min(1).max(500),
@@ -233,7 +233,7 @@ export const AdminSchema = {
   }),
 
   workerTierUpdate: z.object({
-    membership_tier: z.enum(['standard', 'verified', 'premium', 'elite']),
+    membership_tier: z.enum(['standard', 'verified', 'trusted', 'premium', 'elite']),
     reason: z.string().trim().max(255).optional().or(z.literal('')),
   }),
 

@@ -96,7 +96,8 @@ export const AuthSchema = {
     captchaToken: z
       .string()
       .trim()
-      .min(10, 'Captcha token is required.'),
+      .min(10, 'Captcha token is required.')
+      .optional(),
   }),
 
   googleLogin: z.object({

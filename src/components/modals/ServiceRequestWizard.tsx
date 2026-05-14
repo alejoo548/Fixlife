@@ -173,7 +173,7 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
     const [nearbyWorkers, setNearbyWorkers] = useState<NearbyWorker[]>([]);
     const [radiusKm, setRadiusKm] = useState<number>(8);
     const [isSubmittingRequest, setIsSubmittingRequest] = useState(false);
-    const { fetchMyRequests, historyLoading, historyStatus, myRequests, setHistoryStatus } =
+    const { fetchMyRequests, historyLoading, historyStatus, myRequests, setHistoryStatus, setMyRequests } =
         useServiceRequestHistory<MyServiceRequest>(isOpen);
     const [counterBusyId, setCounterBusyId] = useState<number | null>(null);
     const [workerApprovalBusyId, setWorkerApprovalBusyId] = useState<number | null>(null);
@@ -1192,7 +1192,39 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
 
     useSSE({
         token: getToken(),
-        events: { request_updated: () => { if (isOpen && isAuthenticated()) void fetchMyRequests(historyStatus, true); } },
+        events: {
+            request_updated: () => { if (isOpen && isAuthenticated()) void fetchMyRequests(historyStatus, true); },
+            worker_location: (data: unknown) => {
+                const payload = data as {
+                    id_request?: number;
+                    id_worker_profile?: number;
+                    latitude?: number;
+                    longitude?: number;
+                    is_online?: boolean;
+                    request_status?: string;
+                } | null;
+                const idRequest = Number(payload?.id_request || 0);
+                const lat = Number(payload?.latitude);
+                const lng = Number(payload?.longitude);
+                if (!idRequest || !Number.isFinite(lat) || !Number.isFinite(lng)) return;
+
+                setMyRequests((prev) =>
+                    prev.map((request) => {
+                        if (request.id_request !== idRequest || !request.assigned_worker) return request;
+                        return {
+                            ...request,
+                            status: payload?.request_status || request.status,
+                            assigned_worker: {
+                                ...request.assigned_worker,
+                                latitude: lat,
+                                longitude: lng,
+                                is_online: payload?.is_online ?? request.assigned_worker.is_online ?? true,
+                            },
+                        };
+                    })
+                );
+            },
+        },
         enabled: isOpen && isAuthenticated(),
     });
 

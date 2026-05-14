@@ -360,7 +360,8 @@ const formatEta = (durationMin: number) => {
 const statusToStage = (statusRaw: RequestStatus): TrackerStage => {
     const status = String(statusRaw || '').toLowerCase();
     if (status === 'done') return 'completed';
-    if (status === 'awaiting_confirmation' || status === 'in_progress') return 'work_in_progress';
+    if (status === 'awaiting_confirmation') return 'work_in_progress';
+    if (status === 'in_progress') return 'on_the_way';
     if (status === 'paid') return 'on_the_way';
     if (status === 'payment_pending') return 'awaiting_payment';
     return 'worker_accepted';
@@ -457,6 +458,7 @@ const ClientLiveRequestTracker: React.FC<ClientLiveRequestTrackerProps> = ({ lea
     const previousStageRef = useRef<TrackerStage | null>(null);
     const previousRequestIdRef = useRef<number | null>(null);
     const lastToastRef = useRef<{ tone: 'success' | 'info'; message: string; at: number } | null>(null);
+    const routeOriginRequestIdRef = useRef<number | null>(null);
 
     const [routeLoading, setRouteLoading] = useState(false);
     const [routePreview, setRoutePreview] = useState<{
@@ -465,6 +467,7 @@ const ClientLiveRequestTracker: React.FC<ClientLiveRequestTrackerProps> = ({ lea
         durationMin: number;
         cumulativeKm: number[];
     } | null>(null);
+    const [routeOriginCoords, setRouteOriginCoords] = useState<{ lat: number; lng: number } | null>(null);
     const [displayedWorkerCoords, setDisplayedWorkerCoords] = useState<{ lat: number; lng: number } | null>(null);
     const [metrics, setMetrics] = useState<{ distanceKm: number; durationMin: number } | null>(null);
     const [trackerStage, setTrackerStage] = useState<TrackerStage>(statusToStage(request.status));
@@ -503,7 +506,28 @@ const ClientLiveRequestTracker: React.FC<ClientLiveRequestTrackerProps> = ({ lea
         };
     }, [destinationCoords, request.assigned_worker?.latitude, request.assigned_worker?.longitude]);
 
-    const isLiveRoute = String(request.status || '').toLowerCase() === 'paid';
+    const liveWorkerCoords = useMemo(() => {
+        if (request.assigned_worker?.latitude == null || request.assigned_worker?.longitude == null) return null;
+        const lat = Number(request.assigned_worker.latitude);
+        const lng = Number(request.assigned_worker.longitude);
+        if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+        return { lat, lng };
+    }, [request.assigned_worker?.latitude, request.assigned_worker?.longitude]);
+
+    useEffect(() => {
+        if (routeOriginRequestIdRef.current !== request.id_request) {
+            routeOriginRequestIdRef.current = request.id_request;
+            setRouteOriginCoords(workerStartCoords);
+            setDisplayedWorkerCoords(workerStartCoords);
+            return;
+        }
+
+        if (!routeOriginCoords && workerStartCoords) {
+            setRouteOriginCoords(workerStartCoords);
+        }
+    }, [request.id_request, routeOriginCoords, workerStartCoords]);
+
+    const isLiveRoute = ['paid', 'in_progress'].includes(String(request.status || '').toLowerCase());
     const visibleRoutePoints = useMemo(() => {
         if (!routePreview) return null;
         if (!isLiveRoute) return routePreview.points;
@@ -553,7 +577,7 @@ const ClientLiveRequestTracker: React.FC<ClientLiveRequestTrackerProps> = ({ lea
     }, [leafletReady]);
 
     useEffect(() => {
-        if (!workerStartCoords || !destinationCoords) {
+        if (!routeOriginCoords || !destinationCoords) {
             setRoutePreview(null);
             return;
         }
@@ -568,7 +592,7 @@ const ClientLiveRequestTracker: React.FC<ClientLiveRequestTrackerProps> = ({ lea
                     geometries: 'geojson',
                     steps: 'false',
                 });
-                const routeUrl = `https://router.project-osrm.org/route/v1/driving/${workerStartCoords.lng},${workerStartCoords.lat};${destinationCoords.lng},${destinationCoords.lat}?${params.toString()}`;
+                const routeUrl = `https://router.project-osrm.org/route/v1/driving/${routeOriginCoords.lng},${routeOriginCoords.lat};${destinationCoords.lng},${destinationCoords.lat}?${params.toString()}`;
                 const res = await fetch(routeUrl, { signal: controller.signal });
                 const payload = await res.json();
                 const route = payload?.routes?.[0];
@@ -582,17 +606,17 @@ const ClientLiveRequestTracker: React.FC<ClientLiveRequestTrackerProps> = ({ lea
 
                 if (points.length < 2) {
                     points = [
-                        [workerStartCoords.lat, workerStartCoords.lng],
+                        [routeOriginCoords.lat, routeOriginCoords.lng],
                         [destinationCoords.lat, destinationCoords.lng],
                     ];
                 }
 
                 if (
                     points.length === 0 ||
-                    points[0][0] !== workerStartCoords.lat ||
-                    points[0][1] !== workerStartCoords.lng
+                    points[0][0] !== routeOriginCoords.lat ||
+                    points[0][1] !== routeOriginCoords.lng
                 ) {
-                    points.unshift([workerStartCoords.lat, workerStartCoords.lng]);
+                    points.unshift([routeOriginCoords.lat, routeOriginCoords.lng]);
                 }
 
                 const lastPoint = points[points.length - 1];
@@ -605,7 +629,7 @@ const ClientLiveRequestTracker: React.FC<ClientLiveRequestTrackerProps> = ({ lea
                 }
 
                 const profile = buildRouteDistanceProfile(points);
-                const fallbackDistanceKm = haversineKm(workerStartCoords, destinationCoords);
+                const fallbackDistanceKm = haversineKm(routeOriginCoords, destinationCoords);
                 const exactDistanceKm = Math.max(
                     profile.totalKm,
                     Number(route?.distance || 0) / 1000,
@@ -627,9 +651,9 @@ const ClientLiveRequestTracker: React.FC<ClientLiveRequestTrackerProps> = ({ lea
                 }
             } catch (err) {
                 if ((err as DOMException)?.name === 'AbortError') return;
-                const fallbackDistanceKm = haversineKm(workerStartCoords, destinationCoords);
+                const fallbackDistanceKm = haversineKm(routeOriginCoords, destinationCoords);
                 const points: [number, number][] = [
-                    [workerStartCoords.lat, workerStartCoords.lng],
+                    [routeOriginCoords.lat, routeOriginCoords.lng],
                     [destinationCoords.lat, destinationCoords.lng],
                 ];
                 const profile = buildRouteDistanceProfile(points);
@@ -651,7 +675,7 @@ const ClientLiveRequestTracker: React.FC<ClientLiveRequestTrackerProps> = ({ lea
         return () => {
             controller.abort();
         };
-    }, [destinationCoords, request.id_request, workerStartCoords]);
+    }, [destinationCoords, request.id_request, routeOriginCoords]);
 
     useEffect(() => {
         if (animationFrameRef.current) {
@@ -660,13 +684,14 @@ const ClientLiveRequestTracker: React.FC<ClientLiveRequestTrackerProps> = ({ lea
         }
 
         if (!routePreview || !workerStartCoords || !destinationCoords) {
-            setDisplayedWorkerCoords(workerStartCoords);
+            setDisplayedWorkerCoords(liveWorkerCoords || workerStartCoords);
             setMetrics(null);
             setTrackerStage(statusToStage(request.status));
             return;
         }
 
         const status = String(request.status || '').toLowerCase();
+        const currentWorkerCoords = liveWorkerCoords || workerStartCoords;
 
         if (status === 'done') {
             setDisplayedWorkerCoords(destinationCoords);
@@ -675,7 +700,7 @@ const ClientLiveRequestTracker: React.FC<ClientLiveRequestTrackerProps> = ({ lea
             return;
         }
 
-        if (status === 'in_progress' || status === 'awaiting_confirmation') {
+        if (status === 'awaiting_confirmation') {
             setDisplayedWorkerCoords(destinationCoords);
             setMetrics({ distanceKm: 0, durationMin: 0 });
             setTrackerStage('work_in_progress');
@@ -683,7 +708,7 @@ const ClientLiveRequestTracker: React.FC<ClientLiveRequestTrackerProps> = ({ lea
         }
 
         if (status === 'assigned') {
-            setDisplayedWorkerCoords(workerStartCoords);
+            setDisplayedWorkerCoords(currentWorkerCoords);
             setMetrics({
                 distanceKm: routePreview.distanceKm,
                 durationMin: routePreview.durationMin,
@@ -693,7 +718,7 @@ const ClientLiveRequestTracker: React.FC<ClientLiveRequestTrackerProps> = ({ lea
         }
 
         if (status === 'payment_pending') {
-            setDisplayedWorkerCoords(workerStartCoords);
+            setDisplayedWorkerCoords(currentWorkerCoords);
             setMetrics({
                 distanceKm: routePreview.distanceKm,
                 durationMin: routePreview.durationMin,
@@ -702,8 +727,8 @@ const ClientLiveRequestTracker: React.FC<ClientLiveRequestTrackerProps> = ({ lea
             return;
         }
 
-        if (status !== 'paid') {
-            setDisplayedWorkerCoords(workerStartCoords);
+        if (status !== 'paid' && status !== 'in_progress') {
+            setDisplayedWorkerCoords(currentWorkerCoords);
             setMetrics({
                 distanceKm: routePreview.distanceKm,
                 durationMin: routePreview.durationMin,
@@ -712,52 +737,28 @@ const ClientLiveRequestTracker: React.FC<ClientLiveRequestTrackerProps> = ({ lea
             return;
         }
 
-        const totalKm = routePreview.distanceKm;
-        const totalDurationMin = routePreview.durationMin;
-        const totalDurationMs = Math.min(Math.max(totalDurationMin * 60 * 1000 * 0.09, 9000), 22000);
-        const startTime = performance.now();
+        setDisplayedWorkerCoords(currentWorkerCoords);
+        const remainingPoints = getRemainingRoutePoints(routePreview.points, currentWorkerCoords);
+        const remainingDistanceKm = Math.min(
+            polylineDistanceKm(remainingPoints),
+            haversineKm(currentWorkerCoords, destinationCoords) * 1.35 || routePreview.distanceKm
+        );
+        const remainingDurationMin = Math.max((remainingDistanceKm / 22) * 60, remainingDistanceKm > 0.04 ? 1 : 0);
+        setMetrics({
+            distanceKm: Number(remainingDistanceKm.toFixed(2)),
+            durationMin: Number(remainingDurationMin.toFixed(1)),
+        });
 
-        const tick = (now: number) => {
-            const progress = Math.min((now - startTime) / totalDurationMs, 1);
-            const eased = 1 - Math.pow(1 - progress, 1.45);
-            const travelledKm = totalKm * eased;
-            const point =
-                getPointAtDistanceKm(routePreview.points, routePreview.cumulativeKm, travelledKm) ||
-                destinationCoords;
-            const remainingDistanceKm = Math.max(totalKm - travelledKm, 0);
-            const remainingDurationMin = Math.max(totalDurationMin * (1 - eased), 0);
-
-            setDisplayedWorkerCoords(point);
-            setMetrics({
-                distanceKm: Number(remainingDistanceKm.toFixed(2)),
-                durationMin: Number(remainingDurationMin.toFixed(1)),
-            });
-
-            if (eased >= 1) {
-                setTrackerStage('arrived');
-                animationFrameRef.current = null;
-                return;
-            }
-
-            if (eased >= 0.86) {
-                setTrackerStage('nearby');
-            } else {
-                setTrackerStage('on_the_way');
-            }
-
-            animationFrameRef.current = window.requestAnimationFrame(tick);
-        };
-
-        setTrackerStage('payment_secured');
-        animationFrameRef.current = window.requestAnimationFrame(tick);
-
-        return () => {
-            if (animationFrameRef.current) {
-                window.cancelAnimationFrame(animationFrameRef.current);
-                animationFrameRef.current = null;
-            }
-        };
-    }, [destinationCoords, request.id_request, request.status, routePreview, workerStartCoords]);
+        if (status === 'paid') {
+            setTrackerStage('payment_secured');
+        } else if (remainingDistanceKm <= 0.04) {
+            setTrackerStage('arrived');
+        } else if (remainingDistanceKm <= 0.25) {
+            setTrackerStage('nearby');
+        } else {
+            setTrackerStage('on_the_way');
+        }
+    }, [destinationCoords, liveWorkerCoords, request.id_request, request.status, routePreview, workerStartCoords]);
 
     useEffect(() => {
         if (!mapInstanceRef.current || !window.L || !routePreview) return;
@@ -861,7 +862,7 @@ const ClientLiveRequestTracker: React.FC<ClientLiveRequestTrackerProps> = ({ lea
             workerMarkerRef.current.setLatLng([displayedWorkerCoords.lat, displayedWorkerCoords.lng]);
         }
 
-        workerMarkerRef.current.bindPopup(`<b>${request.assigned_worker?.name || 'Worker'}</b><br/>Live demo position`);
+        workerMarkerRef.current.bindPopup(`<b>${request.assigned_worker?.name || 'Worker'}</b><br/>Live position`);
     }, [displayedWorkerCoords, request.assigned_worker?.name]);
 
     useEffect(() => {

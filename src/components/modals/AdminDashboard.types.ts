@@ -59,7 +59,11 @@ export interface AdminUser {
   is_active: number | boolean;
   id_worker_profile?: number | null;
   is_verified?: number | boolean | null;
-  membership_tier?: 'standard' | 'verified' | 'premium' | 'elite' | string | null;
+  membership_tier?: 'standard' | 'verified' | 'trusted' | 'premium' | 'elite' | string | null;
+  days_active?: number | null;
+  completed_jobs?: number | null;
+  rating_average?: number | null;
+  rating_count?: number | null;
 }
 
 export interface AdminRequestHistoryItem {
@@ -128,7 +132,7 @@ export interface AdminCommissionUrgencyAdjustment extends AdminCommissionAdjustm
 }
 
 export interface AdminCommissionTierAdjustment extends AdminCommissionAdjustmentItem {
-  worker_tier: 'standard' | 'verified' | 'premium' | 'elite';
+  worker_tier: 'standard' | 'verified' | 'trusted' | 'premium' | 'elite';
 }
 
 export interface AdminCommissionPromoRule extends AdminCommissionAdjustmentItem {
@@ -233,7 +237,7 @@ export interface AdminFinanceReport {
 }
 
 export interface AdminWorkerTierBenefit {
-  tier: 'standard' | 'verified' | 'premium' | 'elite';
+  tier: 'standard' | 'verified' | 'trusted' | 'premium' | 'elite';
   priority_weight: number;
   featured_profile_boost: number;
   max_active_leads: number;
