@@ -48,7 +48,7 @@ const DEFAULT_TIER_BENEFITS: Record<WorkerTier, {
     support_level: 'standard',
     badge_label: 'Standard Pro',
     monthly_fee: 0,
-    benefits_summary: 'Core marketplace access with standard request distribution.',
+    benefits_summary: 'Entry tier for new or regular workers while they build history on Fixlife.',
   },
   verified: {
     priority_weight: 2,
@@ -57,25 +57,25 @@ const DEFAULT_TIER_BENEFITS: Record<WorkerTier, {
     support_level: 'priority-email',
     badge_label: 'Verified Pro',
     monthly_fee: 0,
-    benefits_summary: 'Trust badge, slightly better visibility and priority email support.',
+    benefits_summary: 'Earned after Fixlife approves identity documents, profile quality and service information.',
   },
-  premium: {
+  trusted: {
     priority_weight: 3,
-    featured_profile_boost: 1.35,
-    max_active_leads: 14,
-    support_level: 'priority-chat',
-    badge_label: 'Premium Pro',
-    monthly_fee: 19,
-    benefits_summary: 'More lead capacity, priority support and elevated profile ranking.',
+    featured_profile_boost: 1.25,
+    max_active_leads: 12,
+    support_level: 'priority-email',
+    badge_label: 'Trusted Pro',
+    monthly_fee: 0,
+    benefits_summary: 'Earned by strong ratings, completed jobs, low cancellations and time active on Fixlife.',
   },
   elite: {
     priority_weight: 4,
-    featured_profile_boost: 1.6,
-    max_active_leads: 20,
-    support_level: 'concierge',
+    featured_profile_boost: 1.45,
+    max_active_leads: 16,
+    support_level: 'priority-support',
     badge_label: 'Elite Pro',
-    monthly_fee: 49,
-    benefits_summary: 'Top placement, concierge support and highest request priority.',
+    monthly_fee: 0,
+    benefits_summary: 'Earned by consistent excellence over time, high ratings and a reliable completion record.',
   },
 };
 
@@ -85,7 +85,7 @@ export const ensureWorkerTierTables = async () => {
   await ensureCommissionEngineTables();
   await pool.execute(`
     CREATE TABLE IF NOT EXISTS worker_tier_benefits (
-      tier ENUM('standard', 'verified', 'premium', 'elite') NOT NULL,
+      tier ENUM('standard', 'verified', 'trusted', 'premium', 'elite') NOT NULL,
       priority_weight INT NOT NULL DEFAULT 1,
       featured_profile_boost DECIMAL(6,2) NOT NULL DEFAULT 1.00,
       max_active_leads INT NOT NULL DEFAULT 5,
@@ -102,8 +102,8 @@ export const ensureWorkerTierTables = async () => {
     CREATE TABLE IF NOT EXISTS worker_tier_history (
       id_history INT NOT NULL AUTO_INCREMENT,
       id_worker_profile INT NOT NULL,
-      previous_tier ENUM('standard', 'verified', 'premium', 'elite') NULL,
-      next_tier ENUM('standard', 'verified', 'premium', 'elite') NOT NULL,
+      previous_tier ENUM('standard', 'verified', 'trusted', 'premium', 'elite') NULL,
+      next_tier ENUM('standard', 'verified', 'trusted', 'premium', 'elite') NOT NULL,
       reason VARCHAR(255) NULL,
       changed_by_user_id INT NULL,
       previous_benefits_json LONGTEXT NULL,
@@ -115,6 +115,52 @@ export const ensureWorkerTierTables = async () => {
       CONSTRAINT fk_worker_tier_history_profile FOREIGN KEY (id_worker_profile) REFERENCES worker_profiles(id_worker_profile) ON DELETE CASCADE,
       CONSTRAINT fk_worker_tier_history_actor FOREIGN KEY (changed_by_user_id) REFERENCES users(id_user) ON DELETE SET NULL
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+  `);
+
+  await pool.execute(`
+    ALTER TABLE worker_tier_benefits
+    MODIFY COLUMN tier ENUM('standard', 'verified', 'trusted', 'premium', 'elite') NOT NULL
+  `);
+  await pool.execute(`
+    ALTER TABLE worker_tier_history
+    MODIFY COLUMN previous_tier ENUM('standard', 'verified', 'trusted', 'premium', 'elite') NULL
+  `);
+  await pool.execute(`
+    ALTER TABLE worker_tier_history
+    MODIFY COLUMN next_tier ENUM('standard', 'verified', 'trusted', 'premium', 'elite') NOT NULL
+  `);
+  await pool.execute(`
+    INSERT INTO worker_tier_benefits (
+      tier,
+      priority_weight,
+      featured_profile_boost,
+      max_active_leads,
+      support_level,
+      badge_label,
+      monthly_fee,
+      benefits_summary
+    )
+    SELECT
+      'trusted',
+      priority_weight,
+      LEAST(featured_profile_boost, 1.25),
+      LEAST(max_active_leads, 12),
+      support_level,
+      CASE WHEN badge_label = 'Premium Pro' THEN 'Trusted Pro' ELSE badge_label END,
+      0,
+      COALESCE(benefits_summary, 'Earned by strong ratings, completed jobs, low cancellations and time active on Fixlife.')
+    FROM worker_tier_benefits
+    WHERE tier = 'premium'
+    ON DUPLICATE KEY UPDATE
+      monthly_fee = 0,
+      badge_label = VALUES(badge_label)
+  `);
+  await pool.execute(`DELETE FROM worker_tier_benefits WHERE tier = 'premium'`);
+  await pool.execute(`
+    UPDATE worker_tier_history SET previous_tier = 'trusted' WHERE previous_tier = 'premium'
+  `);
+  await pool.execute(`
+    UPDATE worker_tier_history SET next_tier = 'trusted' WHERE next_tier = 'premium'
   `);
 
   for (const tier of WORKER_TIERS) {
@@ -163,7 +209,8 @@ export const getWorkerTierBenefits = async () => {
        benefits_summary,
        updated_at
      FROM worker_tier_benefits
-     ORDER BY FIELD(tier, 'standard', 'verified', 'premium', 'elite')`
+     WHERE tier <> 'premium'
+     ORDER BY FIELD(tier, 'standard', 'verified', 'trusted', 'elite')`
   );
 
   return rows.map((row) => ({
@@ -266,7 +313,7 @@ export const updateWorkerMembershipTier = async (input: {
     `UPDATE worker_profiles
      SET membership_tier = ?,
          is_verified = CASE
-           WHEN ? IN ('verified', 'premium', 'elite') AND is_verified = 0 THEN 1
+           WHEN ? IN ('verified', 'trusted', 'premium', 'elite') AND is_verified = 0 THEN 1
            ELSE is_verified
          END
      WHERE id_user = ?`,

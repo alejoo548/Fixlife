@@ -1059,9 +1059,26 @@ export const getUsersAdmin = async (req: AuthRequest, res: Response): Promise<vo
          u.is_active,
          wp.id_worker_profile,
          wp.is_verified,
-         wp.membership_tier
+         wp.membership_tier,
+         DATEDIFF(CURRENT_DATE, DATE(u.created_at)) AS days_active,
+         COALESCE(worker_stats.completed_jobs, 0) AS completed_jobs,
+         worker_stats.rating_average,
+         COALESCE(worker_stats.rating_count, 0) AS rating_count
        FROM users u
        LEFT JOIN worker_profiles wp ON wp.id_user = u.id_user
+       LEFT JOIN (
+         SELECT
+           wp_stats.id_worker_profile,
+           COUNT(DISTINCT CASE WHEN sr.status = 'done' THEN sr.id_request END) AS completed_jobs,
+           COALESCE(AVG((rr.punctuality + rr.quality + rr.price_fairness) / 3), NULL) AS rating_average,
+           COUNT(DISTINCT rr.id_rating) AS rating_count
+         FROM worker_profiles wp_stats
+         LEFT JOIN service_requests sr
+           ON sr.assigned_worker_profile = wp_stats.id_worker_profile
+         LEFT JOIN service_request_ratings rr
+           ON rr.id_worker_profile = wp_stats.id_worker_profile
+         GROUP BY wp_stats.id_worker_profile
+       ) worker_stats ON worker_stats.id_worker_profile = wp.id_worker_profile
        ${whereSql}
        ORDER BY u.created_at DESC
        LIMIT 500`,
@@ -1082,7 +1099,11 @@ export const getUsersAdmin = async (req: AuthRequest, res: Response): Promise<vo
       is_active: row.is_active ? 1 : 0,
       id_worker_profile: row.id_worker_profile != null ? Number(row.id_worker_profile) : null,
       is_verified: row.is_verified != null ? Number(row.is_verified) : null,
-      membership_tier: row.membership_tier ? String(row.membership_tier) : null,
+      membership_tier: row.membership_tier === 'premium' ? 'trusted' : row.membership_tier ? String(row.membership_tier) : null,
+      days_active: row.days_active != null ? Number(row.days_active) : null,
+      completed_jobs: row.completed_jobs != null ? Number(row.completed_jobs) : 0,
+      rating_average: row.rating_average != null ? Number(row.rating_average) : null,
+      rating_count: row.rating_count != null ? Number(row.rating_count) : 0,
     }));
 
     res.json({ success: true, users });

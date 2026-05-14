@@ -56,5 +56,6 @@ export const useServiceRequestHistory = <TRequest,>(isOpen: boolean) => {
     historyStatus,
     myRequests,
     setHistoryStatus,
+    setMyRequests,
   };
 };

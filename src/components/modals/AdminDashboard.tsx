@@ -666,7 +666,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ isOpen, onClose 
           priority_weight: Number(item.priority_weight || 0),
           featured_profile_boost: Number(item.featured_profile_boost || 0),
           max_active_leads: Number(item.max_active_leads || 0),
-          monthly_fee: Number(item.monthly_fee || 0),
+          monthly_fee: 0,
           benefits_summary: item.benefits_summary || '',
         })),
       };
@@ -724,7 +724,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ isOpen, onClose 
             ? {
                 ...userItem,
                 membership_tier: nextTier,
-                is_verified: ['verified', 'premium', 'elite'].includes(nextTier) ? 1 : userItem.is_verified,
+                is_verified: ['verified', 'trusted', 'premium', 'elite'].includes(nextTier) ? 1 : userItem.is_verified,
               }
             : userItem
         )
@@ -736,6 +736,26 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ isOpen, onClose 
     } finally {
       setTierUpdateBusyId(null);
     }
+  };
+
+  const getWorkerTierEvidence = (account: AdminUser) => {
+    const jobs = Number(account.completed_jobs || 0);
+    const rating = account.rating_average != null ? Number(account.rating_average) : null;
+    const ratingCount = Number(account.rating_count || 0);
+    const days = Number(account.days_active || 0);
+    const ratingText = rating != null && ratingCount > 0 ? `${rating.toFixed(1)} rating` : 'No ratings yet';
+    return `${jobs} jobs · ${ratingText} · ${days} days active`;
+  };
+
+  const getRecommendedWorkerTier = (account: AdminUser) => {
+    const jobs = Number(account.completed_jobs || 0);
+    const rating = account.rating_average != null ? Number(account.rating_average) : 0;
+    const days = Number(account.days_active || 0);
+    const verified = account.is_verified === true || account.is_verified === 1;
+    if (verified && jobs >= 50 && rating >= 4.8 && days >= 90) return 'elite';
+    if (verified && jobs >= 10 && rating >= 4.7 && days >= 30) return 'trusted';
+    if (verified) return 'verified';
+    return 'standard';
   };
 
   // ─── Stats API ─────────────────────────────────────────────────────────
@@ -1813,7 +1833,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ isOpen, onClose 
           <div>
             <h2 className="text-2xl font-black text-gray-900">Worker tiers and benefits</h2>
             <p className="text-sm text-gray-500 font-medium">
-              Control visibility, lead caps, support level and monthly fee for each worker tier.
+              Configure earned trust levels based on verification, completed jobs, ratings and time active.
             </p>
           </div>
           <button
@@ -1823,6 +1843,19 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ isOpen, onClose 
           >
             {savingTierBenefits ? 'Saving...' : 'Save tier benefits'}
           </button>
+        </div>
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-4">
+          {[
+            ['Standard', 'Default level while the worker builds history.'],
+            ['Verified', 'Documents, identity and profile reviewed by Fixlife.'],
+            ['Trusted', 'Strong rating, completed jobs, low cancellations and time active.'],
+            ['Elite', 'Consistent excellence over time with a reliable completion record.'],
+          ].map(([title, copy]) => (
+            <div key={title} className="rounded-2xl border border-gray-200 bg-white/80 p-4">
+              <p className="text-xs font-black uppercase tracking-[0.18em] text-bird-blue">{title}</p>
+              <p className="mt-2 text-sm font-semibold leading-relaxed text-gray-600">{copy}</p>
+            </div>
+          ))}
         </div>
 
         {tierBenefitsLoading ? (
@@ -1839,7 +1872,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ isOpen, onClose 
                     <p className="text-xs font-black uppercase tracking-[0.18em] text-bird-blue">{benefit.tier}</p>
                   </div>
                   <span className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-[11px] font-black uppercase tracking-[0.16em] text-emerald-700">
-                    ${Number(benefit.monthly_fee || 0).toFixed(2)}/mo
+                    earned level
                   </span>
                 </div>
                 <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2">
@@ -1864,8 +1897,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ isOpen, onClose 
                     <input type="number" min={1} max={500} value={benefit.max_active_leads} onChange={(e) => handleWorkerTierBenefitChange(benefit.tier, 'max_active_leads', e.target.value)} className="w-full rounded-2xl border border-gray-200 bg-white px-3 py-2 text-sm font-semibold text-gray-900" />
                   </label>
                   <label className="space-y-1">
-                    <span className="text-[11px] font-black uppercase tracking-[0.16em] text-gray-500">Monthly fee</span>
-                    <input type="number" min={0} max={9999} step="0.01" value={benefit.monthly_fee} onChange={(e) => handleWorkerTierBenefitChange(benefit.tier, 'monthly_fee', e.target.value)} className="w-full rounded-2xl border border-gray-200 bg-white px-3 py-2 text-sm font-semibold text-gray-900" />
+                    <span className="text-[11px] font-black uppercase tracking-[0.16em] text-gray-500">Worker fee</span>
+                    <input type="number" min={0} max={0} step="0.01" value={benefit.monthly_fee} onChange={(e) => handleWorkerTierBenefitChange(benefit.tier, 'monthly_fee', e.target.value)} className="w-full rounded-2xl border border-gray-200 bg-white px-3 py-2 text-sm font-semibold text-gray-900" />
                   </label>
                   <label className="space-y-1 md:col-span-2">
                     <span className="text-[11px] font-black uppercase tracking-[0.16em] text-gray-500">Summary</span>
@@ -1977,18 +2010,24 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ isOpen, onClose 
                         </td>
                         <td className="px-4 py-3">
                           {isWorker && account.id_worker_profile ? (
-                            <select
-                              disabled={isBusy}
-                              value={account.membership_tier || 'standard'}
-                              onChange={(e) => handleUpdateWorkerTier(account, e.target.value)}
-                              className="rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs font-bold"
-                            >
-                              {COMMISSION_TIER_OPTIONS.map((option) => (
-                                <option key={option.key} value={option.key}>
-                                  {option.label}
-                                </option>
-                              ))}
-                            </select>
+                            <div className="space-y-1">
+                              <select
+                                disabled={isBusy}
+                                value={account.membership_tier === 'premium' ? 'trusted' : account.membership_tier || 'standard'}
+                                onChange={(e) => handleUpdateWorkerTier(account, e.target.value)}
+                                className="rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs font-bold"
+                              >
+                                {COMMISSION_TIER_OPTIONS.map((option) => (
+                                  <option key={option.key} value={option.key}>
+                                    {option.label}
+                                  </option>
+                                ))}
+                              </select>
+                              <p className="text-[11px] font-semibold text-gray-400">{getWorkerTierEvidence(account)}</p>
+                              <p className="text-[11px] font-black uppercase tracking-[0.12em] text-bird-blue">
+                                Suggested: {getRecommendedWorkerTier(account)}
+                              </p>
+                            </div>
                           ) : (
                             <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold bg-gray-100 text-gray-500 border border-gray-200">
                               n/a
@@ -2055,18 +2094,24 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ isOpen, onClose 
                       <div className="col-span-2">
                         <div className="text-[10px] font-bold uppercase text-gray-400">Tier</div>
                         {isWorker && account.id_worker_profile ? (
-                          <select
-                            disabled={isBusy}
-                            value={account.membership_tier || 'standard'}
-                            onChange={(e) => handleUpdateWorkerTier(account, e.target.value)}
-                            className="mt-1 w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs font-bold"
-                          >
-                            {COMMISSION_TIER_OPTIONS.map((option) => (
-                              <option key={option.key} value={option.key}>
-                                {option.label}
-                              </option>
-                            ))}
-                          </select>
+                          <>
+                            <select
+                              disabled={isBusy}
+                              value={account.membership_tier === 'premium' ? 'trusted' : account.membership_tier || 'standard'}
+                              onChange={(e) => handleUpdateWorkerTier(account, e.target.value)}
+                              className="mt-1 w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs font-bold"
+                            >
+                              {COMMISSION_TIER_OPTIONS.map((option) => (
+                                <option key={option.key} value={option.key}>
+                                  {option.label}
+                                </option>
+                              ))}
+                            </select>
+                            <p className="mt-1 text-[11px] font-semibold text-gray-400">{getWorkerTierEvidence(account)}</p>
+                            <p className="text-[11px] font-black uppercase tracking-[0.12em] text-bird-blue">
+                              Suggested: {getRecommendedWorkerTier(account)}
+                            </p>
+                          </>
                         ) : (
                           <div className="mt-1 text-xs font-semibold text-gray-500">n/a</div>
                         )}
@@ -4178,8 +4223,8 @@ const renderRequestsHistoryTab = () => {
       ? data.worker_tier_adjustments.map((rule: any) => ({
           id_rule: Number(rule.id_rule || 0),
           worker_tier:
-            rule.worker_tier === 'verified' || rule.worker_tier === 'premium' || rule.worker_tier === 'elite'
-              ? rule.worker_tier
+            rule.worker_tier === 'verified' || rule.worker_tier === 'trusted' || rule.worker_tier === 'premium' || rule.worker_tier === 'elite'
+              ? rule.worker_tier === 'premium' ? 'trusted' : rule.worker_tier
               : 'standard',
           rate_percent: Number(rule.rate_percent || 0),
           is_active: rule.is_active !== false,
@@ -4276,7 +4321,7 @@ const renderRequestsHistoryTab = () => {
       }))
       .filter(
         (rule) =>
-          ['standard', 'verified', 'premium', 'elite'].includes(rule.worker_tier) &&
+          ['standard', 'verified', 'trusted', 'premium', 'elite'].includes(rule.worker_tier) &&
           Number.isFinite(rule.rate_percent) &&
           rule.rate_percent >= 0 &&
           rule.rate_percent <= 50

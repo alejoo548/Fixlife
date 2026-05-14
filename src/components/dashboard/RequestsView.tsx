@@ -1533,7 +1533,13 @@ export const RequestsView: React.FC<RequestsViewProps> = ({ isOnline, mobileView
         return;
       }
 
-      notyf.success(action === 'start' ? 'Job started.' : 'Job marked as completed.');
+      if (action === 'start') {
+        setSelectedRequestId(idRequest);
+        setActiveRouteRequestId(idRequest);
+      } else {
+        setActiveRouteRequestId((currentId) => (currentId === idRequest ? null : currentId));
+      }
+      notyf.success(action === 'start' ? 'Trip started. Live location is now shared with the client.' : 'Job marked as completed.');
       await fetchRequests(true);
     } catch {
       notyf.error(`Network error trying to ${action} this job.`);
@@ -1993,7 +1999,7 @@ export const RequestsView: React.FC<RequestsViewProps> = ({ isOnline, mobileView
                         disabled={busyId === req.id_request}
                         className="col-span-3 py-2 rounded-lg bg-emerald-500 text-white font-bold text-xs hover:bg-emerald-600 disabled:opacity-50"
                       >
-                        {busyId === req.id_request ? 'Starting...' : 'Start Job'}
+                        {busyId === req.id_request ? 'Starting...' : 'Start Trip'}
                       </button>
                     ) : req.request_status === 'in_progress' ? (
                       <button

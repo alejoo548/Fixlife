@@ -44,7 +44,13 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMo
 const { login } = useAuth();
 const [captchaToken, setCaptchaToken] = useState<string | null>(null);
 const recaptchaSiteKey = import.meta.env.VITE_RECAPTCHA_SITE_KEY as string | undefined;
-const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID as string | undefined;
+const rawGoogleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID as string | undefined;
+const googleClientId = rawGoogleClientId === '463100180400-hsrvp3o9dp41g6hv7e2oecg5uv5iq'
+  ? '463100180400-hsrvp3o9dp41g6hv7e2oecg5uv5iq6te.apps.googleusercontent.com'
+  : rawGoogleClientId;
+const enableGoogleLogin = import.meta.env.VITE_ENABLE_GOOGLE_LOGIN === 'true';
+const isGoogleAuthEnabled = enableGoogleLogin && Boolean(googleClientId?.endsWith('.apps.googleusercontent.com'));
+const isCaptchaEnabled = Boolean(recaptchaSiteKey);
 const [isDesktop, setIsDesktop] = useState(() => {
   if (typeof window === 'undefined') return true;
   return window.innerWidth >= 768;
@@ -82,7 +88,7 @@ const GoogleSignInButton = ({ onCredential }: { onCredential: (credential: strin
   onCredentialRef.current = onCredential;
 
   useEffect(() => {
-    if (!googleClientId) return;
+    if (!isGoogleAuthEnabled || !googleClientId) return;
     let cancelled = false;
 
     const setup = async () => {
@@ -124,7 +130,7 @@ const GoogleSignInButton = ({ onCredential }: { onCredential: (credential: strin
     return () => { cancelled = true; };
   }, []); // run once — callback stays current via onCredentialRef
 
-  if (!googleClientId) return null;
+  if (!isGoogleAuthEnabled || !googleClientId) return null;
 
   return (
     <div className="w-full flex justify-center">
@@ -210,12 +216,7 @@ const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     return;
   }
 
-  if (!recaptchaSiteKey) {
-    notyf.error('Captcha is not configured.');
-    return;
-  }
-
-  if (!captchaToken) {
+  if (isCaptchaEnabled && !captchaToken) {
     notyf.error('Please complete the captcha verification.');
     return;
   }
@@ -231,7 +232,7 @@ const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         phone_number: formData.phone_number,
         email: formData.email,
         password: formData.password,
-        captchaToken,
+        ...(isCaptchaEnabled ? { captchaToken } : {}),
       }),
     });
 
@@ -438,10 +439,10 @@ if (!emailRegex.test(formData.email)) {
                 </div>
               </div>
 
-              {recaptchaSiteKey && (
+              {isCaptchaEnabled && (
                 <div className="flex justify-center pt-1">
                   <ReCAPTCHA
-                    sitekey={recaptchaSiteKey}
+                    sitekey={recaptchaSiteKey!}
                     hl="en"
                     onChange={(value) => setCaptchaToken(value || null)}
                   />
@@ -574,10 +575,10 @@ if (!emailRegex.test(formData.email)) {
                   )}
                 </div>
 
-                {isSignup && recaptchaSiteKey && (
+                {isSignup && isCaptchaEnabled && (
                   <div className="flex justify-center pt-2">
                     <ReCAPTCHA
-                      sitekey={recaptchaSiteKey}
+                      sitekey={recaptchaSiteKey!}
                       hl="en"
                       onChange={(value) => setCaptchaToken(value || null)}
                     />

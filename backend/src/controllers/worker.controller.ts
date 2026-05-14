@@ -15,6 +15,7 @@ import {
   syncWorkerBonusPayouts,
 } from '../utils/workerRewards';
 import { createUserNotification } from '../utils/notifications';
+import { pushToUser } from '../services/sseManager';
 import { buildProtectedAssetUrl, buildPublicAssetUrl, deleteUploadIfExists } from '../utils/assets';
 import { shouldRunRuntimeSchemaSync } from '../config/schemaSync';
 import { getWorkerPayouts } from '../services/paymentLedger.service';
@@ -1226,7 +1227,19 @@ export const startWorkerRequest = async (req: AuthRequest, res: Response): Promi
       res.status(403).json({ error: 'This request is assigned to another worker.' });
       return;
     }
-    if (String(request.status || '').toLowerCase() !== 'paid') {
+    const currentStatus = String(request.status || '').toLowerCase();
+    if (currentStatus === 'in_progress') {
+      await connection.rollback();
+      res.json({
+        success: true,
+        message: 'Trip already started.',
+        id_request: idRequest,
+        request_status: 'in_progress',
+        already_started: true,
+      });
+      return;
+    }
+    if (currentStatus !== 'paid') {
       await connection.rollback();
       res.status(409).json({ error: 'The client must complete payment before the job can start.' });
       return;
@@ -1450,6 +1463,32 @@ export const updateWorkerPresence = async (req: AuthRequest, res: Response): Pro
        LIMIT 1`,
       [profileId]
     );
+
+    if (isOnline && lat != null && lng != null) {
+      const [activeRows] = await pool.execute<RowDataPacket[]>(
+        `SELECT sr.id_request, sr.id_user, sr.status
+         FROM service_requests sr
+         WHERE sr.assigned_worker_profile = ?
+           AND sr.status = 'in_progress'
+         ORDER BY sr.updated_at DESC
+         LIMIT 1`,
+        [profileId]
+      );
+
+      const activeRequest = activeRows[0];
+      const requestOwnerId = Number(activeRequest?.id_user || 0);
+      if (requestOwnerId) {
+        pushToUser(requestOwnerId, 'worker_location', {
+          id_request: Number(activeRequest.id_request),
+          id_worker_profile: Number(profileId),
+          latitude: lat,
+          longitude: lng,
+          is_online: true,
+          request_status: String(activeRequest.status || ''),
+          updated_at: new Date().toISOString(),
+        });
+      }
+    }
 
     res.json({ success: true, presence: rows[0] || null });
   } catch (error: any) {

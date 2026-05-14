@@ -13,10 +13,10 @@ export const COMMISSION_URGENCY_OPTIONS = [
 ] as const;
 
 export const COMMISSION_TIER_OPTIONS = [
-  { key: 'standard', label: 'Standard', description: 'Default worker tier with no loyalty discount.' },
-  { key: 'verified', label: 'Verified', description: 'Small fee discount for verified pros.' },
-  { key: 'premium', label: 'Premium', description: 'Lower platform fee for premium workers.' },
-  { key: 'elite', label: 'Elite', description: 'Best fee discount for top performers.' },
+  { key: 'standard', label: 'Standard', description: 'Default tier for new or regular workers.' },
+  { key: 'verified', label: 'Verified', description: 'Earned after documents and profile are approved.' },
+  { key: 'trusted', label: 'Trusted', description: 'Earned through strong ratings, completed jobs and time active.' },
+  { key: 'elite', label: 'Elite', description: 'Earned through consistent excellence and reliable performance.' },
 ] as const;
 
 export const toDateInputValue = (date: Date) => {

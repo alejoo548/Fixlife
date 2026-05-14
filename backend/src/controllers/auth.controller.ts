@@ -14,6 +14,7 @@ import { deleteUploadIfExists } from '../utils/assets';
 const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || '';
 const RECAPTCHA_SECRET_KEY = process.env.RECAPTCHA_SECRET_KEY || '';
 const googleClient = GOOGLE_CLIENT_ID ? new OAuth2Client(GOOGLE_CLIENT_ID) : null;
+const isRecaptchaEnabled = Boolean(RECAPTCHA_SECRET_KEY);
 
 const sanitizeText = (value: unknown): string => String(value ?? '').trim();
 
@@ -450,15 +451,17 @@ export const registerUser = async (req: Request, res: Response): Promise<void> =
       return;
     }
 
-    if (!captchaToken) {
+    if (isRecaptchaEnabled && !captchaToken) {
       res.status(400).json({ error: 'Captcha is required' });
       return;
     }
 
-    const captchaResult = await verifyRecaptchaToken(String(captchaToken), req.ip);
-    if (!captchaResult.success) {
-      res.status(400).json({ error: captchaResult.error || 'Captcha validation failed' });
-      return;
+    if (isRecaptchaEnabled) {
+      const captchaResult = await verifyRecaptchaToken(String(captchaToken), req.ip);
+      if (!captchaResult.success) {
+        res.status(400).json({ error: captchaResult.error || 'Captcha validation failed' });
+        return;
+      }
     }
 
     const connection = await pool.getConnection();
