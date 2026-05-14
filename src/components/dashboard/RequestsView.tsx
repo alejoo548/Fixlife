@@ -1536,6 +1536,9 @@ export const RequestsView: React.FC<RequestsViewProps> = ({ isOnline, mobileView
       if (action === 'start') {
         setSelectedRequestId(idRequest);
         setActiveRouteRequestId(idRequest);
+        if (isValidCoord(workerCoords)) {
+          void pushPresence(true, workerCoords.lat, workerCoords.lng, true);
+        }
       } else {
         setActiveRouteRequestId((currentId) => (currentId === idRequest ? null : currentId));
       }
@@ -1621,7 +1624,7 @@ export const RequestsView: React.FC<RequestsViewProps> = ({ isOnline, mobileView
     }
   };
 
-  const pushPresence = async (isOnlineNow: boolean, lat?: number, lng?: number) => {
+  const pushPresence = async (isOnlineNow: boolean, lat?: number, lng?: number, force = false) => {
     if (!token) return;
 
     const now = Date.now();
@@ -1637,7 +1640,7 @@ export const RequestsView: React.FC<RequestsViewProps> = ({ isOnline, mobileView
       ? PRESENCE_MOVE_ACTIVE_ROUTE_KM
       : PRESENCE_MOVE_IDLE_KM;
 
-    if (lastPush && lastPush.isOnline === isOnlineNow) {
+    if (!force && lastPush && lastPush.isOnline === isOnlineNow) {
       const hasValidCoords =
         Number.isFinite(lat) &&
         Number.isFinite(lng) &&
