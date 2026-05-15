@@ -44,6 +44,9 @@ export const AdminSchema = {
       .max(100, 'Icon value too long.')
       .optional()
       .or(z.literal('')),
+    is_active: z
+      .union([z.boolean(), z.literal(0), z.literal(1), z.literal('0'), z.literal('1')])
+      .optional(),
   }),
 
   createServiceCard: z.object({
