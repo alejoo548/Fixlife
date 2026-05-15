@@ -190,7 +190,13 @@ export const ProBento: React.FC<ProBentoProps> = ({ onOpenPro, onOpenWorkerAuth 
                         src={profile.image}
                         alt={profile.name}
                         onError={(e) => {
-                          e.currentTarget.src = '/landing-home-repair.jpg';
+                          const fallback = '/landing-home-repair.jpg';
+                          if (e.currentTarget.dataset.fallbackApplied === 'true') {
+                            e.currentTarget.removeAttribute('src');
+                            return;
+                          }
+                          e.currentTarget.dataset.fallbackApplied = 'true';
+                          e.currentTarget.src = fallback;
                         }}
                         className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
                       />

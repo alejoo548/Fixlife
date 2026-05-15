@@ -39,7 +39,7 @@ const BirdMascot: React.FC<{ hovered: boolean }> = ({ hovered }) => {
       style={{
         width:              B_DISP_W,
         height:             B_DISP_H,
-        backgroundImage:    'url(/bird-sprite.png)',
+        backgroundImage:    'url(/bird-sprite.webp)',
         backgroundSize:     `${B_SHT_W}px ${B_SHT_H}px`,
         backgroundPosition: `${-col * B_FRAME_W * B_SCALE}px ${-row * B_FRAME_H * B_SCALE}px`,
         backgroundRepeat:   'no-repeat',

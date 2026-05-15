@@ -2329,7 +2329,7 @@ export const createRequestPaymentCheckout = async (req: AuthRequest, res: Respon
          wp.is_verified AS worker_is_verified
        FROM service_requests sr
        LEFT JOIN worker_profiles wp ON wp.id_worker_profile = sr.assigned_worker_profile
-       WHERE id_request = ? AND id_user = ?
+       WHERE sr.id_request = ? AND sr.id_user = ?
        LIMIT 1
        FOR UPDATE`,
       [idRequest, userId]

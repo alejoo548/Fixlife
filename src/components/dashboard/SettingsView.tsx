@@ -349,7 +349,7 @@ export const SettingsView: React.FC = () => {
                   onError={() => setProfileImgBroken(true)}
                 />
               ) : (
-                <img src="/mascot.png" alt="Profile fallback" className="w-full h-full object-cover" />
+                <img src="/mascot.webp" alt="Profile fallback" className="w-full h-full object-cover" />
               )}
             </div>
             <div className="absolute -right-1 -bottom-1 w-8 h-8 rounded-full bg-white text-cyan-600 font-bold flex items-center justify-center shadow">

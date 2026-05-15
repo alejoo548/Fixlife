@@ -25,7 +25,7 @@ export class AppErrorBoundary extends React.Component<React.PropsWithChildren, A
         <div className="mx-auto flex min-h-[calc(100dvh-3rem)] max-w-md flex-col justify-center">
           <div className="rounded-[2rem] border border-sky-100 bg-white/95 p-6 shadow-2xl shadow-sky-900/10">
             <div className="mb-4 flex items-center gap-3">
-              <img src="/Fixilogo.png" alt="Fixlife" className="h-12 w-12 object-contain" />
+              <img src="/Fixilogo.webp" alt="Fixlife" className="h-12 w-12 object-contain" />
               <div>
                 <p className="text-xs font-black uppercase tracking-[0.22em] text-bird-blue">Fixlife</p>
                 <h1 className="text-2xl font-black">We hit a display issue</h1>

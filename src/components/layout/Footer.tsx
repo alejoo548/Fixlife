@@ -42,7 +42,7 @@ export const Footer: React.FC<FooterProps> = ({
             >
               <div className="relative">
                 <img
-                  src="/mascot.png"
+                  src="/mascot.webp"
                   alt="Fixlife Mascot"
                   className="w-16 h-16 object-contain drop-shadow-lg group-hover:scale-110 transition-transform duration-300"
                 />
