@@ -120,7 +120,13 @@ export const TestimonialsCarousel: React.FC = () => {
                   src={testimonials[currentIndex].image}
                   alt={testimonials[currentIndex].name}
                   onError={(e) => {
-                    e.currentTarget.src = '/mascot.png';
+                    const fallback = '/mascot.webp';
+                    if (e.currentTarget.dataset.fallbackApplied === 'true') {
+                      e.currentTarget.removeAttribute('src');
+                      return;
+                    }
+                    e.currentTarget.dataset.fallbackApplied = 'true';
+                    e.currentTarget.src = fallback;
                   }}
                   className="w-full h-full object-cover"
                 />

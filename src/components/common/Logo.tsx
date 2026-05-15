@@ -12,7 +12,7 @@ export const Logo: React.FC<LogoProps> = ({ onClick }) => {
       className="flex items-center gap-2 cursor-pointer hover:opacity-80 transition-opacity bg-transparent border-0 p-0"
     >
       <img 
-        src="/Fixilogo.png" 
+        src="/Fixilogo.webp" 
         alt="Fixlife Logo" 
         className="w-10 h-10 object-contain"
       />
