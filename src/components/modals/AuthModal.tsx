@@ -143,7 +143,7 @@ const GoogleSignInButton = ({ onCredential }: { onCredential: (credential: strin
             // no-op fallback
           }}
         >
-          <img src="https://www.svgrepo.com/show/475656/google-color.svg" className="w-5 h-5" alt="Google" />
+          <span aria-hidden="true" className="text-base font-black text-bird-blue">G</span>
           Sign in with Google
         </button>
       )}
@@ -195,11 +195,6 @@ const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     } else {
       notyf.success('Welcome back!');
     }
-    setTimeout(() => onClose(), 1500);
-  };
-
-  const handleSocialLogin = (provider: string) => {
-    notyf.success(`Signing in with ${provider}...`);
     setTimeout(() => onClose(), 1500);
   };
 
@@ -475,10 +470,6 @@ if (!emailRegex.test(formData.email)) {
             <h2 className="text-3xl font-bold mb-6 text-bird-blue">Sign in to Fixlife</h2>
             <div className="flex flex-col gap-3 w-full mb-6">
               <GoogleSignInButton onCredential={handleGoogleSignin} />
-              <button onClick={() => handleSocialLogin('Facebook')} className="flex items-center justify-center gap-3 py-2.5 rounded-lg bg-[#1877F2] text-white font-bold text-xs hover:bg-[#1864D9] transition-colors shadow-sm">
-                <svg className="w-5 h-5 fill-current" viewBox="0 0 24 24"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z" /></svg>
-                Sign in with Facebook
-              </button>
             </div>
 
             <p className="text-xs text-gray-500 mb-4">or use your email account</p>
@@ -527,10 +518,6 @@ if (!emailRegex.test(formData.email)) {
               {!isSignup && (
                 <div className="flex flex-col gap-3 mb-6">
                   <GoogleSignInButton onCredential={handleGoogleSignin} />
-                  <button onClick={() => handleSocialLogin('Facebook')} className="flex items-center justify-center gap-3 py-3 rounded-xl bg-[#1877F2] text-white font-bold text-xs hover:bg-[#1864D9] transition-colors shadow-sm">
-                    <svg className="w-5 h-5 fill-current" viewBox="0 0 24 24"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z" /></svg>
-                    Sign in with Facebook
-                  </button>
                 </div>
               )}
 

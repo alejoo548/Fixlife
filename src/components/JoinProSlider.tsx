@@ -111,7 +111,13 @@ export const JoinProSlider: React.FC = () => {
               src={slide.image}
               alt={slide.role}
               onError={(e) => {
-                e.currentTarget.src = '/landing-home-repair.jpg';
+                const fallback = '/landing-home-repair.jpg';
+                if (e.currentTarget.dataset.fallbackApplied === 'true') {
+                  e.currentTarget.removeAttribute('src');
+                  return;
+                }
+                e.currentTarget.dataset.fallbackApplied = 'true';
+                e.currentTarget.src = fallback;
               }}
               className="w-full h-full object-cover object-top md:object-center transform scale-100 hover:scale-105 transition-transform duration-[10000ms]"
               style={{
