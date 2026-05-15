@@ -1,5 +1,6 @@
 import React, { Suspense, lazy, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { useSSE } from '../../hooks/useSSE';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ServiceRequestData } from '../../types';
@@ -129,6 +130,8 @@ declare global {
 }
 
 export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOpen, onClose, initialServiceId, initialServiceName, onOpenCheckout }) => {
+    const location = useLocation();
+    const navigate = useNavigate();
     const [step, setStep] = useState(initialServiceId ? 1 : 0);
     const [services, setServices] = useState<ServiceOption[]>([]);
     const [servicesLoading, setServicesLoading] = useState(false);
@@ -158,6 +161,7 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
     const [pendingRenameTitle, setPendingRenameTitle] = useState('');
     const [pendingRequestAction, setPendingRequestAction] = useState<{ type: 'cancel' | 'complete'; request: MyServiceRequest } | null>(null);
     const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
+    const [focusedHistoryRequestId, setFocusedHistoryRequestId] = useState<number | null>(null);
     const [workerProfileRequest, setWorkerProfileRequest] = useState<MyServiceRequest | null>(null);
     const [workerProfileLoading, setWorkerProfileLoading] = useState(false);
     const [workerProfileData, setWorkerProfileData] = useState<RequestWorkerProfileResponse | null>(null);
@@ -262,6 +266,7 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
         setPendingRenameLocation(null);
         setPendingRenameTitle('');
         setPendingRequestAction(null);
+        setFocusedHistoryRequestId(null);
         setWorkerProfileRequest(null);
         setWorkerProfileData(null);
         setWorkerProfileLoading(false);
@@ -279,6 +284,35 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
         setRatingModalRequest(null);
         setFixesSuccessRequest(null);
     }, [isOpen, initialServiceId, initialServiceName]);
+
+    useEffect(() => {
+        if (!isOpen) return;
+        const params = new URLSearchParams(location.search);
+        const requestId = Number(params.get('request'));
+        if (!Number.isFinite(requestId) || requestId <= 0) return;
+
+        setHistoryStatus('all');
+        setFocusedHistoryRequestId(requestId);
+        setIsHistoryModalOpen(true);
+        void fetchMyRequests('all', true);
+    }, [fetchMyRequests, isOpen, location.search, setHistoryStatus]);
+
+    useEffect(() => {
+        if (!isHistoryModalOpen || !focusedHistoryRequestId) return;
+        const target = document.querySelector(`[data-history-request-id="${focusedHistoryRequestId}"]`);
+        target?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }, [focusedHistoryRequestId, isHistoryModalOpen, myRequests.length]);
+
+    const closeHistoryModal = () => {
+        setIsHistoryModalOpen(false);
+        setFocusedHistoryRequestId(null);
+        const params = new URLSearchParams(location.search);
+        if (params.has('request')) {
+            params.delete('request');
+            const nextSearch = params.toString();
+            navigate({ pathname: location.pathname, search: nextSearch ? `?${nextSearch}` : '' }, { replace: true });
+        }
+    };
 
     useEffect(() => {
         if (!showSavedPlacesModal) {
@@ -3090,7 +3124,7 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                         </div>
                                         <button
                                             type="button"
-                                            onClick={() => setIsHistoryModalOpen(false)}
+                                            onClick={closeHistoryModal}
                                             className="flex h-10 w-10 items-center justify-center rounded-full bg-slate-100 text-slate-500 hover:bg-slate-200 hover:text-slate-900 transition-colors"
                                         >
                                             <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" /></svg>
@@ -3143,7 +3177,17 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                                 const isTrackingActive = activeTrackedRequest?.id_request === request.id_request;
 
                                                 return (
-                                                    <div key={request.id_request} className={`rounded-[1.5rem] border bg-white p-5 transition-all shadow-sm hover:shadow-md ${isTrackingActive ? 'border-blue-300 ring-4 ring-blue-50' : 'border-slate-200'}`}>
+                                                    <div
+                                                        key={request.id_request}
+                                                        data-history-request-id={request.id_request}
+                                                        className={`rounded-[1.5rem] border bg-white p-5 transition-all shadow-sm hover:shadow-md ${
+                                                            request.id_request === focusedHistoryRequestId
+                                                                ? 'border-bird-blue ring-4 ring-blue-100'
+                                                                : isTrackingActive
+                                                                    ? 'border-blue-300 ring-4 ring-blue-50'
+                                                                    : 'border-slate-200'
+                                                        }`}
+                                                    >
                                                         <div className="flex items-start justify-between gap-3 mb-4">
                                                             <div className="min-w-0">
                                                                 <div className="flex items-center gap-2 mb-1.5">

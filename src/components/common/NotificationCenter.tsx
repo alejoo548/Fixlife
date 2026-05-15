@@ -11,6 +11,7 @@ type NotificationTone = 'info' | 'success' | 'warning';
 
 interface NotificationItem {
   id_notification: number;
+  id_request: number | null;
   event_type: string;
   title: string;
   message: string;
@@ -256,26 +257,32 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({
   );
 
   const markOneRead = async (idNotification: number) => {
-    if (!token) return;
+    if (!token) return false;
     const alreadyRead = notifications.some(
       (item) => item.id_notification === idNotification && item.is_read
     );
-    if (alreadyRead) return;
+    if (alreadyRead) return true;
     try {
-      await fetch(API_ENDPOINTS.notifications.readOne(idNotification), {
+      const res = await fetch(API_ENDPOINTS.notifications.readOne(idNotification), {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${token}`,
         },
       });
+      const payload = await res.json();
+      if (!res.ok || !payload?.success) {
+        throw new Error(payload?.error || 'Could not mark notification as read.');
+      }
       setNotifications((prev) =>
         prev.map((item) =>
           item.id_notification === idNotification ? { ...item, is_read: true } : item
         )
       );
       setUnreadCount((prev) => Math.max(prev - 1, 0));
-    } catch {
-      // keep quiet; polling will recover
+      return true;
+    } catch (error: any) {
+      notyf.error(error?.message || 'Could not mark notification as read.');
+      return false;
     }
   };
 
@@ -299,9 +306,25 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({
     }
   };
 
-  const openNotificationUrl = (actionUrl: string) => {
-    if (!actionUrl) return;
-    navigate(actionUrl);
+  const buildNotificationTarget = (item: NotificationItem) => {
+    if (!item.action_url) return '';
+    if (!item.id_request) return item.action_url;
+
+    try {
+      const url = new URL(item.action_url, window.location.origin);
+      if (url.pathname === '/app') {
+        url.searchParams.set('request', String(item.id_request));
+      }
+      return `${url.pathname}${url.search}${url.hash}`;
+    } catch {
+      return item.action_url;
+    }
+  };
+
+  const openNotificationUrl = (item: NotificationItem) => {
+    const target = buildNotificationTarget(item);
+    if (!target) return;
+    navigate(target);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
@@ -464,9 +487,9 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({
                     {item.action_url && (
                       <button
                         type="button"
-                        onClick={() => {
-                          void markOneRead(item.id_notification);
-                          openNotificationUrl(item.action_url!);
+                        onClick={async () => {
+                          await markOneRead(item.id_notification);
+                          openNotificationUrl(item);
                           setIsOpen(false);
                         }}
                         className="rounded-full bg-bird-blue px-3 py-1.5 text-[11px] font-black text-white shadow-sm shadow-blue-200 transition hover:-translate-y-0.5 hover:bg-blue-700"

@@ -31,7 +31,7 @@ export const ProSidebar: React.FC<ProSidebarProps> = ({ activeItem, setActiveIte
             <div className={`h-16 flex items-center shrink-0 mb-6 transition-all duration-300 ${isOpen ? 'justify-between' : 'justify-center'}`}>
                 {isOpen ? (
                     <div className="flex items-center gap-3 animate-fade-in pl-2">
-                        <img src="/Fixilogo.png" alt="Fixlife" className="h-8 w-auto object-contain" />
+                        <img src="/Fixilogo.webp" alt="Fixlife" className="h-8 w-auto object-contain" />
                         <span className="font-bold text-gray-900 tracking-tight text-lg">Fixlife</span>
                     </div>
                 ) : (
