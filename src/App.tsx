@@ -16,7 +16,7 @@ import { Button } from './components/common/Button';
 import { ThreeDCard } from './components/common/ThreeDCard';
 import ForgotPassword from './pages/ForgotPassword';
 import UserProfile from './pages/UserProfile';
-import { hasRole, isAuthenticated, logoutAuthSession } from './utils/session';
+import { getRememberedProtectedRoute, hasRole, isAuthenticated, logoutAuthSession } from './utils/session';
 import { API_ENDPOINTS } from './config/api';
 import { isExternalStockImage, normalizeImageUrl } from './utils/imageUrls';
 import { ProtectedRoute } from './routes/ProtectedRoute';
@@ -127,6 +127,74 @@ const AppRouteFallback: React.FC<{ title?: string; subtitle?: string }> = ({
     </div>
   </div>
 );
+
+const SessionAwareRouteFallback: React.FC = () => {
+  const location = useLocation();
+
+  const isAdminSession = isAuthenticated('admin') && hasRole('admin', 'admin');
+  const isWorkerSession = isAuthenticated('worker') && hasRole('worker', 'worker');
+  const isClientSession = isAuthenticated();
+  const { pathname, search } = location;
+
+  const normalizedPath = pathname.toLowerCase();
+  const clientFlowPrefixes = ['/app', '/checkout', '/profile'];
+  const adminFlowPrefixes = ['/admin', '/dashboard/admin'];
+  const workerFlowPrefixes = ['/pro', '/worker', '/dashboard/pro'];
+
+  if (adminFlowPrefixes.some((prefix) => normalizedPath.startsWith(prefix))) {
+    return <Navigate to={isAdminSession ? '/admin-dashboard' : '/'} replace />;
+  }
+
+  if (workerFlowPrefixes.some((prefix) => normalizedPath.startsWith(prefix))) {
+    return <Navigate to={isWorkerSession ? '/pro-dashboard' : '/'} replace />;
+  }
+
+  if (clientFlowPrefixes.some((prefix) => normalizedPath.startsWith(prefix))) {
+    if (!isClientSession) {
+      return <Navigate to="/" replace />;
+    }
+
+    if (normalizedPath.startsWith('/checkout')) {
+      return <Navigate to="/app" replace />;
+    }
+
+    if (normalizedPath.startsWith('/profile')) {
+      return <Navigate to="/profile" replace />;
+    }
+
+    return <Navigate to={`/app${search || ''}`} replace />;
+  }
+
+  if (isAdminSession) {
+    return <Navigate to="/admin-dashboard" replace />;
+  }
+
+  if (isWorkerSession) {
+    return <Navigate to="/pro-dashboard" replace />;
+  }
+
+  return <Navigate to="/" replace />;
+};
+
+const RootRouteGuard: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const adminRoute = getRememberedProtectedRoute('admin') || '/admin-dashboard';
+  const workerRoute = getRememberedProtectedRoute('worker') || '/pro-dashboard';
+  const clientRoute = getRememberedProtectedRoute('client');
+
+  if (isAuthenticated('admin') && hasRole('admin', 'admin')) {
+    return <Navigate to={adminRoute} replace />;
+  }
+
+  if (isAuthenticated('worker') && hasRole('worker', 'worker')) {
+    return <Navigate to={workerRoute} replace />;
+  }
+
+  if (isAuthenticated() && clientRoute && clientRoute !== '/') {
+    return <Navigate to={clientRoute} replace />;
+  }
+
+  return <>{children}</>;
+};
 
 const CheckoutRoute: React.FC<{ onBack: () => void }> = ({ onBack }) => {
   const params = useParams();
@@ -246,13 +314,13 @@ const App: React.FC = () => {
       return;
     }
 
-    navigate(bookingPath);
+    navigate(bookingPath, { replace: true });
     window.scrollTo(0, 0);
   };
 
   const handleClientLogin = () => {
     if (!pendingBookingPath) return;
-    navigate(pendingBookingPath);
+    navigate(pendingBookingPath, { replace: true });
     setPendingBookingPath(null);
     window.scrollTo(0, 0);
   };
@@ -314,7 +382,7 @@ const App: React.FC = () => {
 
   const handleOpenCheckout = (requestId: number) => {
     if (!requestId) return;
-    navigate(`/checkout/${requestId}`);
+    navigate(`/checkout/${requestId}`, { replace: true });
     window.scrollTo(0, 0);
   };
 
@@ -432,7 +500,7 @@ const App: React.FC = () => {
         <Route
           path="/app"
           element={(
-            <ProtectedRoute>
+            <ProtectedRoute lockHistory>
               <Suspense fallback={<AppRouteFallback title="Loading booking flow..." subtitle="Getting the service wizard ready." />}>
                 <ServiceRequestRoute
                   onClose={handleBackToLanding}
@@ -445,7 +513,7 @@ const App: React.FC = () => {
         <Route
           path="/checkout/:requestId"
           element={(
-            <ProtectedRoute>
+            <ProtectedRoute lockHistory>
               <Suspense fallback={<AppRouteFallback title="Loading checkout..." subtitle="Preparing secure payment." />}>
                 <CheckoutRoute onBack={handleBackToRequests} />
               </Suspense>
@@ -455,7 +523,7 @@ const App: React.FC = () => {
         <Route
           path="/pro-dashboard"
           element={(
-            <ProtectedRoute scope="worker" role="worker">
+            <ProtectedRoute scope="worker" role="worker" lockHistory>
               <Suspense fallback={<AppRouteFallback title="Loading worker dashboard..." subtitle="Preparing requests, maps and tools." />}>
                 <ProDashboard
                   isOpen={true}
@@ -469,7 +537,7 @@ const App: React.FC = () => {
         <Route
           path="/admin-dashboard"
           element={(
-            <ProtectedRoute scope="admin" role="admin">
+            <ProtectedRoute scope="admin" role="admin" lockHistory>
               <Suspense fallback={<AppRouteFallback title="Loading admin dashboard..." subtitle="Preparing management tools." />}>
                 <AdminDashboard
                   isOpen={true}
@@ -515,6 +583,7 @@ const App: React.FC = () => {
         <Route
           path="/"
           element={(
+        <RootRouteGuard>
         <>
 
           <Navbar
@@ -768,9 +837,10 @@ const App: React.FC = () => {
             onNavigateSection={handleNavigateSection}
           />
         </>
+        </RootRouteGuard>
           )}
         />
-        <Route path="*" element={<Navigate to="/" replace />} />
+        <Route path="*" element={<SessionAwareRouteFallback />} />
       </Routes>
 
       {showAiSupportWidget ? (
