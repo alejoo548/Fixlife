@@ -26,9 +26,6 @@ const ServiceRequestWizard = lazy(() =>
     default: module.ServiceRequestWizard,
   }))
 );
-const AiSupportChatWidget = lazy(() => import('./components/common/AiSupportChatWidget').then((module) => ({
-  default: module.AiSupportChatWidget,
-})));
 const ProDashboard = lazy(() =>
   import('./components/modals/ProDashboard').then((module) => ({
     default: module.ProDashboard,
@@ -178,8 +175,6 @@ const App: React.FC = () => {
   const [pendingSection, setPendingSection] = useState<LandingSectionTarget | null>(null);
   const [pendingBookingPath, setPendingBookingPath] = useState<string | null>(null);
   const isLandingRoute = location.pathname === '/';
-  const isDashboardRoute = location.pathname === '/admin-dashboard' || location.pathname === '/pro-dashboard';
-  const [canMountAiSupportWidget, setCanMountAiSupportWidget] = useState(false);
 
   useEffect(() => {
     const fetchServiceCards = async () => {
@@ -196,18 +191,6 @@ const App: React.FC = () => {
 
     fetchServiceCards();
   }, []);
-
-  useEffect(() => {
-    setCanMountAiSupportWidget(false);
-    if (isDashboardRoute) return;
-
-    const delayMs = isLandingRoute ? 1200 : 250;
-    const timer = window.setTimeout(() => {
-      setCanMountAiSupportWidget(true);
-    }, delayMs);
-
-    return () => window.clearTimeout(timer);
-  }, [isDashboardRoute, isLandingRoute]);
 
   const scrollToLandingSectionByTarget = (target: LandingSectionTarget) => {
     const section = document.getElementById(LANDING_SECTION_IDS[target]);
@@ -366,7 +349,6 @@ const App: React.FC = () => {
   ];
 
   const cardsToRender = serviceCards.length > 0 ? serviceCards.slice(0, 8) : fallbackCards;
-  const showAiSupportWidget = canMountAiSupportWidget && !isDashboardRoute;
 
   const normalizeLabel = (value: string) => value.toLowerCase().replace(/[^a-z0-9]+/g, '');
 
@@ -773,19 +755,11 @@ const App: React.FC = () => {
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
 
-      {showAiSupportWidget ? (
-        <Suspense fallback={null}>
-          <AiSupportChatWidget />
-        </Suspense>
-      ) : null}
-
     </div>
   );
 };
 
 export default App;
-
-
 
 
 

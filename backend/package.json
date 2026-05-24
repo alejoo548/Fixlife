@@ -14,10 +14,7 @@
   "license": "ISC",
   "type": "commonjs",
   "dependencies": {
-    "@ai-sdk/google": "^3.0.53",
-    "@ai-sdk/groq": "^1.2.9",
     "@types/pdfkit": "^0.17.6",
-    "ai": "^6.0.140",
     "bcrypt": "^6.0.0",
     "cors": "^2.8.6",
     "dotenv": "^17.3.1",

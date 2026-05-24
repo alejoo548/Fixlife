@@ -24,11 +24,3 @@ export const sensitiveLimiter = rateLimit({
   legacyHeaders: false,
   message: { error: 'Too many sensitive operations. Try again later.' },
 });
-
-export const aiChatLimiter = rateLimit({
-  windowMs: 60 * 1000,
-  max: 15,
-  standardHeaders: true,
-  legacyHeaders: false,
-  message: { error: 'Demasiadas solicitudes al chat. Espera un momento e intenta de nuevo.' },
-});

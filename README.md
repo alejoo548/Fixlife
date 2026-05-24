@@ -12,7 +12,6 @@ Fixlife conecta clientes con profesionales (pros) para resolver servicios del ho
 - Backend: Node.js + Express + TypeScript
 - DB: MySQL 8 + phpMyAdmin
 - Seguridad: JWT, Helmet, rate limiting, validación Zod
-- IA: Groq (`/api/ai/chat`)
 - Infra: Docker + Docker Compose
 
 ---
@@ -40,11 +39,6 @@ Fixlife conecta clientes con profesionales (pros) para resolver servicios del ho
 - Histórico de solicitudes y actividad admin.
 - Gestión de recompensas de pros.
 - Editor de hero slides e imágenes.
-
-### IA (Fixly)
-- Widget flotante en frontend (`src/components/common/AiSupportChatWidget.tsx`).
-- Endpoint backend con rate limiting y validación de payload (`backend/src/routes/aiChat.routes.ts`).
-- Respuesta con Groq usando `GROQ_API_KEY`.
 
 ### Fixlife Zod
 - Validación modular con schemas Zod por dominio (auth, worker, admin).
@@ -84,7 +78,6 @@ Fixlife/
 │   │   │   ├── services.routes.ts
 │   │   │   ├── worker.routes.ts
 │   │   │   ├── admin.routes.ts
-│   │   │   ├── aiChat.routes.ts
 │   │   │   └── notifications.routes.ts
 │   │   ├── middlewares/
 │   │   │   ├── auth.middleware.ts
@@ -99,7 +92,6 @@ Fixlife/
 │   └── uploads/
 ├── src/
 │   ├── config/api.ts
-│   ├── components/common/AiSupportChatWidget.tsx
 │   ├── components/modals/ServiceRequestWizard.tsx
 │   ├── components/modals/ClientLiveRequestTracker.tsx
 │   ├── components/modals/AdminDashboard.tsx
@@ -129,7 +121,6 @@ Variables clave para que todo funcione:
 - `MYSQL_DATABASE`
 - `DB_PASSWORD` (password que usará el backend para MySQL)
 - `JWT_SECRET`
-- `GROQ_API_KEY` (obligatoria para chat IA)
 - `ALLOWED_ORIGINS` (especialmente en producción)
 - `EMAIL_USER` / `EMAIL_PASS` (si se usará email real)
 - `VITE_API_URL` (opcional; en red local se resuelve dinámicamente por host)
@@ -174,11 +165,6 @@ docker compose ps
 # Servicios públicos
 curl http://localhost:8000/api/services
 curl http://localhost:8000/api/services/cards
-
-# IA (requiere GROQ_API_KEY válida)
-curl -X POST http://localhost:8000/api/ai/chat \
-  -H 'Content-Type: application/json' \
-  -d '{"messages":[{"role":"user","content":"hola"}]}'
 ```
 
 ---
@@ -222,15 +208,10 @@ curl -X POST http://localhost:8000/api/ai/chat \
 - `POST /read-all`
 - `POST /:idNotification/read`
 
-### IA (`/api/ai/chat`)
-- `POST /api/ai/chat`
-
----
-
 ## 🛡️ Seguridad y validación
 
 - JWT por rol (cliente/pro/admin).
-- Rate limiting en auth, rutas sensibles y chat IA.
+- Rate limiting en auth y rutas sensibles.
 - CORS configurable por `ALLOWED_ORIGINS`.
 - Uploads protegidos (ruta `/uploads` requiere token).
 - Validación Zod en rutas críticas vía `validate.middleware.ts`.
@@ -261,10 +242,6 @@ Esto evita despliegues “vacíos” cuando se monta en una máquina nueva.
 - Verificar `DB_PASSWORD` vs contraseña real de MySQL.
 - Revisar variables efectivas del backend en `docker compose`.
 
-### Chat IA no responde
-- Verificar `GROQ_API_KEY` real (no placeholder).
-- Reiniciar backend tras cambiar `.env`.
-
 ### Servicios/cards vacíos
 - Revisar logs backend; se deben auto-sembrar al consultar servicios/cards.
 
@@ -281,10 +258,9 @@ docker compose -f docker-compose.prod.yml up -d --build
 Checklist mínimo:
 
 1. `JWT_SECRET` fuerte.
-2. `GROQ_API_KEY` válida.
-3. `ALLOWED_ORIGINS` correctamente definido.
-4. Credenciales DB reales (sin placeholders).
-5. HTTPS y reverse proxy para entorno público.
+2. `ALLOWED_ORIGINS` correctamente definido.
+3. Credenciales DB reales (sin placeholders).
+4. HTTPS y reverse proxy para entorno público.
 
 ---
 
