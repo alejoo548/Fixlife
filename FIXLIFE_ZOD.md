@@ -21,8 +21,7 @@ backend/src/
 └── routes/
     ├── auth.routes.ts              → usa validate(AuthSchema.xxx)
     ├── worker.routes.ts            → usa validate(WorkerSchema.xxx)
-    ├── admin.routes.ts             → usa validate(AdminSchema.xxx)
-    └── aiChat.routes.ts            → protegido con verifyToken
+    └── admin.routes.ts             → usa validate(AdminSchema.xxx)
 ```
 
 ---
@@ -70,7 +69,6 @@ export const validate =
 | CORS abierto | Restringido a orígenes en `ALLOWED_ORIGINS` (.env) |
 | JWT sin configurar | `process.exit(1)` si `JWT_SECRET` no está en producción |
 | Archivos sensibles expuestos | `/uploads` protegido con `verifyToken` |
-| Abuso del chat IA | `/api/ai/chat` requiere token + rate limiter |
 
 ---
 
@@ -84,9 +82,6 @@ ALLOWED_ORIGINS=https://tu-dominio.com
 
 # Secret para JWT (cadena larga y aleatoria)
 JWT_SECRET=tu_secret_aqui
-
-# API Key de Groq para el chat IA
-GROQ_API_KEY=tu_api_key_aqui
 ```
 
 > En producción, si `JWT_SECRET` no está configurado el servidor **no arrancará**.

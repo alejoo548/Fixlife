@@ -9,7 +9,6 @@ services:
         VITE_GOOGLE_CLIENT_ID: ${VITE_GOOGLE_CLIENT_ID:-}
         VITE_RECAPTCHA_SITE_KEY: ${VITE_RECAPTCHA_SITE_KEY:-}
         VITE_TOMTOM_TRAFFIC_KEY: ${VITE_TOMTOM_TRAFFIC_KEY:-}
-        GEMINI_API_KEY: ${GEMINI_API_KEY:-}
     container_name: fixlife_frontend_prod
     restart: unless-stopped
     ports:
@@ -35,8 +34,6 @@ services:
       - PORT=8000
       - DB_MIGRATIONS_MODE=${DB_MIGRATIONS_MODE:-auto}
       - JWT_SECRET=${JWT_SECRET}
-      - GROQ_API_KEY=${GROQ_API_KEY:-}
-      - GEMINI_API_KEY=${GEMINI_API_KEY:-}
       - EMAIL_USER=${EMAIL_USER:-}
       - EMAIL_PASS=${EMAIL_PASS:-}
       - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID:-}
