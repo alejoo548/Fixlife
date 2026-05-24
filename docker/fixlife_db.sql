@@ -162,13 +162,19 @@ CREATE TABLE `service_requests` (
   `longitude` decimal(10,7) DEFAULT NULL,
   `budget` decimal(10,2) NOT NULL DEFAULT '0.00',
   `radius_km` decimal(6,2) NOT NULL DEFAULT '8.00',
+  `urgency_level` varchar(40) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'standard',
   `status` enum('open','pending','payment_pending','paid','assigned','in_progress','awaiting_confirmation','done','cancelled') COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'pending',
   `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   `assigned_worker_profile` int DEFAULT NULL,
   `initial_budget` decimal(10,2) DEFAULT NULL,
   `final_budget` decimal(10,2) DEFAULT NULL,
-  `assigned_at` timestamp NULL DEFAULT NULL
+  `assigned_at` timestamp NULL DEFAULT NULL,
+  `booking_type` enum('express','scheduled') COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'express',
+  `scheduled_date` date DEFAULT NULL,
+  `scheduled_time` time DEFAULT NULL,
+  `scheduled_start_time` datetime DEFAULT NULL,
+  `scheduled_end_time` datetime DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 --
@@ -418,6 +424,21 @@ INSERT INTO `worker_profiles` (`id_worker_profile`, `id_user`, `bio`, `banner_im
 -- --------------------------------------------------------
 
 --
+-- Estructura de tabla para la tabla `worker_availabilities`
+--
+
+CREATE TABLE `worker_availabilities` (
+  `id_availability` int NOT NULL,
+  `id_worker_profile` int NOT NULL,
+  `day_of_week` int NOT NULL,
+  `start_time` time NOT NULL,
+  `end_time` time NOT NULL,
+  `is_active` tinyint(1) NOT NULL DEFAULT '1'
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- --------------------------------------------------------
+
+--
 -- Estructura de tabla para la tabla `worker_rewards_settings`
 --
 
@@ -501,7 +522,8 @@ ALTER TABLE `service_requests`
   ADD KEY `idx_service_requests_service` (`id_service`),
   ADD KEY `idx_service_requests_status_created` (`status`,`created_at`),
   ADD KEY `idx_service_requests_user` (`id_user`),
-  ADD KEY `idx_service_requests_assigned_worker` (`assigned_worker_profile`);
+  ADD KEY `idx_service_requests_assigned_worker` (`assigned_worker_profile`),
+  ADD KEY `idx_scheduled_times` (`booking_type`,`status`,`scheduled_start_time`);
 
 --
 -- Indices de la tabla `service_request_chat_messages`
@@ -593,6 +615,14 @@ ALTER TABLE `worker_profiles`
   ADD UNIQUE KEY `id_user` (`id_user`),
   ADD KEY `idx_worker_profiles_geo_verified` (`is_verified`,`latitude`,`longitude`),
   ADD KEY `idx_worker_profiles_geo_online` (`is_verified`,`is_online`,`latitude`,`longitude`);
+
+--
+-- Indices de la tabla `worker_availabilities`
+--
+ALTER TABLE `worker_availabilities`
+  ADD PRIMARY KEY (`id_availability`),
+  ADD UNIQUE KEY `uniq_worker_day_slot` (`id_worker_profile`,`day_of_week`,`start_time`,`end_time`),
+  ADD KEY `idx_worker_availability_lookup` (`day_of_week`,`is_active`,`start_time`,`end_time`);
 
 --
 -- Indices de la tabla `worker_rewards_settings`
@@ -702,6 +732,12 @@ ALTER TABLE `worker_profiles`
   MODIFY `id_worker_profile` int NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=14;
 
 --
+-- AUTO_INCREMENT de la tabla `worker_availabilities`
+--
+ALTER TABLE `worker_availabilities`
+  MODIFY `id_availability` int NOT NULL AUTO_INCREMENT;
+
+--
 -- Restricciones para tablas volcadas
 --
 
@@ -777,6 +813,12 @@ ALTER TABLE `worker_portfolio`
 --
 ALTER TABLE `worker_profiles`
   ADD CONSTRAINT `fk_worker_user` FOREIGN KEY (`id_user`) REFERENCES `users` (`id_user`) ON DELETE CASCADE;
+
+--
+-- Filtros para la tabla `worker_availabilities`
+--
+ALTER TABLE `worker_availabilities`
+  ADD CONSTRAINT `fk_worker_availability_profile` FOREIGN KEY (`id_worker_profile`) REFERENCES `worker_profiles` (`id_worker_profile`) ON DELETE CASCADE;
 
 --
 -- Filtros para la tabla `worker_services`

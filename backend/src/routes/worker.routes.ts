@@ -7,12 +7,15 @@ import {
   deletePortfolioImage,
   downloadWorkerRewardsStatementPdf,
   getWorkerMe,
+  getWorkerAppointments,
+  getWorkerAvailability,
   getWorkerRewardsDashboard,
   getWorkerRequests,
   rejectWorkerRequest,
   requestWorkerEmailChangeToken,
   startWorkerRequest,
   updateWorkerSettings,
+  updateWorkerAvailability,
   uploadDocuments,
   uploadPortfolioImages,
   uploadProfileImage,
@@ -30,9 +33,12 @@ const router = Router();
 router.use(verifyToken, requireWorker);
 
 router.get('/me', getWorkerMe);
+router.get('/availability', getWorkerAvailability);
+router.put('/availability', sensitiveLimiter, validate(WorkerSchema.availability), updateWorkerAvailability);
 router.get('/rewards-dashboard', getWorkerRewardsDashboard);
 router.get('/rewards-dashboard/statement.pdf', downloadWorkerRewardsStatementPdf);
 router.get('/requests', getWorkerRequests);
+router.get('/appointments', getWorkerAppointments);
 router.post('/requests/:idRequest/accept', sensitiveLimiter, acceptWorkerRequest);
 router.post('/requests/:idRequest/reject', sensitiveLimiter, rejectWorkerRequest);
 router.post('/requests/:idRequest/counter-offer', sensitiveLimiter, counterOfferWorkerRequest);

@@ -4,6 +4,7 @@ import { Notyf } from 'notyf';
 import 'notyf/notyf.min.css';
 import { API_URL } from '../../config/api';
 import { getAuthUser, getToken as getSessionToken, logoutAuthSession, updateStoredAuthUser } from '../../utils/session';
+import { WorkerAvailabilitySection } from './WorkerAvailabilitySection';
 
 type PortfolioItem = {
   id_photo: number;
@@ -379,6 +380,11 @@ export const SettingsView: React.FC = () => {
           </div>
         </div>
       </div>
+
+      <WorkerAvailabilitySection
+        onError={(message) => notyf.error(message)}
+        onSuccess={(message) => notyf.success(message)}
+      />
 
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
         <div className="bg-white rounded-3xl border border-gray-200 p-5 md:p-6 shadow-sm">

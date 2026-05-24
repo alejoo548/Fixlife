@@ -23,6 +23,11 @@ interface TrackableRequest {
     id_request: number;
     service_name: string;
     location_text: string;
+    booking_type?: 'express' | 'scheduled' | string;
+    scheduled_date?: string | null;
+    scheduled_time?: string | null;
+    scheduled_start_time?: string | null;
+    scheduled_end_time?: string | null;
     latitude?: number | null;
     longitude?: number | null;
     status: RequestStatus;
@@ -357,6 +362,37 @@ const formatEta = (durationMin: number) => {
     return minutes > 0 ? `${hours}h ${minutes}m` : `${hours}h`;
 };
 
+const isScheduledRequest = (request: TrackableRequest) =>
+    String(request.booking_type || 'express').toLowerCase() === 'scheduled';
+
+const formatScheduledWindow = (request: TrackableRequest) => {
+    const startValue = request.scheduled_start_time || (
+        request.scheduled_date && request.scheduled_time
+            ? `${request.scheduled_date}T${request.scheduled_time}`
+            : ''
+    );
+    if (!startValue) return '';
+
+    const start = new Date(startValue);
+    const end = request.scheduled_end_time ? new Date(request.scheduled_end_time) : null;
+    if (Number.isNaN(start.getTime())) return '';
+
+    const dateLabel = start.toLocaleDateString(undefined, {
+        weekday: 'short',
+        month: 'short',
+        day: 'numeric',
+    });
+    const startLabel = start.toLocaleTimeString(undefined, {
+        hour: 'numeric',
+        minute: '2-digit',
+    });
+    const endLabel = end && !Number.isNaN(end.getTime())
+        ? end.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })
+        : '';
+
+    return endLabel ? `${dateLabel}, ${startLabel} - ${endLabel}` : `${dateLabel}, ${startLabel}`;
+};
+
 const statusToStage = (statusRaw: RequestStatus): TrackerStage => {
     const status = String(statusRaw || '').toLowerCase();
     if (status === 'done') return 'completed';
@@ -527,7 +563,23 @@ const ClientLiveRequestTracker: React.FC<ClientLiveRequestTrackerProps> = ({ lea
         }
     }, [request.id_request, routeOriginCoords, workerStartCoords]);
 
-    const isLiveRoute = ['paid', 'in_progress'].includes(String(request.status || '').toLowerCase());
+    const requestStatus = String(request.status || '').toLowerCase();
+    const scheduledStart = useMemo(() => {
+        const startValue = request.scheduled_start_time || (
+            request.scheduled_date && request.scheduled_time
+                ? `${request.scheduled_date}T${request.scheduled_time}`
+                : ''
+        );
+        if (!startValue) return null;
+        const value = new Date(startValue);
+        return Number.isNaN(value.getTime()) ? null : value;
+    }, [request.scheduled_date, request.scheduled_start_time, request.scheduled_time]);
+    const scheduledWindow = useMemo(() => formatScheduledWindow(request), [request]);
+    const isScheduledFuture = isScheduledRequest(request)
+        && !!scheduledStart
+        && scheduledStart.getTime() > Date.now()
+        && !['in_progress', 'awaiting_confirmation', 'done'].includes(requestStatus);
+    const isLiveRoute = ['paid', 'in_progress'].includes(requestStatus) && !isScheduledFuture;
     const visibleRoutePoints = useMemo(() => {
         if (!routePreview) return null;
         if (!isLiveRoute) return routePreview.points;
@@ -908,6 +960,13 @@ const ClientLiveRequestTracker: React.FC<ClientLiveRequestTrackerProps> = ({ lea
 
     const visual = stageVisual(trackerStage);
     const workerName = request.assigned_worker?.name || 'Your worker';
+    const displayedVisual = isScheduledFuture
+        ? {
+            ...visual,
+            label: 'Scheduled visit',
+            note: scheduledWindow || 'Your visit is reserved for the selected time.',
+        }
+        : visual;
 
     const showTrackerToast = (tone: 'success' | 'info', message: string) => {
         const now = Date.now();
@@ -953,7 +1012,12 @@ const ClientLiveRequestTracker: React.FC<ClientLiveRequestTrackerProps> = ({ lea
         previousStageRef.current = trackerStage;
     }, [request.id_request, request.service_name, trackerStage, workerName]);
 
-    const etaLabel = routeLoading ? 'Syncing' : formatEta(metrics?.durationMin ?? routePreview?.durationMin ?? 0);
+    const etaLabel = isScheduledFuture
+        ? scheduledWindow || 'Scheduled'
+        : routeLoading
+          ? 'Syncing'
+          : formatEta(metrics?.durationMin ?? routePreview?.durationMin ?? 0);
+    const etaMetaLabel = isScheduledFuture ? 'Visit' : 'ETA';
     const distanceLabel = routeLoading ? 'Updating' : `${(metrics?.distanceKm ?? routePreview?.distanceKm ?? 0).toFixed(1)} km`;
 
     return (
@@ -992,12 +1056,12 @@ const ClientLiveRequestTracker: React.FC<ClientLiveRequestTrackerProps> = ({ lea
                         className="pointer-events-auto flex-1 sm:flex-none flex items-center gap-3 sm:gap-4 bg-white/95 backdrop-blur-md px-4 sm:px-5 py-2.5 sm:py-3.5 rounded-full sm:rounded-[1.25rem] shadow-lg border border-white/60"
                     >
                         <div className="relative flex items-center justify-center shrink-0">
-                            <div className={`absolute inset-0 rounded-full blur-md opacity-40 ${visual.toneClass.includes('emerald') || visual.toneClass.includes('green') ? 'bg-emerald-500' : 'bg-blue-500'}`}></div>
+                            <div className={`absolute inset-0 rounded-full blur-md opacity-40 ${displayedVisual.toneClass.includes('emerald') || displayedVisual.toneClass.includes('green') ? 'bg-emerald-500' : 'bg-blue-500'}`}></div>
                             <div className="h-2 w-2 sm:h-2.5 sm:w-2.5 rounded-full bg-blue-500 relative z-10 animate-pulse"></div>
                         </div>
                         <div className="min-w-0">
                             <p className="text-[9px] sm:text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 leading-none mb-1 sm:mb-1.5">Status</p>
-                            <p className="text-xs sm:text-sm font-black text-slate-900 leading-none truncate">{visual.label}</p>
+                            <p className="text-xs sm:text-sm font-black text-slate-900 leading-none truncate">{displayedVisual.label}</p>
                         </div>
                     </motion.div>
                 </div>
@@ -1036,11 +1100,14 @@ const ClientLiveRequestTracker: React.FC<ClientLiveRequestTrackerProps> = ({ lea
                             <div className="min-w-0">
                                 <h3 className="text-lg font-black text-slate-900 truncate">{workerName}</h3>
                                 <p className="text-sm font-semibold text-slate-500 truncate">{request.service_name}</p>
+                                {isScheduledRequest(request) && scheduledWindow && (
+                                    <p className="mt-0.5 text-xs font-bold text-blue-600 truncate">{scheduledWindow}</p>
+                                )}
                             </div>
                         </div>
                         <div className="text-right shrink-0 pl-4 border-l border-slate-100 ml-4">
-                            <div className="text-2xl font-black text-slate-900 tracking-tight">{etaLabel}</div>
-                            <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-0.5">ETA</div>
+                            <div className={`${isScheduledFuture ? 'max-w-[140px] text-sm leading-tight' : 'text-2xl'} font-black text-slate-900 tracking-tight`}>{etaLabel}</div>
+                            <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-0.5">{etaMetaLabel}</div>
                         </div>
                     </div>
 
