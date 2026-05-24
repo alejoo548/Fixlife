@@ -1708,7 +1708,7 @@ export const createServiceRequest = async (req: AuthRequest, res: Response): Pro
          HAVING distance_km <= ? AND distance_km <= wp.coverage_km
          ORDER BY distance_km ASC
          LIMIT 50`,
-        [longitude, latitude, idService, ...availabilityParams, ...boundsFilter.params, radiusKm]
+        [longitude, latitude, ...availabilityParams, idService, ...boundsFilter.params, radiusKm]
       );
 
       await bulkInsertRequestWorkerCandidates(pool, idRequest, nearRows);

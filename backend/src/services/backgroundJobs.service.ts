@@ -61,7 +61,7 @@ const reinjectScheduledRequestCandidates = async (
   if (input.latitude == null || input.longitude == null || !input.idService) return;
 
   await connection.execute(
-    `INSERT IGNORE INTO service_request_workers (id_request, id_worker_profile, distance_km, status)
+    `INSERT INTO service_request_workers (id_request, id_worker_profile, distance_km, status)
      SELECT
        sr.id_request,
        wp.id_worker_profile,
@@ -86,7 +86,18 @@ const reinjectScheduledRequestCandidates = async (
        AND (? IS NULL OR wp.id_worker_profile <> ?)
        AND (ST_Distance_Sphere(point(wp.longitude, wp.latitude), point(sr.longitude, sr.latitude)) / 1000) <= LEAST(COALESCE(sr.radius_km, 8), wp.coverage_km)
      ORDER BY distance_km ASC
-     LIMIT 50`,
+     LIMIT 50
+     ON DUPLICATE KEY UPDATE
+       distance_km = VALUES(distance_km),
+       status = CASE
+         WHEN service_request_workers.status IN ('new', 'expired') THEN 'new'
+         ELSE service_request_workers.status
+       END,
+       counter_status = CASE
+         WHEN service_request_workers.status IN ('new', 'expired') THEN NULL
+         ELSE service_request_workers.counter_status
+       END,
+       updated_at = CURRENT_TIMESTAMP`,
     [
       SCHEDULED_REQUEST_DURATION_MINUTES,
       input.idRequest,
