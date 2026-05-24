@@ -54,4 +54,17 @@ export const WorkerSchema = {
       .trim()
       .regex(otpRegex, 'Invalid token format.'),
   }),
+
+  availability: z.object({
+    slots: z
+      .array(
+        z.object({
+          day_of_week: z.number().int().min(0).max(6),
+          start_time: z.string().regex(/^\d{2}:\d{2}(:\d{2})?$/, 'Invalid start time.'),
+          end_time: z.string().regex(/^\d{2}:\d{2}(:\d{2})?$/, 'Invalid end time.'),
+          is_active: z.boolean().optional(),
+        })
+      )
+      .max(42, 'Too many availability slots.'),
+  }),
 };

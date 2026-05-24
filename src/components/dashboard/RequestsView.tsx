@@ -21,6 +21,11 @@ interface WorkerRequest {
   latitude: number | null;
   longitude: number | null;
   budget: number;
+  booking_type?: 'express' | 'scheduled' | string;
+  scheduled_date?: string | null;
+  scheduled_time?: string | null;
+  scheduled_start_time?: string | null;
+  scheduled_end_time?: string | null;
   request_status: 'open' | 'payment_pending' | 'paid' | 'assigned' | 'in_progress' | 'awaiting_confirmation' | 'done' | 'cancelled';
   worker_status: 'new' | 'accepted' | 'rejected' | 'expired';
   distance_km: number | null;
@@ -146,6 +151,36 @@ const workerRequestStatusLabel = (statusRaw: string) => {
   if (status === 'done') return 'Completed';
   if (status === 'paid') return 'Ready to go';
   return status ? status.charAt(0).toUpperCase() + status.slice(1) : 'Pending';
+};
+
+const isScheduledRequest = (request: Pick<WorkerRequest, 'booking_type'> | null | undefined) =>
+  String(request?.booking_type || 'express').toLowerCase() === 'scheduled';
+
+const formatScheduledWindow = (
+  request: Pick<WorkerRequest, 'scheduled_start_time' | 'scheduled_end_time' | 'scheduled_date' | 'scheduled_time'>
+) => {
+  const startValue = request.scheduled_start_time || (
+    request.scheduled_date && request.scheduled_time
+      ? `${request.scheduled_date}T${request.scheduled_time}`
+      : null
+  );
+  if (!startValue) return 'Time pending';
+
+  const start = new Date(startValue);
+  const end = request.scheduled_end_time ? new Date(request.scheduled_end_time) : null;
+  if (Number.isNaN(start.getTime())) return 'Time pending';
+
+  const dateLabel = start.toLocaleDateString([], {
+    weekday: 'short',
+    month: 'short',
+    day: 'numeric',
+  });
+  const startLabel = start.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+  const endLabel = end && !Number.isNaN(end.getTime())
+    ? end.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
+    : null;
+
+  return endLabel ? `${dateLabel} · ${startLabel} - ${endLabel}` : `${dateLabel} · ${startLabel}`;
 };
 
 const haversineKm = (
@@ -662,6 +697,8 @@ export const RequestsView: React.FC<RequestsViewProps> = ({ isOnline, mobileView
         : routeStatusLabel === 'Rerouting'
           ? 'Re-centering'
           : routeStatusLabel;
+  const selectedIsScheduled = isScheduledRequest(selectedRequest);
+  const selectedScheduleWindow = selectedRequest ? formatScheduledWindow(selectedRequest) : '';
 
   const showRouteAlert = (nextAlert: RouteAlert) => {
     setRouteAlert(nextAlert);
@@ -1888,6 +1925,8 @@ export const RequestsView: React.FC<RequestsViewProps> = ({ isOnline, mobileView
           ) : (
             requests.map((req) => {
               const selected = req.id_request === selectedRequest?.id_request;
+              const scheduled = isScheduledRequest(req);
+              const scheduledWindow = formatScheduledWindow(req);
               const actionLockedByActiveJob =
                 statusFilter === 'new' &&
                 !!activeWorkerRequest &&
@@ -1926,6 +1965,20 @@ export const RequestsView: React.FC<RequestsViewProps> = ({ isOnline, mobileView
                         {statusFilter !== 'new' && (
                           <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-slate-700">
                             {workerRequestStatusLabel(req.request_status)}
+                          </span>
+                        )}
+                      </div>
+                      <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                        <span className={`rounded-full px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.14em] ${
+                          scheduled
+                            ? 'border border-violet-200 bg-violet-50 text-violet-700'
+                            : 'border border-emerald-200 bg-emerald-50 text-emerald-700'
+                        }`}>
+                          {scheduled ? 'Scheduled' : 'Express'}
+                        </span>
+                        {scheduled && (
+                          <span className="rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[10px] font-bold text-slate-600">
+                            {scheduledWindow}
                           </span>
                         )}
                       </div>
@@ -2102,6 +2155,20 @@ export const RequestsView: React.FC<RequestsViewProps> = ({ isOnline, mobileView
                     <span className="whitespace-nowrap rounded-full bg-slate-100 px-3 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-slate-700">
                       {workerRequestStatusLabel(selectedRequest.request_status)}
                     </span>
+                  </div>
+                  <div className="mt-3 flex flex-wrap items-center gap-2">
+                    <span className={`rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-[0.18em] ${
+                      selectedIsScheduled
+                        ? 'border border-violet-200 bg-violet-50 text-violet-700'
+                        : 'border border-emerald-200 bg-emerald-50 text-emerald-700'
+                    }`}>
+                      {selectedIsScheduled ? 'Scheduled visit' : 'Express request'}
+                    </span>
+                    {selectedIsScheduled && (
+                      <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-[11px] font-black text-slate-700">
+                        {selectedScheduleWindow}
+                      </span>
+                    )}
                   </div>
                   <p className="mt-3 line-clamp-2 text-xs font-medium text-slate-500">{selectedLocationCompact}</p>
                 </div>

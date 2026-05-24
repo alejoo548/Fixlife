@@ -26,6 +26,9 @@ export interface ServiceRequestData {
   location: string;
   price: string;
   urgency_level: 'standard' | 'urgent' | 'emergency';
+  booking_type: 'express' | 'scheduled';
+  scheduled_date: string;
+  scheduled_time: string;
   images: string[];
 }
 

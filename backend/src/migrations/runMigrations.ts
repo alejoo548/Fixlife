@@ -70,6 +70,13 @@ const MIGRATIONS: MigrationDefinition[] = [
       await ensurePaypalWebhookTables();
     },
   },
+  {
+    id: '20260524_001_scheduled_bookings',
+    description: 'Scheduled service request fields and worker availability table',
+    run: async () => {
+      await ensureServiceRequestTables();
+    },
+  },
 ];
 
 const ensureMigrationsTable = async () => {

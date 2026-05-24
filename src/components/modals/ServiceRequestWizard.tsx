@@ -14,6 +14,7 @@ import { ServiceRequestServiceStep } from './ServiceRequestServiceStep';
 import { ServiceRequestDetailsHeader } from './ServiceRequestDetailsHeader';
 import { ServiceRequestLocationSection } from './ServiceRequestLocationSection';
 import { ServiceRequestProblemSection } from './ServiceRequestProblemSection';
+import { ServiceRequestSchedulingSection } from './ServiceRequestSchedulingSection';
 import { ServiceRequestHistorySection } from './ServiceRequestHistorySection';
 import { ServiceRequestAssignedWorkerCard } from './ServiceRequestAssignedWorkerCard';
 import { ServiceRequestPaymentModal } from './ServiceRequestPaymentModal';
@@ -123,6 +124,36 @@ const InlineTrackerFallback: React.FC = () => (
     </div>
 );
 
+const isScheduledServiceRequest = (request: Pick<MyServiceRequest, 'booking_type'> | null | undefined) =>
+    String(request?.booking_type || 'express').toLowerCase() === 'scheduled';
+
+const formatScheduledServiceWindow = (
+    request: Pick<MyServiceRequest, 'scheduled_start_time' | 'scheduled_end_time' | 'scheduled_date' | 'scheduled_time'>
+) => {
+    const startValue = request.scheduled_start_time || (
+        request.scheduled_date && request.scheduled_time
+            ? `${request.scheduled_date}T${request.scheduled_time}`
+            : null
+    );
+    if (!startValue) return 'Time pending';
+
+    const start = new Date(startValue);
+    const end = request.scheduled_end_time ? new Date(request.scheduled_end_time) : null;
+    if (Number.isNaN(start.getTime())) return 'Time pending';
+
+    const dateLabel = start.toLocaleDateString([], {
+        weekday: 'short',
+        month: 'short',
+        day: 'numeric',
+    });
+    const startLabel = start.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+    const endLabel = end && !Number.isNaN(end.getTime())
+        ? end.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
+        : null;
+
+    return endLabel ? `${dateLabel} · ${startLabel} - ${endLabel}` : `${dateLabel} · ${startLabel}`;
+};
+
 declare global {
     interface Window {
         L?: any;
@@ -141,6 +172,9 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
         location: '',
         price: '',
         urgency_level: 'standard',
+        booking_type: 'express',
+        scheduled_date: '',
+        scheduled_time: '',
         images: []
     });
     const [isSearching, setIsSearching] = useState(false);
@@ -256,6 +290,9 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
         setData((prev) => ({
             ...prev,
             category: initialServiceName || '',
+            booking_type: 'express',
+            scheduled_date: '',
+            scheduled_time: '',
         }));
         setGeoError(null);
         setNearbyWorkers([]);
@@ -1335,6 +1372,7 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
         isAuthenticated() &&
         !!data.price &&
         !!data.location.trim() &&
+        (data.booking_type !== 'scheduled' || (!!data.scheduled_date && !!data.scheduled_time)) &&
         problemFiles.length > 0 &&
         !resolvingLocation;
 
@@ -1981,6 +2019,13 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                             onRadiusChange={setRadiusKm}
                                         />
                                     </motion.div>
+
+                                    <ServiceRequestSchedulingSection
+                                        bookingType={data.booking_type}
+                                        scheduledDate={data.scheduled_date}
+                                        scheduledTime={data.scheduled_time}
+                                        onChange={(patch) => setData((prev) => ({ ...prev, ...patch }))}
+                                    />
 
                                     <ServiceRequestProblemSection
                                         description={data.description}
@@ -3207,6 +3252,8 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                                 const paymentStatus = String(request.payment?.status || '').toLowerCase();
                                                 const timelineState = getClientTimelineState(request);
                                                 const isTrackingActive = activeTrackedRequest?.id_request === request.id_request;
+                                                const isScheduled = isScheduledServiceRequest(request);
+                                                const scheduledWindow = formatScheduledServiceWindow(request);
 
                                                 return (
                                                     <div
@@ -3228,6 +3275,20 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                                                     <span className="text-[10px] font-bold text-slate-500">{new Date(request.created_at).toLocaleDateString()}</span>
                                                                 </div>
                                                                 <h3 className="text-lg font-black text-slate-900 truncate leading-tight">{request.service_name}</h3>
+                                                                <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                                                                    <span className={`rounded-full px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.14em] ${
+                                                                        isScheduled
+                                                                            ? 'border border-violet-200 bg-violet-50 text-violet-700'
+                                                                            : 'border border-emerald-200 bg-emerald-50 text-emerald-700'
+                                                                    }`}>
+                                                                        {isScheduled ? 'Scheduled' : 'Express'}
+                                                                    </span>
+                                                                    {isScheduled && (
+                                                                        <span className="rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[10px] font-bold text-slate-600">
+                                                                            {scheduledWindow}
+                                                                        </span>
+                                                                    )}
+                                                                </div>
                                                             </div>
                                                             <div className="flex flex-col items-end gap-1.5 shrink-0">
                                                                 <span className={`text-[10px] font-black uppercase tracking-[0.1em] px-2.5 py-1 rounded-full border ${statusBadgeClasses(request.status)}`}>

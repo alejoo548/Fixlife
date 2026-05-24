@@ -81,6 +81,10 @@ export const useServiceRequestSubmit = ({
       showToast('error', 'Add at least one problem image.');
       return;
     }
+    if (data.booking_type === 'scheduled' && (!data.scheduled_date || !data.scheduled_time)) {
+      showToast('error', 'Select a date and time window for the scheduled visit.');
+      return;
+    }
 
     try {
       setIsSubmittingRequest(true);
@@ -91,6 +95,17 @@ export const useServiceRequestSubmit = ({
       form.append('budget', String(budgetValue));
       form.append('radius_km', String(radiusKm));
       form.append('urgency_level', String(data.urgency_level || 'standard'));
+      form.append('booking_type', data.booking_type || 'express');
+      if (data.booking_type === 'scheduled') {
+        const scheduledStart = new Date(`${data.scheduled_date}T${data.scheduled_time}:00`);
+        if (Number.isNaN(scheduledStart.getTime())) {
+          showToast('error', 'Select a valid date and time for the scheduled visit.');
+          return;
+        }
+        form.append('scheduled_date', data.scheduled_date);
+        form.append('scheduled_time', data.scheduled_time);
+        form.append('scheduled_start_time', scheduledStart.toISOString());
+      }
       form.append('lat', String(resolvedCoords.lat));
       form.append('lng', String(resolvedCoords.lng));
       problemFiles.forEach((file) => form.append('problem_images', file));
@@ -116,7 +131,17 @@ export const useServiceRequestSubmit = ({
       setProblemFiles([]);
       setCurrentCoords(null);
       setGeoError(null);
-      setData((prev) => ({ ...prev, description: '', location: '', price: '', urgency_level: 'standard', images: [] }));
+      setData((prev) => ({
+        ...prev,
+        description: '',
+        location: '',
+        price: '',
+        urgency_level: 'standard',
+        booking_type: 'express',
+        scheduled_date: '',
+        scheduled_time: '',
+        images: [],
+      }));
       void fetchMyRequests(historyStatus);
     } catch {
       showToast('error', 'Network error creating request.');
