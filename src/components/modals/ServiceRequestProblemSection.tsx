@@ -11,16 +11,15 @@ type NearbyWorkerPreview = {
 interface ServiceRequestProblemSectionProps {
     description: string;
     price: string;
-    urgencyLevel: 'standard' | 'urgent' | 'emergency';
     problemFilesCount: number;
     problemPreviewUrls: string[];
     nearbyWorkers: NearbyWorkerPreview[];
+    noNearbyProsNotice: string;
     canSearchPros: boolean;
     canSubmitRequest: boolean;
     isSubmittingRequest: boolean;
     isAuthenticated: boolean;
     onDescriptionChange: (value: string) => void;
-    onUrgencyChange: (value: 'standard' | 'urgent' | 'emergency') => void;
     onPriceChange: (value: string) => void;
     onProblemFilesChange: (event: React.ChangeEvent<HTMLInputElement>) => void;
     onRemoveProblemImage: (index: number) => void;
@@ -31,16 +30,15 @@ interface ServiceRequestProblemSectionProps {
 export function ServiceRequestProblemSection({
     description,
     price,
-    urgencyLevel,
     problemFilesCount,
     problemPreviewUrls,
     nearbyWorkers,
+    noNearbyProsNotice,
     canSearchPros,
     canSubmitRequest,
     isSubmittingRequest,
     isAuthenticated,
     onDescriptionChange,
-    onUrgencyChange,
     onPriceChange,
     onProblemFilesChange,
     onRemoveProblemImage,
@@ -49,37 +47,6 @@ export function ServiceRequestProblemSection({
 }: ServiceRequestProblemSectionProps) {
     return (
         <>
-            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.16 }}>
-                <div className="flex items-center justify-between mb-2">
-                    <label className="block text-sm font-bold text-slate-900">Urgency</label>
-                    <span className="text-xs font-semibold text-slate-500">Impacts commission rules</span>
-                </div>
-                <div className="grid grid-cols-3 gap-2">
-                    {[
-                        { key: 'standard', label: 'Standard', detail: 'Default fee' },
-                        { key: 'urgent', label: 'Urgent', detail: 'Priority dispatch' },
-                        { key: 'emergency', label: 'Emergency', detail: 'Highest urgency' },
-                    ].map((option) => {
-                        const active = urgencyLevel === option.key;
-                        return (
-                            <button
-                                key={option.key}
-                                type="button"
-                                onClick={() => onUrgencyChange(option.key as 'standard' | 'urgent' | 'emergency')}
-                                className={`rounded-2xl border px-3 py-3 text-left transition-all ${
-                                    active
-                                        ? 'border-amber-300 bg-amber-50 shadow-sm'
-                                        : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50'
-                                }`}
-                            >
-                                <p className="text-sm font-black text-slate-900">{option.label}</p>
-                                <p className="mt-1 text-[11px] font-semibold text-slate-500">{option.detail}</p>
-                            </button>
-                        );
-                    })}
-                </div>
-            </motion.div>
-
             <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}>
                 <label className="block text-sm font-bold text-gray-700 mb-2">What's the problem?</label>
                 <textarea
@@ -186,6 +153,17 @@ export function ServiceRequestProblemSection({
                         ))}
                     </div>
                 </div>
+            )}
+
+            {noNearbyProsNotice && nearbyWorkers.length === 0 && (
+                <motion.div
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 p-4 shadow-sm"
+                >
+                    <p className="text-sm font-black text-amber-900">No nearby pros available right now</p>
+                    <p className="mt-1 text-sm font-semibold text-amber-800">{noNearbyProsNotice}</p>
+                </motion.div>
             )}
 
             <div className="mt-6 space-y-3 sticky bottom-0 bg-gradient-to-t from-white via-white to-transparent pt-4 pb-2 z-10">
