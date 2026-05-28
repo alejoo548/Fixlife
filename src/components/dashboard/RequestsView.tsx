@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useSSE } from '../../hooks/useSSE';
 import { API_ENDPOINTS } from '../../config/api';
+import { addResilientTileLayer, loadLeaflet } from '../../utils/leafletLoader';
 import { Notyf } from 'notyf';
 import { motion, AnimatePresence } from 'framer-motion';
 import 'notyf/notyf.min.css';
@@ -712,39 +713,7 @@ export const RequestsView: React.FC<RequestsViewProps> = ({ isOnline, mobileView
   };
 
   useEffect(() => {
-    const loadLeaflet = async () => {
-      if (window.L) {
-        setLeafletReady(true);
-        return;
-      }
-
-      const cssId = 'leaflet-css-worker-requests';
-      const jsId = 'leaflet-js-worker-requests';
-
-      if (!document.getElementById(cssId)) {
-        const link = document.createElement('link');
-        link.id = cssId;
-        link.rel = 'stylesheet';
-        link.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
-        document.head.appendChild(link);
-      }
-
-      if (!document.getElementById(jsId)) {
-        await new Promise<void>((resolve, reject) => {
-          const script = document.createElement('script');
-          script.id = jsId;
-          script.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
-          script.async = true;
-          script.onload = () => resolve();
-          script.onerror = () => reject(new Error('Could not load map library'));
-          document.body.appendChild(script);
-        });
-      }
-
-      if (window.L) setLeafletReady(true);
-    };
-
-    loadLeaflet().catch((err) => console.error(err));
+    loadLeaflet('worker-requests').then(setLeafletReady).catch((err) => console.error(err));
   }, []);
 
   useEffect(() => {
@@ -757,10 +726,7 @@ export const RequestsView: React.FC<RequestsViewProps> = ({ isOnline, mobileView
       attributionControl: true,
     }).setView([13.6929, -89.2182], 12);
 
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
-      maxZoom: 19,
-      attribution: '&copy; OpenStreetMap &copy; CARTO',
-    }).addTo(map);
+    addResilientTileLayer(L, map);
 
     L.control.zoom({ position: 'bottomright' }).addTo(map);
 
@@ -2514,9 +2480,12 @@ export const RequestsView: React.FC<RequestsViewProps> = ({ isOnline, mobileView
                       setCounterAmount('');
                       return;
                     }
+                    if (nextValue.includes('-')) {
+                      return;
+                    }
 
                     const parsed = Number(nextValue);
-                    if (!Number.isFinite(parsed) || parsed < 0) {
+                    if (!Number.isFinite(parsed) || parsed <= 0) {
                       return;
                     }
 

@@ -2045,8 +2045,11 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                                 setData({ ...data, price: '' });
                                                 return;
                                             }
+                                            if (nextValue.includes('-')) {
+                                                return;
+                                            }
                                             const parsed = Number(nextValue);
-                                            if (!Number.isFinite(parsed) || parsed < 0) {
+                                            if (!Number.isFinite(parsed) || parsed <= 0) {
                                                 return;
                                             }
                                             setData({ ...data, price: nextValue });
