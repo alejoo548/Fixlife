@@ -21,6 +21,7 @@ interface ServiceRequestProblemSectionProps {
     isAuthenticated: boolean;
     onDescriptionChange: (value: string) => void;
     onPriceChange: (value: string) => void;
+    onPricePaste: (value: string) => void;
     onProblemFilesChange: (event: React.ChangeEvent<HTMLInputElement>) => void;
     onRemoveProblemImage: (index: number) => void;
     onFindPro: () => void;
@@ -40,6 +41,7 @@ export function ServiceRequestProblemSection({
     isAuthenticated,
     onDescriptionChange,
     onPriceChange,
+    onPricePaste,
     onProblemFilesChange,
     onRemoveProblemImage,
     onFindPro,
@@ -116,13 +118,19 @@ export function ServiceRequestProblemSection({
                 <div className="relative group">
                     <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-lg group-focus-within:text-slate-900 transition-colors">$</span>
                     <input
-                        type="number"
-                        min="1"
-                        step="0.01"
+                        type="text"
+                        inputMode="decimal"
                         placeholder="0"
                         className="w-full bg-slate-50 border-2 border-transparent focus:bg-white rounded-xl py-4 pl-10 pr-16 text-slate-900 font-bold text-lg outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 transition-all placeholder-slate-300 shadow-sm"
                         value={price}
                         onChange={(e) => onPriceChange(e.target.value)}
+                        onKeyDown={(e) => {
+                            if (['-', '+', 'e', 'E'].includes(e.key)) e.preventDefault();
+                        }}
+                        onPaste={(e) => {
+                            e.preventDefault();
+                            onPricePaste(e.clipboardData.getData('text'));
+                        }}
                     />
                     <span className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 text-sm font-bold bg-white px-2 py-1 rounded-md shadow-sm border border-slate-100">USD</span>
                 </div>

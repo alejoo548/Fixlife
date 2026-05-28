@@ -19,6 +19,7 @@ import { ServiceRequestHistorySection } from './ServiceRequestHistorySection';
 import { ServiceRequestAssignedWorkerCard } from './ServiceRequestAssignedWorkerCard';
 import { ServiceRequestPaymentModal } from './ServiceRequestPaymentModal';
 import { ServiceRequestFixesSuccessModal } from './ServiceRequestFixesSuccessModal';
+import { showSweetAlert } from '../../utils/sweetAlert';
 import { useResponsiveSheet } from '../../hooks/useResponsiveSheet';
 import { useServiceRequestChat } from './hooks/useServiceRequestChat';
 import { useActiveTrackedRequest } from './hooks/useActiveTrackedRequest';
@@ -1393,7 +1394,12 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
         if (workers.length === 0) {
             const message = 'We could not find available pros near this address right now. Try again later, increase the search radius, or choose another time.';
             setNoNearbyProsNotice(message);
-            showToast('info', message);
+            void showSweetAlert({
+                title: 'No nearby pros available right now',
+                message,
+                tone: 'warning',
+                confirmText: 'Try another option',
+            });
         }
         setTimeout(() => setIsSearching(false), 700);
     };
@@ -1402,6 +1408,19 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
         setHistoryStatus(status);
         setIsHistoryModalOpen(true);
         void fetchMyRequests(status, true);
+    };
+
+    const sanitizeBudgetInput = (value: string) => {
+        const cleaned = value
+            .replace(/[^\d.]/g, '')
+            .replace(/^0+(?=\d)/, '')
+            .replace(/(\..*)\./g, '$1');
+        const [whole, decimals = ''] = cleaned.split('.');
+        const nextValue = decimals.length > 0 ? `${whole}.${decimals.slice(0, 2)}` : cleaned;
+        if (nextValue === '' || nextValue === '.') return '';
+        const parsed = Number(nextValue);
+        if (!Number.isFinite(parsed) || parsed <= 0) return '';
+        return nextValue;
     };
 
     function showToast(type: 'success' | 'error' | 'info', message: string) {
@@ -1690,6 +1709,9 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
         setGeoError,
         setIsSubmittingRequest,
         setProblemFiles,
+        showAlert: (input) => {
+            void showSweetAlert(input);
+        },
         showToast,
     });
 
@@ -2087,19 +2109,9 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                         isAuthenticated={isAuthenticated()}
                                         onDescriptionChange={(value) => setData({ ...data, description: value })}
                                         onPriceChange={(nextValue) => {
-                                            if (nextValue === '') {
-                                                setData({ ...data, price: '' });
-                                                return;
-                                            }
-                                            if (nextValue.includes('-')) {
-                                                return;
-                                            }
-                                            const parsed = Number(nextValue);
-                                            if (!Number.isFinite(parsed) || parsed <= 0) {
-                                                return;
-                                            }
-                                            setData({ ...data, price: nextValue });
+                                            setData({ ...data, price: sanitizeBudgetInput(nextValue) });
                                         }}
+                                        onPricePaste={(value) => setData({ ...data, price: sanitizeBudgetInput(value) })}
                                         onProblemFilesChange={handleProblemFiles}
                                         onRemoveProblemImage={removeProblemImage}
                                         onFindPro={handleFloatingFindPro}
