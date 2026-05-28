@@ -2,7 +2,7 @@ import { useCallback } from 'react';
 import type { Dispatch, SetStateAction } from 'react';
 import { API_ENDPOINTS } from '../../../config/api';
 import type { ServiceRequestData } from '../../../types';
-import { getAuthUser, getToken, isAuthenticated } from '../../../utils/session';
+import { clearAuthSession, getAuthUser, getToken, isAuthenticated } from '../../../utils/session';
 import type { ServiceRequestHistoryStatus } from './useServiceRequestHistory';
 
 interface Coordinates {
@@ -29,6 +29,7 @@ interface UseServiceRequestSubmitOptions {
   setGeoError: Dispatch<SetStateAction<string | null>>;
   setIsSubmittingRequest: Dispatch<SetStateAction<boolean>>;
   setProblemFiles: Dispatch<SetStateAction<File[]>>;
+  showAlert?: (input: { title: string; message: string; tone?: 'warning' | 'error' | 'success' | 'info'; confirmText?: string }) => void;
   showToast: (type: 'success' | 'error' | 'info', message: string) => void;
 }
 
@@ -46,6 +47,7 @@ export const useServiceRequestSubmit = ({
   setGeoError,
   setIsSubmittingRequest,
   setProblemFiles,
+  showAlert,
   showToast,
 }: UseServiceRequestSubmitOptions) =>
   useCallback(async () => {
@@ -118,6 +120,16 @@ export const useServiceRequestSubmit = ({
       });
       const payload = await res.json();
       if (!res.ok || !payload?.success) {
+        if (res.status === 401 || res.status === 403) {
+          clearAuthSession('client');
+          showAlert?.({
+            title: 'Session expired',
+            message: 'Please sign in again before creating a service request.',
+            tone: 'warning',
+            confirmText: 'Sign in again',
+          });
+          return;
+        }
         if (res.status === 409 && payload?.id_request) {
           showToast('error', `You already have an active request (#${payload.id_request}).`);
           void fetchMyRequests(historyStatus);
@@ -162,5 +174,6 @@ export const useServiceRequestSubmit = ({
     setGeoError,
     setIsSubmittingRequest,
     setProblemFiles,
+    showAlert,
     showToast,
   ]);
