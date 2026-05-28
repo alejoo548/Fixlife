@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { addResilientTileLayer, loadLeaflet } from '../../../utils/leafletLoader';
 
 declare global {
   interface Window {
@@ -79,39 +80,7 @@ export function useServiceRequestMap({
   }, [useSavedLocation]);
 
   useEffect(() => {
-    const loadLeaflet = async () => {
-      if (window.L) {
-        setLeafletReady(true);
-        return;
-      }
-
-      const cssId = 'leaflet-css-cdn';
-      const jsId = 'leaflet-js-cdn';
-
-      if (!document.getElementById(cssId)) {
-        const link = document.createElement('link');
-        link.id = cssId;
-        link.rel = 'stylesheet';
-        link.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
-        document.head.appendChild(link);
-      }
-
-      if (!document.getElementById(jsId)) {
-        await new Promise<void>((resolve, reject) => {
-          const script = document.createElement('script');
-          script.id = jsId;
-          script.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
-          script.async = true;
-          script.onload = () => resolve();
-          script.onerror = () => reject(new Error('Could not load map library'));
-          document.body.appendChild(script);
-        });
-      }
-
-      if (window.L) setLeafletReady(true);
-    };
-
-    loadLeaflet().catch((err) => console.error(err));
+    loadLeaflet('service-request').then(setLeafletReady).catch((err) => console.error(err));
   }, []);
 
   useEffect(() => {
@@ -124,10 +93,7 @@ export function useServiceRequestMap({
       attributionControl: true,
     }).setView([13.6929, -89.2182], 12);
 
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
-      maxZoom: 19,
-      attribution: '&copy; OpenStreetMap &copy; CARTO',
-    }).addTo(map);
+    addResilientTileLayer(L, map);
 
     L.control.zoom({ position: 'bottomright' }).addTo(map);
 
