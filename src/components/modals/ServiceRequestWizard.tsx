@@ -209,6 +209,7 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
     const [saveLocationKind, setSaveLocationKind] = useState<'home' | 'work' | 'favorite'>('favorite');
     const [saveLocationTitle, setSaveLocationTitle] = useState('');
     const [nearbyWorkers, setNearbyWorkers] = useState<NearbyWorker[]>([]);
+    const [noNearbyProsNotice, setNoNearbyProsNotice] = useState('');
     const [radiusKm, setRadiusKm] = useState<number>(8);
     const [isSubmittingRequest, setIsSubmittingRequest] = useState(false);
     const { fetchMyRequests, historyLoading, historyStatus, myRequests, setHistoryStatus, setMyRequests } =
@@ -296,6 +297,7 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
         }));
         setGeoError(null);
         setNearbyWorkers([]);
+        setNoNearbyProsNotice('');
         setRadiusKm(8);
         setShowSaveLocationPanel(false);
         setShowSavedPlacesModal(false);
@@ -1365,6 +1367,13 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
         const found = services.find((svc) => svc.name === data.category);
         return found?.name || data.category;
     }, [data.category, services]);
+    const activeServiceCount = useMemo(
+        () => myRequests.filter((request) => {
+            const status = String(request.status || '').toLowerCase();
+            return !['done', 'cancelled'].includes(status);
+        }).length,
+        [myRequests]
+    );
 
     const canSearchPros = !!data.location.trim() && !resolvingLocation;
     const canSubmitRequest =
@@ -1379,8 +1388,20 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
     const handleFloatingFindPro = async () => {
         if (step !== 1 || !canSearchPros) return;
         setIsSearching(true);
-        await fetchNearbyPros();
+        setNoNearbyProsNotice('');
+        const workers = await fetchNearbyPros();
+        if (workers.length === 0) {
+            const message = 'We could not find available pros near this address right now. Try again later, increase the search radius, or choose another time.';
+            setNoNearbyProsNotice(message);
+            showToast('info', message);
+        }
         setTimeout(() => setIsSearching(false), 700);
+    };
+
+    const openRequestHistory = (status: 'all' | 'pending' | 'payment_pending' | 'paid' | 'assigned' | 'in_progress' | 'awaiting_confirmation' | 'done' | 'cancelled' = 'all') => {
+        setHistoryStatus(status);
+        setIsHistoryModalOpen(true);
+        void fetchMyRequests(status, true);
     };
 
     function showToast(type: 'success' | 'error' | 'info', message: string) {
@@ -1489,6 +1510,7 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
 
     const handleLocationChange = (value: string) => {
         setData((prev) => ({ ...prev, location: value }));
+        setNoNearbyProsNotice('');
         setShowLocationSuggestions(true);
         const parsedCoords = parseCoordinateInput(value);
         if (parsedCoords) {
@@ -1945,6 +1967,7 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                 services={services}
                                 onSelectService={(serviceName) => {
                                     setData({ ...data, category: serviceName });
+                                    setNoNearbyProsNotice('');
                                     setStep(1);
                                 }}
                             />
@@ -1963,6 +1986,27 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                     onBack={() => setStep(0)}
                                     onChangeService={() => setStep(0)}
                                 />
+
+                                <div className="mb-4 grid grid-cols-2 gap-3">
+                                    <button
+                                        type="button"
+                                        onClick={() => openRequestHistory('all')}
+                                        className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-left shadow-sm transition hover:border-blue-300 hover:bg-blue-50"
+                                    >
+                                        <p className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">Active</p>
+                                        <p className="mt-1 text-sm font-black text-slate-900">
+                                            My services {activeServiceCount > 0 ? `(${activeServiceCount})` : ''}
+                                        </p>
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => openRequestHistory('done')}
+                                        className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-left shadow-sm transition hover:border-emerald-300 hover:bg-emerald-50"
+                                    >
+                                        <p className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">History</p>
+                                        <p className="mt-1 text-sm font-black text-slate-900">Service history</p>
+                                    </button>
+                                </div>
 
                                 <div className="flex-1 space-y-6">
                                     <motion.div
@@ -2016,7 +2060,10 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                             onOpenSavedPlacesModal={() => setShowSavedPlacesModal(true)}
                                             onUseSavedLocation={(location) => useSavedLocation(location as SavedLocation)}
                                             onSaveLocationTitleChange={setSaveLocationTitle}
-                                            onRadiusChange={setRadiusKm}
+                                            onRadiusChange={(value) => {
+                                                setRadiusKm(value);
+                                                setNoNearbyProsNotice('');
+                                            }}
                                         />
                                     </motion.div>
 
@@ -2030,16 +2077,15 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                     <ServiceRequestProblemSection
                                         description={data.description}
                                         price={data.price}
-                                        urgencyLevel={data.urgency_level}
                                         problemFilesCount={problemFiles.length}
                                         problemPreviewUrls={problemPreviewUrls}
                                         nearbyWorkers={nearbyWorkers}
+                                        noNearbyProsNotice={noNearbyProsNotice}
                                         canSearchPros={canSearchPros}
                                         canSubmitRequest={canSubmitRequest}
                                         isSubmittingRequest={isSubmittingRequest}
                                         isAuthenticated={isAuthenticated()}
                                         onDescriptionChange={(value) => setData({ ...data, description: value })}
-                                        onUrgencyChange={(value) => setData({ ...data, urgency_level: value })}
                                         onPriceChange={(nextValue) => {
                                             if (nextValue === '') {
                                                 setData({ ...data, price: '' });

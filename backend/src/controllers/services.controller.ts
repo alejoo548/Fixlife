@@ -1611,25 +1611,6 @@ export const createServiceRequest = async (req: AuthRequest, res: Response): Pro
       return;
     }
 
-    const [activeRows] = await pool.execute<RowDataPacket[]>(
-      `SELECT id_request
-       FROM service_requests
-       WHERE id_user = ?
-         AND booking_type = 'express'
-         AND status IN ('open', 'pending', 'payment_pending', 'paid', 'assigned', 'in_progress', 'awaiting_confirmation')
-       ORDER BY created_at DESC
-       LIMIT 1`,
-      [idUser]
-    );
-    if (activeRows.length > 0) {
-      removeUploadedFiles(files);
-      res.status(409).json({
-        error: 'You already have an active request. Complete or cancel it before creating another one.',
-        id_request: Number(activeRows[0].id_request),
-      });
-      return;
-    }
-
     const [insertRequest] = await pool.execute<ResultSetHeader>(
       `INSERT INTO service_requests
        (
