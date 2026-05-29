@@ -119,6 +119,13 @@ export const API_ENDPOINTS = {
     backgroundJobs: `${API_URL}/api/admin/background-jobs`,
     activity: `${API_URL}/api/admin/activity`,
   },
+  support: {
+    threads: `${API_URL}/api/support/threads`,
+    allThreads: `${API_URL}/api/support/threads/all`,
+    thread: (id: number) => `${API_URL}/api/support/threads/${id}`,
+    messages: (id: number) => `${API_URL}/api/support/threads/${id}/messages`,
+  },
+
   worker: {
     me: `${API_URL}/api/worker/me`,
     rewardsDashboard: `${API_URL}/api/worker/rewards-dashboard`,

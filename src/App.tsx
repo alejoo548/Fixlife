@@ -16,7 +16,8 @@ import { Button } from './components/common/Button';
 import { ThreeDCard } from './components/common/ThreeDCard';
 import ForgotPassword from './pages/ForgotPassword';
 import UserProfile from './pages/UserProfile';
-import { hasRole, isAuthenticated, logoutAuthSession } from './utils/session';
+import { hasRole, isAuthenticated, logoutAuthSession, getToken } from './utils/session';
+import { SupportChatWidget } from './components/support/SupportChatWidget';
 import { API_ENDPOINTS } from './config/api';
 import { isExternalStockImage, normalizeImageUrl } from './utils/imageUrls';
 import { ProtectedRoute } from './routes/ProtectedRoute';
@@ -754,6 +755,11 @@ const App: React.FC = () => {
         />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
+
+      {/* Support widget — only for non-admin users; admins use the Admin Panel */}
+      {!hasRole('admin', 'admin') && (
+        <SupportChatWidget token={getToken()} />
+      )}
 
     </div>
   );
