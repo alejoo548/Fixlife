@@ -1,4 +1,5 @@
 import express, { Request, Response } from 'express';
+import { createServer } from 'http';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import helmet from 'helmet';
@@ -9,6 +10,8 @@ import servicesRoutes from './routes/services.routes';
 import notificationsRoutes from './routes/notifications.routes';
 import eventsRoute from './routes/events.route';
 import uploadsRoutes from './routes/uploads.routes';
+import supportRoutes from './routes/support.routes';
+import { initializeSupportSocket } from './services/supportSocket.service';
 import { globalLimiter } from './middlewares/security.middleware';
 import { isUsingGeneratedDevelopmentJwtSecret } from './config/security';
 import {
@@ -91,6 +94,7 @@ app.use('/api/services', servicesRoutes);
 app.use('/api/notifications', notificationsRoutes);
 app.use('/api/events', eventsRoute);
 app.use('/api/uploads', uploadsRoutes);
+app.use('/api/support', supportRoutes);
 
 app.get('/api/health', (_req: Request, res: Response) => {
   res.json({
@@ -138,8 +142,13 @@ const startServer = async () => {
     console.log('[db] Database schema is up to date.');
   }
 
-  app.listen(Number(PORT), '0.0.0.0', () => {
+  const httpServer = createServer(app);
+
+  initializeSupportSocket(httpServer);
+
+  httpServer.listen(Number(PORT), '0.0.0.0', () => {
     console.log(`Fixlife backend listening on http://0.0.0.0:${PORT}`);
+    console.log('[Support] Socket.IO support chat initialized');
   });
 
   startBackgroundJobWorker();

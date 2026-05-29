@@ -6,13 +6,14 @@ import {
 } from 'recharts';
 import { 
   LayoutDashboard, Users, Briefcase, Settings, LogOut, Search, Bell, TrendingUp, Activity, Clock, CheckCircle, Menu, X, ArrowUpRight, ArrowDownRight, ChevronLeft, ChevronRight, Image as ImageIcon, MapPin,
-  Plus, Edit3, Trash2, Eye, XCircle, FileText, Shield, Download
+  Plus, Edit3, Trash2, Eye, XCircle, FileText, Shield, Download, MessageCircle
 } from 'lucide-react';
 import { API_ENDPOINTS } from '../../config/api';
 import { Notyf } from 'notyf';
 import 'notyf/notyf.min.css';
 import { getAuthUser, getToken as getSessionToken, isAuthenticated, logoutAuthSession } from '../../utils/session';
 import { DashboardThemeToggle } from '../common/DashboardThemeToggle';
+import { SupportAdmin } from './SupportAdmin';
 import { useDashboardTheme } from '../../hooks/useDashboardTheme';
 import {
   DEFAULT_HERO_SLIDES,
@@ -1209,6 +1210,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ isOpen, onClose 
     { name: "Services", icon: Briefcase },
     { name: "Homepage Cards", icon: ImageIcon },
     { name: "Requests History", icon: FileText },
+    { name: "Support", icon: MessageCircle },
     { name: "Admin Activity", icon: Activity },
     { name: "Platform Settings", icon: Settings },
   ];
@@ -4094,6 +4096,10 @@ const renderRequestsHistoryTab = () => {
     </div>
   );
 
+  const renderSupportTab = () => {
+    return <SupportAdmin token={getToken()} />;
+  };
+
   // Tab content router
   const renderTabContent = () => {
     switch (activeTab) {
@@ -4102,6 +4108,7 @@ const renderRequestsHistoryTab = () => {
       case 'Users & Pros': return renderUsersTab();
       case 'Requests History': return renderRequestsHistoryTab();
       case 'Finance Analytics': return renderFinanceAnalyticsTab();
+      case 'Support': return renderSupportTab();
       case 'Admin Activity': return renderAdminActivityTab();
       case 'Platform Settings': return renderPlatformSettingsTab();
       default: return renderOverviewTab();
