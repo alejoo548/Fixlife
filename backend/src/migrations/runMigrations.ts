@@ -12,6 +12,7 @@ import { ensureFinanceOperationsTables } from '../services/financeOperations.ser
 import { ensureBackgroundJobsTable } from '../services/backgroundJobs.service';
 import { ensureSystemEventsTable } from '../services/systemEvents.service';
 import { ensurePaypalWebhookTables } from '../services/paypalWebhook.service';
+import { ensureSupportTables } from '../services/support.service';
 import { markDatabaseSchemaReady } from '../services/schemaState.service';
 import { ensureNotificationsTable } from '../utils/notifications';
 import { ensureUsersActiveColumn, ensureUsersPendingWorkerColumn, ensureUsersPhoneNumberNullable } from '../utils/users';
@@ -68,6 +69,13 @@ const MIGRATIONS: MigrationDefinition[] = [
       await ensureBackgroundJobsTable();
       await ensureNotificationsTable();
       await ensurePaypalWebhookTables();
+    },
+  },
+  {
+    id: '20260528_001_support_chat',
+    description: 'Support chat threads and messages (user-admin)',
+    run: async () => {
+      await ensureSupportTables();
     },
   },
 ];

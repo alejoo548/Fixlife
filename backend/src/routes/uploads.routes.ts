@@ -54,8 +54,19 @@ const canAccessProtectedUpload = async (req: AuthRequest, fileName: string) => {
      LIMIT 1`,
     [fileName, user.user_id, user.user_id]
   );
+  if (chatImageRows.length > 0) return true;
 
-  return chatImageRows.length > 0;
+  const [supportImageRows] = await pool.execute<RowDataPacket[]>(
+    `SELECT 1
+     FROM support_messages sm
+     INNER JOIN support_threads st ON st.id = sm.thread_id
+     WHERE sm.image_url = ?
+       AND st.user_id = ?
+     LIMIT 1`,
+    [fileName, user.user_id]
+  );
+
+  return supportImageRows.length > 0;
 };
 
 const readAuthUser = (req: AuthRequest): AuthRequest['user'] => {
