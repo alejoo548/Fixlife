@@ -1,0 +1,83 @@
+import React, { useState } from 'react';
+
+interface SupportCreateThreadProps {
+  onSubmit: (subject: string, message: string) => void;
+  onCancel: () => void;
+  isSending: boolean;
+}
+
+export const SupportCreateThread: React.FC<SupportCreateThreadProps> = ({
+  onSubmit,
+  onCancel,
+  isSending,
+}) => {
+  const [subject, setSubject] = useState('');
+  const [message, setMessage] = useState('');
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!subject.trim() || !message.trim() || isSending) return;
+    onSubmit(subject.trim(), message.trim());
+  };
+
+  return (
+    <div className="h-full overflow-y-auto px-5 py-6">
+      <div className="mb-6">
+        <div className="text-xl font-black text-gray-900">Nuevo caso de soporte</div>
+        <p className="mt-1 text-sm text-gray-600">
+          Cuéntanos tu problema o duda. Te responderemos lo antes posible.
+        </p>
+      </div>
+
+      <form onSubmit={handleSubmit} className="space-y-5">
+        <div>
+          <label className="mb-1.5 block text-[10px] font-bold tracking-[0.8px] text-gray-500">
+            ASUNTO
+          </label>
+          <input
+            type="text"
+            value={subject}
+            onChange={(e) => setSubject(e.target.value)}
+            placeholder="Ej: No puedo ver mis pagos"
+            className="w-full rounded-3xl border border-gray-200/70 bg-white px-4 py-3.5 text-[15px] font-medium placeholder:text-gray-400 focus:border-bird-blue focus:outline-none"
+            maxLength={80}
+            required
+          />
+        </div>
+
+        <div>
+          <label className="mb-1.5 block text-[10px] font-bold tracking-[0.8px] text-gray-500">
+            DESCRIBE TU PROBLEMA
+          </label>
+          <textarea
+            value={message}
+            onChange={(e) => setMessage(e.target.value)}
+            placeholder="Cuéntanos qué está pasando..."
+            rows={6}
+            className="w-full resize-none rounded-3xl border border-gray-200/70 bg-white px-4 py-3.5 text-[15px] font-medium placeholder:text-gray-400 focus:border-bird-blue focus:outline-none"
+            required
+          />
+          <div className="mt-1 text-right text-[10px] text-gray-400">{message.length}/500</div>
+        </div>
+
+        <div className="flex gap-3 pt-2">
+          <button
+            type="button"
+            onClick={onCancel}
+            disabled={isSending}
+            className="flex-1 rounded-3xl border border-gray-200/70 py-3.5 text-sm font-bold text-gray-700 transition hover:bg-gray-50 disabled:opacity-60"
+          >
+            Cancelar
+          </button>
+          <button
+            type="submit"
+            disabled={isSending || !subject.trim() || !message.trim()}
+            className="flex-1 rounded-3xl bg-bird-blue py-3.5 text-sm font-bold text-white shadow-sm transition active:scale-[0.985] hover:bg-bird-darkBlue disabled:opacity-60"
+          >
+            {isSending ? 'Abriendo caso...' : 'Abrir caso'}
+          </button>
+        </div>
+      </form>
+    </div>
+  );
+};
