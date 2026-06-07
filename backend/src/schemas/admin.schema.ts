@@ -3,6 +3,39 @@ import { z } from 'zod';
 const safeTextRegex = /^[\p{L}\p{N}\s.,\-_'":;!?()]{0,500}$/u;
 
 export const AdminSchema = {
+  emptyBody: z.object({}).strict(),
+
+  userRole: z.object({
+    rol: z.enum(['client', 'admin']),
+    reason: z.string().trim().min(8).max(500),
+  }).strict(),
+
+  userStatus: z.object({
+    is_active: z.union([z.boolean(), z.literal(0), z.literal(1), z.literal('0'), z.literal('1')]),
+    reason: z.string().trim().min(8).max(500),
+  }).strict(),
+
+  requestAction: z.object({
+    action: z.enum(['cancel', 'reassign', 'escalate', 'resolve']),
+    reason: z.string().trim().min(8, 'Reason must contain at least 8 characters.').max(500),
+  }).strict(),
+
+  workerDecision: z.object({
+    reason: z.string().trim().min(8, 'Reason must contain at least 8 characters.').max(500),
+  }).strict(),
+
+  payoutAction: z.object({
+    reason: z.string().trim().min(8, 'Reason must contain at least 8 characters.').max(500),
+  }).strict(),
+
+  workerRewardsSettings: z.object({
+    trial_min_completed_jobs: z.coerce.number().int().min(1).max(100),
+    commission_rate_percent: z.coerce.number().min(0).max(100),
+    royalty_rate_percent: z.coerce.number().min(0).max(100),
+    royalty_min_jobs: z.coerce.number().int().min(1).max(500),
+    royalty_min_completion_rate: z.coerce.number().min(0).max(100),
+  }).strict(),
+
   createService: z.object({
     name: z
       .string()
@@ -232,13 +265,13 @@ export const AdminSchema = {
         monthly_fee: z.coerce.number().min(0).max(9999),
         benefits_summary: z.string().trim().max(255).optional().or(z.literal('')),
       })
-    ).length(4, 'All four worker tiers must be configured.'),
-  }),
+    ).min(4, 'At least four worker tiers must be configured.').max(5),
+  }).strict(),
 
   workerTierUpdate: z.object({
     membership_tier: z.enum(['standard', 'verified', 'trusted', 'premium', 'elite']),
-    reason: z.string().trim().max(255).optional().or(z.literal('')),
-  }),
+    reason: z.string().trim().min(8).max(255),
+  }).strict(),
 
   financeCaseCreate: z.object({
     case_type: z.enum(['refund', 'dispute', 'adjustment']),
@@ -252,23 +285,23 @@ export const AdminSchema = {
   }),
 
   financeCaseResolve: z.object({
-    resolution_notes: z.string().trim().max(1500).optional().or(z.literal('')),
+    resolution_notes: z.string().trim().min(8).max(1500),
     apply_ledger: z.boolean().optional(),
-  }),
+  }).strict(),
 
   heroSlides: z.object({
     slides: z
       .array(
         z.object({
           id: z.number().int().positive().optional(),
-          title: z.string().trim().max(200, 'Title too long.').optional().or(z.literal('')),
-          subtitle: z.string().trim().max(300, 'Subtitle too long.').optional().or(z.literal('')),
-          image_url: z.string().trim().max(500, 'Image URL too long.').optional().or(z.literal('')),
-          cta_text: z.string().trim().max(100, 'CTA text too long.').optional().or(z.literal('')),
-          cta_link: z.string().trim().max(300, 'CTA link too long.').optional().or(z.literal('')),
-          order: z.number().int().min(0).optional(),
-        })
+          image: z.string().trim().min(1, 'Image is required.').max(500, 'Image URL too long.'),
+          tag: z.string().trim().min(1, 'Tag is required.').max(50, 'Tag too long.'),
+          title: z.string().trim().min(1, 'Title is required.').max(120, 'Title too long.'),
+          description: z.string().trim().min(1, 'Description is required.').max(255, 'Description too long.'),
+          cta: z.string().trim().min(1, 'CTA is required.').max(80, 'CTA too long.'),
+        }).strict()
       )
-      .max(20, 'Too many slides.'),
-  }),
+      .min(1, 'At least one slide is required.')
+      .max(10, 'Maximum 10 slides allowed.'),
+  }).strict(),
 };

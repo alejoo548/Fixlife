@@ -270,7 +270,7 @@ const UserProfile: React.FC<UserProfileProps> = ({ onBack }) => {
             <label className="inline-flex items-center gap-3 px-4 py-2 rounded-xl bg-bird-blue text-white font-bold cursor-pointer hover:bg-bird-darkBlue transition-colors">
               <input
                 type="file"
-                accept=".jpg,.jpeg,.png,.webp,.gif,.avif,image/jpeg,image/png,image/webp,image/gif,image/avif"
+                accept=".jpg,.jpeg,.png,.webp,.avif,image/jpeg,image/png,image/webp,image/avif"
                 onChange={handleImageUpload}
                 className="hidden"
                 disabled={isUploading || isRemovingPhoto}

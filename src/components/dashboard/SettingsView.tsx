@@ -4,6 +4,7 @@ import { Notyf } from 'notyf';
 import 'notyf/notyf.min.css';
 import { API_URL } from '../../config/api';
 import { getAuthUser, getToken as getSessionToken, logoutAuthSession, updateStoredAuthUser } from '../../utils/session';
+import { DropifyUpload } from '../../features/admin/components/DropifyUpload';
 
 type PortfolioItem = {
   id_photo: number;
@@ -104,17 +105,7 @@ export const SettingsView: React.FC = () => {
     loadData();
   }, []);
 
-  const handleProfileImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    if (!['image/png', 'image/jpeg', 'image/jpg'].includes(file.type)) {
-      notyf.error('Only PNG/JPG images are allowed.');
-      return;
-    }
-    if (file.size > 10 * 1024 * 1024) {
-      notyf.error('Image is too large. Max size is 10MB.');
-      return;
-    }
+  const handleProfileImageSelect = (file: File) => {
     setProfileImageFile(file);
     const preview = URL.createObjectURL(file);
     setProfileImagePreview(preview);
@@ -338,41 +329,21 @@ export const SettingsView: React.FC = () => {
         <div className="text-white font-bold text-xl mb-1">Profile</div>
         <p className="text-cyan-50 text-xs mb-4">Change your profile photo before saving.</p>
 
-        <div className="flex flex-col md:flex-row items-center md:items-end gap-5">
-          <div className="relative">
-            <div className="w-24 h-24 rounded-full overflow-hidden border-4 border-white shadow-lg bg-slate-100 transition-transform duration-300 hover:scale-105">
-              {displayProfileImage && !profileImgBroken ? (
-                <img
-                  src={displayProfileImage}
-                  alt="Profile"
-                  className="w-full h-full object-cover"
-                  onError={() => setProfileImgBroken(true)}
-                />
-              ) : (
-                <img src="/mascot.webp" alt="Profile fallback" className="w-full h-full object-cover" />
-              )}
-            </div>
-            <div className="absolute -right-1 -bottom-1 w-8 h-8 rounded-full bg-white text-cyan-600 font-bold flex items-center justify-center shadow">
-              +
-            </div>
+        <div className="flex flex-col md:flex-row items-center gap-5">
+          <div className="w-full md:w-1/2">
+            <DropifyUpload
+              label="Profile Picture"
+              value={displayProfileImage || ''}
+              onFileSelect={handleProfileImageSelect}
+              onError={(err) => notyf.error(err)}
+            />
           </div>
 
-          <div className="flex-1 w-full space-y-3">
-            <label className="w-full rounded-xl p-3 bg-white/90 border border-cyan-100 flex items-center justify-between gap-3 cursor-pointer hover:bg-white transition">
-              <span className="text-sm text-gray-700">Upload profile image (PNG/JPG)</span>
-              <span className="bg-cyan-600 text-white px-3 py-1.5 rounded-lg text-sm font-semibold">Dropify</span>
-              <input
-                type="file"
-                accept="image/png,image/jpeg,image/jpg"
-                className="hidden"
-                onChange={handleProfileImageSelect}
-              />
-            </label>
-
+          <div className="flex-1 w-full flex flex-col justify-end">
             <button
               onClick={handleSaveProfileImage}
-              disabled={uploadingProfileImage}
-              className="px-4 py-2 rounded-xl bg-slate-900 text-white font-bold hover:bg-black disabled:bg-gray-400"
+              disabled={uploadingProfileImage || !profileImageFile}
+              className="px-5 py-3 rounded-xl bg-slate-900 text-white font-bold hover:bg-black disabled:bg-gray-400 self-start"
             >
               {uploadingProfileImage ? 'Saving...' : 'Save Profile Image'}
             </button>
@@ -516,13 +487,22 @@ export const SettingsView: React.FC = () => {
               className="w-full bg-white border border-gray-200 rounded-xl px-4 py-3 mb-3"
             />
 
-            <label className="w-full border-2 border-dashed border-gray-300 rounded-2xl p-4 flex flex-col items-center justify-center gap-2 cursor-pointer hover:border-blue-400 transition bg-white hover:bg-blue-50/40">
-              <div className="text-2xl font-bold text-blue-500">+</div>
-              <div className="font-semibold text-gray-700 text-sm">Dropify Upload</div>
-              <div className="text-gray-500 text-xs">PNG/JPG only</div>
-              <span className="bg-blue-500 text-white px-3 py-1.5 rounded-lg text-sm font-bold">Select Files</span>
-              <input type="file" className="hidden" multiple accept="image/png,image/jpeg,image/jpg" onChange={handlePortfolioSelect} />
-            </label>
+            <DropifyUpload
+              label="Select portfolio files"
+              multiple
+              maxFiles={Math.max(0, 10 - portfolio.length)}
+              onFilesSelect={(files) => {
+                const maxAdd = Math.max(0, 10 - portfolio.length);
+                const accepted = files.slice(0, maxAdd);
+                if (accepted.length < files.length) {
+                  notyf.error('Portfolio limit is 10 photos.');
+                }
+                setPortfolioFiles(accepted);
+                setPortfolioPreviews(accepted.map((file) => URL.createObjectURL(file)));
+                notyf.success(`${accepted.length} file(s) ready to upload.`);
+              }}
+              onError={(err) => notyf.error(err)}
+            />
 
             {portfolioPreviews.length > 0 && (
               <>

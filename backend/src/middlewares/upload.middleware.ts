@@ -19,11 +19,10 @@ const IMAGE_MIME_TYPES = new Set([
   'image/jpeg',
   'image/png',
   'image/webp',
-  'image/gif',
   'image/avif'
 ]);
 
-const IMAGE_EXTENSIONS = new Set(['.jpg', '.jpeg', '.png', '.webp', '.gif', '.avif']);
+const IMAGE_EXTENSIONS = new Set(['.jpg', '.jpeg', '.png', '.webp', '.avif']);
 
 const hasValidImageFormat = (file: Express.Multer.File): boolean => {
   const extension = path.extname(file.originalname).toLowerCase();
@@ -42,7 +41,7 @@ const imageOnlyFilter = (req: any, file: Express.Multer.File, cb: multer.FileFil
   if (hasValidImageFormat(file)) {
     cb(null, true);
   } else {
-    cb(new Error('Only JPG, PNG, WEBP, GIF or AVIF images are allowed.'));
+    cb(new Error('Only JPG, PNG, WEBP or AVIF images are allowed. GIF is not supported.'));
   }
 };
 
