@@ -42,6 +42,17 @@ const allowedImageMimeTypes = new Set([
   'image/jpeg',
   'image/jpg',
 ]);
+const safeTextRegex = /^[\p{L}\p{N}\s.,\-_'":;!?()]{0,500}$/u;
+
+const sanitizeWorkerSafeText = (value: unknown, maxLen = 500): string | null => {
+  if (value == null) return null;
+  const trimmed = String(value).trim().slice(0, maxLen);
+  if (!trimmed) return null;
+  if (!safeTextRegex.test(trimmed)) {
+    throw new Error('Invalid text format.');
+  }
+  return trimmed;
+};
 
 let pendingEmailChecked = false;
 
@@ -1527,9 +1538,19 @@ export const updateWorkerSettings = async (req: AuthRequest, res: Response): Pro
       changes.push('Phone number updated');
     }
 
+    let sanitizedBio: string | null | undefined = undefined;
+    if (bio != null) {
+      try {
+        sanitizedBio = sanitizeWorkerSafeText(bio, 500);
+      } catch {
+        res.status(400).json({ error: 'Invalid description format.' });
+        return;
+      }
+    }
+
     if (bio != null) {
       await pool.execute(`UPDATE worker_profiles SET bio = ? WHERE id_worker_profile = ?`, [
-        String(bio).trim() || null,
+        sanitizedBio ?? null,
         profileId,
       ]);
       changes.push('Description updated');
@@ -1769,6 +1790,40 @@ export const uploadProfileImage = async (req: AuthRequest, res: Response): Promi
   }
 };
 
+export const removeWorkerProfileImage = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const userId = req.user?.user_id;
+    if (!userId) {
+      res.status(401).json({ error: 'Unauthorized' });
+      return;
+    }
+
+    const [users] = await pool.execute<RowDataPacket[]>(
+      `SELECT id_user, name, email, profile_image FROM users WHERE id_user = ? LIMIT 1`,
+      [userId]
+    );
+    if (users.length === 0) {
+      res.status(404).json({ error: 'User not found' });
+      return;
+    }
+
+    const user = users[0];
+    await pool.execute(`UPDATE users SET profile_image = NULL WHERE id_user = ?`, [userId]);
+    deleteUploadIfExists(user.profile_image, 'public');
+
+    await sendProfileChangeNotice(user.email, user.name, ['Profile image removed']);
+    res.json({
+      success: true,
+      message: 'Profile image removed.',
+      profile_image: null,
+      profile_image_url: null,
+    });
+  } catch (error: any) {
+    console.error('Error in removeWorkerProfileImage:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
 export const uploadPortfolioImages = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const userId = req.user?.user_id;
@@ -1800,7 +1855,13 @@ export const uploadPortfolioImages = async (req: AuthRequest, res: Response): Pr
       return;
     }
 
-    const description = req.body?.description ? String(req.body.description).trim() : null;
+    let description: string | null = null;
+    try {
+      description = sanitizeWorkerSafeText(req.body?.description, 500);
+    } catch {
+      res.status(400).json({ error: 'Invalid portfolio description format.' });
+      return;
+    }
     if (files.length > 0) {
       await pool.execute(
         `INSERT INTO worker_portfolio (id_worker_profile, image_url, description)

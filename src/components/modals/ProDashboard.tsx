@@ -1,9 +1,9 @@
-import React, { useState, useEffect, Suspense, lazy } from 'react';
+import React, { useState, useEffect, Suspense, lazy, useRef } from 'react';
 import { useSSE } from '../../hooks/useSSE';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ProSidebar } from './ProSidebar';
 import { API_URL } from '../../config/api';
-import { getAuthUser, getToken as getSessionToken, isAuthenticated, logoutAuthSession, updateStoredAuthUser } from '../../utils/session';
+import { AUTH_SESSION_CHANGED_EVENT, getAuthUser, getToken as getSessionToken, isAuthenticated, logoutAuthSession, updateStoredAuthUser } from '../../utils/session';
 import { NotificationCenter } from '../common/NotificationCenter';
 import { DashboardThemeToggle } from '../common/DashboardThemeToggle';
 import { useDashboardTheme } from '../../hooks/useDashboardTheme';
@@ -23,6 +23,11 @@ const ScheduleView = lazy(() =>
       default: module.ScheduleView,
    }))
 );
+const CompletedWorkView = lazy(() =>
+   import('../dashboard/CompletedWorkView').then((module) => ({
+      default: module.CompletedWorkView,
+   }))
+);
 const SettingsView = lazy(() =>
    import('../dashboard/SettingsView').then((module) => ({
       default: module.SettingsView,
@@ -40,6 +45,8 @@ interface ProDashboardProps {
    onSignOut?: () => void;
 }
 
+const WORKER_PRESENCE_STORAGE_KEY = 'fixlife:worker-presence';
+
 const DashboardPanelFallback: React.FC<{ label?: string }> = ({ label = 'Loading panel...' }) => (
    <div className="w-full h-full min-h-[220px] p-4">
       <div className="inline-flex items-center gap-2 rounded-full border border-white/70 bg-white/82 px-3 py-2 shadow-[0_14px_34px_rgba(15,23,42,0.08)] backdrop-blur-xl">
@@ -51,16 +58,17 @@ const DashboardPanelFallback: React.FC<{ label?: string }> = ({ label = 'Loading
 
 export const ProDashboard: React.FC<ProDashboardProps> = ({ isOpen, onClose, onSignOut }) => {
    const { theme, isDark, toggleTheme } = useDashboardTheme('worker');
-   const [isOnline, setIsOnline] = useState(false);
+   const [isOnline, setIsOnline] = useState<boolean | null>(null);
    const [activeTab, setActiveTab] = useState('requests');
    const [mobileView, setMobileView] = useState<'list' | 'map'>('list');
    const [isSidebarOpen, setIsSidebarOpen] = useState(true);
-   const [isCompactViewport, setIsCompactViewport] = useState(false);
+   const [isPresenceMenuOpen, setIsPresenceMenuOpen] = useState(false);
    const [isVerified, setIsVerified] = useState(false); // Por defecto falso
    const [hasUploadedDocs, setHasUploadedDocs] = useState(false); // Por defecto falso
    const [userName, setUserName] = useState('');
    const [userAvatar, setUserAvatar] = useState<string | null>(null);
    const [token, setToken] = useState<string | null>(null);
+   const presenceMenuRef = useRef<HTMLDivElement | null>(null);
 
    const getInitials = (name: string) => {
       if (!name) return 'U';
@@ -87,6 +95,58 @@ export const ProDashboard: React.FC<ProDashboardProps> = ({ isOpen, onClose, onS
       return false;
    };
 
+   const readStoredPresence = (): boolean | null => {
+      if (typeof window === 'undefined') return null;
+      const raw = window.localStorage.getItem(WORKER_PRESENCE_STORAGE_KEY);
+      if (raw === 'online') return true;
+      if (raw === 'offline') return false;
+      return null;
+   };
+
+   const writeStoredPresence = (nextOnline: boolean) => {
+      if (typeof window === 'undefined') return;
+      window.localStorage.setItem(
+         WORKER_PRESENCE_STORAGE_KEY,
+         nextOnline ? 'online' : 'offline'
+      );
+   };
+
+   const resolveWorkerOnline = (payload: any): boolean | null => {
+      const candidates = [
+         payload?.worker_profile?.is_online,
+         payload?.worker?.is_online,
+         payload?.user?.is_online,
+         payload?.is_online,
+      ];
+
+      for (const candidate of candidates) {
+         if (candidate === null || candidate === undefined || candidate === '') continue;
+         return normalizeBool(candidate);
+      }
+
+      return null;
+   };
+
+   const persistWorkerStatus = (nextOnline: boolean, workerProfilePatch?: Record<string, unknown>) => {
+      writeStoredPresence(nextOnline);
+
+      const user = getAuthUser('worker');
+      if (!user) return;
+
+      user.worker_profile = {
+         ...(user.worker_profile || {}),
+         ...(workerProfilePatch || {}),
+         is_online: nextOnline,
+      };
+      updateStoredAuthUser(user, 'worker');
+   };
+
+   const handlePresenceChange = (nextOnline: boolean) => {
+      setIsOnline(nextOnline);
+      setIsPresenceMenuOpen(false);
+      persistWorkerStatus(nextOnline);
+   };
+
    const syncWorkerStatus = async (jwtToken: string) => {
       try {
          const response = await fetch(`${API_URL}/api/worker/me`, {
@@ -97,20 +157,18 @@ export const ProDashboard: React.FC<ProDashboardProps> = ({ isOpen, onClose, onS
          const data = await response.json();
          const wp = data?.worker_profile || {};
          const verified = normalizeBool(wp.is_verified);
+         const onlineFromPayload = resolveWorkerOnline(data);
+         const online = onlineFromPayload ?? readStoredPresence() ?? false;
          const uploaded = Boolean(wp.dui_document) || Boolean(wp.cert_document);
 
          setIsVerified(verified);
+         setIsOnline(online);
          setHasUploadedDocs(uploaded);
 
-         const user = getAuthUser('worker');
-         if (user) {
-            user.worker_profile = {
-               ...(user.worker_profile || {}),
-               ...wp,
-               is_verified: verified,
-            };
-            updateStoredAuthUser(user, 'worker');
-         }
+         persistWorkerStatus(online, {
+            ...wp,
+            is_verified: verified,
+         });
       } catch (error) {
          console.error('syncWorkerStatus error:', error);
       }
@@ -131,6 +189,9 @@ export const ProDashboard: React.FC<ProDashboardProps> = ({ isOpen, onClose, onS
       }
 
       if (user) {
+         setIsOnline(
+            resolveWorkerOnline(user) ?? readStoredPresence() ?? false
+         );
          setIsVerified(normalizeBool(user.worker_profile?.is_verified));
          setHasUploadedDocs(!!user.worker_profile?.dui_document || !!user.worker_profile?.cert_document);
          setUserName(typeof user.name === 'string' ? user.name : '');
@@ -143,6 +204,8 @@ export const ProDashboard: React.FC<ProDashboardProps> = ({ isOpen, onClose, onS
                : `${API_URL}/uploads/${rawAvatar.replace(/^\/+/, '').replace(/^uploads\//, '')}`)
             : null;
          setUserAvatar(resolvedAvatar);
+      } else {
+         setIsOnline(readStoredPresence() ?? false);
       }
    }, [onClose]);
 
@@ -152,10 +215,37 @@ export const ProDashboard: React.FC<ProDashboardProps> = ({ isOpen, onClose, onS
    }, [isOpen, token]);
 
    useEffect(() => {
-      const syncViewport = () => setIsCompactViewport(window.innerWidth < 768);
-      syncViewport();
-      window.addEventListener('resize', syncViewport);
-      return () => window.removeEventListener('resize', syncViewport);
+      if (!isPresenceMenuOpen) return;
+
+      const handlePointerDown = (event: MouseEvent) => {
+         if (!presenceMenuRef.current?.contains(event.target as Node)) {
+            setIsPresenceMenuOpen(false);
+         }
+      };
+
+      window.addEventListener('mousedown', handlePointerDown);
+      return () => window.removeEventListener('mousedown', handlePointerDown);
+   }, [isPresenceMenuOpen]);
+
+   useEffect(() => {
+      const syncStoredUser = () => {
+         const user = getAuthUser('worker');
+         if (!user) return;
+
+         setUserName(typeof user.name === 'string' ? user.name : '');
+         const rawAvatar = typeof user.profile_image_url === 'string' && user.profile_image_url
+            ? user.profile_image_url
+            : typeof user.profile_image === 'string' ? user.profile_image : null;
+         const resolvedAvatar = rawAvatar
+            ? (rawAvatar.startsWith('http://') || rawAvatar.startsWith('https://')
+               ? rawAvatar
+               : `${API_URL}/uploads/${rawAvatar.replace(/^\/+/, '').replace(/^uploads\//, '')}`)
+            : null;
+         setUserAvatar(resolvedAvatar);
+      };
+
+      window.addEventListener(AUTH_SESSION_CHANGED_EVENT, syncStoredUser);
+      return () => window.removeEventListener(AUTH_SESSION_CHANGED_EVENT, syncStoredUser);
    }, []);
 
    useSSE({
@@ -226,7 +316,7 @@ export const ProDashboard: React.FC<ProDashboardProps> = ({ isOpen, onClose, onS
                initial={{ y: -20, opacity: 0 }}
                animate={{ y: 0, opacity: 1 }}
                transition={{ delay: 0.2 }}
-               className="h-16 md:h-20 flex items-center justify-between gap-2 px-3 sm:px-4 md:px-8 shrink-0 relative z-20"
+               className="h-16 md:h-20 flex items-center justify-between gap-2 px-3 sm:px-4 md:px-8 shrink-0 relative z-[700]"
             >
                <div className="flex-1 min-w-0 flex items-center gap-3">
                   <motion.div
@@ -281,24 +371,108 @@ export const ProDashboard: React.FC<ProDashboardProps> = ({ isOpen, onClose, onS
                      labelClassName="hidden 2xl:block"
                      shortLabelClassName="hidden"
                   />
-                  <NotificationCenter token={token} variant="panel" />
+                  <NotificationCenter token={token} isActive={isOnline === true} variant="panel" />
                   <motion.div
+                     ref={presenceMenuRef}
                      initial={{ scale: 0, opacity: 0 }}
                      animate={{ scale: 1, opacity: 1 }}
                      transition={{ delay: 0.4, type: "spring" }}
-                     className="flex items-center gap-2 cursor-pointer"
-                     onClick={() => setIsOnline(!isOnline)}
+                     className="relative z-[710]"
                   >
-                     <span className={`text-[10px] md:text-sm font-bold tracking-wider transition-colors ${isOnline ? 'text-emerald-500' : 'text-gray-400'}`}>
-                        {isOnline ? 'ONLINE' : 'OFFLINE'}
-                     </span>
-                     <div className={`w-10 md:w-12 h-6 md:h-7 rounded-full p-1 transition-colors duration-300 relative ${isOnline ? 'bg-emerald-500' : 'bg-gray-300'}`}>
-                        <motion.div
-                           animate={{ x: isOnline ? (isCompactViewport ? 16 : 20) : 0 }}
-                           transition={{ type: "spring", stiffness: 500, damping: 30 }}
-                           className="w-4 h-4 md:w-5 md:h-5 rounded-full bg-white shadow-sm"
-                        />
-                     </div>
+                     {(() => {
+                        const buttonClass = isDark
+                           ? 'border-white/15 bg-slate-900/90 text-slate-100 shadow-[0_16px_30px_rgba(15,23,42,0.18)] hover:border-cyan-300/25 hover:text-white hover:shadow-[0_18px_32px_rgba(34,211,238,0.12)]'
+                           : 'border-white/60 bg-white/90 text-slate-700 shadow-[0_16px_30px_rgba(15,23,42,0.08)] hover:border-bird-blue/30 hover:text-bird-blue hover:shadow-[0_18px_32px_rgba(0,144,255,0.18)]';
+                        const menuClass = isDark
+                           ? 'border-white/10 bg-slate-900 text-slate-100'
+                           : 'border-white/70 bg-white text-slate-700';
+                        const statusOptions = [
+                           {
+                              value: true,
+                              title: 'ONLINE',
+                              dotClass: 'bg-emerald-400',
+                           },
+                           {
+                              value: false,
+                              title: 'OFFLINE',
+                              dotClass: 'bg-slate-400',
+                           },
+                        ];
+
+                        return (
+                           <>
+                     <button
+                        type="button"
+                        onClick={() => setIsPresenceMenuOpen((prev) => !prev)}
+                        className={`relative flex min-w-[164px] items-center gap-3 rounded-2xl border px-3 py-2.5 text-left transition duration-300 ${buttonClass}`}
+                     >
+                        <span className={`h-2.5 w-2.5 shrink-0 rounded-full ${isOnline ? 'bg-emerald-400' : 'bg-slate-400'}`} />
+                        <div className="min-w-0 flex-1">
+                           <div className={`truncate text-[11px] font-black uppercase tracking-[0.22em] ${isDark ? 'text-white' : 'text-slate-900'}`}>
+                              {isOnline ? 'ONLINE' : 'OFFLINE'}
+                           </div>
+                        </div>
+                        <svg
+                           className={`h-4 w-4 shrink-0 transition-transform ${isPresenceMenuOpen ? 'rotate-180' : ''} ${isDark ? 'text-slate-300' : 'text-slate-500'}`}
+                           fill="none"
+                           stroke="currentColor"
+                           viewBox="0 0 24 24"
+                        >
+                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                        </svg>
+                     </button>
+
+                     <AnimatePresence>
+                        {isPresenceMenuOpen && (
+                           <motion.div
+                              initial={{ opacity: 0, y: -8, scale: 0.96 }}
+                              animate={{ opacity: 1, y: 0, scale: 1 }}
+                              exit={{ opacity: 0, y: -8, scale: 0.96 }}
+                              transition={{ duration: 0.18 }}
+                              className={`absolute right-0 top-[calc(100%+12px)] z-[720] w-56 rounded-3xl border p-2 shadow-[0_24px_60px_rgba(15,23,42,0.16)] backdrop-blur-xl ${menuClass}`}
+                           >
+                              <div className="space-y-1">
+                              {statusOptions.map((option) => {
+                                 const selected = isOnline === option.value;
+                                 const optionClass = selected
+                                    ? isDark
+                                       ? 'border-cyan-400/20 bg-slate-800 text-white shadow-[0_10px_24px_rgba(15,23,42,0.24)]'
+                                       : 'border-slate-200 bg-slate-100 text-slate-900 shadow-sm'
+                                    : isDark
+                                       ? 'border-white/10 bg-slate-900 text-slate-200 hover:border-cyan-300/20 hover:bg-slate-800'
+                                       : 'border-slate-200 bg-white text-slate-700 hover:border-bird-blue/20 hover:bg-slate-50';
+                                 return (
+                                    <button
+                                       key={option.title}
+                                       type="button"
+                                       onClick={() => handlePresenceChange(option.value)}
+                                       className={`flex w-full items-start gap-3 rounded-2xl border px-3.5 py-3 text-left transition ${optionClass}`}
+                                    >
+                                       <span className={`mt-1 h-2.5 w-2.5 shrink-0 rounded-full ${option.value ? 'bg-emerald-400' : 'bg-slate-400'}`} />
+                                       <div className="min-w-0 flex-1">
+                                          <div className="flex items-center justify-between gap-3">
+                                             <div className="text-sm font-bold">{option.title}</div>
+                                             {selected && (
+                                                <span className={`rounded-full px-2 py-0.5 text-[10px] font-black uppercase tracking-[0.18em] ${
+                                                   isDark
+                                                      ? 'bg-emerald-500/15 text-emerald-300'
+                                                      : 'bg-emerald-100 text-emerald-700'
+                                                }`}>
+                                                   Active
+                                                </span>
+                                             )}
+                                          </div>
+                                       </div>
+                                    </button>
+                                 );
+                              })}
+                              </div>
+                           </motion.div>
+                        )}
+                     </AnimatePresence>
+                           </>
+                        );
+                     })()}
                   </motion.div>
 
                   <div className="flex items-center gap-2 md:gap-3 pl-1.5 md:pl-4 border-l border-gray-200">
@@ -460,6 +634,21 @@ export const ProDashboard: React.FC<ProDashboardProps> = ({ isOpen, onClose, onS
                         </motion.div>
                      )}
 
+                     {activeTab === 'completed-work' && (
+                        <motion.div
+                           key="completed-work"
+                           initial={{ opacity: 0, x: 20 }}
+                           animate={{ opacity: 1, x: 0 }}
+                           exit={{ opacity: 0, x: -20 }}
+                           transition={{ duration: 0.3 }}
+                           className="w-full h-full"
+                        >
+                           <Suspense fallback={<DashboardPanelFallback label="Loading completed work..." />}>
+                              <CompletedWorkView />
+                           </Suspense>
+                        </motion.div>
+                     )}
+
                      {activeTab === 'settings' && (
                         <motion.div
                            key="settings"
@@ -490,6 +679,7 @@ export const ProDashboard: React.FC<ProDashboardProps> = ({ isOpen, onClose, onS
                   { id: 'requests', label: 'Requests', icon: 'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2' },
                   { id: 'schedule', label: 'Schedule', icon: 'M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z' },
                   { id: 'earnings', label: 'Earnings', icon: 'M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z' },
+                  { id: 'completed-work', label: 'Work', icon: 'M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l3.414 3.414a1 1 0 01.293.707V19a2 2 0 01-2 2z' },
                   { id: 'settings', label: 'Profile', icon: 'M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z' }
                ].map((item) => {
                   const isActive = activeTab === item.id || (item.id === 'settings' && activeTab.includes('settings'));

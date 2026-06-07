@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { AnimatePresence, motion } from 'framer-motion';
 import type { WorkerRewardHistoryItem } from '../../hooks/useWorkerRewardsDashboard';
 import { API_ENDPOINTS } from '../../config/api';
@@ -324,58 +325,62 @@ export const EarningsStatementSection: React.FC<EarningsStatementSectionProps> =
           </div>
         )}
 
-        <AnimatePresence>
-          {pdfPreview && (
-            <div className="fixed inset-0 z-[220] flex items-center justify-center p-4">
-              <div
-                className="absolute inset-0 bg-slate-950/70 backdrop-blur-sm"
-                onClick={() => {
-                  URL.revokeObjectURL(pdfPreview.url);
-                  setPdfPreview(null);
-                }}
-              />
-              <motion.div
-                initial={{ opacity: 0, scale: 0.96, y: 18 }}
-                animate={{ opacity: 1, scale: 1, y: 0 }}
-                exit={{ opacity: 0, scale: 0.96, y: 18 }}
-                className="relative z-10 flex max-h-[92vh] w-full max-w-5xl flex-col overflow-hidden rounded-[28px] border border-slate-200 bg-white shadow-2xl"
-              >
-                <div className="flex items-center justify-between gap-3 border-b border-slate-200 bg-slate-50 px-4 py-4">
-                  <div>
-                    <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">Payout statement</p>
-                    <h3 className="text-lg font-black text-slate-900">PDF preview</h3>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={handleDownloadStatementPdf}
-                      className="rounded-2xl bg-bird-blue px-4 py-2.5 text-sm font-black text-white transition hover:opacity-90"
-                    >
-                      Download PDF
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        URL.revokeObjectURL(pdfPreview.url);
-                        setPdfPreview(null);
-                      }}
-                      className="rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-black text-slate-600 transition hover:border-red-200 hover:bg-red-50 hover:text-red-600"
-                    >
-                      Close
-                    </button>
-                  </div>
-                </div>
-                <div className="min-h-[540px] flex-1 overflow-auto bg-slate-100/70 p-4">
-                  <iframe
-                    src={pdfPreview.url}
-                    title="Worker payout statement preview"
-                    className="h-full min-h-[540px] w-full rounded-3xl border border-slate-200 bg-white shadow-sm"
+        {typeof document !== 'undefined' &&
+          createPortal(
+            <AnimatePresence>
+              {pdfPreview && (
+                <div className="fixed inset-0 z-[1600] flex items-center justify-center p-4 md:p-6">
+                  <div
+                    className="absolute inset-0 bg-slate-950/78 backdrop-blur-sm"
+                    onClick={() => {
+                      URL.revokeObjectURL(pdfPreview.url);
+                      setPdfPreview(null);
+                    }}
                   />
+                  <motion.div
+                    initial={{ opacity: 0, scale: 0.96, y: 18 }}
+                    animate={{ opacity: 1, scale: 1, y: 0 }}
+                    exit={{ opacity: 0, scale: 0.96, y: 18 }}
+                    className="relative z-[1610] flex h-[min(92vh,980px)] w-full max-w-6xl flex-col overflow-hidden rounded-[28px] border border-slate-200 bg-white shadow-2xl"
+                  >
+                    <div className="flex flex-col gap-3 border-b border-slate-200 bg-slate-50 px-4 py-4 md:flex-row md:items-center md:justify-between md:px-5">
+                      <div>
+                        <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">Payout statement</p>
+                        <h3 className="text-lg font-black text-slate-900">PDF preview</h3>
+                      </div>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={handleDownloadStatementPdf}
+                          className="rounded-2xl bg-bird-blue px-4 py-2.5 text-sm font-black text-white transition hover:opacity-90"
+                        >
+                          Download PDF
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            URL.revokeObjectURL(pdfPreview.url);
+                            setPdfPreview(null);
+                          }}
+                          className="rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-black text-slate-600 transition hover:border-red-200 hover:bg-red-50 hover:text-red-600"
+                        >
+                          Close
+                        </button>
+                      </div>
+                    </div>
+                    <div className="min-h-0 flex-1 overflow-auto bg-slate-100/70 p-3 md:p-4">
+                      <iframe
+                        src={pdfPreview.url}
+                        title="Worker payout statement preview"
+                        className="h-full min-h-[540px] w-full rounded-3xl border border-slate-200 bg-white shadow-sm"
+                      />
+                    </div>
+                  </motion.div>
                 </div>
-              </motion.div>
-            </div>
+              )}
+            </AnimatePresence>,
+            document.body
           )}
-        </AnimatePresence>
 
         <div className="rounded-3xl border border-slate-200 bg-slate-50 p-4">
           <div className="grid gap-4 xl:grid-cols-[1.2fr_1fr_1fr]">
