@@ -34,11 +34,6 @@ interface UseServiceRequestMapOptions {
   activeLocationKind: PinKind;
   quickAccessLocations: QuickAccessLocationLike[];
   nearbyWorkers: NearbyWorkerLike[];
-  reverseGeocodeCoords: (
-    coords: CoordinatesLike,
-    options?: { toastMessage?: string; fallbackLabel?: string }
-  ) => Promise<unknown>;
-  useSavedLocation: (location: QuickAccessLocationLike) => void;
   sameCoords: (
     left: CoordinatesLike | QuickAccessLocationLike | null | undefined,
     right: CoordinatesLike | QuickAccessLocationLike | null | undefined
@@ -54,8 +49,6 @@ export function useServiceRequestMap({
   activeLocationKind,
   quickAccessLocations,
   nearbyWorkers,
-  reverseGeocodeCoords,
-  useSavedLocation,
   sameCoords,
   createLeafletPinIcon,
   getLocationVisual,
@@ -68,16 +61,6 @@ export function useServiceRequestMap({
   const savedPlaceMarkersRef = useRef<any[]>([]);
   const nearbyWorkerMarkersRef = useRef<any[]>([]);
   const lastCenteredCoordsRef = useRef<CoordinatesLike | null>(null);
-  const reverseGeocodeCoordsRef = useRef(reverseGeocodeCoords);
-  const useSavedLocationRef = useRef(useSavedLocation);
-
-  useEffect(() => {
-    reverseGeocodeCoordsRef.current = reverseGeocodeCoords;
-  }, [reverseGeocodeCoords]);
-
-  useEffect(() => {
-    useSavedLocationRef.current = useSavedLocation;
-  }, [useSavedLocation]);
 
   useEffect(() => {
     loadLeaflet('service-request').then(setLeafletReady).catch((err) => console.error(err));
@@ -96,18 +79,6 @@ export function useServiceRequestMap({
     addResilientTileLayer(L, map);
 
     L.control.zoom({ position: 'bottomright' }).addTo(map);
-
-    map.on('click', (event: any) => {
-      const nextCoords = {
-        lat: Number(event.latlng.lat.toFixed(7)),
-        lng: Number(event.latlng.lng.toFixed(7)),
-      };
-
-      void reverseGeocodeCoordsRef.current(nextCoords, {
-        toastMessage: 'Location adjusted on the map.',
-        fallbackLabel: `${nextCoords.lat}, ${nextCoords.lng}`,
-      });
-    });
 
     mapInstanceRef.current = map;
     window.setTimeout(() => {
@@ -176,33 +147,21 @@ export function useServiceRequestMap({
 
     if (!currentMarkerRef.current) {
       const me = L.marker([currentCoords.lat, currentCoords.lng], {
-        draggable: true,
+        draggable: false,
         icon: createLeafletPinIcon(L, activeLocationKind),
         zIndexOffset: 1200,
       })
         .addTo(map)
         .bindPopup(
-          `<b>${selectedVisual.label}</b><br/>Drag or tap the map to fine-tune the exact point.`
+          `<b>${selectedVisual.label}</b><br/>Confirmed service location.`
         );
-
-      me.on('dragend', () => {
-        const position = me.getLatLng();
-        const nextCoords = {
-          lat: Number(position.lat.toFixed(7)),
-          lng: Number(position.lng.toFixed(7)),
-        };
-        void reverseGeocodeCoordsRef.current(nextCoords, {
-          toastMessage: 'Location adjusted on the map.',
-          fallbackLabel: `${nextCoords.lat}, ${nextCoords.lng}`,
-        });
-      });
 
       currentMarkerRef.current = me;
     } else {
       currentMarkerRef.current.setLatLng([currentCoords.lat, currentCoords.lng]);
       currentMarkerRef.current.setIcon(createLeafletPinIcon(L, activeLocationKind));
       currentMarkerRef.current.setPopupContent(
-        `<b>${selectedVisual.label}</b><br/>Drag or tap the map to fine-tune the exact point.`
+        `<b>${selectedVisual.label}</b><br/>Confirmed service location.`
       );
     }
 
@@ -252,7 +211,6 @@ export function useServiceRequestMap({
           .addTo(map)
           .bindPopup(`<b>${location.title}</b><br/>${location.label}`);
 
-        pin.on('click', () => useSavedLocationRef.current(location));
         savedPlaceMarkersRef.current.push(pin);
       });
   }, [quickAccessLocations, currentCoords, sameCoords, createLeafletPinIcon]);

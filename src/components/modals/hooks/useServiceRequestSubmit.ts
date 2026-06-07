@@ -22,13 +22,13 @@ interface UseServiceRequestSubmitOptions {
   historyStatus: ServiceRequestHistoryStatus;
   problemFiles: File[];
   radiusKm: number;
-  resolveLocationInput: () => Promise<Coordinates | null>;
   services: ServiceOptionLike[];
   setCurrentCoords: Dispatch<SetStateAction<Coordinates | null>>;
   setData: Dispatch<SetStateAction<ServiceRequestData>>;
   setGeoError: Dispatch<SetStateAction<string | null>>;
   setIsSubmittingRequest: Dispatch<SetStateAction<boolean>>;
   setProblemFiles: Dispatch<SetStateAction<File[]>>;
+  onRequestCreated?: (request: { id_request: number | null }) => void | Promise<void>;
   showAlert?: (input: { title: string; message: string; tone?: 'warning' | 'error' | 'success' | 'info'; confirmText?: string }) => void;
   showToast: (type: 'success' | 'error' | 'info', message: string) => void;
 }
@@ -40,13 +40,13 @@ export const useServiceRequestSubmit = ({
   historyStatus,
   problemFiles,
   radiusKm,
-  resolveLocationInput,
   services,
   setCurrentCoords,
   setData,
   setGeoError,
   setIsSubmittingRequest,
   setProblemFiles,
+  onRequestCreated,
   showAlert,
   showToast,
 }: UseServiceRequestSubmitOptions) =>
@@ -65,9 +65,13 @@ export const useServiceRequestSubmit = ({
       showToast('error', 'Location is required.');
       return;
     }
-    const resolvedCoords = currentCoords ?? (await resolveLocationInput());
-    if (!resolvedCoords) {
-      showToast('error', 'We need a valid location before creating the request.');
+    if (!currentCoords) {
+      showToast('error', 'Confirm the exact service location before sending.');
+      return;
+    }
+    const normalizedLocation = data.location.trim().toLocaleLowerCase();
+    if (normalizedLocation === 'el salvador' || normalizedLocation === 'salvador') {
+      showToast('error', 'Choose a specific address, landmark, or coordinates.');
       return;
     }
     if (!data.description.trim() || data.description.trim().length < 10) {
@@ -75,8 +79,8 @@ export const useServiceRequestSubmit = ({
       return;
     }
     const budgetValue = Number(data.price);
-    if (!Number.isFinite(budgetValue) || budgetValue <= 0) {
-      showToast('error', 'Budget must be greater than 0.');
+    if (!Number.isFinite(budgetValue) || budgetValue <= 0 || budgetValue > 1000) {
+      showToast('error', 'Budget must be between $0.01 and $1,000.00.');
       return;
     }
     if (problemFiles.length === 0) {
@@ -85,6 +89,14 @@ export const useServiceRequestSubmit = ({
     }
     if (data.booking_type === 'scheduled' && (!data.scheduled_date || !data.scheduled_time)) {
       showToast('error', 'Select a date and time window for the scheduled visit.');
+      return;
+    }
+    const scheduledDurationMinutes = Math.round(Number(data.scheduled_duration_minutes || 120) / 60) * 60;
+    if (
+      data.booking_type === 'scheduled' &&
+      (!Number.isFinite(scheduledDurationMinutes) || scheduledDurationMinutes < 60 || scheduledDurationMinutes > 7 * 60)
+    ) {
+      showToast('error', 'Estimated visit duration must be between 1 and 7 hours.');
       return;
     }
 
@@ -107,9 +119,10 @@ export const useServiceRequestSubmit = ({
         form.append('scheduled_date', data.scheduled_date);
         form.append('scheduled_time', data.scheduled_time);
         form.append('scheduled_start_time', scheduledStart.toISOString());
+        form.append('scheduled_duration_minutes', String(scheduledDurationMinutes));
       }
-      form.append('lat', String(resolvedCoords.lat));
-      form.append('lng', String(resolvedCoords.lng));
+      form.append('lat', String(currentCoords.lat));
+      form.append('lng', String(currentCoords.lng));
       problemFiles.forEach((file) => form.append('problem_images', file));
 
       const token = getToken();
@@ -139,7 +152,7 @@ export const useServiceRequestSubmit = ({
         return;
       }
 
-      showToast('success', `Request #${payload.request?.id_request || ''} created successfully.`);
+      const createdRequestId = Number(payload.request?.id_request || 0) || null;
       setProblemFiles([]);
       setCurrentCoords(null);
       setGeoError(null);
@@ -152,9 +165,11 @@ export const useServiceRequestSubmit = ({
         booking_type: 'express',
         scheduled_date: '',
         scheduled_time: '',
+        scheduled_duration_minutes: 120,
         images: [],
       }));
       void fetchMyRequests(historyStatus);
+      await onRequestCreated?.({ id_request: createdRequestId });
     } catch {
       showToast('error', 'Network error creating request.');
     } finally {
@@ -167,13 +182,13 @@ export const useServiceRequestSubmit = ({
     historyStatus,
     problemFiles,
     radiusKm,
-    resolveLocationInput,
     services,
     setCurrentCoords,
     setData,
     setGeoError,
     setIsSubmittingRequest,
     setProblemFiles,
+    onRequestCreated,
     showAlert,
     showToast,
   ]);

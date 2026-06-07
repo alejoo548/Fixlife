@@ -17,11 +17,10 @@ const ALLOWED_IMAGE_TYPES = new Set([
   'image/jpeg',
   'image/png',
   'image/webp',
-  'image/gif',
   'image/avif'
 ]);
 
-const ALLOWED_IMAGE_EXTENSIONS = new Set(['jpg', 'jpeg', 'png', 'webp', 'gif', 'avif']);
+const ALLOWED_IMAGE_EXTENSIONS = new Set(['jpg', 'jpeg', 'png', 'webp', 'avif']);
 
 const sanitizeNameInput = (value: string): string => {
   return value.replace(/[^\p{L} .'-]/gu, '').slice(0, 60);
@@ -184,7 +183,7 @@ const UserProfile: React.FC<UserProfileProps> = ({ onBack }) => {
     const hasValidFormat = ALLOWED_IMAGE_TYPES.has(file.type) && ALLOWED_IMAGE_EXTENSIONS.has(extension);
 
     if (!hasValidFormat) {
-      notyf.error('Only JPG, PNG, WEBP, GIF or AVIF images are allowed.');
+      notyf.error('Only JPG, PNG, WEBP or AVIF images are allowed.');
       e.target.value = '';
       return;
     }
@@ -270,7 +269,7 @@ const UserProfile: React.FC<UserProfileProps> = ({ onBack }) => {
             <label className="inline-flex items-center gap-3 px-4 py-2 rounded-xl bg-bird-blue text-white font-bold cursor-pointer hover:bg-bird-darkBlue transition-colors">
               <input
                 type="file"
-                accept=".jpg,.jpeg,.png,.webp,.gif,.avif,image/jpeg,image/png,image/webp,image/gif,image/avif"
+                accept=".jpg,.jpeg,.png,.webp,.avif,image/jpeg,image/png,image/webp,image/avif"
                 onChange={handleImageUpload}
                 className="hidden"
                 disabled={isUploading || isRemovingPhoto}
@@ -287,7 +286,7 @@ const UserProfile: React.FC<UserProfileProps> = ({ onBack }) => {
               {isRemovingPhoto ? 'Removing...' : 'Remove photo'}
             </button>
           </div>
-          <p className="text-xs text-gray-500 mt-2">Allowed: JPG, PNG, WEBP, GIF, AVIF. Max 5MB.</p>
+          <p className="text-xs text-gray-500 mt-2">Allowed: JPG, PNG, WEBP, AVIF. Max 5MB.</p>
         </div>
 
         <form onSubmit={handleSaveProfile} className="grid grid-cols-1 md:grid-cols-2 gap-4">

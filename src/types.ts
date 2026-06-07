@@ -29,6 +29,7 @@ export interface ServiceRequestData {
   booking_type: 'express' | 'scheduled';
   scheduled_date: string;
   scheduled_time: string;
+  scheduled_duration_minutes: number;
   images: string[];
 }
 

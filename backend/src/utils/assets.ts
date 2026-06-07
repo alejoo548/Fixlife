@@ -19,7 +19,7 @@ export const ensureUploadDirectories = () => {
 
 ensureUploadDirectories();
 
-const IMAGE_EXTENSIONS = new Set(['.jpg', '.jpeg', '.png', '.webp', '.gif', '.avif']);
+const IMAGE_EXTENSIONS = new Set(['.jpg', '.jpeg', '.png', '.webp', '.avif']);
 
 export const cleanStoredFileName = (fileName: string | null | undefined) => {
   if (!fileName) return null;
@@ -103,6 +103,10 @@ export const deleteUploadIfExists = (
     if (!filePath) continue;
     try {
       fs.unlinkSync(filePath);
+      const metadataPath = `${filePath}.metadata.json`;
+      if (fs.existsSync(metadataPath)) {
+        fs.unlinkSync(metadataPath);
+      }
     } catch {
       // Best-effort cleanup only.
     }

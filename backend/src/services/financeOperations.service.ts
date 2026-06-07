@@ -19,7 +19,7 @@ type FinanceCaseRow = RowDataPacket & {
   id_request: number | null;
   id_payment: number | null;
   amount: number;
-  currency_code: string;
+  currency_codahoe: string;
   reason: string | null;
   notes: string | null;
   created_by_user_id: number | null;

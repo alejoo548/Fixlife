@@ -19,6 +19,9 @@ interface ServiceRequestProblemSectionProps {
     canSubmitRequest: boolean;
     isSubmittingRequest: boolean;
     isAuthenticated: boolean;
+    showBudget?: boolean;
+    showResults?: boolean;
+    showActions?: boolean;
     onDescriptionChange: (value: string) => void;
     onPriceChange: (value: string) => void;
     onPricePaste: (value: string) => void;
@@ -39,6 +42,9 @@ export function ServiceRequestProblemSection({
     canSubmitRequest,
     isSubmittingRequest,
     isAuthenticated,
+    showBudget = true,
+    showResults = true,
+    showActions = true,
     onDescriptionChange,
     onPriceChange,
     onPricePaste,
@@ -113,7 +119,7 @@ export function ServiceRequestProblemSection({
                 )}
             </motion.div>
 
-            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}>
+            {showBudget && <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}>
                 <label className="block text-sm font-bold text-slate-900 mb-2">Your budget</label>
                 <div className="relative group">
                     <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-lg group-focus-within:text-slate-900 transition-colors">$</span>
@@ -121,6 +127,8 @@ export function ServiceRequestProblemSection({
                         type="text"
                         inputMode="decimal"
                         placeholder="0"
+                        maxLength={7}
+                        aria-describedby="request-budget-help"
                         className="w-full bg-slate-50 border-2 border-transparent focus:bg-white rounded-xl py-4 pl-10 pr-16 text-slate-900 font-bold text-lg outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 transition-all placeholder-slate-300 shadow-sm"
                         value={price}
                         onChange={(e) => onPriceChange(e.target.value)}
@@ -138,11 +146,13 @@ export function ServiceRequestProblemSection({
                     <svg className="w-4 h-4 text-emerald-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                     </svg>
-                    <p className="text-xs font-semibold text-slate-500">Suggested budget: <span className="text-slate-700">$40 - $80</span></p>
+                    <p id="request-budget-help" className="text-xs font-semibold text-slate-500">
+                        Suggested: <span className="text-slate-700">$40 - $80</span> · Maximum: $1,000.00
+                    </p>
                 </div>
-            </motion.div>
+            </motion.div>}
 
-            {nearbyWorkers.length > 0 && (
+            {showResults && nearbyWorkers.length > 0 && (
                 <div className="mt-4 rounded-xl border border-gray-100 bg-white p-3">
                     <p className="text-xs uppercase tracking-wider font-bold text-emerald-700 mb-2">
                         Nearby workers in range
@@ -163,7 +173,7 @@ export function ServiceRequestProblemSection({
                 </div>
             )}
 
-            {noNearbyProsNotice && nearbyWorkers.length === 0 && (
+            {showResults && noNearbyProsNotice && nearbyWorkers.length === 0 && (
                 <motion.div
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
@@ -174,7 +184,7 @@ export function ServiceRequestProblemSection({
                 </motion.div>
             )}
 
-            <div className="mt-6 space-y-3 sticky bottom-0 bg-gradient-to-t from-white via-white to-transparent pt-4 pb-2 z-10">
+            {showActions && <div className="mt-6 space-y-3 sticky bottom-0 bg-gradient-to-t from-white via-white to-transparent pt-4 pb-2 z-10">
                 <motion.button
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
@@ -203,7 +213,7 @@ export function ServiceRequestProblemSection({
                 >
                     {!isAuthenticated ? 'Login Required' : isSubmittingRequest ? 'Submitting...' : 'Submit Request'}
                 </motion.button>
-            </div>
+            </div>}
         </>
     );
 }

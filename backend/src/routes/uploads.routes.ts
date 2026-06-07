@@ -44,11 +44,8 @@ const canAccessProtectedUpload = async (req: AuthRequest, fileName: string) => {
     `SELECT 1
      FROM service_request_chat_messages msg
      INNER JOIN service_requests sr ON sr.id_request = msg.id_request
-     LEFT JOIN service_request_workers srw
-       ON srw.id_request = sr.id_request
      LEFT JOIN worker_profiles wp
-       ON wp.id_worker_profile = srw.id_worker_profile
-       OR wp.id_worker_profile = sr.assigned_worker_profile
+       ON wp.id_worker_profile = sr.assigned_worker_profile
      WHERE msg.image_url = ?
        AND (sr.id_user = ? OR wp.id_user = ?)
      LIMIT 1`,
