@@ -12,6 +12,14 @@ type PortfolioItem = {
   description?: string | null;
 };
 
+const SAFE_TEXT_ALLOWED_CHAR = /[\p{L}\p{N}\s.,\-_'":;!?()]/u;
+
+const sanitizeSafeTextInput = (value: string, maxLen = 500) =>
+  Array.from(value)
+    .filter((char) => SAFE_TEXT_ALLOWED_CHAR.test(char))
+    .join('')
+    .slice(0, maxLen);
+
 export const SettingsView: React.FC = () => {
   const navigate = useNavigate();
   const notyf = useMemo(
@@ -26,7 +34,6 @@ export const SettingsView: React.FC = () => {
 
   const [loading, setLoading] = useState(true);
   const [savingInfo, setSavingInfo] = useState(false);
-  const [savingPassword, setSavingPassword] = useState(false);
   const [sendingEmailToken, setSendingEmailToken] = useState(false);
   const [verifyingEmailToken, setVerifyingEmailToken] = useState(false);
   const [uploadingProfileImage, setUploadingProfileImage] = useState(false);
@@ -43,10 +50,6 @@ export const SettingsView: React.FC = () => {
 
   const [newEmail, setNewEmail] = useState('');
   const [emailToken, setEmailToken] = useState('');
-
-  const [currentPassword, setCurrentPassword] = useState('');
-  const [newPassword, setNewPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
 
   const [portfolioDescription, setPortfolioDescription] = useState('');
   const [portfolioFiles, setPortfolioFiles] = useState<File[]>([]);
@@ -137,12 +140,53 @@ export const SettingsView: React.FC = () => {
       const data = await res.json();
       if (!res.ok) throw new Error(data?.error || 'Could not upload profile image.');
 
-      setProfileImage(data.profile_image_url || toPublicUrl(data.profile_image));
+      const nextProfileImage = data.profile_image_url || toPublicUrl(data.profile_image);
+      setProfileImage(nextProfileImage);
       setProfileImagePreview(null);
       setProfileImageFile(null);
+      setProfileImgBroken(false);
+      const user = getAuthUser('worker');
+      if (user) {
+        user.profile_image = data.profile_image ?? null;
+        user.profile_image_url = nextProfileImage;
+        updateStoredAuthUser(user, 'worker');
+      }
       notyf.success('Profile image updated.');
     } catch (error: any) {
       notyf.error(error.message || 'Error updating profile image.');
+    } finally {
+      setUploadingProfileImage(false);
+    }
+  };
+
+  const handleRemoveProfileImage = async () => {
+    if (!profileImage && !profileImagePreview) {
+      notyf.error('No profile image to remove.');
+      return;
+    }
+    setUploadingProfileImage(true);
+    try {
+      const res = await authFetch(`${API_URL}/api/worker/profile-image`, {
+        method: 'DELETE',
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error || 'Could not remove profile image.');
+
+      setProfileImage(null);
+      setProfileImagePreview(null);
+      setProfileImageFile(null);
+      setProfileImgBroken(false);
+
+      const user = getAuthUser('worker');
+      if (user) {
+        user.profile_image = null;
+        user.profile_image_url = null;
+        updateStoredAuthUser(user, 'worker');
+      }
+
+      notyf.success('Profile image removed.');
+    } catch (error: any) {
+      notyf.error(error.message || 'Error removing profile image.');
     } finally {
       setUploadingProfileImage(false);
     }
@@ -170,31 +214,6 @@ export const SettingsView: React.FC = () => {
       notyf.error(error.message || 'Error saving settings.');
     } finally {
       setSavingInfo(false);
-    }
-  };
-
-  const handleChangePassword = async () => {
-    setSavingPassword(true);
-    try {
-      const res = await authFetch(`${API_URL}/api/worker/change-password`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          current_password: currentPassword,
-          new_password: newPassword,
-          confirm_password: confirmPassword,
-        }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data?.error || 'Could not change password.');
-      setCurrentPassword('');
-      setNewPassword('');
-      setConfirmPassword('');
-      notyf.success('Password changed successfully.');
-    } catch (error: any) {
-      notyf.error(error.message || 'Error changing password.');
-    } finally {
-      setSavingPassword(false);
     }
   };
 
@@ -369,13 +388,22 @@ export const SettingsView: React.FC = () => {
               />
             </label>
 
-            <button
-              onClick={handleSaveProfileImage}
-              disabled={uploadingProfileImage}
-              className="px-4 py-2 rounded-xl bg-slate-900 text-white font-bold hover:bg-black disabled:bg-gray-400"
-            >
-              {uploadingProfileImage ? 'Saving...' : 'Save Profile Image'}
-            </button>
+            <div className="flex flex-wrap gap-2">
+              <button
+                onClick={handleSaveProfileImage}
+                disabled={uploadingProfileImage}
+                className="px-4 py-2 rounded-xl bg-slate-900 text-white font-bold hover:bg-black disabled:bg-gray-400"
+              >
+                {uploadingProfileImage ? 'Saving...' : 'Save Profile Image'}
+              </button>
+              <button
+                onClick={handleRemoveProfileImage}
+                disabled={uploadingProfileImage || (!profileImage && !profileImagePreview)}
+                className="px-4 py-2 rounded-xl border border-red-200 bg-red-50 text-red-600 font-bold hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-45"
+              >
+                Remove Photo
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -417,10 +445,11 @@ export const SettingsView: React.FC = () => {
               <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Description</label>
               <textarea
                 value={bio}
-                onChange={(e) => setBio(e.target.value)}
+                onChange={(e) => setBio(sanitizeSafeTextInput(e.target.value, 500))}
                 className="w-full min-h-[110px] bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-gray-900"
                 placeholder="Tell clients about your experience and services..."
               />
+              <p className="mt-1 text-[11px] text-gray-500">Only letters, numbers, spaces, and basic punctuation are allowed.</p>
             </div>
           </div>
 
@@ -433,41 +462,7 @@ export const SettingsView: React.FC = () => {
           </button>
         </div>
 
-        <div className="flex flex-col gap-6">
-          <div className="bg-white rounded-3xl border border-gray-200 p-5 md:p-6 shadow-sm">
-            <h3 className="text-2xl font-bold text-gray-900 mb-4">Change Password</h3>
-            <div className="space-y-3">
-              <input
-                type="password"
-                value={currentPassword}
-                onChange={(e) => setCurrentPassword(e.target.value)}
-                placeholder="Current password"
-                className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3"
-              />
-              <input
-                type="password"
-                value={newPassword}
-                onChange={(e) => setNewPassword(e.target.value)}
-                placeholder="New password (min 8 chars)"
-                className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3"
-              />
-              <input
-                type="password"
-                value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
-                placeholder="Confirm new password"
-                className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3"
-              />
-              <button
-                onClick={handleChangePassword}
-                disabled={savingPassword}
-                className="w-full py-3 rounded-xl bg-slate-950 text-white font-bold hover:bg-black disabled:bg-gray-300"
-              >
-                {savingPassword ? 'Changing...' : 'Change Password'}
-              </button>
-            </div>
-          </div>
-
+        <div>
           <div className="bg-white rounded-3xl border border-gray-200 p-5 md:p-6 shadow-sm">
             <h3 className="text-2xl font-bold text-gray-900 mb-4">Change Email (Token Verification)</h3>
             <div className="space-y-3">
@@ -511,10 +506,11 @@ export const SettingsView: React.FC = () => {
           <div className="lg:col-span-1 border border-gray-200 rounded-2xl p-4 bg-gray-50 transition-all duration-300 hover:shadow-sm">
             <input
               value={portfolioDescription}
-              onChange={(e) => setPortfolioDescription(e.target.value)}
+              onChange={(e) => setPortfolioDescription(sanitizeSafeTextInput(e.target.value, 500))}
               placeholder="Optional description"
               className="w-full bg-white border border-gray-200 rounded-xl px-4 py-3 mb-3"
             />
+            <p className="mb-3 text-[11px] text-gray-500">Use only letters, numbers, spaces, and basic punctuation.</p>
 
             <label className="w-full border-2 border-dashed border-gray-300 rounded-2xl p-4 flex flex-col items-center justify-center gap-2 cursor-pointer hover:border-blue-400 transition bg-white hover:bg-blue-50/40">
               <div className="text-2xl font-bold text-blue-500">+</div>

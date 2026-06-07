@@ -11,6 +11,7 @@ import {
   getWorkerRequests,
   rejectWorkerRequest,
   requestWorkerEmailChangeToken,
+  removeWorkerProfileImage,
   startWorkerRequest,
   updateWorkerSettings,
   uploadDocuments,
@@ -44,6 +45,7 @@ router.put('/change-password', sensitiveLimiter, validate(WorkerSchema.changePas
 router.post('/email-change/request', sensitiveLimiter, validate(WorkerSchema.emailChangeRequest), requestWorkerEmailChangeToken);
 router.post('/email-change/verify', sensitiveLimiter, validate(WorkerSchema.tokenOnly), verifyWorkerEmailChangeToken);
 router.post('/profile-image', sensitiveLimiter, uploadImageOnly.single('profile_image'), uploadProfileImage);
+router.delete('/profile-image', sensitiveLimiter, removeWorkerProfileImage);
 router.post('/portfolio', sensitiveLimiter, uploadImageOnly.array('portfolio_images', 10), uploadPortfolioImages);
 router.delete('/portfolio/:idPhoto', sensitiveLimiter, deletePortfolioImage);
 

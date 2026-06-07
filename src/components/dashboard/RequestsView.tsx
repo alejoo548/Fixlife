@@ -6,7 +6,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import 'notyf/notyf.min.css';
 
 interface RequestsViewProps {
-  isOnline: boolean;
+  isOnline: boolean | null;
   mobileView: 'list' | 'map';
   token: string | null;
 }
@@ -585,10 +585,12 @@ export const RequestsView: React.FC<RequestsViewProps> = ({ isOnline, mobileView
     lng?: number;
     at: number;
   } | null>(null);
+  const isWorkerActive = isOnline === true;
+  const visibleRequests = isWorkerActive ? requests : [];
 
   const selectedRequest = useMemo(
-    () => requests.find((r) => r.id_request === selectedRequestId) || requests[0] || null,
-    [requests, selectedRequestId]
+    () => visibleRequests.find((r) => r.id_request === selectedRequestId) || visibleRequests[0] || null,
+    [visibleRequests, selectedRequestId]
   );
   const selectedRequestCoords = useMemo(() => {
     const lat = toFiniteNumber(selectedRequest?.latitude);
@@ -596,7 +598,9 @@ export const RequestsView: React.FC<RequestsViewProps> = ({ isOnline, mobileView
     return lat == null || lng == null ? null : { lat, lng };
   }, [selectedRequest?.latitude, selectedRequest?.longitude]);
   const isInPageRouteActive = !!selectedRequest && activeRouteRequestId === selectedRequest.id_request;
-  const displayedWorkerCoords = isValidCoord(routeFollowerCoords) ? routeFollowerCoords : workerCoords;
+  const displayedWorkerCoords = isWorkerActive
+    ? (isValidCoord(routeFollowerCoords) ? routeFollowerCoords : workerCoords)
+    : null;
   const routeDistanceProfile = useMemo(
     () => (routePreview ? buildRouteDistanceProfile(routePreview.points) : null),
     [routePreview]
@@ -646,13 +650,33 @@ export const RequestsView: React.FC<RequestsViewProps> = ({ isOnline, mobileView
       ? `${displayedRouteMetrics.distanceKm.toFixed(1)} km`
       : '--';
   const requestListHint =
-    statusFilter === 'accepted'
+    !isWorkerActive
+      ? statusFilter === 'accepted'
+        ? 'Go online to view accepted requests and their route details.'
+        : statusFilter === 'rejected'
+          ? 'Go online to review rejected requests and their locations.'
+          : 'Go online to receive nearby requests'
+      : statusFilter === 'accepted'
       ? 'Move each active job through its next step and keep the client informed.'
       : statusFilter === 'rejected'
         ? 'Rejected leads stay here for quick reference.'
         : isOnline
           ? `Live updates on change${presenceBusy ? ' - syncing location' : ''}`
           : 'Go online to receive nearby requests';
+  const emptyStateTitle = !isWorkerActive
+    ? statusFilter === 'accepted'
+      ? 'Go online to view accepted requests'
+      : statusFilter === 'rejected'
+        ? 'Go online to review rejected requests'
+        : 'Go online to receive nearby requests'
+    : 'No requests in this tab';
+  const emptyStateMessage = !isWorkerActive
+    ? statusFilter === 'accepted'
+      ? 'Accepted jobs and route details are hidden while you are offline.'
+      : statusFilter === 'rejected'
+        ? 'Rejected requests and their locations are hidden while you are offline.'
+        : 'Nearby requests only appear while your worker status is online.'
+    : 'Try another tab or keep online for new requests.';
   const selectedServiceIcon = getServiceIconLabel(selectedRequest?.service_icon, selectedRequest?.service_name);
   const routeStatusDisplayLabel =
     routeStatusLabel === 'Idle'
@@ -738,6 +762,21 @@ export const RequestsView: React.FC<RequestsViewProps> = ({ isOnline, mobileView
       }
     };
   }, [leafletReady]);
+
+  useEffect(() => {
+    if (isWorkerActive) return;
+
+    setSelectedRequestId(null);
+    setActiveRouteRequestId(null);
+    setRoutePreview(null);
+    setLiveRouteMetrics(null);
+    setRouteFollowerCoords(null);
+    setRouteError(null);
+    setChatPanelOpen(false);
+    setRoutePanelExpanded(false);
+    setRouteAlert(null);
+    setRequests([]);
+  }, [isWorkerActive]);
 
   useEffect(() => {
     return () => {
@@ -1130,7 +1169,7 @@ export const RequestsView: React.FC<RequestsViewProps> = ({ isOnline, mobileView
     });
     requestMarkersRef.current = [];
 
-    requests.forEach((request) => {
+    visibleRequests.forEach((request) => {
       try {
         const requestLat = toFiniteNumber(request.latitude);
         const requestLng = toFiniteNumber(request.longitude);
@@ -1173,7 +1212,7 @@ export const RequestsView: React.FC<RequestsViewProps> = ({ isOnline, mobileView
         // Ignore markers with invalid backend coordinates.
       }
     });
-  }, [requests, selectedRequest, routePreview]);
+  }, [visibleRequests, selectedRequest, routePreview]);
 
   useEffect(() => {
     if (!mapInstanceRef.current) return;
@@ -1181,8 +1220,8 @@ export const RequestsView: React.FC<RequestsViewProps> = ({ isOnline, mobileView
 
     const targetKey = selectedRequestCoords
       ? `${selectedRequestCoords.lat},${selectedRequestCoords.lng},13`
-      : isValidCoord(workerCoords)
-      ? `${workerCoords!.lat},${workerCoords!.lng},12`
+      : isValidCoord(displayedWorkerCoords)
+      ? `${displayedWorkerCoords!.lat},${displayedWorkerCoords!.lng},12`
       : null;
 
     if (!targetKey || targetKey === lastCameraTargetRef.current) return;
@@ -1191,13 +1230,13 @@ export const RequestsView: React.FC<RequestsViewProps> = ({ isOnline, mobileView
     try {
       if (selectedRequestCoords) {
         mapInstanceRef.current.setView([selectedRequestCoords.lat, selectedRequestCoords.lng], 13);
-      } else if (isValidCoord(workerCoords)) {
-        mapInstanceRef.current.setView([workerCoords!.lat, workerCoords!.lng], 12);
+      } else if (isValidCoord(displayedWorkerCoords)) {
+        mapInstanceRef.current.setView([displayedWorkerCoords!.lat, displayedWorkerCoords!.lng], 12);
       }
     } catch {
       // Ignore invalid camera coordinates.
     }
-  }, [selectedRequestCoords, workerCoords, routePreview]);
+  }, [selectedRequestCoords, displayedWorkerCoords?.lat, displayedWorkerCoords?.lng, routePreview]);
 
   useEffect(() => {
     if (!mapInstanceRef.current || !window.L) return;
@@ -1382,6 +1421,11 @@ export const RequestsView: React.FC<RequestsViewProps> = ({ isOnline, mobileView
 
   const fetchRequests = async (silent = false) => {
     if (!token) return;
+    if (!isWorkerActive) {
+      setRequests([]);
+      setLoading(false);
+      return;
+    }
     if (!silent) setLoading(true);
 
     try {
@@ -1457,9 +1501,14 @@ export const RequestsView: React.FC<RequestsViewProps> = ({ isOnline, mobileView
   useEffect(() => {
     firstLoadRef.current = true;
     knownNewIdsRef.current = new Set();
+    if (!isWorkerActive) {
+      setRequests([]);
+      setLoading(false);
+      return;
+    }
     fetchRequests();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [statusFilter, token]);
+  }, [statusFilter, token, isWorkerActive]);
 
   useSSE({
     token,
@@ -1770,6 +1819,7 @@ export const RequestsView: React.FC<RequestsViewProps> = ({ isOnline, mobileView
 
   useEffect(() => {
     if (!token) return;
+    if (typeof isOnline !== 'boolean') return;
 
     if (!isOnline) {
       pushPresence(false);
@@ -1880,13 +1930,13 @@ export const RequestsView: React.FC<RequestsViewProps> = ({ isOnline, mobileView
               <p className="mt-3 text-[11px] font-black uppercase tracking-[0.18em] text-bird-blue">Refreshing requests</p>
               <p className="mt-1 text-sm text-slate-500">We are syncing nearby leads for you.</p>
             </div>
-          ) : requests.length === 0 ? (
+          ) : visibleRequests.length === 0 ? (
             <div className="h-full flex flex-col items-center justify-center text-center p-6 opacity-70">
-              <h3 className="text-lg font-bold text-gray-900 mb-2">No requests in this tab</h3>
-              <p className="text-sm text-gray-600">Try another tab or keep online for new requests.</p>
+              <h3 className="text-lg font-bold text-gray-900 mb-2">{emptyStateTitle}</h3>
+              <p className="text-sm text-gray-600">{emptyStateMessage}</p>
             </div>
           ) : (
-            requests.map((req) => {
+            visibleRequests.map((req) => {
               const selected = req.id_request === selectedRequest?.id_request;
               const actionLockedByActiveJob =
                 statusFilter === 'new' &&
@@ -2060,6 +2110,18 @@ export const RequestsView: React.FC<RequestsViewProps> = ({ isOnline, mobileView
           <div ref={mapContainerRef} className="absolute inset-0 z-0" />
           {!leafletReady && <div className="absolute right-4 top-4 z-[500] h-2.5 w-2.5 rounded-full bg-bird-blue/40 animate-pulse" />}
         </div>
+
+        {!isWorkerActive && (
+          <div className="absolute inset-0 z-[400] flex items-center justify-center bg-white/58 backdrop-blur-[2px]">
+            <div className="mx-4 max-w-sm rounded-[2rem] border border-white/80 bg-white/92 px-6 py-5 text-center shadow-[0_24px_70px_rgba(15,23,42,0.12)]">
+              <p className="text-[11px] font-black uppercase tracking-[0.22em] text-slate-400">Offline mode</p>
+              <h3 className="mt-2 text-xl font-black text-slate-900">Location hidden while offline</h3>
+              <p className="mt-2 text-sm font-semibold leading-6 text-slate-600">
+                Go online to show your position on the map and receive request updates.
+              </p>
+            </div>
+          </div>
+        )}
 
         <div className="pointer-events-none absolute inset-0 z-[120]">
           <div className="absolute inset-x-0 top-0 h-36 bg-gradient-to-b from-white/80 via-white/25 to-transparent" />
