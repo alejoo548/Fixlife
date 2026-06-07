@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { API_ENDPOINTS } from '../../config/api';
 import { SupportThread, SupportMessage } from '../../types/support';
-import { MessageCircle, RefreshCw, Send, ArrowLeft } from 'lucide-react';
+import { MessageCircle, RefreshCw, Send, ArrowLeft, Paperclip, X } from 'lucide-react';
 import {
   connectSupportSocket,
   disconnectSupportSocket,
@@ -10,6 +10,8 @@ import {
   isSupportSocketConnected,
 } from '../../services/supportSocket';
 import { useDashboardTheme } from '../../hooks/useDashboardTheme';
+import { SupportProtectedImage } from '../support/SupportProtectedImage';
+import { getSafeSupportDisplayText, hasUnsafeSupportText, sanitizeSupportTextInput } from '../../utils/supportSecurity';
 
 interface SupportAdminProps {
   token: string | null;
@@ -28,6 +30,13 @@ const STATUS_COLORS: Record<string, string> = {
   resolved: 'bg-blue-500/15 text-blue-400',
   closed: 'bg-gray-500/15 text-gray-400',
 };
+
+const sortThreadsByLastMessage = (items: SupportThread[]) =>
+  [...items].sort(
+    (left, right) =>
+      new Date(right.lastMessageAt || right.createdAt).getTime() -
+      new Date(left.lastMessageAt || left.createdAt).getTime()
+  );
 
 function Avatar({ name, size = 'md' }: { name: string; size?: 'sm' | 'md' }) {
   const initials = name.split(' ').slice(0, 2).map((w) => w[0]).join('').toUpperCase();
@@ -51,22 +60,53 @@ export const SupportAdmin: React.FC<SupportAdminProps> = ({ token }) => {
   const [isSending, setIsSending] = useState(false);
   const [statusFilter, setStatusFilter] = useState<'all' | 'open' | 'waiting_for_user' | 'resolved' | 'closed'>('all');
   const [isSocketConnected, setIsSocketConnected] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [replyImage, setReplyImage] = useState<File | null>(null);
+  const hasUnsafeReply = hasUnsafeSupportText(newMessage);
 
   const chatContainerRef = useRef<HTMLDivElement>(null);
   const selectedThreadRef = useRef<SupportThread | null>(null);
+  const threadsRef = useRef<SupportThread[]>([]);
   const inputRef = useRef<HTMLInputElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const ALLOWED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
+  const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
+
+  const handlePickReplyImage = (file: File | null) => {
+    setError(null);
+    if (!file) {
+      setReplyImage(null);
+      return;
+    }
+    if (!ALLOWED_IMAGE_TYPES.includes(file.type)) {
+      setReplyImage(null);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+      setError('Only JPG, PNG or WEBP images are allowed.');
+      return;
+    }
+    if (file.size > MAX_IMAGE_BYTES) {
+      setReplyImage(null);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+      setError('Image must be 5 MB or smaller.');
+      return;
+    }
+    setReplyImage(file);
+  };
 
   const fetchThreads = useCallback(async () => {
     if (!token) return;
     setIsLoading(true);
+    setError(null);
     try {
       const res = await fetch(API_ENDPOINTS.support.allThreads, {
         headers: { Authorization: `Bearer ${token}` },
       });
+      if (!res.ok) throw new Error('Could not load support cases.');
       const data = await res.json();
-      if (data.success) setThreads(data.threads || []);
+      if (data.success) setThreads(sortThreadsByLastMessage(data.threads || []));
     } catch {
-      // silent
+      setError('Could not load support cases.');
     } finally {
       setIsLoading(false);
     }
@@ -78,10 +118,11 @@ export const SupportAdmin: React.FC<SupportAdminProps> = ({ token }) => {
       const res = await fetch(API_ENDPOINTS.support.messages(threadId), {
         headers: { Authorization: `Bearer ${token}` },
       });
+      if (!res.ok) throw new Error('Could not load messages.');
       const data = await res.json();
       if (data.success) setMessages(data.messages || []);
     } catch {
-      // silent
+      setError('Could not load messages.');
     }
   }, [token]);
 
@@ -95,23 +136,46 @@ export const SupportAdmin: React.FC<SupportAdminProps> = ({ token }) => {
   };
 
   const sendMessage = async () => {
-    if (!token || !selectedThread || !newMessage.trim() || isSending) return;
+    if (!token || !selectedThread || isSending) return;
+    const trimmed = newMessage.trim();
+    if (!trimmed && !replyImage) return;
+    if (hasUnsafeReply) {
+      setError('Malicious characters or patterns are not allowed.');
+      return;
+    }
     setIsSending(true);
+    setError(null);
     try {
+      const headers: Record<string, string> = { Authorization: `Bearer ${token}` };
+      let body: BodyInit;
+      if (replyImage) {
+        const form = new FormData();
+        if (trimmed) form.append('message', trimmed);
+        form.append('image', replyImage);
+        body = form;
+      } else {
+        headers['Content-Type'] = 'application/json';
+        body = JSON.stringify({ message: trimmed });
+      }
+
       const res = await fetch(API_ENDPOINTS.support.messages(selectedThread.id), {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ message: newMessage.trim() }),
+        headers,
+        body,
       });
-      if (res.ok) {
-        const data = await res.json();
-        if (data.message && !isSocketConnected) {
-          setMessages((prev) => [...prev, data.message]);
-        }
-        setNewMessage('');
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || 'Could not send message.');
       }
-    } catch {
-      // silent
+      const data = await res.json();
+      if (data.message && !isSocketConnected) {
+        setMessages((prev) => [...prev, data.message]);
+      }
+      setNewMessage('');
+      setReplyImage(null);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Could not send message.');
     } finally {
       setIsSending(false);
     }
@@ -125,18 +189,20 @@ export const SupportAdmin: React.FC<SupportAdminProps> = ({ token }) => {
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({ status }),
       });
+      if (!res.ok) throw new Error('Could not update status.');
       if (res.ok) {
         setThreads((prev) => prev.map((t) => t.id === threadId ? { ...t, status: status as any } : t));
         if (selectedThread?.id === threadId) setSelectedThread((t) => t ? { ...t, status: status as any } : t);
       }
     } catch {
-      // silent
+      setError('Could not update status.');
     }
   };
 
   useEffect(() => { fetchThreads(); }, [fetchThreads]);
 
   useEffect(() => { selectedThreadRef.current = selectedThread; }, [selectedThread]);
+  useEffect(() => { threadsRef.current = threads; }, [threads]);
 
   useEffect(() => {
     if (!token) { disconnectSupportSocket(); setIsSocketConnected(false); return; }
@@ -149,7 +215,28 @@ export const SupportAdmin: React.FC<SupportAdminProps> = ({ token }) => {
           if (prev.some((m) => m.id === message.id)) return prev;
           return [...prev, message];
         });
-        fetchThreads();
+        const shouldRefreshThreads = !threadsRef.current.some((thread) => thread.id === message.threadId);
+        setThreads((prev) => {
+          if (!prev.some((thread) => thread.id === message.threadId)) {
+            return prev;
+          }
+
+          return sortThreadsByLastMessage(prev.map((thread) =>
+            thread.id === message.threadId
+              ? { ...thread, lastMessageAt: message.createdAt }
+              : thread
+          ));
+        });
+        if (shouldRefreshThreads) fetchThreads();
+      },
+      onThreadCreated: ({ thread, message }) => {
+        setThreads((prev) => {
+          const withoutDuplicate = prev.filter((item) => item.id !== thread.id);
+          return sortThreadsByLastMessage([thread, ...withoutDuplicate]);
+        });
+        if (selectedThreadRef.current?.id === thread.id && message) {
+          setMessages((prev) => (prev.some((item) => item.id === message.id) ? prev : [...prev, message]));
+        }
       },
       onConnect: () => {
         setIsSocketConnected(true);
@@ -219,6 +306,11 @@ export const SupportAdmin: React.FC<SupportAdminProps> = ({ token }) => {
             <option value="resolved">Resolved</option>
             <option value="closed">Closed</option>
           </select>
+          {error && (
+            <div className="mt-2 rounded-xl border border-red-500/20 bg-red-500/10 px-3 py-2 text-xs font-medium text-red-500">
+              {error}
+            </div>
+          )}
         </div>
 
         {/* Thread list */}
@@ -327,6 +419,7 @@ export const SupportAdmin: React.FC<SupportAdminProps> = ({ token }) => {
               )}
               {messages.map((msg) => {
                 const isAdmin = msg.senderRole === 'admin';
+                const safeMessage = getSafeSupportDisplayText(msg.message);
                 return (
                   <div key={msg.id} className={`flex items-end gap-2 ${isAdmin ? 'justify-end' : 'justify-start'}`}>
                     {!isAdmin && <Avatar name={msg.senderName} size="sm" />}
@@ -341,7 +434,14 @@ export const SupportAdmin: React.FC<SupportAdminProps> = ({ token }) => {
                           ? 'bg-bird-blue text-white rounded-br-sm'
                           : `${d ? 'bg-gray-700 text-gray-100' : 'bg-white text-gray-800'} rounded-bl-sm shadow-sm`
                       }`}>
-                        <div className="whitespace-pre-wrap">{msg.message}</div>
+                        {msg.imageUrl && (
+                          <SupportProtectedImage
+                            imageUrl={msg.imageUrl}
+                            token={token}
+                            className={safeMessage ? 'mb-2' : ''}
+                          />
+                        )}
+                        {safeMessage && <div className="whitespace-pre-wrap">{safeMessage}</div>}
                         <div className={`text-[10px] mt-1 text-right ${isAdmin ? 'text-white/60' : textMuted}`}>
                           {new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                         </div>
@@ -355,11 +455,42 @@ export const SupportAdmin: React.FC<SupportAdminProps> = ({ token }) => {
 
             {/* Input bar */}
             <div className={`px-4 py-3 ${inputBarBg} border-t ${border} flex-shrink-0`}>
+              {replyImage && (
+                <div className={`mb-2 flex items-center justify-between rounded-xl border ${border} ${inputWrapBg} px-3 py-2 text-xs ${textSub}`}>
+                  <span className="truncate pr-3">{replyImage.name}</span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setReplyImage(null);
+                      if (fileInputRef.current) fileInputRef.current.value = '';
+                    }}
+                    className={`flex h-6 w-6 items-center justify-center rounded-lg ${textMuted} ${d ? 'hover:bg-gray-800' : 'hover:bg-gray-200'}`}
+                  >
+                    <X size={14} />
+                  </button>
+                </div>
+              )}
               <div className={`flex items-center gap-2 ${inputWrapBg} rounded-2xl px-4 py-2`}>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp"
+                  className="hidden"
+                  onChange={(e) => handlePickReplyImage(e.target.files?.[0] || null)}
+                  disabled={isSending}
+                />
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={isSending}
+                  className={`${textMuted} transition hover:${textSub} flex-shrink-0`}
+                >
+                  <Paperclip size={18} />
+                </button>
                 <input
                   ref={inputRef}
                   value={newMessage}
-                  onChange={(e) => setNewMessage(e.target.value)}
+                  onChange={(e) => setNewMessage(sanitizeSupportTextInput(e.target.value, 2000))}
                   onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey && !isSending) { e.preventDefault(); sendMessage(); } }}
                   placeholder="Write a response..."
                   maxLength={2000}
@@ -368,12 +499,17 @@ export const SupportAdmin: React.FC<SupportAdminProps> = ({ token }) => {
                 />
                 <button
                   onClick={sendMessage}
-                  disabled={!newMessage.trim() || isSending}
+                  disabled={(!newMessage.trim() && !replyImage) || isSending || hasUnsafeReply}
                   className="flex h-8 w-8 items-center justify-center rounded-xl bg-bird-blue text-white disabled:opacity-40 transition active:scale-90 flex-shrink-0"
                 >
                   <Send size={15} />
                 </button>
               </div>
+              {hasUnsafeReply && (
+                <div className="mt-2 text-center text-[10px] font-medium text-red-500">
+                  Malicious characters or patterns are not allowed.
+                </div>
+              )}
             </div>
           </>
         )}

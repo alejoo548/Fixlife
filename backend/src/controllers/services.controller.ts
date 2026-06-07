@@ -2,7 +2,7 @@ import { Request, Response } from 'express';
 import { ResultSetHeader, RowDataPacket } from 'mysql2';
 import pool from '../config/db';
 import { AuthRequest } from '../middlewares/auth.middleware';
-import { createUserNotification } from '../utils/notifications';
+import { createUserNotification, notifyAdmins } from '../utils/notifications';
 import { pushToUser } from '../services/sseManager';
 import { getWorkerBonusPayouts, getWorkerRewardsSettings, syncWorkerBonusPayouts } from '../utils/workerRewards';
 import { resolveRequestLocation, reverseGeocodeLocation, suggestLocationTexts } from '../services/geocoding.service';
@@ -1444,7 +1444,7 @@ export const createServiceRequest = async (req: AuthRequest, res: Response): Pro
     }
 
     const [svcRows] = await pool.execute<RowDataPacket[]>(
-      `SELECT id_service FROM services WHERE id_service = ? AND is_active = 1 LIMIT 1`,
+      `SELECT id_service, name FROM services WHERE id_service = ? AND is_active = 1 LIMIT 1`,
       [idService]
     );
     if (svcRows.length === 0) {
@@ -1506,6 +1506,16 @@ export const createServiceRequest = async (req: AuthRequest, res: Response): Pro
 
       await bulkInsertRequestWorkerCandidates(pool, idRequest, nearRows);
     }
+
+    await notifyAdmins({
+      eventType: 'admin_request_created',
+      title: 'New service request',
+      message: `Request #${idRequest} for ${svcRows[0].name || 'a service'} was created in ${locationText}.`,
+      tone: 'info',
+      actionUrl: `/admin-dashboard/requests?request=${idRequest}`,
+      dedupeKey: `admin-request-created-${idRequest}`,
+      metadata: { requestId: idRequest, serviceId: idService, urgencyLevel },
+    });
 
     res.status(201).json({
       success: true,
@@ -2747,6 +2757,16 @@ export const confirmRequestPayment = async (req: AuthRequest, res: Response): Pr
       });
     }
 
+    await notifyAdmins({
+      eventType: 'admin_payment_secured',
+      title: 'Request payment secured',
+      message: `${expectedAmount.toLocaleString('en-US', { style: 'currency', currency: expectedCurrencyCode })} was secured for request #${idRequest}.`,
+      tone: 'success',
+      actionUrl: `/admin-dashboard/requests?request=${idRequest}`,
+      dedupeKey: `admin-payment-secured-${idRequest}`,
+      metadata: { requestId: idRequest, amount: expectedAmount, currency: expectedCurrencyCode },
+    });
+
     if (clientEmail) {
       await enqueueBackgroundJob({
         jobType: 'send_payment_invoice_email',
@@ -3043,6 +3063,17 @@ export const confirmServiceCompletion = async (req: AuthRequest, res: Response):
         );
       }
     }
+
+
+    await notifyAdmins({
+      eventType: 'admin_job_completed',
+      title: 'Service request completed',
+      message: `Request #${idRequest} was completed and payment release processing started.`,
+      tone: 'success',
+      actionUrl: `/admin-dashboard/requests?request=${idRequest}`,
+      dedupeKey: `admin-job-completed-${idRequest}`,
+      metadata: { requestId: idRequest, payoutScheduled: Boolean(scheduledWorkerPayout) },
+    });
 
     res.json({
       success: true,

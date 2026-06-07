@@ -32,9 +32,9 @@ const ProDashboard = lazy(() =>
     default: module.ProDashboard,
   }))
 );
-const AdminDashboard = lazy(() =>
-  import('./components/modals/AdminDashboard').then((module) => ({
-    default: module.AdminDashboard,
+const AdminApp = lazy(() =>
+  import('./features/admin/AdminApp').then((module) => ({
+    default: module.AdminApp,
   }))
 );
 const PaymentCheckoutPage = lazy(() => import('./pages/PaymentCheckoutPage'));
@@ -255,7 +255,7 @@ const App: React.FC = () => {
       navigate('/', { replace: true });
       return;
     }
-    navigate('/admin-dashboard', { replace: true });
+    navigate('/admin-dashboard/overview', { replace: true });
     window.scrollTo(0, 0);
   }
 
@@ -276,7 +276,7 @@ const App: React.FC = () => {
   const handleBackToLanding = () => {
     setPendingSection(null);
     const leavingProtectedView =
-      location.pathname === '/admin-dashboard' ||
+      location.pathname.startsWith('/admin-dashboard') ||
       location.pathname === '/pro-dashboard' ||
       location.pathname === '/profile' ||
       location.pathname.startsWith('/checkout/');
@@ -450,11 +450,11 @@ const App: React.FC = () => {
           )}
         />
         <Route
-          path="/admin-dashboard"
+          path="/admin-dashboard/*"
           element={(
             <ProtectedRoute scope="admin" role="admin">
               <Suspense fallback={<AppRouteFallback title="Loading admin dashboard..." subtitle="Preparing management tools." />}>
-                <AdminDashboard
+                <AdminApp
                   isOpen={true}
                   onClose={handleBackToLanding}
                 />
@@ -766,7 +766,5 @@ const App: React.FC = () => {
 };
 
 export default App;
-
-
 
 

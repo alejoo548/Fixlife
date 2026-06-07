@@ -65,15 +65,27 @@ export async function createSupportThread(input: CreateThreadInput): Promise<Sup
 export async function sendSupportMessage(
   input: SendMessageInput
 ): Promise<SupportMessage> {
+  const headers = getAuthHeaders();
+  const body = input.image
+    ? (() => {
+        const form = new FormData();
+        if (input.message.trim()) form.append('message', input.message.trim());
+        form.append('image', input.image);
+        return form;
+      })()
+    : JSON.stringify({
+        message: input.message,
+      });
+
   const res = await fetch(API_ENDPOINTS.support.messages(input.threadId), {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      ...getAuthHeaders(),
-    },
-    body: JSON.stringify({
-      message: input.message,
-    }),
+    headers: input.image
+      ? headers
+      : {
+          'Content-Type': 'application/json',
+          ...headers,
+        },
+    body,
   });
 
   if (!res.ok) {
@@ -84,5 +96,3 @@ export async function sendSupportMessage(
   const data = await res.json();
   return data.message;
 }
-
-// Note: Image upload will be handled later using the existing upload system

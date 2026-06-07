@@ -1,5 +1,6 @@
 import { Pool, PoolConnection, ResultSetHeader, RowDataPacket } from 'mysql2/promise';
 import pool from '../config/db';
+import { hasUnsafeSupportText, sanitizeSupportText } from '../schemas/support.schema';
 
 let supportTablesChecked = false;
 
@@ -197,6 +198,26 @@ export async function getMessagesForThread(threadId: number, limit = 100): Promi
   return rows;
 }
 
+export async function getMessageById(messageId: number): Promise<SupportMessageRow | null> {
+  await ensureSupportTables();
+
+  const [rows] = await pool.execute<SupportMessageRow[]>(
+    `
+    SELECT
+      sm.*,
+      u.name AS sender_name,
+      u.lastname AS sender_lastname
+    FROM support_messages sm
+    LEFT JOIN users u ON u.id_user = sm.sender_user_id
+    WHERE sm.id = ?
+    LIMIT 1
+    `,
+    [messageId]
+  );
+
+  return rows[0] || null;
+}
+
 export async function insertMessage(
   threadId: number,
   senderUserId: number,
@@ -298,13 +319,44 @@ export async function getThreadWithDetails(threadId: number): Promise<SupportThr
 }
 
 
-export function mapThreadRow(row: SupportThreadRow) {
+export function mapThreadDetailRow(row: SupportThreadRow & {
+  assigned_admin_name?: string;
+  assigned_admin_lastname?: string;
+}) {
+  const rawSubject = row.subject || '';
+  const safeSubject = hasUnsafeSupportText(rawSubject)
+    ? '[Subject blocked for security]'
+    : sanitizeSupportText(rawSubject, 120, { singleLine: true });
+  const adminName = `${row.assigned_admin_name || ''} ${row.assigned_admin_lastname || ''}`.trim();
+
   return {
     id: row.id,
     userId: row.user_id,
-    userName: `${row.user_name || ''} ${row.user_lastname || ''}`.trim() || 'Usuario',
+    userName: `${row.user_name || ''} ${row.user_lastname || ''}`.trim() || 'User',
     userRole: (row.user_role || 'client') as 'client' | 'worker',
-    subject: row.subject,
+    subject: safeSubject,
+    status: row.status,
+    priority: row.priority,
+    assignedAdminId: row.assigned_admin_id,
+    assignedAdminName: adminName || null,
+    lastMessageAt: row.last_message_at || row.created_at,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
+export function mapThreadRow(row: SupportThreadRow) {
+  const rawSubject = row.subject || '';
+  const safeSubject = hasUnsafeSupportText(rawSubject)
+    ? '[Subject blocked for security]'
+    : sanitizeSupportText(rawSubject, 120, { singleLine: true });
+
+  return {
+    id: row.id,
+    userId: row.user_id,
+    userName: `${row.user_name || ''} ${row.user_lastname || ''}`.trim() || 'User',
+    userRole: (row.user_role || 'client') as 'client' | 'worker',
+    subject: safeSubject,
     status: row.status,
     priority: row.priority,
     lastMessageAt: row.last_message_at || row.created_at,
@@ -314,13 +366,18 @@ export function mapThreadRow(row: SupportThreadRow) {
 }
 
 export function mapMessageRow(row: SupportMessageRow) {
+  const rawMessage = row.message || '';
+  const safeMessage = hasUnsafeSupportText(rawMessage)
+    ? '[Message blocked for security]'
+    : sanitizeSupportText(rawMessage, 2000);
+
   return {
     id: row.id,
     threadId: row.thread_id,
     senderUserId: row.sender_user_id,
     senderRole: row.sender_role,
-    senderName: `${row.sender_name || ''} ${row.sender_lastname || ''}`.trim() || 'Usuario',
-    message: row.message || '',
+    senderName: `${row.sender_name || ''} ${row.sender_lastname || ''}`.trim() || 'User',
+    message: safeMessage,
     imageUrl: row.image_url || null,
     createdAt: row.created_at,
   };

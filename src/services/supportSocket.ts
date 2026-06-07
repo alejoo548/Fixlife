@@ -1,5 +1,16 @@
 import { io, Socket } from 'socket.io-client';
-import { SupportMessage } from '../types/support';
+import { SupportMessage, SupportThread } from '../types/support';
+
+export interface AdminActivityEvent {
+  id_activity: number;
+  action: string;
+  entity: string;
+  entity_id: number | null;
+  summary: string;
+  created_at: string;
+  admin: { id_user: number; name: string; email: string | null } | null;
+  metadata: unknown;
+}
 
 let socket: Socket | null = null;
 let currentToken: string | null = null;
@@ -7,20 +18,17 @@ let currentToken: string | null = null;
 interface SupportSocketOptions {
   token: string;
   onNewMessage?: (message: SupportMessage) => void;
+  onThreadCreated?: (data: { thread: SupportThread; message?: SupportMessage | null }) => void;
   onThreadUpdated?: (data: { threadId: number }) => void;
   onConnect?: () => void;
   onDisconnect?: () => void;
 }
 
-/**
- * Real Support Socket Service using Socket.IO
- * 
- * Supports Docker environments by allowing a dedicated socket URL.
- */
-// Active listeners per event so multiple callers (user widget + admin) can coexist
 const connectListeners: Set<() => void> = new Set();
 const disconnectListeners: Set<() => void> = new Set();
 const messageListeners: Set<(m: SupportMessage) => void> = new Set();
+const threadCreatedListeners: Set<(data: { thread: SupportThread; message?: SupportMessage | null }) => void> = new Set();
+const activityListeners: Set<(item: AdminActivityEvent) => void> = new Set();
 
 function setupSocketListeners() {
   if (!socket) return;
@@ -28,6 +36,8 @@ function setupSocketListeners() {
   socket.off('connect');
   socket.off('disconnect');
   socket.off('support:new_message');
+  socket.off('support:thread_created');
+  socket.off('admin:activity_created');
   socket.off('connect_error');
   socket.off('support:error');
 
@@ -43,6 +53,14 @@ function setupSocketListeners() {
     messageListeners.forEach((fn) => fn(message));
   });
 
+  socket.on('support:thread_created', (data: { thread: SupportThread; message?: SupportMessage | null }) => {
+    threadCreatedListeners.forEach((fn) => fn(data));
+  });
+
+  socket.on('admin:activity_created', (item: AdminActivityEvent) => {
+    activityListeners.forEach((fn) => fn(item));
+  });
+
   socket.on('connect_error', (err) => {
     console.error('[SupportSocket] Connection error:', err.message);
   });
@@ -55,17 +73,16 @@ function setupSocketListeners() {
 export function connectSupportSocket({
   token,
   onNewMessage,
+  onThreadCreated,
   onConnect,
   onDisconnect,
 }: SupportSocketOptions) {
-  // Register callbacks into shared listener sets
   if (onConnect) connectListeners.add(onConnect);
   if (onDisconnect) disconnectListeners.add(onDisconnect);
   if (onNewMessage) messageListeners.add(onNewMessage);
+  if (onThreadCreated) threadCreatedListeners.add(onThreadCreated);
 
-  // Socket already exists with same token — re-use it
   if (socket && currentToken === token) {
-    // If already connected, fire onConnect immediately
     if (socket.connected && onConnect) onConnect();
     return socket;
   }
@@ -75,9 +92,11 @@ export function connectSupportSocket({
     connectListeners.clear();
     disconnectListeners.clear();
     messageListeners.clear();
+    threadCreatedListeners.clear();
     if (onConnect) connectListeners.add(onConnect);
     if (onDisconnect) disconnectListeners.add(onDisconnect);
     if (onNewMessage) messageListeners.add(onNewMessage);
+    if (onThreadCreated) threadCreatedListeners.add(onThreadCreated);
   }
 
   currentToken = token;
@@ -113,7 +132,16 @@ export function disconnectSupportSocket() {
     connectListeners.clear();
     disconnectListeners.clear();
     messageListeners.clear();
+    threadCreatedListeners.clear();
+    activityListeners.clear();
   }
+}
+
+export function addActivityListener(fn: (item: AdminActivityEvent) => void): () => void {
+  activityListeners.add(fn);
+  return () => {
+    activityListeners.delete(fn);
+  };
 }
 
 export function joinSupportThread(threadId: number) {

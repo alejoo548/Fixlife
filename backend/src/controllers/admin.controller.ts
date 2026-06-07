@@ -3,15 +3,10 @@ import PDFDocument from 'pdfkit';
 import { ResultSetHeader, RowDataPacket } from 'mysql2';
 import pool from '../config/db';
 import { AuthRequest } from '../middlewares/auth.middleware';
-import {
-  getAllBonusPayoutsForAdmin,
-  getWorkerRewardsSettings,
-  markWorkerBonusPayoutAsPaid,
-  syncAllWorkerBonusPayouts,
-  updateWorkerRewardsSettings,
-} from '../utils/workerRewards';
+import {getAllBonusPayoutsForAdmin,getWorkerRewardsSettings,markWorkerBonusPayoutAsPaid,syncAllWorkerBonusPayouts,updateWorkerRewardsSettings,} from '../utils/workerRewards';
 import { createUserNotification } from '../utils/notifications';
 import { pushToUser } from '../services/sseManager';
+import { emitAdminActivity } from '../services/supportSocket.service';
 import { ensureServiceCardsTable, ensureServiceRequestTables } from './services.controller';
 import { ensureUsersActiveColumn, ensureUsersPendingWorkerColumn } from '../utils/users';
 import { buildProtectedAssetUrl, buildPublicAssetUrl, deleteUploadIfExists } from '../utils/assets';
@@ -161,6 +156,33 @@ const ensureAdminActivityTable = async () => {
   adminActivityTableChecked = true;
 };
 
+const mapActivityRow = (row: AdminActivityRow) => {
+  let metadata: any = null;
+  if (row.metadata) {
+    try {
+      metadata = JSON.parse(String(row.metadata));
+    } catch {
+      metadata = null;
+    }
+  }
+  return {
+    id_activity: Number(row.id_activity),
+    action: String(row.action_type),
+    entity: String(row.entity_type),
+    entity_id: row.entity_id != null ? Number(row.entity_id) : null,
+    summary: row.summary,
+    created_at: row.created_at,
+    admin: row.id_admin
+      ? {
+          id_user: Number(row.id_admin),
+          name: `${row.admin_name || ''} ${row.admin_lastname || ''}`.trim() || 'Admin',
+          email: row.admin_email || null,
+        }
+      : null,
+    metadata,
+  };
+};
+
 const logAdminActivity = async (
   req: AuthRequest,
   action: string,
@@ -177,11 +199,24 @@ const logAdminActivity = async (
     const safeSummary = sanitizeText(summary, 255);
     const payload = metadata ? JSON.stringify(metadata).slice(0, 2000) : null;
 
-    await pool.execute<ResultSetHeader>(
+    const [result] = await pool.execute<ResultSetHeader>(
       `INSERT INTO admin_activity_log (id_admin, action_type, entity_type, entity_id, summary, metadata)
        VALUES (?, ?, ?, ?, ?, ?)`,
       [adminId, action.toLowerCase(), entity.toLowerCase(), entityId ?? null, safeSummary, payload]
     );
+
+    const [rows] = await pool.execute<AdminActivityRow[]>(
+      `SELECT
+         a.id_activity, a.id_admin, a.action_type, a.entity_type, a.entity_id,
+         a.summary, a.metadata, a.created_at,
+         u.name AS admin_name, u.lastname AS admin_lastname, u.email AS admin_email
+       FROM admin_activity_log a
+       LEFT JOIN users u ON u.id_user = a.id_admin
+       WHERE a.id_activity = ? LIMIT 1`,
+      [result.insertId]
+    );
+
+    if (rows[0]) emitAdminActivity(mapActivityRow(rows[0]));
   } catch (error) {
     console.error('Error in logAdminActivity:', error);
   }
@@ -345,10 +380,28 @@ export const getHeroSlidesPublic = async (_req: AuthRequest, res: Response): Pro
 
 export const getAllServices = async (_req: AuthRequest, res: Response): Promise<void> => {
   try {
+    await ensureServiceRequestTables();
     const [rows] = await pool.execute<RowDataPacket[]>(
-      `SELECT id_service, name, description, icon, is_active, created_at FROM services ORDER BY created_at DESC`
+      `SELECT s.id_service, s.name, s.description, s.icon, s.is_active, s.created_at,
+         COUNT(DISTINCT sr.id_request) AS request_count,
+         COUNT(DISTINCT CASE WHEN sr.status = 'done' THEN sr.id_request END) AS completed_count,
+         COUNT(DISTINCT CASE WHEN sr.status = 'cancelled' THEN sr.id_request END) AS cancelled_count,
+         COALESCE(SUM(CASE WHEN p.payment_status IN ('paid','released') THEN p.amount ELSE 0 END), 0) AS paid_volume,
+         MAX(sr.created_at) AS last_request_at
+       FROM services s
+       LEFT JOIN service_requests sr ON sr.id_service = s.id_service
+       LEFT JOIN service_request_payments p ON p.id_request = sr.id_request
+       GROUP BY s.id_service, s.name, s.description, s.icon, s.is_active, s.created_at
+       ORDER BY s.created_at DESC`
     );
-    res.json({ success: true, services: rows });
+    res.json({ success: true, services: rows.map((row: any) => ({
+      ...row,
+      id_service: Number(row.id_service),
+      request_count: Number(row.request_count || 0),
+      completed_count: Number(row.completed_count || 0),
+      cancelled_count: Number(row.cancelled_count || 0),
+      paid_volume: Number(row.paid_volume || 0),
+    })) });
   } catch (error: any) {
     console.error('Error in getAllServices:', error);
     res.status(500).json({ error: 'Internal server error' });
@@ -455,6 +508,7 @@ export const updateService = async (req: AuthRequest, res: Response): Promise<vo
 
 export const deleteService = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
+    await ensureServiceRequestTables();
     const idService = Number(req.params.id);
     if (!idService || isNaN(idService)) {
       res.status(400).json({ error: 'Invalid service ID.' });
@@ -466,6 +520,15 @@ export const deleteService = async (req: AuthRequest, res: Response): Promise<vo
       [idService]
     );
     const serviceName = serviceRows[0]?.name ? String(serviceRows[0].name) : null;
+
+    const [[usage]] = await pool.execute<RowDataPacket[]>(
+      `SELECT COUNT(*) AS request_count FROM service_requests WHERE id_service = ?`,
+      [idService]
+    );
+    if (Number(usage?.request_count || 0) > 0) {
+      res.status(409).json({ error: 'Service has request history and cannot be deleted. Deactivate it instead.' });
+      return;
+    }
 
     const [result] = await pool.execute<ResultSetHeader>(
       `DELETE FROM services WHERE id_service = ?`,
@@ -850,6 +913,7 @@ export const getPendingWorkers = async (req: AuthRequest, res: Response): Promis
 export const approveWorker = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     await ensureUsersPendingWorkerColumn();
+    const reason = sanitizeText(req.body.reason, 500);
 
     const userId = Number(req.params.id);
     if (!userId || isNaN(userId)) {
@@ -911,7 +975,7 @@ export const approveWorker = async (req: AuthRequest, res: Response): Promise<vo
         'worker',
         workerName ? `Approved worker "${workerName}"` : `Approved worker #${userId}`,
         userId,
-        { name: workerName || null }
+        { name: workerName || null, reason }
       );
       res.json({ success: true, message: 'Worker approved successfully.' });
     } catch (error) {
@@ -929,6 +993,7 @@ export const approveWorker = async (req: AuthRequest, res: Response): Promise<vo
 export const rejectWorker = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     await ensureUsersPendingWorkerColumn();
+    const reason = sanitizeText(req.body.reason, 500);
 
     const userId = Number(req.params.id);
     if (!userId || isNaN(userId)) {
@@ -987,7 +1052,7 @@ export const rejectWorker = async (req: AuthRequest, res: Response): Promise<voi
         'worker',
         workerName ? `Rejected worker "${workerName}"` : `Rejected worker #${userId}`,
         userId,
-        { name: workerName || null }
+        { name: workerName || null, reason }
       );
       res.json({ success: true, message: 'Worker rejected successfully.' });
     } catch (error) {
@@ -1117,9 +1182,142 @@ export const getUsersAdmin = async (req: AuthRequest, res: Response): Promise<vo
   }
 };
 
+export const getUserDetailAdmin = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    await ensureUsersActiveColumn();
+    await ensureServiceRequestTables();
+    const userId = parsePositiveInt(req.params.id, 'user id', 2_000_000_000);
+
+    const [userRows] = await pool.execute<RowDataPacket[]>(
+      `SELECT u.id_user, u.name, u.lastname, u.email, u.phone_number, u.username,
+         u.profile_image, u.rol, u.is_active, u.created_at, u.last_login,
+         wp.id_worker_profile, wp.bio, wp.is_verified, wp.membership_tier,
+         wp.dui_document, wp.cert_document
+       FROM users u
+       LEFT JOIN worker_profiles wp ON wp.id_user = u.id_user
+       WHERE u.id_user = ? LIMIT 1`,
+      [userId]
+    );
+    if (userRows.length === 0) {
+      res.status(404).json({ error: 'User not found.' });
+      return;
+    }
+    const user: any = userRows[0];
+
+    const [requestRows] = await pool.execute<RowDataPacket[]>(
+      `SELECT sr.id_request, sr.status, sr.description, sr.location_text, sr.budget,
+         sr.created_at, sr.updated_at, s.name AS service_name,
+         p.payment_status, p.amount AS payment_amount
+       FROM service_requests sr
+       INNER JOIN services s ON s.id_service = sr.id_service
+       LEFT JOIN service_request_payments p ON p.id_request = sr.id_request
+       WHERE sr.id_user = ? OR sr.assigned_worker_profile = ?
+       ORDER BY sr.created_at DESC LIMIT 50`,
+      [userId, user.id_worker_profile || 0]
+    );
+
+    const [serviceRows] = user.id_worker_profile
+      ? await pool.execute<RowDataPacket[]>(
+          `SELECT s.id_service, s.name
+           FROM worker_services ws
+           INNER JOIN services s ON s.id_service = ws.id_service
+           WHERE ws.id_worker_profile = ? ORDER BY s.name`,
+          [user.id_worker_profile]
+        )
+      : [[] as unknown as RowDataPacket[]];
+
+    const [ratingRows] = user.id_worker_profile
+      ? await pool.execute<RowDataPacket[]>(
+          `SELECT COUNT(*) AS rating_count,
+             AVG((punctuality + quality + price_fairness) / 3) AS rating_average,
+             AVG(punctuality) AS punctuality_average,
+             AVG(quality) AS quality_average,
+             AVG(price_fairness) AS price_average
+           FROM service_request_ratings WHERE id_worker_profile = ?`,
+          [user.id_worker_profile]
+        )
+      : [[] as unknown as RowDataPacket[]];
+
+    const [activityRows] = await pool.execute<RowDataPacket[]>(
+      `SELECT id_activity, action_type, entity_type, summary, metadata, created_at
+       FROM admin_activity_log
+       WHERE (entity_type = 'user' OR entity_type = 'worker') AND entity_id = ?
+       ORDER BY created_at DESC LIMIT 30`,
+      [userId]
+    ).catch(() => [[] as unknown as RowDataPacket[], []] as any);
+
+    const requests = requestRows.map((row: any) => ({
+      id_request: Number(row.id_request),
+      service_name: row.service_name,
+      status: toPublicRequestStatus(row.status),
+      description: row.description,
+      location_text: row.location_text,
+      budget: Number(row.budget || 0),
+      payment_status: row.payment_status || 'unpaid',
+      payment_amount: row.payment_amount != null ? Number(row.payment_amount) : null,
+      created_at: row.created_at,
+      updated_at: row.updated_at,
+    }));
+    const completedRequests = requests.filter((request) => request.status === 'done');
+    const cancelledRequests = requests.filter((request) => request.status === 'cancelled');
+    const paidVolume = requests.reduce((sum, request) => sum + (['paid', 'released'].includes(request.payment_status) ? Number(request.payment_amount || 0) : 0), 0);
+    const ratings: any = ratingRows[0] || {};
+
+    res.json({
+      success: true,
+      data: {
+        id_user: Number(user.id_user),
+        name: `${user.name || ''} ${user.lastname || ''}`.trim(),
+        email: user.email,
+        phone_number: user.phone_number,
+        username: user.username,
+        profile_image: buildProtectedAssetUrl(req, user.profile_image),
+        role: user.rol,
+        is_active: Boolean(user.is_active),
+        created_at: user.created_at,
+        last_login: user.last_login,
+        professional: user.id_worker_profile ? {
+          id_worker_profile: Number(user.id_worker_profile),
+          bio: user.bio,
+          is_verified: Number(user.is_verified || 0),
+          membership_tier: user.membership_tier || 'standard',
+          dui_document_url: buildProtectedAssetUrl(req, user.dui_document),
+          cert_document_url: buildProtectedAssetUrl(req, user.cert_document),
+          services: serviceRows.map((service: any) => ({ id_service: Number(service.id_service), name: service.name })),
+          rating: {
+            count: Number(ratings.rating_count || 0),
+            average: ratings.rating_average != null ? Number(ratings.rating_average) : null,
+            punctuality: ratings.punctuality_average != null ? Number(ratings.punctuality_average) : null,
+            quality: ratings.quality_average != null ? Number(ratings.quality_average) : null,
+            price: ratings.price_average != null ? Number(ratings.price_average) : null,
+          },
+        } : null,
+        summary: {
+          request_count: requests.length,
+          completed_count: completedRequests.length,
+          cancelled_count: cancelledRequests.length,
+          paid_volume: Number(paidVolume.toFixed(2)),
+        },
+        requests,
+        admin_activity: activityRows.map((activity: any) => ({
+          id_activity: Number(activity.id_activity),
+          action: activity.action_type,
+          entity: activity.entity_type,
+          summary: activity.summary,
+          metadata: activity.metadata ? JSON.parse(activity.metadata) : null,
+          created_at: activity.created_at,
+        })),
+      },
+    });
+  } catch (error: any) {
+    console.error('Error in getUserDetailAdmin:', error);
+    res.status(500).json({ error: 'Could not load user detail.' });
+  }
+};
+
 export const updateUserRole = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    assertAllowedFields(req.body, ['rol']);
+    assertAllowedFields(req.body, ['rol', 'reason']);
     await ensureUsersActiveColumn();
 
     const userId = Number(req.params.id);
@@ -1129,6 +1327,7 @@ export const updateUserRole = async (req: AuthRequest, res: Response): Promise<v
     }
 
     const newRole = String(req.body?.rol || '').toLowerCase();
+    const reason = sanitizeText(req.body.reason, 500);
     if (!ALLOWED_USER_ROLES.has(newRole)) {
       res.status(400).json({ error: 'Invalid role value.' });
       return;
@@ -1176,7 +1375,7 @@ export const updateUserRole = async (req: AuthRequest, res: Response): Promise<v
         ? `Changed role for "${userName}" to ${newRole}`
         : `Changed role for user #${userId} to ${newRole}`,
       userId,
-      { from: currentRole, to: newRole }
+      { from: currentRole, to: newRole, reason }
     );
 
     res.json({ success: true, message: 'Role updated successfully.' });
@@ -1188,7 +1387,7 @@ export const updateUserRole = async (req: AuthRequest, res: Response): Promise<v
 
 export const updateUserStatus = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    assertAllowedFields(req.body, ['is_active']);
+    assertAllowedFields(req.body, ['is_active', 'reason']);
     await ensureUsersActiveColumn();
 
     const userId = Number(req.params.id);
@@ -1198,6 +1397,7 @@ export const updateUserStatus = async (req: AuthRequest, res: Response): Promise
     }
 
     let desiredActive: 0 | 1 = 1;
+    const reason = sanitizeText(req.body.reason, 500);
     try {
       const parsedActive = parseBooleanFlag(req.body?.is_active, 'is_active');
       if (parsedActive === undefined) {
@@ -1244,7 +1444,7 @@ export const updateUserStatus = async (req: AuthRequest, res: Response): Promise
         ? `${desiredActive === 1 ? 'Activated' : 'Deactivated'} "${userName}"`
         : `${desiredActive === 1 ? 'Activated' : 'Deactivated'} user #${userId}`,
       userId,
-      { is_active: desiredActive }
+      { is_active: desiredActive, reason }
     );
 
     res.json({ success: true, message: 'User status updated successfully.' });
@@ -1288,6 +1488,20 @@ export const getDashboardStats = async (req: AuthRequest, res: Response): Promis
     
     const [[{ total_users }]] = await pool.execute<RowDataPacket[]>(`SELECT COUNT(*) as total_users FROM users WHERE rol = 'client'`);
     const [[{ total_admins }]] = await pool.execute<RowDataPacket[]>(`SELECT COUNT(*) as total_admins FROM users WHERE rol IN ('admin', 'root')`);
+
+    const requestHealthWhere = requestedServiceId != null ? 'AND id_service = ?' : '';
+    const requestHealthParams = requestedServiceId != null ? [requestedServiceId] : [];
+    const [[requestHealth]] = await pool.execute<RowDataPacket[]>(
+      `SELECT COUNT(*) AS created_count,
+         SUM(status IN ('assigned','in_progress','awaiting_confirmation','done')) AS assigned_count,
+         SUM(status IN ('paid','assigned','in_progress','awaiting_confirmation','done')) AS paid_count,
+         SUM(status = 'done') AS done_count,
+         SUM(status = 'cancelled') AS cancelled_count,
+         AVG(CASE WHEN assigned_at IS NOT NULL THEN TIMESTAMPDIFF(MINUTE, created_at, assigned_at) END) AS avg_assignment_minutes
+       FROM service_requests
+       WHERE created_at >= DATE_SUB(NOW(), INTERVAL 30 DAY) ${requestHealthWhere}`,
+      requestHealthParams
+    );
 
     const [trafficRows] = await pool.execute<RowDataPacket[]>(`
       SELECT 
@@ -1467,12 +1681,58 @@ export const getDashboardStats = async (req: AuthRequest, res: Response): Promis
           value: Number(row.value || 0),
         })),
         revenueData,
+        request_health: {
+          created: Number(requestHealth?.created_count || 0),
+          assigned: Number(requestHealth?.assigned_count || 0),
+          paid: Number(requestHealth?.paid_count || 0),
+          completed: Number(requestHealth?.done_count || 0),
+          cancelled: Number(requestHealth?.cancelled_count || 0),
+          cancellation_rate: Number(requestHealth?.created_count || 0) > 0
+            ? Number(((Number(requestHealth?.cancelled_count || 0) / Number(requestHealth.created_count)) * 100).toFixed(1))
+            : 0,
+          avg_assignment_minutes: requestHealth?.avg_assignment_minutes != null
+            ? Number(Number(requestHealth.avg_assignment_minutes).toFixed(1))
+            : null,
+        },
       }
     });
 
   } catch (error: any) {
     console.error('Error in getDashboardStats:', error);
     res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
+export const searchAdmin = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const query = sanitizeText(req.query.q || '', 80).trim();
+    if (query.length < 2) { res.json({ success: true, results: [] }); return; }
+    const like = `%${query}%`;
+    const [requests, users, services] = await Promise.all([
+      pool.execute<RowDataPacket[]>(
+        `SELECT sr.id_request, s.name AS service_name, sr.location_text, sr.status
+         FROM service_requests sr INNER JOIN services s ON s.id_service = sr.id_service
+         LEFT JOIN users u ON u.id_user = sr.id_user
+         WHERE CAST(sr.id_request AS CHAR) LIKE ? OR sr.description LIKE ? OR sr.location_text LIKE ?
+           OR s.name LIKE ? OR CONCAT_WS(' ', u.name, u.lastname) LIKE ? OR u.email LIKE ?
+         ORDER BY sr.updated_at DESC LIMIT 6`, [like, like, like, like, like, like]),
+      pool.execute<RowDataPacket[]>(
+        `SELECT id_user, name, lastname, email, rol FROM users
+         WHERE CONCAT_WS(' ', name, lastname) LIKE ? OR email LIKE ? OR username LIKE ?
+         ORDER BY created_at DESC LIMIT 6`, [like, like, like]),
+      pool.execute<RowDataPacket[]>(
+        `SELECT id_service, name, description FROM services
+         WHERE name LIKE ? OR description LIKE ? ORDER BY name ASC LIMIT 4`, [like, like]),
+    ]);
+    const results = [
+      ...requests[0].map((row: any) => ({ id: Number(row.id_request), type: 'request', title: `Request #${row.id_request} · ${row.service_name}`, subtitle: `${row.location_text} · ${toPublicRequestStatus(row.status)}`, url: `/admin-dashboard/requests?request=${row.id_request}` })),
+      ...users[0].map((row: any) => ({ id: Number(row.id_user), type: 'user', title: `${row.name || ''} ${row.lastname || ''}`.trim() || row.email, subtitle: `${row.email} · ${row.rol}`, url: `/admin-dashboard/users?user=${row.id_user}` })),
+      ...services[0].map((row: any) => ({ id: Number(row.id_service), type: 'service', title: row.name, subtitle: row.description || 'Service catalog item', url: `/admin-dashboard/services?search=${encodeURIComponent(row.name)}` })),
+    ];
+    res.json({ success: true, results });
+  } catch (error) {
+    console.error('Error in searchAdmin:', error);
+    res.status(500).json({ error: 'Could not search admin records.' });
   }
 };
 
@@ -1667,12 +1927,24 @@ export const getRequestsHistory = async (req: AuthRequest, res: Response): Promi
     await ensureServiceRequestTables();
 
     const requestedStatus = String(req.query.status || 'all').toLowerCase();
-    const allowed = new Set(['all', 'pending', 'assigned', 'in_progress', 'done', 'cancelled']);
+    const allowed = new Set(['all', 'pending', 'payment_pending', 'paid', 'assigned', 'in_progress', 'awaiting_confirmation', 'done', 'cancelled']);
     if (!allowed.has(requestedStatus)) {
       res.status(400).json({ error: 'Invalid status filter.' });
       return;
     }
     const requestedServiceIdRaw = req.query.service_id;
+    const paymentStatus = String(req.query.payment_status || 'all').toLowerCase();
+    const allowedPaymentStatuses = new Set(['all', 'pending', 'paid', 'released', 'refunded', 'failed', 'cancelled']);
+    if (!allowedPaymentStatuses.has(paymentStatus)) {
+      res.status(400).json({ error: 'Invalid payment status filter.' });
+      return;
+    }
+    const page = Math.max(1, Math.floor(Number(req.query.page) || 1));
+    const limit = Math.min(100, Math.max(10, Math.floor(Number(req.query.limit) || 25)));
+    const offset = (page - 1) * limit;
+    const search = sanitizeText(req.query.search || '', 120);
+    const dateFrom = String(req.query.date_from || '').trim();
+    const dateTo = String(req.query.date_to || '').trim();
 
     const whereParts: string[] = [];
     const params: any[] = [];
@@ -1696,6 +1968,30 @@ export const getRequestsHistory = async (req: AuthRequest, res: Response): Promi
       params.push(serviceId);
     }
 
+    if (paymentStatus !== 'all') {
+      whereParts.push(`srp.payment_status = ?`);
+      params.push(paymentStatus);
+    }
+
+    if (search) {
+      const like = `%${search}%`;
+      whereParts.push(`(
+        CAST(sr.id_request AS CHAR) LIKE ? OR sr.description LIKE ? OR sr.location_text LIKE ? OR
+        s.name LIKE ? OR CONCAT_WS(' ', u.name, u.lastname) LIKE ? OR
+        CONCAT_WS(' ', uw.name, uw.lastname) LIKE ? OR u.email LIKE ?
+      )`);
+      params.push(like, like, like, like, like, like, like);
+    }
+
+    if (/^\d{4}-\d{2}-\d{2}$/.test(dateFrom)) {
+      whereParts.push(`sr.created_at >= ?`);
+      params.push(`${dateFrom} 00:00:00`);
+    }
+    if (/^\d{4}-\d{2}-\d{2}$/.test(dateTo)) {
+      whereParts.push(`sr.created_at < DATE_ADD(?, INTERVAL 1 DAY)`);
+      params.push(`${dateTo} 00:00:00`);
+    }
+
     const whereSql = whereParts.length > 0 ? `WHERE ${whereParts.join(' AND ')}` : '';
 
     const [rows] = await pool.execute<RowDataPacket[]>(
@@ -1711,6 +2007,7 @@ export const getRequestsHistory = async (req: AuthRequest, res: Response): Promi
          sr.radius_km,
          sr.status,
          sr.created_at,
+         sr.updated_at,
          sr.assigned_worker_profile,
          s.name AS service_name,
          u.name AS client_name,
@@ -1720,6 +2017,8 @@ export const getRequestsHistory = async (req: AuthRequest, res: Response): Promi
          uw.lastname AS worker_lastname,
          srw_assigned.proposed_budget,
          srw_assigned.counter_message,
+         srp.payment_status,
+         srp.amount AS payment_amount,
          COUNT(DISTINCT sri.id_image) AS images_count
        FROM service_requests sr
        INNER JOIN services s ON s.id_service = sr.id_service
@@ -1730,14 +2029,27 @@ export const getRequestsHistory = async (req: AuthRequest, res: Response): Promi
          ON srw_assigned.id_request = sr.id_request
         AND srw_assigned.id_worker_profile = sr.assigned_worker_profile
        LEFT JOIN service_request_images sri ON sri.id_request = sr.id_request
+       LEFT JOIN service_request_payments srp ON srp.id_request = sr.id_request
        ${whereSql}
        GROUP BY
          sr.id_request, sr.id_user, sr.id_service, sr.description, sr.location_text,
-         sr.latitude, sr.longitude, sr.budget, sr.radius_km, sr.status, sr.created_at,
+         sr.latitude, sr.longitude, sr.budget, sr.radius_km, sr.status, sr.created_at, sr.updated_at,
          sr.assigned_worker_profile, s.name, u.name, u.lastname, u.email, uw.name, uw.lastname,
-         srw_assigned.proposed_budget, srw_assigned.counter_message
+         srw_assigned.proposed_budget, srw_assigned.counter_message, srp.payment_status, srp.amount
        ORDER BY sr.created_at DESC
-       LIMIT 300`,
+       LIMIT ${limit} OFFSET ${offset}`,
+      params
+    );
+
+    const [countRows] = await pool.execute<RowDataPacket[]>(
+      `SELECT COUNT(DISTINCT sr.id_request) AS total
+       FROM service_requests sr
+       INNER JOIN services s ON s.id_service = sr.id_service
+       LEFT JOIN users u ON u.id_user = sr.id_user
+       LEFT JOIN worker_profiles wp ON wp.id_worker_profile = sr.assigned_worker_profile
+       LEFT JOIN users uw ON uw.id_user = wp.id_user
+       LEFT JOIN service_request_payments srp ON srp.id_request = sr.id_request
+       ${whereSql}`,
       params
     );
 
@@ -1754,7 +2066,10 @@ export const getRequestsHistory = async (req: AuthRequest, res: Response): Promi
       radius_km: Number(row.radius_km || 8),
       status: toPublicRequestStatus(row.status),
       created_at: row.created_at,
+      updated_at: row.updated_at,
       images_count: Number(row.images_count || 0),
+      payment_status: row.payment_status || 'unpaid',
+      payment_amount: row.payment_amount != null ? Number(row.payment_amount) : null,
       proposed_budget: row.proposed_budget != null ? Number(row.proposed_budget) : null,
       counter_message: row.counter_message || null,
       client: row.id_user
@@ -1773,10 +2088,165 @@ export const getRequestsHistory = async (req: AuthRequest, res: Response): Promi
           : null,
     }));
 
-    res.json({ success: true, requests });
+    const total = Number(countRows[0]?.total || 0);
+    const pagination = { page, limit, total, pages: Math.max(1, Math.ceil(total / limit)) };
+    res.json({ success: true, data: requests, requests, pagination });
   } catch (error: any) {
     console.error('Error in getRequestsHistory:', error);
     res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
+export const getRequestDetailAdmin = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    await ensureServiceRequestTables();
+    const idRequest = parsePositiveInt(req.params.idRequest, 'request ID', 2_000_000_000);
+    const [rows] = await pool.execute<RowDataPacket[]>(
+      `SELECT sr.*, s.name AS service_name,
+         u.name AS client_name, u.lastname AS client_lastname, u.email AS client_email, u.phone_number AS client_phone,
+         uw.name AS worker_name, uw.lastname AS worker_lastname, uw.email AS worker_email, uw.phone_number AS worker_phone,
+         srw.proposed_budget, srw.counter_message, srw.counter_status,
+         p.id_payment, p.provider, p.checkout_reference, p.currency_code, p.amount AS payment_amount,
+         p.platform_fee, p.worker_payout, p.payment_status, p.paid_at, p.released_at,
+         r.punctuality, r.quality, r.price_fairness, r.comment AS rating_comment, r.created_at AS rated_at
+       FROM service_requests sr
+       INNER JOIN services s ON s.id_service = sr.id_service
+       LEFT JOIN users u ON u.id_user = sr.id_user
+       LEFT JOIN worker_profiles wp ON wp.id_worker_profile = sr.assigned_worker_profile
+       LEFT JOIN users uw ON uw.id_user = wp.id_user
+       LEFT JOIN service_request_workers srw ON srw.id_request = sr.id_request AND srw.id_worker_profile = sr.assigned_worker_profile
+       LEFT JOIN service_request_payments p ON p.id_request = sr.id_request
+       LEFT JOIN service_request_ratings r ON r.id_request = sr.id_request
+       WHERE sr.id_request = ? LIMIT 1`,
+      [idRequest]
+    );
+    if (rows.length === 0) {
+      res.status(404).json({ error: 'Request not found.' });
+      return;
+    }
+    const row: any = rows[0];
+    const [images] = await pool.execute<RowDataPacket[]>(
+      `SELECT id_image, image_url, created_at FROM service_request_images WHERE id_request = ? ORDER BY id_image`,
+      [idRequest]
+    );
+    const [messages] = await pool.execute<RowDataPacket[]>(
+      `SELECT id_message, sender_role, message, image_url, created_at
+       FROM service_request_chat_messages WHERE id_request = ? ORDER BY created_at ASC LIMIT 100`,
+      [idRequest]
+    );
+    const [workers] = await pool.execute<RowDataPacket[]>(
+      `SELECT srw.id_worker_profile, srw.distance_km, srw.status, srw.proposed_budget,
+         srw.counter_message, srw.counter_status, srw.notified_at, srw.updated_at,
+         CONCAT_WS(' ', u.name, u.lastname) AS worker_name
+       FROM service_request_workers srw
+       INNER JOIN worker_profiles wp ON wp.id_worker_profile = srw.id_worker_profile
+       INNER JOIN users u ON u.id_user = wp.id_user
+       WHERE srw.id_request = ? ORDER BY srw.notified_at ASC`,
+      [idRequest]
+    );
+    const detail = {
+      id_request: Number(row.id_request), id_user: row.id_user != null ? Number(row.id_user) : null,
+      id_service: Number(row.id_service), service_name: row.service_name, description: row.description,
+      location_text: row.location_text, latitude: row.latitude != null ? Number(row.latitude) : null,
+      longitude: row.longitude != null ? Number(row.longitude) : null,
+      initial_budget: row.initial_budget != null ? Number(row.initial_budget) : null,
+      budget: Number(row.budget || 0), final_budget: row.final_budget != null ? Number(row.final_budget) : null,
+      radius_km: Number(row.radius_km || 0), status: toPublicRequestStatus(row.status),
+      created_at: row.created_at, updated_at: row.updated_at, assigned_at: row.assigned_at,
+      client: row.id_user ? { id_user: Number(row.id_user), name: `${row.client_name || ''} ${row.client_lastname || ''}`.trim(), email: row.client_email, phone: row.client_phone } : null,
+      assigned_worker: row.assigned_worker_profile ? { id_worker_profile: Number(row.assigned_worker_profile), name: `${row.worker_name || ''} ${row.worker_lastname || ''}`.trim(), email: row.worker_email, phone: row.worker_phone } : null,
+      offer: { proposed_budget: row.proposed_budget != null ? Number(row.proposed_budget) : null, counter_message: row.counter_message, counter_status: row.counter_status },
+      payment: row.id_payment ? { id_payment: Number(row.id_payment), provider: row.provider, checkout_reference: row.checkout_reference, currency_code: row.currency_code, amount: Number(row.payment_amount || 0), platform_fee: Number(row.platform_fee || 0), worker_payout: Number(row.worker_payout || 0), status: row.payment_status, paid_at: row.paid_at, released_at: row.released_at } : null,
+      rating: row.punctuality != null ? { punctuality: Number(row.punctuality), quality: Number(row.quality), price_fairness: Number(row.price_fairness), comment: row.rating_comment, created_at: row.rated_at } : null,
+      images: images.map((image: any) => ({ id_image: Number(image.id_image), url: buildProtectedAssetUrl(req, image.image_url), created_at: image.created_at })),
+      messages: messages.map((message: any) => ({ id_message: Number(message.id_message), sender_role: message.sender_role, message: message.message, image_url: buildProtectedAssetUrl(req, message.image_url), created_at: message.created_at })),
+      worker_responses: workers.map((worker: any) => ({ ...worker, id_worker_profile: Number(worker.id_worker_profile), distance_km: worker.distance_km != null ? Number(worker.distance_km) : null, proposed_budget: worker.proposed_budget != null ? Number(worker.proposed_budget) : null })),
+    };
+    res.json({ success: true, data: detail });
+  } catch (error: any) {
+    console.error('Error in getRequestDetailAdmin:', error);
+    res.status(500).json({ error: 'Could not load request detail.' });
+  }
+};
+
+export const updateRequestAdmin = async (req: AuthRequest, res: Response): Promise<void> => {
+  const connection = await pool.getConnection();
+  try {
+    await ensureServiceRequestTables();
+    const idRequest = parsePositiveInt(req.params.idRequest, 'request ID', 2_000_000_000);
+    const action = sanitizeText(req.body?.action, 40).toLowerCase();
+    const reason = sanitizeText(req.body?.reason, 500);
+    if (reason.length < 8) {
+      res.status(400).json({ error: 'Reason must contain at least 8 characters.' });
+      return;
+    }
+    if (!new Set(['cancel', 'reassign', 'escalate', 'resolve']).has(action)) {
+      res.status(400).json({ error: 'Unsupported admin action.' });
+      return;
+    }
+    await connection.beginTransaction();
+    const [rows] = await connection.execute<RowDataPacket[]>(
+      `SELECT sr.id_request, sr.status, sr.assigned_worker_profile,
+              sr.id_user AS client_id,
+              wp.id_user AS worker_user_id
+       FROM service_requests sr
+       LEFT JOIN worker_profiles wp ON wp.id_worker_profile = sr.assigned_worker_profile
+       WHERE sr.id_request = ? FOR UPDATE`,
+      [idRequest]
+    );
+    if (rows.length === 0) {
+      await connection.rollback();
+      res.status(404).json({ error: 'Request not found.' });
+      return;
+    }
+    const before = { status: String(rows[0].status), assigned_worker_profile: rows[0].assigned_worker_profile };
+    const clientId: number | null = rows[0].client_id || null;
+    const workerUserId: number | null = rows[0].worker_user_id || null;
+
+    if (action === 'cancel') {
+      if (['done', 'cancelled'].includes(before.status)) throw new Error('Closed requests cannot be cancelled.');
+      await connection.execute(`UPDATE service_requests SET status = 'cancelled' WHERE id_request = ?`, [idRequest]);
+    } else if (action === 'reassign') {
+      if (['done', 'cancelled'].includes(before.status)) throw new Error('Closed requests cannot be reassigned.');
+      await connection.execute(`UPDATE service_requests SET status = 'pending', assigned_worker_profile = NULL, assigned_at = NULL WHERE id_request = ?`, [idRequest]);
+    } else if (action === 'resolve') {
+      if (!['awaiting_confirmation', 'in_progress'].includes(before.status)) throw new Error('Only active requests can be resolved.');
+      await connection.execute(`UPDATE service_requests SET status = 'done' WHERE id_request = ?`, [idRequest]);
+    }
+    await connection.commit();
+    const after = action === 'cancel' ? { status: 'cancelled', assigned_worker_profile: before.assigned_worker_profile }
+      : action === 'reassign' ? { status: 'pending', assigned_worker_profile: null }
+      : action === 'resolve' ? { status: 'done', assigned_worker_profile: before.assigned_worker_profile }
+      : before;
+    await logAdminActivity(req, action, 'request', `${action} request #${idRequest}: ${reason}`, idRequest, { reason, before, after });
+
+    // Notify affected parties after commit (fire-and-forget, non-blocking)
+    const notifyParties = async () => {
+      const notifications: Array<{ userId: number; eventType: string; title: string; message: string; tone: 'info' | 'warning' | 'success' }> = [];
+      if (action === 'cancel') {
+        if (clientId) notifications.push({ userId: clientId, eventType: 'request_cancelled_admin', title: 'Service request cancelled', message: `Your request #${idRequest} was cancelled by an administrator.`, tone: 'warning' });
+        if (workerUserId) notifications.push({ userId: workerUserId, eventType: 'request_cancelled_admin', title: 'Assignment cancelled', message: `Request #${idRequest} was cancelled by an administrator.`, tone: 'warning' });
+      } else if (action === 'reassign') {
+        if (workerUserId) notifications.push({ userId: workerUserId, eventType: 'request_reassigned_admin', title: 'Assignment removed', message: `You have been unassigned from request #${idRequest} by an administrator.`, tone: 'warning' });
+        if (clientId) notifications.push({ userId: clientId, eventType: 'request_reassigned_admin', title: 'Professional reassigned', message: `Your request #${idRequest} is being reassigned to a new professional.`, tone: 'info' });
+      } else if (action === 'resolve') {
+        if (clientId) notifications.push({ userId: clientId, eventType: 'request_resolved_admin', title: 'Service marked as complete', message: `Your request #${idRequest} has been marked as complete by an administrator.`, tone: 'success' });
+        if (workerUserId) notifications.push({ userId: workerUserId, eventType: 'request_resolved_admin', title: 'Job marked as complete', message: `Request #${idRequest} has been marked as complete by an administrator.`, tone: 'success' });
+      }
+      await Promise.allSettled(notifications.map(async (n) => {
+        await createUserNotification({ userId: n.userId, eventType: n.eventType, title: n.title, message: n.message, tone: n.tone, requestId: idRequest, dedupeKey: `admin_${action}_${idRequest}_${n.userId}` });
+        pushToUser(n.userId, 'notification', { eventType: n.eventType, title: n.title, message: n.message });
+      }));
+    };
+    notifyParties().catch(() => undefined);
+
+    res.json({ success: true, data: { id_request: idRequest, action, before, after } });
+  } catch (error: any) {
+    await connection.rollback().catch(() => undefined);
+    const message = error?.message || 'Could not update request.';
+    res.status(message.includes('cannot') || message.includes('Only') ? 409 : 500).json({ error: message });
+  } finally {
+    connection.release();
   }
 };
 
@@ -1843,32 +2313,7 @@ export const getAdminActivity = async (req: AuthRequest, res: Response): Promise
       params
     );
 
-    const activities = rows.map((row) => {
-      let metadata: any = null;
-      if (row.metadata) {
-        try {
-          metadata = JSON.parse(String(row.metadata));
-        } catch {
-          metadata = null;
-        }
-      }
-      return {
-        id_activity: Number(row.id_activity),
-        action: String(row.action_type),
-        entity: String(row.entity_type),
-        entity_id: row.entity_id != null ? Number(row.entity_id) : null,
-        summary: row.summary,
-        created_at: row.created_at,
-        admin: row.id_admin
-          ? {
-              id_user: Number(row.id_admin),
-              name: `${row.admin_name || ''} ${row.admin_lastname || ''}`.trim() || 'Admin',
-              email: row.admin_email || null,
-            }
-          : null,
-        metadata,
-      };
-    });
+    const activities = rows.map(mapActivityRow);
 
     res.json({ success: true, activities });
   } catch (error: any) {
@@ -2087,6 +2532,7 @@ export const getWorkerRewardsAdminOverview = async (req: AuthRequest, res: Respo
 
 export const updateWorkerRewardsProgram = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
+    const previousSettings = await getWorkerRewardsSettings();
     const trialMinCompletedJobs = Number(req.body?.trial_min_completed_jobs);
     const commissionRatePercent = Number(req.body?.commission_rate_percent);
     const royaltyRatePercent = Number(req.body?.royalty_rate_percent);
@@ -2134,6 +2580,10 @@ export const updateWorkerRewardsProgram = async (req: AuthRequest, res: Response
     });
 
     await syncAllWorkerBonusPayouts(updatedSettings);
+    await logAdminActivity(req, 'update', 'worker_rewards', 'Updated worker rewards program settings.', null, {
+      before: previousSettings,
+      after: updatedSettings,
+    });
 
     res.json({
       success: true,
@@ -2163,6 +2613,7 @@ export const getCommissionRulesAdmin = async (_req: AuthRequest, res: Response):
 export const updateCommissionRulesAdmin = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     await ensureServiceRequestTables();
+    const previousConfig = await getCommissionRulesAdminConfig();
 
     const globalRatePercent = Number(req.body?.global_rate_percent);
     const serviceOverrides = Array.isArray(req.body?.service_overrides) ? req.body.service_overrides : [];
@@ -2184,6 +2635,10 @@ export const updateCommissionRulesAdmin = async (req: AuthRequest, res: Response
       worker_tier_adjustments: workerTierAdjustments,
       promo_codes: promoCodes,
     });
+    await logAdminActivity(req, 'update', 'commission_rules', 'Updated commission engine rules.', null, {
+      before: previousConfig,
+      after: config,
+    });
 
     res.json({
       success: true,
@@ -2199,6 +2654,7 @@ export const updateCommissionRulesAdmin = async (req: AuthRequest, res: Response
 export const markWorkerBonusPayoutPaidController = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     await ensureServiceRequestTables();
+    const reason = sanitizeText(req.body.reason, 500);
 
     const idBonusPayout = Number(req.params.idBonusPayout);
     if (!idBonusPayout || Number.isNaN(idBonusPayout)) {
@@ -2263,6 +2719,12 @@ export const markWorkerBonusPayoutPaidController = async (req: AuthRequest, res:
         },
       });
     }
+
+    await logAdminActivity(req, 'pay', 'bonus_payout', `Marked bonus payout #${idBonusPayout} as paid.`, idBonusPayout, {
+      reason,
+      amount: Number(payoutRow?.bonus_amount || 0),
+      worker_user_id: payoutRow?.id_user != null ? Number(payoutRow.id_user) : null,
+    });
 
     if (payoutRow?.email) {
       await enqueueBackgroundJob({
@@ -2378,6 +2840,7 @@ export const getWorkerPayoutsAdmin = async (req: AuthRequest, res: Response): Pr
 export const markWorkerPayoutPaidController = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     await ensureServiceRequestTables();
+    const reason = sanitizeText(req.body.reason, 500);
 
     const idWorkerPayout = Number(req.params.idWorkerPayout);
     if (!idWorkerPayout || Number.isNaN(idWorkerPayout)) {
@@ -2431,6 +2894,14 @@ export const markWorkerPayoutPaidController = async (req: AuthRequest, res: Resp
         },
       });
     }
+
+
+    await logAdminActivity(req, 'pay', 'worker_payout', `Marked worker payout #${idWorkerPayout} as paid.`, idWorkerPayout, {
+      reason,
+      amount: Number(payoutRow?.net_amount || 0),
+      worker_user_id: payoutRow?.id_user != null ? Number(payoutRow.id_user) : null,
+      request_id: payoutRow?.id_request != null ? Number(payoutRow.id_request) : null,
+    });
 
     if (payoutRow?.email) {
       await enqueueBackgroundJob({
