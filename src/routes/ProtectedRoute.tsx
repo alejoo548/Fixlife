@@ -4,6 +4,7 @@ import {
   AUTH_SESSION_CHANGED_EVENT,
   hasRole,
   isAuthenticated,
+  rememberProtectedRoute,
 } from '../utils/session';
 import type { AuthRole, AuthSessionScope } from '../utils/session';
 
@@ -12,6 +13,7 @@ interface ProtectedRouteProps {
   fallbackPath?: string;
   role?: AuthRole;
   scope?: AuthSessionScope;
+  lockHistory?: boolean;
 }
 
 export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
@@ -19,6 +21,7 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
   fallbackPath = '/',
   role,
   scope = 'client',
+  lockHistory = false,
 }) => {
   const location = useLocation();
   const [, setSessionVersion] = useState(0);
@@ -38,6 +41,32 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
       window.removeEventListener('focus', refreshSession);
     };
   }, []);
+
+  useEffect(() => {
+    rememberProtectedRoute(scope, `${location.pathname}${location.search}${location.hash}`);
+  }, [location.hash, location.pathname, location.search, scope]);
+
+  useEffect(() => {
+    if (!lockHistory) {
+      return;
+    }
+
+    const lockedUrl = `${location.pathname}${location.search}${location.hash}`;
+    const state = { fixlifeHistoryLock: true, lockedUrl };
+
+    window.history.replaceState(state, '', lockedUrl);
+    window.history.pushState(state, '', lockedUrl);
+
+    const preventBackNavigation = () => {
+      window.history.pushState(state, '', lockedUrl);
+    };
+
+    window.addEventListener('popstate', preventBackNavigation);
+
+    return () => {
+      window.removeEventListener('popstate', preventBackNavigation);
+    };
+  }, [location.hash, location.pathname, location.search, lockHistory]);
 
   const allowed = isAuthenticated(scope) && (!role || hasRole(role, scope));
 

@@ -8,8 +8,6 @@ import {
   getCalendarItemLabel,
   getCalendarItemTone,
   getNextPayoutLabel,
-  getPayoutStatusBadge,
-  getPayoutStatusLabel,
 } from './workerRewardsUi';
 
 const REWARDS_PROGRAM_START = new Date(2026, 0, 1);
@@ -119,7 +117,6 @@ export const ScheduleView: React.FC = () => {
   const program = data!.program;
   const summary = data!.summary;
   const progress = data!.progress;
-  const history = data!.history;
 
   return (
     <div className="flex h-full w-full flex-col gap-4 overflow-y-auto custom-scrollbar p-3 pb-20 animate-fade-in md:gap-6 md:p-6 md:pb-8 lg:p-8">
@@ -321,7 +318,7 @@ export const ScheduleView: React.FC = () => {
             </div>
           </div>
 
-          <div className="mt-6 rounded-3xl border border-bird-blue/15 bg-gradient-to-r from-bird-blue/10 via-sky-50 to-amber-50 p-4">
+          <div className="mt-6 rounded-3xl border border-slate-200 bg-slate-50 p-4">
             <p className="text-[11px] font-black uppercase tracking-[0.18em] text-bird-blue">Payout policy</p>
             <p className="mt-2 text-sm font-semibold leading-6 text-slate-700">
               Base earnings are paid in scheduled batches every {program.payout_day_label}. Commission bonuses start after {program.trial_min_completed_jobs} lifetime completed jobs, and the monthly performance bonus unlocks after {program.royalty_min_jobs} jobs with a {program.royalty_min_completion_rate}% completion rate in the same cycle.
@@ -360,78 +357,6 @@ export const ScheduleView: React.FC = () => {
         </motion.div>
       </div>
 
-      <motion.div
-        initial={{ opacity: 0, y: 18 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.1 }}
-        className="rounded-3xl border border-gray-200 bg-white p-4 shadow-sm md:p-6"
-      >
-        <div className="flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
-          <div>
-            <p className="text-xs font-black uppercase tracking-[0.18em] text-slate-400">Recent payout activity</p>
-            <h3 className="mt-2 text-2xl font-black text-slate-900">Completed jobs and their payout status</h3>
-          </div>
-          <div className="rounded-full border border-slate-200 bg-slate-50 px-4 py-2 text-xs font-bold text-slate-600">
-            {summary.lifetime_completed_jobs} completed jobs total
-          </div>
-        </div>
-
-        <div className="mt-6 space-y-3">
-          {history.length === 0 ? (
-            <div className="rounded-3xl border border-dashed border-slate-200 bg-slate-50 px-4 py-10 text-center text-sm font-semibold text-slate-500">
-              Completed jobs will show up here after the client confirms them.
-            </div>
-          ) : (
-            history.map((item) => {
-              const totalFromJob = Number(item.worker_payout || 0) + Number(item.total_bonus || 0);
-
-              return (
-                <div key={item.id_request} className="rounded-3xl border border-slate-200 bg-slate-50 p-4">
-                  <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-                    <div className="min-w-0">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <p className="truncate text-lg font-black text-slate-900">{item.service_name}</p>
-                        <span
-                          className={`rounded-full px-3 py-1 text-[11px] font-black uppercase tracking-[0.16em] ${getPayoutStatusBadge(item.worker_payout_status)}`}
-                        >
-                          Base {getPayoutStatusLabel(item.worker_payout_status)}
-                        </span>
-                        <span
-                          className={`rounded-full px-3 py-1 text-[11px] font-black uppercase tracking-[0.16em] ${getPayoutStatusBadge(item.bonus_status)}`}
-                        >
-                          Bonus {getPayoutStatusLabel(item.bonus_status)}
-                        </span>
-                      </div>
-                      <p className="mt-2 truncate text-sm text-slate-500">{item.location_text}</p>
-                      <div className="mt-3 flex flex-wrap items-center gap-2 text-xs font-semibold text-slate-500">
-                        <span>{formatDate(item.completed_at)}</span>
-                        {item.client_name && <span>{`/ Client: ${item.client_name}`}</span>}
-                        <span>{`/ Scheduled: ${formatDate(item.scheduled_payout_date)}`}</span>
-                        {item.worker_payout_paid_at && <span>{`/ Paid: ${formatDate(item.worker_payout_paid_at)}`}</span>}
-                      </div>
-                    </div>
-
-                    <div className="grid min-w-full gap-3 sm:grid-cols-3 lg:min-w-[360px] lg:max-w-[420px]">
-                      <div className="rounded-2xl border border-white/70 bg-white p-3">
-                        <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">Base earnings</p>
-                        <p className="mt-2 text-xl font-black text-slate-900">{formatMoney(item.worker_payout)}</p>
-                      </div>
-                      <div className="rounded-2xl border border-amber-200 bg-amber-50 p-3">
-                        <p className="text-[11px] font-black uppercase tracking-[0.18em] text-amber-700">Bonus total</p>
-                        <p className="mt-2 text-xl font-black text-amber-700">{formatMoney(item.total_bonus)}</p>
-                      </div>
-                      <div className="rounded-2xl border border-bird-blue/15 bg-bird-blue/10 p-3">
-                        <p className="text-[11px] font-black uppercase tracking-[0.18em] text-bird-blue">Combined total</p>
-                        <p className="mt-2 text-xl font-black text-bird-blue">{formatMoney(totalFromJob)}</p>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              );
-            })
-          )}
-        </div>
-      </motion.div>
     </div>
   );
 };
