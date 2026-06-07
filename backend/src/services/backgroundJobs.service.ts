@@ -39,8 +39,8 @@ const SCHEDULED_REASSIGN_LOOKAHEAD_MINUTES = Math.max(
   Math.min(Number(process.env.SCHEDULED_REASSIGN_LOOKAHEAD_MINUTES || 45), 180)
 );
 const SCHEDULED_REQUEST_DURATION_MINUTES = Math.max(
-  30,
-  Math.min(Number(process.env.SCHEDULED_REQUEST_DURATION_MINUTES || 120), 480)
+  60,
+  Math.min(Number(process.env.SCHEDULED_REQUEST_DURATION_MINUTES || 120), 7 * 60)
 );
 
 const getRetryDelayMs = (attemptsMade: number) =>
@@ -76,7 +76,7 @@ const reinjectScheduledRequestCandidates = async (
       AND wa.is_active = 1
       AND wa.day_of_week = MOD(WEEKDAY(sr.scheduled_date) + 1, 7)
       AND wa.start_time <= sr.scheduled_time
-      AND wa.end_time >= ADDTIME(sr.scheduled_time, SEC_TO_TIME(? * 60))
+      AND wa.end_time >= TIME(COALESCE(sr.scheduled_end_time, DATE_ADD(sr.scheduled_start_time, INTERVAL ? MINUTE)))
      WHERE sr.id_request = ?
        AND u.rol = 'worker'
        AND wp.is_verified = 1

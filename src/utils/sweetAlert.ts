@@ -24,3 +24,25 @@ export const showSweetAlert = (input: {
     },
   });
 
+export const showSweetToast = (input: {
+  title?: string;
+  message: string;
+  tone?: AlertTone;
+  duration?: number;
+}) =>
+  Swal.fire({
+    toast: true,
+    position: 'top-end',
+    icon: input.tone || 'info',
+    title: input.title || input.message,
+    text: input.title ? input.message : undefined,
+    showConfirmButton: false,
+    timer: input.duration || 2600,
+    timerProgressBar: true,
+    buttonsStyling: false,
+    customClass: {
+      popup: 'rounded-2xl border border-slate-200 px-4 py-3 shadow-2xl',
+      title: 'text-sm font-black text-slate-950',
+      htmlContainer: 'text-xs font-semibold text-slate-600',
+    },
+  });

@@ -37,8 +37,8 @@ const SCHEDULE_BUFFER_TIME_MINUTES = Math.max(
   Math.min(Number(process.env.BUFFER_TIME_MINUTES || 60), 240)
 );
 const SCHEDULED_REQUEST_DURATION_MINUTES = Math.max(
-  30,
-  Math.min(Number(process.env.SCHEDULED_REQUEST_DURATION_MINUTES || 120), 480)
+  60,
+  Math.min(Number(process.env.SCHEDULED_REQUEST_DURATION_MINUTES || 120), 7 * 60)
 );
 const SCHEDULED_START_EARLY_MINUTES = Math.max(
   0,
@@ -53,9 +53,32 @@ const toPublicRequestStatus = (status: string | null | undefined) => {
 const allowedImageMimeTypes = new Set([
   'image/png',
   'image/jpeg',
-  'image/jpg',
+  'image/webp',
 ]);
 const safeTextRegex = /^[\p{L}\p{N}\s.,\-_'":;!?()]{0,500}$/u;
+
+const deletePublicUploadIfUnreferenced = async (fileName: string | null | undefined) => {
+  if (!fileName) return;
+
+  try {
+    const [rows] = await pool.execute<RowDataPacket[]>(
+      `SELECT
+         (SELECT COUNT(*) FROM users WHERE profile_image = ?) +
+         (SELECT COUNT(*) FROM worker_portfolio WHERE image_url = ?) AS total`,
+      [fileName, fileName]
+    );
+
+    if (Number(rows[0]?.total || 0) === 0) {
+      deleteUploadIfExists(fileName, 'public');
+    }
+  } catch (error) {
+    console.error('[worker-images] Could not verify upload references:', error);
+  }
+};
+
+const cleanupUnreferencedWorkerUploads = async (files: Express.Multer.File[]) => {
+  await Promise.all(files.map((file) => deletePublicUploadIfUnreferenced(file.filename)));
+};
 
 const sanitizeWorkerSafeText = (value: unknown, maxLen = 500): string | null => {
   if (value == null) return null;
@@ -906,7 +929,7 @@ export const getWorkerRequests = async (req: AuthRequest, res: Response): Promis
                AND wa.is_active = 1
                AND wa.day_of_week = WEEKDAY(sr.scheduled_date) + 1 - CASE WHEN WEEKDAY(sr.scheduled_date) = 6 THEN 7 ELSE 0 END
                AND wa.start_time <= sr.scheduled_time
-               AND wa.end_time >= ADDTIME(sr.scheduled_time, SEC_TO_TIME(? * 60))
+               AND wa.end_time >= TIME(COALESCE(sr.scheduled_end_time, DATE_ADD(sr.scheduled_start_time, INTERVAL ? MINUTE)))
            )
          )
          AND (ST_Distance_Sphere(point(wp.longitude, wp.latitude), point(sr.longitude, sr.latitude)) / 1000) <= LEAST(COALESCE(sr.radius_km, 8), wp.coverage_km)
@@ -1389,8 +1412,8 @@ export const counterOfferWorkerRequest = async (req: AuthRequest, res: Response)
       res.status(400).json({ error: 'Invalid request id.' });
       return;
     }
-    if (!Number.isFinite(proposedBudget) || proposedBudget <= 0 || proposedBudget > 100000) {
-      res.status(400).json({ error: 'proposed_budget must be greater than 0 and less than 100000.' });
+    if (!Number.isFinite(proposedBudget) || proposedBudget <= 0 || proposedBudget > 1000) {
+      res.status(400).json({ error: 'proposed_budget must be between 0.01 and 1000.00.' });
       return;
     }
 
@@ -2145,7 +2168,8 @@ export const uploadProfileImage = async (req: AuthRequest, res: Response): Promi
     }
 
     if (!allowedImageMimeTypes.has(file.mimetype)) {
-      res.status(400).json({ error: 'Only PNG and JPG/JPEG images are allowed.' });
+      await cleanupUnreferencedWorkerUploads([file]);
+      res.status(400).json({ error: 'Only real PNG, JPG/JPEG and WEBP images are allowed.' });
       return;
     }
 
@@ -2154,6 +2178,7 @@ export const uploadProfileImage = async (req: AuthRequest, res: Response): Promi
       [userId]
     );
     if (users.length === 0) {
+      await cleanupUnreferencedWorkerUploads([file]);
       res.status(404).json({ error: 'User not found' });
       return;
     }
@@ -2161,7 +2186,7 @@ export const uploadProfileImage = async (req: AuthRequest, res: Response): Promi
     const user = users[0];
     await pool.execute(`UPDATE users SET profile_image = ? WHERE id_user = ?`, [file.filename, userId]);
 
-    deleteUploadIfExists(user.profile_image, 'public');
+    await deletePublicUploadIfUnreferenced(user.profile_image);
 
     await sendProfileChangeNotice(user.email, user.name, ['Profile image updated']);
     res.json({
@@ -2171,6 +2196,9 @@ export const uploadProfileImage = async (req: AuthRequest, res: Response): Promi
       profile_image_url: buildAssetUrl(req, file.filename),
     });
   } catch (error: any) {
+    if (req.file) {
+      await cleanupUnreferencedWorkerUploads([req.file]);
+    }
     console.error('Error in uploadProfileImage:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
@@ -2195,7 +2223,7 @@ export const removeWorkerProfileImage = async (req: AuthRequest, res: Response):
 
     const user = users[0];
     await pool.execute(`UPDATE users SET profile_image = NULL WHERE id_user = ?`, [userId]);
-    deleteUploadIfExists(user.profile_image, 'public');
+    await deletePublicUploadIfUnreferenced(user.profile_image);
 
     await sendProfileChangeNotice(user.email, user.name, ['Profile image removed']);
     res.json({
@@ -2226,7 +2254,8 @@ export const uploadPortfolioImages = async (req: AuthRequest, res: Response): Pr
 
     const invalid = files.find((file) => !allowedImageMimeTypes.has(file.mimetype));
     if (invalid) {
-      res.status(400).json({ error: 'Only PNG and JPG/JPEG images are allowed in portfolio.' });
+      await cleanupUnreferencedWorkerUploads(files);
+      res.status(400).json({ error: 'Only real PNG, JPG/JPEG and WEBP images are allowed in portfolio.' });
       return;
     }
 
@@ -2237,6 +2266,7 @@ export const uploadPortfolioImages = async (req: AuthRequest, res: Response): Pr
     );
     const currentCount = Number(countRows[0]?.total || 0);
     if (currentCount + files.length > 10) {
+      await cleanupUnreferencedWorkerUploads(files);
       res.status(400).json({ error: `You can upload up to 10 photos. Current: ${currentCount}.` });
       return;
     }
@@ -2245,6 +2275,7 @@ export const uploadPortfolioImages = async (req: AuthRequest, res: Response): Pr
     try {
       description = sanitizeWorkerSafeText(req.body?.description, 500);
     } catch {
+      await cleanupUnreferencedWorkerUploads(files);
       res.status(400).json({ error: 'Invalid portfolio description format.' });
       return;
     }
@@ -2273,6 +2304,7 @@ export const uploadPortfolioImages = async (req: AuthRequest, res: Response): Pr
       })),
     });
   } catch (error: any) {
+    await cleanupUnreferencedWorkerUploads((req.files as Express.Multer.File[]) || []);
     console.error('Error in uploadPortfolioImages:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
@@ -2309,7 +2341,7 @@ export const deletePortfolioImage = async (req: AuthRequest, res: Response): Pro
     const imageUrl = rows[0].image_url as string | null;
     await pool.execute(`DELETE FROM worker_portfolio WHERE id_photo = ?`, [idPhoto]);
 
-    deleteUploadIfExists(imageUrl, 'public');
+    await deletePublicUploadIfUnreferenced(imageUrl);
 
     res.json({ success: true, message: 'Portfolio photo deleted.' });
   } catch (error: any) {

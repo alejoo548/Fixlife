@@ -4,6 +4,7 @@ import pool from '../config/db';
 import { AuthRequest } from '../middlewares/auth.middleware';
 import { createUserNotification } from '../utils/notifications';
 import { pushToUser } from '../services/sseManager';
+import { emitChatMessage } from '../services/socketManager';
 import { getWorkerBonusPayouts, getWorkerRewardsSettings, syncWorkerBonusPayouts } from '../utils/workerRewards';
 import { resolveRequestLocation, reverseGeocodeLocation, suggestLocationTexts } from '../services/geocoding.service';
 import { getProximityBounds, getWorkerBoundsFilter } from '../services/nearbyWorkers.service';
@@ -62,9 +63,11 @@ const SERVICE_REQUEST_STATUS_ENUM =
   `ENUM('open', 'pending', 'payment_pending', 'paid', 'assigned', 'in_progress', 'awaiting_confirmation', 'done', 'cancelled')`;
 const SAVED_LOCATION_KIND_ENUM = `ENUM('home', 'work', 'favorite', 'recent')`;
 const SERVICE_CARD_SORT_INDEX = 'ux_service_cards_sort';
-const SCHEDULED_REQUEST_DURATION_MINUTES = Math.max(
-  30,
-  Math.min(Number(process.env.SCHEDULED_REQUEST_DURATION_MINUTES || 120), 480)
+const MIN_SCHEDULED_REQUEST_DURATION_MINUTES = 60;
+const MAX_SCHEDULED_REQUEST_DURATION_MINUTES = 7 * 60;
+const DEFAULT_SCHEDULED_REQUEST_DURATION_MINUTES = Math.max(
+  MIN_SCHEDULED_REQUEST_DURATION_MINUTES,
+  Math.min(Number(process.env.SCHEDULED_REQUEST_DURATION_MINUTES || 120), MAX_SCHEDULED_REQUEST_DURATION_MINUTES)
 );
 const CHAT_ENABLED_REQUEST_STATUSES = [
   'assigned',
@@ -79,6 +82,20 @@ const normalizeBookingType = (value: unknown): 'express' | 'scheduled' => {
   return String(value || '').trim().toLowerCase() === 'scheduled' ? 'scheduled' : 'express';
 };
 
+const parseScheduledDurationMinutes = (value: unknown) => {
+  const raw = Number(value ?? DEFAULT_SCHEDULED_REQUEST_DURATION_MINUTES);
+  if (!Number.isFinite(raw)) {
+    return DEFAULT_SCHEDULED_REQUEST_DURATION_MINUTES;
+  }
+
+  const rounded = Math.round(raw / 60) * 60;
+  if (rounded < MIN_SCHEDULED_REQUEST_DURATION_MINUTES || rounded > MAX_SCHEDULED_REQUEST_DURATION_MINUTES) {
+    throw new Error('Estimated visit duration must be between 1 and 7 hours.');
+  }
+
+  return rounded;
+};
+
 const parseScheduledRequestTime = (body: any) => {
   const bookingType = normalizeBookingType(body?.booking_type);
   if (bookingType === 'express') {
@@ -88,12 +105,14 @@ const parseScheduledRequestTime = (body: any) => {
       scheduledTime: null,
       scheduledStartTime: null,
       scheduledEndTime: null,
+      scheduledDurationMinutes: null,
     };
   }
 
   const scheduledDate = String(body?.scheduled_date || '').trim();
   const scheduledTime = String(body?.scheduled_time || '').trim();
   const scheduledStartRaw = String(body?.scheduled_start_time || '').trim();
+  const scheduledDurationMinutes = parseScheduledDurationMinutes(body?.scheduled_duration_minutes);
 
   if (!/^\d{4}-\d{2}-\d{2}$/.test(scheduledDate)) {
     throw new Error('Select a valid scheduled date.');
@@ -114,7 +133,7 @@ const parseScheduledRequestTime = (body: any) => {
   }
 
   const scheduledEndDate = new Date(
-    scheduledStartDate.getTime() + SCHEDULED_REQUEST_DURATION_MINUTES * 60_000
+    scheduledStartDate.getTime() + scheduledDurationMinutes * 60_000
   );
   const normalizedTime = scheduledTime.length === 5 ? `${scheduledTime}:00` : scheduledTime;
 
@@ -124,6 +143,7 @@ const parseScheduledRequestTime = (body: any) => {
     scheduledTime: normalizedTime,
     scheduledStartTime: scheduledStartDate.toISOString().slice(0, 19).replace('T', ' '),
     scheduledEndTime: scheduledEndDate.toISOString().slice(0, 19).replace('T', ' '),
+    scheduledDurationMinutes,
   };
 };
 
@@ -138,7 +158,7 @@ const getScheduledAvailabilityLookup = (schedule: ReturnType<typeof parseSchedul
   const start = new Date(`${schedule.scheduledDate}T${schedule.scheduledTime}`);
   if (Number.isNaN(start.getTime())) return null;
 
-  const end = new Date(start.getTime() + SCHEDULED_REQUEST_DURATION_MINUTES * 60_000);
+  const end = new Date(start.getTime() + Number(schedule.scheduledDurationMinutes || DEFAULT_SCHEDULED_REQUEST_DURATION_MINUTES) * 60_000);
   if (end.toISOString().slice(0, 10) !== schedule.scheduledDate) return null;
 
   return {
@@ -1582,9 +1602,9 @@ export const createServiceRequest = async (req: AuthRequest, res: Response): Pro
     const latitude = resolvedLocation.lat;
     const longitude = resolvedLocation.lng;
 
-    if (!Number.isFinite(budget) || budget <= 0 || budget > 100000) {
+    if (!Number.isFinite(budget) || budget <= 0 || budget > 1000) {
       removeUploadedFiles(files);
-      res.status(400).json({ error: 'Budget must be greater than 0 and less than 100000.' });
+      res.status(400).json({ error: 'Budget must be between 0.01 and 1000.00.' });
       return;
     }
     if (files.length === 0) {
@@ -2253,10 +2273,13 @@ const resolveRequestParticipant = async (idRequest: number, userId: number) => {
        sr.assigned_worker_profile,
        wp.id_user AS worker_user_id
      FROM service_requests sr
+     INNER JOIN users active_user
+       ON active_user.id_user = ?
+      AND active_user.is_active = 1
      LEFT JOIN worker_profiles wp ON wp.id_worker_profile = sr.assigned_worker_profile
      WHERE sr.id_request = ?
      LIMIT 1`,
-    [idRequest]
+    [userId, idRequest]
   );
   if (rows.length === 0) return null;
   const row = rows[0];
@@ -2359,10 +2382,15 @@ export const postRequestChatMessage = async (req: AuthRequest, res: Response): P
 
     const idRequest = Number(req.params.idRequest);
     const rawMessage = String(req.body?.message || '').trim();
-    const message = rawMessage ? rawMessage.slice(0, 500) : null;
+    const message = rawMessage || null;
     if (!idRequest) {
       removeUploadedFiles(files);
       res.status(400).json({ error: 'Invalid request id.' });
+      return;
+    }
+    if (rawMessage.length > 500) {
+      removeUploadedFiles(files);
+      res.status(400).json({ error: 'Chat messages cannot exceed 500 characters.' });
       return;
     }
     if (!message && files.length === 0) {
@@ -2469,6 +2497,12 @@ export const postRequestChatMessage = async (req: AuthRequest, res: Response): P
     const chatPayload = { id_request: idRequest, latest_message_id: createdMessages[createdMessages.length - 1]?.id_message ?? primaryMessageId };
     pushToUser(userId, 'chat_message', chatPayload);
     if (recipientUserId) pushToUser(recipientUserId, 'chat_message', chatPayload);
+    emitChatMessage({
+      ...chatPayload,
+      messages: createdMessages,
+      sender_user_id: userId,
+      recipient_user_id: recipientUserId,
+    });
 
     res.status(201).json({
       success: true,

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { API_ENDPOINTS } from '../../../config/api';
 import { useSSE } from '../../../hooks/useSSE';
+import { useChatSocket } from '../../../hooks/useChatSocket';
 
 type ToastType = 'success' | 'error' | 'info';
 
@@ -194,6 +195,25 @@ export function useServiceRequestChat<TRequest extends ServiceRequestChatRequest
       },
     },
     enabled: isOpen && !!openChatRequestId && canUseOpenChat && supportsSSE,
+  });
+
+  useChatSocket<ServiceRequestChatMessage>({
+    token,
+    requestId: openChatRequestId,
+    enabled: isOpen && !!openChatRequestId && canUseOpenChat,
+    onMessage: (payload) => {
+      if (!openChatRequestId || payload.id_request !== openChatRequestId) return;
+      const incoming = Array.isArray(payload.messages) ? payload.messages : [];
+      if (incoming.length > 0) {
+        setChatByRequest((prev) => ({
+          ...prev,
+          [openChatRequestId]: mergeChatMessages(prev[openChatRequestId] || [], incoming),
+        }));
+        return;
+      }
+
+      void fetchRequestChat(openChatRequestId, { silent: true, incremental: true });
+    },
   });
 
   useEffect(() => {

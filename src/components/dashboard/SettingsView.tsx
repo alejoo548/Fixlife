@@ -14,6 +14,9 @@ type PortfolioItem = {
 };
 
 const SAFE_TEXT_ALLOWED_CHAR = /[\p{L}\p{N}\s.,\-_'":;!?()]/u;
+const PROFILE_IMAGE_MAX_BYTES = 5 * 1024 * 1024;
+const ALLOWED_PROFILE_IMAGE_TYPES = new Set(['image/png', 'image/jpeg', 'image/webp']);
+const PROFILE_IMAGE_ACCEPT = 'image/png,image/jpeg,image/webp';
 
 const sanitizeSafeTextInput = (value: string, maxLen = 500) =>
   Array.from(value)
@@ -108,15 +111,30 @@ export const SettingsView: React.FC = () => {
     loadData();
   }, []);
 
+  useEffect(
+    () => () => {
+      if (profileImagePreview) URL.revokeObjectURL(profileImagePreview);
+    },
+    [profileImagePreview]
+  );
+
+  useEffect(
+    () => () => {
+      portfolioPreviews.forEach((preview) => URL.revokeObjectURL(preview));
+    },
+    [portfolioPreviews]
+  );
+
   const handleProfileImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    if (!['image/png', 'image/jpeg', 'image/jpg'].includes(file.type)) {
-      notyf.error('Only PNG/JPG images are allowed.');
+    e.target.value = '';
+    if (!ALLOWED_PROFILE_IMAGE_TYPES.has(file.type)) {
+      notyf.error('Use a real PNG, JPG or WEBP image. GIF files are not allowed.');
       return;
     }
-    if (file.size > 10 * 1024 * 1024) {
-      notyf.error('Image is too large. Max size is 10MB.');
+    if (file.size > PROFILE_IMAGE_MAX_BYTES) {
+      notyf.error('Image is too large. Maximum size is 5MB.');
       return;
     }
     setProfileImageFile(file);
@@ -267,12 +285,17 @@ export const SettingsView: React.FC = () => {
   const handlePortfolioSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const selected = Array.from(e.target.files || []);
     if (selected.length === 0) return;
+    e.target.value = '';
 
-    const invalid = selected.find(
-      (file) => !['image/png', 'image/jpeg', 'image/jpg'].includes(file.type)
-    );
+    const invalid = selected.find((file) => !ALLOWED_PROFILE_IMAGE_TYPES.has(file.type));
     if (invalid) {
-      notyf.error('Only PNG/JPG images are allowed.');
+      notyf.error('Use real PNG, JPG or WEBP images. GIF files are not allowed.');
+      return;
+    }
+
+    const oversized = selected.find((file) => file.size > PROFILE_IMAGE_MAX_BYTES);
+    if (oversized) {
+      notyf.error(`"${oversized.name}" is larger than the 5MB limit.`);
       return;
     }
 
@@ -379,11 +402,11 @@ export const SettingsView: React.FC = () => {
 
           <div className="flex-1 w-full space-y-3">
             <label className="w-full rounded-xl p-3 bg-white/90 border border-cyan-100 flex items-center justify-between gap-3 cursor-pointer hover:bg-white transition">
-              <span className="text-sm text-gray-700">Upload profile image (PNG/JPG)</span>
+              <span className="text-sm text-gray-700">Upload profile image (PNG, JPG or WEBP)</span>
               <span className="bg-cyan-600 text-white px-3 py-1.5 rounded-lg text-sm font-semibold">Dropify</span>
               <input
                 type="file"
-                accept="image/png,image/jpeg,image/jpg"
+                accept={PROFILE_IMAGE_ACCEPT}
                 className="hidden"
                 onChange={handleProfileImageSelect}
               />
@@ -521,9 +544,9 @@ export const SettingsView: React.FC = () => {
             <label className="w-full border-2 border-dashed border-gray-300 rounded-2xl p-4 flex flex-col items-center justify-center gap-2 cursor-pointer hover:border-blue-400 transition bg-white hover:bg-blue-50/40">
               <div className="text-2xl font-bold text-blue-500">+</div>
               <div className="font-semibold text-gray-700 text-sm">Dropify Upload</div>
-              <div className="text-gray-500 text-xs">PNG/JPG only</div>
+              <div className="text-gray-500 text-xs">PNG, JPG or WEBP · max 5MB each · no GIF</div>
               <span className="bg-blue-500 text-white px-3 py-1.5 rounded-lg text-sm font-bold">Select Files</span>
-              <input type="file" className="hidden" multiple accept="image/png,image/jpeg,image/jpg" onChange={handlePortfolioSelect} />
+              <input type="file" className="hidden" multiple accept={PROFILE_IMAGE_ACCEPT} onChange={handlePortfolioSelect} />
             </label>
 
             {portfolioPreviews.length > 0 && (

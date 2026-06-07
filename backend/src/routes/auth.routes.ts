@@ -4,7 +4,7 @@ import { authLimiter } from '../middlewares/security.middleware';
 import { validate } from '../middlewares/validate.middleware';
 import { AuthSchema } from '../schemas/auth.schema';
 import { verifyToken } from '../middlewares/auth.middleware';
-import { uploadImageOnly } from '../middlewares/upload.middleware';
+import { uploadImageOnly, validateUploadedFiles } from '../middlewares/upload.middleware';
 
 const authController = require(path.join(__dirname, '../controllers/auth.controller'));
 const {
@@ -34,7 +34,7 @@ router.post('/forgot-password', authLimiter, validate(AuthSchema.emailOnly), for
 router.post('/reset-password', authLimiter, validate(AuthSchema.resetPassword), resetPassword);
 router.post('/verify-reset-token', authLimiter, validate(AuthSchema.verifyResetToken), verifyResetToken);
 router.put('/profile', verifyToken, updateProfile);
-router.post('/profile-image', verifyToken, uploadImageOnly.single('profile_image'), uploadProfileImage);
+router.post('/profile-image', verifyToken, uploadImageOnly.single('profile_image'), validateUploadedFiles, uploadProfileImage);
 router.delete('/profile-image', verifyToken, removeProfileImage);
 
 export default router;
