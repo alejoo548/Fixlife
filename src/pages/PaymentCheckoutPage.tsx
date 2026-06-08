@@ -1,8 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { Notyf } from 'notyf';
-import 'notyf/notyf.min.css';
+import { showSweetToast } from '../utils/sweetAlert';
 import { API_ENDPOINTS } from '../config/api';
 import { getAuthUser, getToken } from '../utils/session';
 
@@ -59,7 +58,12 @@ interface MyServiceRequest {
 type CheckoutStage = 'form' | 'success' | 'error';
 type CheckoutPaymentMethod = 'paypal' | 'wompi';
 
-const notyf = new Notyf({ position: { x: 'left', y: 'bottom' }, ripple: true });
+const notyf = {
+  success: (message: string) => void showSweetToast({ tone: 'success', message }),
+  error: (message: string) => void showSweetToast({ tone: 'error', message }),
+  open: ({ type, message }: { type?: string; message: string; background?: string }) =>
+    void showSweetToast({ tone: (type as 'info' | 'success' | 'error' | 'warning') || 'info', message }),
+};
 const DEFAULT_PLATFORM_PROTECTION_RATE = 0.12;
 
 const getChargeAmount = (request: MyServiceRequest | null) =>

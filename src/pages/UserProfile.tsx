@@ -1,6 +1,5 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import { Notyf } from 'notyf';
-import 'notyf/notyf.min.css';
+import React, { useEffect, useState } from 'react';
+import { showSweetToast } from '../utils/sweetAlert';
 import { useAuth } from '../context/AuthContext';
 import { API_URL } from '../config/api';
 import { removeProfileImage, updateProfile, uploadProfileImage } from '../services/authService';
@@ -49,15 +48,6 @@ const normalizeStoredUsername = (username: unknown, email: unknown): string => {
 
 const UserProfile: React.FC<UserProfileProps> = ({ onBack }) => {
   const { user, logout, updateUser } = useAuth();
-  const notyf = useMemo(
-    () =>
-      new Notyf({
-        position: { x: 'left', y: 'bottom' },
-        duration: 3200,
-        ripple: true,
-      }),
-    []
-  );
 
   const [formData, setFormData] = useState({
     name: '',
@@ -145,13 +135,13 @@ const UserProfile: React.FC<UserProfileProps> = ({ onBack }) => {
 
     const validationError = validateProfileForm();
     if (validationError) {
-      notyf.error(validationError);
+      void showSweetToast({ tone: 'error', message: validationError });
       return;
     }
 
     const token = localStorage.getItem('token');
     if (!token) {
-      notyf.error('Session expired. Please sign in again.');
+      void showSweetToast({ tone: 'error', message: 'Session expired. Please sign in again.' });
       return;
     }
 
@@ -166,10 +156,10 @@ const UserProfile: React.FC<UserProfileProps> = ({ onBack }) => {
 
       const { data } = await updateProfile(payload, token);
       updateUser({ ...user, ...data.user });
-      notyf.success('Profile updated successfully. Redirecting to home...');
+      void showSweetToast({ tone: 'success', message: 'Profile updated successfully. Redirecting to home...' });
       window.setTimeout(() => onBack(), 700);
     } catch (error: any) {
-      notyf.error(getErrorMessage(error, 'Error updating profile.'));
+      void showSweetToast({ tone: 'error', message: getErrorMessage(error, 'Error updating profile.') });
     } finally {
       setIsSaving(false);
     }
@@ -183,20 +173,20 @@ const UserProfile: React.FC<UserProfileProps> = ({ onBack }) => {
     const hasValidFormat = ALLOWED_IMAGE_TYPES.has(file.type) && ALLOWED_IMAGE_EXTENSIONS.has(extension);
 
     if (!hasValidFormat) {
-      notyf.error('Only JPG, PNG, WEBP or AVIF images are allowed.');
+      void showSweetToast({ tone: 'error', message: 'Only JPG, PNG, WEBP or AVIF images are allowed.' });
       e.target.value = '';
       return;
     }
 
     if (file.size > 5 * 1024 * 1024) {
-      notyf.error('Image size must be 5MB or less.');
+      void showSweetToast({ tone: 'error', message: 'Image size must be 5MB or less.' });
       e.target.value = '';
       return;
     }
 
     const token = localStorage.getItem('token');
     if (!token) {
-      notyf.error('Session expired. Please sign in again.');
+      void showSweetToast({ tone: 'error', message: 'Session expired. Please sign in again.' });
       return;
     }
 
@@ -204,9 +194,9 @@ const UserProfile: React.FC<UserProfileProps> = ({ onBack }) => {
     try {
       const { data } = await uploadProfileImage(file, token);
       updateUser({ ...user, profile_image: data.profile_image });
-      notyf.success('Profile image updated successfully.');
+      void showSweetToast({ tone: 'success', message: 'Profile image updated successfully.' });
     } catch (error: any) {
-      notyf.error(getErrorMessage(error, 'Error uploading image.'));
+      void showSweetToast({ tone: 'error', message: getErrorMessage(error, 'Error uploading image.') });
     } finally {
       setIsUploading(false);
       e.target.value = '';
@@ -218,7 +208,7 @@ const UserProfile: React.FC<UserProfileProps> = ({ onBack }) => {
 
     const token = localStorage.getItem('token');
     if (!token) {
-      notyf.error('Session expired. Please sign in again.');
+      void showSweetToast({ tone: 'error', message: 'Session expired. Please sign in again.' });
       return;
     }
 
@@ -226,9 +216,9 @@ const UserProfile: React.FC<UserProfileProps> = ({ onBack }) => {
     try {
       await removeProfileImage(token);
       updateUser({ ...user, profile_image: null });
-      notyf.success('Profile image removed successfully.');
+      void showSweetToast({ tone: 'success', message: 'Profile image removed successfully.' });
     } catch (error: any) {
-      notyf.error(getErrorMessage(error, 'Error removing image.'));
+      void showSweetToast({ tone: 'error', message: getErrorMessage(error, 'Error removing image.') });
     } finally {
       setIsRemovingPhoto(false);
     }

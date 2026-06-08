@@ -2,8 +2,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { API_ENDPOINTS } from '../../config/api';
 import { AuthMode } from '../../types';
-import { Notyf } from 'notyf';
-import 'notyf/notyf.min.css';
+import { showSweetToast } from '../../utils/sweetAlert';
 import { useAuth } from '../../context/AuthContext';
 import { setAuthSession } from '../../utils/session';
 import ForgotPassword from '../../pages/ForgotPassword';
@@ -183,17 +182,12 @@ const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     };
   }, []);
 
-  const notyf = new Notyf({
-    position: { x: 'right', y: 'bottom' },
-    ripple: true,
-  });
-
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (view === 'signup') {
-      notyf.success('Account created successfully!');
+      void showSweetToast({ tone: 'success', message: 'Account created successfully!' });
     } else {
-      notyf.success('Welcome back!');
+      void showSweetToast({ tone: 'success', message: 'Welcome back!' });
     }
     setTimeout(() => onClose(), 1500);
   };
@@ -207,12 +201,12 @@ const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
   e.preventDefault();
 
   if (formData.password !== formData.confirmPassword) {
-    notyf.error('Passwords do not match');
+    void showSweetToast({ tone: 'error', message: 'Passwords do not match' });
     return;
   }
 
   if (isCaptchaEnabled && !captchaToken) {
-    notyf.error('Please complete the captcha verification.');
+    void showSweetToast({ tone: 'error', message: 'Please complete the captcha verification.' });
     return;
   }
 
@@ -234,19 +228,19 @@ const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const data = await res.json();
 
     if (!res.ok) {
-      notyf.error(data.error || 'Registration failed');
+      void showSweetToast({ tone: 'error', message: data.error || 'Registration failed' });
       return;
     }
 
     login(data.user, data.token);
-    notyf.success('Account created successfully!');
+    void showSweetToast({ tone: 'success', message: 'Account created successfully!' });
 
     setCaptchaToken(null);
     onClose();
     setTimeout(() => onClientLogin?.(), 100);
   } catch (err) {
     console.error(err);
-    notyf.error('Connection error');
+    void showSweetToast({ tone: 'error', message: 'Connection error' });
   }
 };
 
@@ -255,7 +249,7 @@ const handleAuthSuccess = (data: any) => {
 
   if (role === 'admin' || role === 'root') {
     setAuthSession(data.user, data.token, 'admin');
-    notyf.success('Admin session ready.');
+    void showSweetToast({ tone: 'success', message: 'Admin session ready.' });
     onClose();
     setTimeout(() => {
       if (onAdminLogin) {
@@ -269,7 +263,7 @@ const handleAuthSuccess = (data: any) => {
 
   if (data.user?.rol === 'worker' || data.user?.role === 'worker') {
     setAuthSession(data.user, data.token, 'worker');
-    notyf.success('Worker session ready.');
+    void showSweetToast({ tone: 'success', message: 'Worker session ready.' });
     onClose();
     setTimeout(() => {
       if (onWorkerLogin) {
@@ -282,7 +276,7 @@ const handleAuthSuccess = (data: any) => {
   }
 
   login(data.user, data.token);
-  notyf.success('Welcome back!');
+  void showSweetToast({ tone: 'success', message: 'Welcome back!' });
   onClose();
   setTimeout(() => onClientLogin?.(), 100);
 };
@@ -298,14 +292,14 @@ const handleGoogleSignin = async (credential: string) => {
     const data = await res.json();
 
     if (!res.ok) {
-      notyf.error(data.error || 'Google login failed');
+      void showSweetToast({ tone: 'error', message: data.error || 'Google login failed' });
       return;
     }
 
     handleAuthSuccess(data);
   } catch (err) {
     console.error(err);
-    notyf.error('Connection error');
+    void showSweetToast({ tone: 'error', message: 'Connection error' });
   }
 };
 
@@ -313,13 +307,13 @@ const handleSignin = async (e: React.FormEvent<HTMLFormElement>) => {
   e.preventDefault();
 
   if (!formData.email || !formData.password) {
-  notyf.error('Email and password are required');
+  void showSweetToast({ tone: 'error', message: 'Email and password are required' });
   return;
 }
 
 const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 if (!emailRegex.test(formData.email)) {
-  notyf.error('Invalid email format');
+  void showSweetToast({ tone: 'error', message: 'Invalid email format' });
   return;
 }
 
@@ -336,14 +330,14 @@ if (!emailRegex.test(formData.email)) {
     const data = await res.json();
 
     if (!res.ok) {
-      notyf.error(data.error || 'Login failed');
+      void showSweetToast({ tone: 'error', message: data.error || 'Login failed' });
       return;
     }
 
     handleAuthSuccess(data);
   } catch (err) {
     console.error(err);
-    notyf.error('Connection error');
+    void showSweetToast({ tone: 'error', message: 'Connection error' });
   }
 };
 
