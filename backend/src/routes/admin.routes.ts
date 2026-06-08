@@ -12,6 +12,7 @@ import {
   approveWorker,
   rejectWorker,
   getUsersAdmin,
+  getUserDetailAdmin,
   updateUserRole,
   updateUserStatus,
   getDashboardStats,
@@ -78,6 +79,7 @@ router.get('/worker-tier-history', getWorkerTierHistoryAdmin);
 
 // Users management
 router.get('/users', getUsersAdmin);
+router.get('/users/:id', getUserDetailAdmin);
 router.put('/users/:id/role', sensitiveLimiter, updateUserRole);
 router.put('/users/:id/status', sensitiveLimiter, updateUserStatus);
 
