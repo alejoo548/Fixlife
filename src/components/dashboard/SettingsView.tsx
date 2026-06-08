@@ -1,7 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Notyf } from 'notyf';
-import 'notyf/notyf.min.css';
+import { showSweetToast } from '../../utils/sweetAlert';
 import { API_URL } from '../../config/api';
 import { getAuthUser, getToken as getSessionToken, logoutAuthSession, updateStoredAuthUser } from '../../utils/session';
 import { WorkerAvailabilitySection } from './WorkerAvailabilitySection';
@@ -27,12 +26,10 @@ const sanitizeSafeTextInput = (value: string, maxLen = 500) =>
 export const SettingsView: React.FC = () => {
   const navigate = useNavigate();
   const notyf = useMemo(
-    () =>
-      new Notyf({
-        position: { x: 'left', y: 'bottom' },
-        duration: 3200,
-        ripple: true,
-      }),
+    () => ({
+      success: (message: string) => void showSweetToast({ tone: 'success', message }),
+      error: (message: string) => void showSweetToast({ tone: 'error', message }),
+    }),
     []
   );
 

@@ -1,16 +1,13 @@
 import { useEffect, useMemo, useState } from 'react';
 import { AlertCircle, BriefcaseBusiness, Briefcase, CheckCircle, CheckCircle2, Clock3, DollarSign, Download, MapPin, RefreshCw, Users } from 'lucide-react';
 import { Area, AreaChart, Bar, BarChart, CartesianGrid, Cell, Legend, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
-import { Notyf } from 'notyf';
-import 'notyf/notyf.min.css';
+import { showSweetToast } from '../../../utils/sweetAlert';
 import { Link } from 'react-router-dom';
 import { adminApi } from '../api/adminApi';
 import { AdminCard, EmptyState, MetricCard, Skeleton, StatusBadge } from '../components/AdminUI';
 import { useDashboardTheme } from '../../../hooks/useDashboardTheme';
 import { getAuthUser, getToken } from '../../../utils/session';
 import type { AdminRequestListItem, AdminStats } from '../types';
-
-const notyf = new Notyf({ position: { x: 'right', y: 'bottom' }, ripple: true });
 
 const StableResponsiveContainer = ({ children }: { children: React.ReactNode }) => (
   <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={240} debounce={150}>
@@ -92,7 +89,7 @@ export default function OverviewModule() {
   const handleExportPdf = async () => {
     if (exportingPdf) return;
     const token = getToken('admin');
-    if (!token) { notyf.error('Session expired. Please sign in again.'); return; }
+    if (!token) { void showSweetToast({ tone: 'error', message: 'Session expired. Please sign in again.' }); return; }
     setExportingPdf(true);
     try {
       const exportUrl = selectedServiceId === 'all' 
@@ -103,7 +100,7 @@ export default function OverviewModule() {
       });
       if (!res.ok) {
         const data = await res.json().catch(() => null);
-        notyf.error(data?.error || 'Could not export stats PDF.');
+        void showSweetToast({ tone: 'error', message: data?.error || 'Could not export stats PDF.' });
         return;
       }
       const blob = await res.blob();
@@ -114,9 +111,9 @@ export default function OverviewModule() {
       a.href = url; a.download = fileName;
       document.body.appendChild(a); a.click(); a.remove();
       URL.revokeObjectURL(url);
-      notyf.success('Stats PDF exported.');
+      void showSweetToast({ tone: 'success', message: 'Stats PDF exported.' });
     } catch {
-      notyf.error('Connection error exporting stats PDF.');
+      void showSweetToast({ tone: 'error', message: 'Connection error exporting stats PDF.' });
     } finally {
       setExportingPdf(false);
     }

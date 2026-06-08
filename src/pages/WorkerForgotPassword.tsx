@@ -4,8 +4,7 @@ import {
   verifyResetToken,
   resetPassword
 } from "../services/authService";
-import { Notyf } from 'notyf';
-import 'notyf/notyf.min.css';
+import { showSweetToast } from '../utils/sweetAlert';
 
 interface WorkerForgotPasswordProps {
   onBack?: () => void;
@@ -14,11 +13,6 @@ interface WorkerForgotPasswordProps {
 const WorkerForgotPassword: React.FC<WorkerForgotPasswordProps> = ({ onBack }) => {
 
   const [step, setStep] = useState(1);
-
-  const notyf = new Notyf({
-    position: { x: 'right', y: 'bottom' },
-    ripple: true,
-  });
 
   const [email, setEmail] = useState("");
   const [token, setToken] = useState("");
@@ -32,7 +26,7 @@ const WorkerForgotPassword: React.FC<WorkerForgotPasswordProps> = ({ onBack }) =
     e.preventDefault();
     
     if (!email.trim()) {
-      notyf.error("Please enter your email");
+      void showSweetToast({ tone: 'error', message: "Please enter your email" });
       return;
     }
 
@@ -40,11 +34,11 @@ const WorkerForgotPassword: React.FC<WorkerForgotPasswordProps> = ({ onBack }) =
 
     try {
       await forgotPassword(email.trim());
-      notyf.success("Verification code sent to your email");
+      void showSweetToast({ tone: 'success', message: "Verification code sent to your email" });
       setStep(2);
     } catch (error: any) {
       const errorMsg = error.response?.data?.error || "Error sending email. Please try again.";
-      notyf.error(errorMsg);
+      void showSweetToast({ tone: 'error', message: errorMsg });
     } finally {
       setLoading(false);
     }
@@ -54,7 +48,7 @@ const WorkerForgotPassword: React.FC<WorkerForgotPasswordProps> = ({ onBack }) =
     e.preventDefault();
     
     if (!token.trim()) {
-      notyf.error("Please enter the verification code");
+      void showSweetToast({ tone: 'error', message: "Please enter the verification code" });
       return;
     }
 
@@ -62,11 +56,11 @@ const WorkerForgotPassword: React.FC<WorkerForgotPasswordProps> = ({ onBack }) =
 
     try {
       await verifyResetToken(email.trim(), token.trim());
-      notyf.success("Code verified successfully");
+      void showSweetToast({ tone: 'success', message: "Code verified successfully" });
       setStep(3);
     } catch (error: any) {
       const errorMsg = error.response?.data?.error || error.response?.data?.message || "Invalid or expired code";
-      notyf.error(errorMsg);
+      void showSweetToast({ tone: 'error', message: errorMsg });
     } finally {
       setLoading(false);
     }
@@ -76,17 +70,17 @@ const WorkerForgotPassword: React.FC<WorkerForgotPasswordProps> = ({ onBack }) =
     e.preventDefault();
 
     if (!password.trim() || !confirmPassword.trim()) {
-      notyf.error("Please fill in all fields");
+      void showSweetToast({ tone: 'error', message: "Please fill in all fields" });
       return;
     }
 
     if (password.length < 8) {
-      notyf.error("Password must be at least 8 characters");
+      void showSweetToast({ tone: 'error', message: "Password must be at least 8 characters" });
       return;
     }
 
     if (password !== confirmPassword) {
-      notyf.error("Passwords do not match");
+      void showSweetToast({ tone: 'error', message: "Passwords do not match" });
       return;
     }
 
@@ -94,7 +88,7 @@ const WorkerForgotPassword: React.FC<WorkerForgotPasswordProps> = ({ onBack }) =
 
     try {
       await resetPassword(email.trim(), token.trim(), password);
-      notyf.success("Password successfully updated! You can now log in.");
+      void showSweetToast({ tone: 'success', message: "Password successfully updated! You can now log in." });
       
       // Esperar 1.5 segundos antes de volver al login
       setTimeout(() => {
@@ -103,7 +97,7 @@ const WorkerForgotPassword: React.FC<WorkerForgotPasswordProps> = ({ onBack }) =
 
     } catch (error: any) {
       const errorMsg = error.response?.data?.error || "Error resetting password. Please try again.";
-      notyf.error(errorMsg);
+      void showSweetToast({ tone: 'error', message: errorMsg });
     } finally {
       setLoading(false);
     }

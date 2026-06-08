@@ -3,8 +3,7 @@ import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import { useSSE } from '../../hooks/useSSE';
 import { AnimatePresence, motion } from 'framer-motion';
-import { Notyf } from 'notyf';
-import 'notyf/notyf.min.css';
+import { showSweetToast } from '../../utils/sweetAlert';
 import { API_ENDPOINTS } from '../../config/api';
 
 type NotificationTone = 'info' | 'success' | 'warning';
@@ -31,7 +30,6 @@ interface NotificationCenterProps {
 
 type NotificationFilter = 'all' | 'unread' | 'payments' | 'jobs';
 
-const notyf = new Notyf({ position: { x: 'right', y: 'bottom' }, ripple: true });
 
 const toneClasses: Record<NotificationTone, string> = {
   info: 'border-blue-200 bg-blue-50 text-blue-700',
@@ -183,7 +181,7 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({
       setUnreadCount(Number(payload.summary?.unread_count || 0));
     } catch (error: any) {
       if (!silent) {
-        notyf.error(error?.message || 'Could not load notifications.');
+        void showSweetToast({ tone: 'error', message: error?.message || 'Could not load notifications.' });
       }
     } finally {
       if (!silent) setLoading(false);
@@ -305,7 +303,7 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({
       setUnreadCount((prev) => Math.max(prev - 1, 0));
       return true;
     } catch (error: any) {
-      notyf.error(error?.message || 'Could not mark notification as read.');
+      void showSweetToast({ tone: 'error', message: error?.message || 'Could not mark notification as read.' });
       return false;
     }
   };
@@ -326,7 +324,7 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({
       setNotifications((prev) => prev.map((item) => ({ ...item, is_read: true })));
       setUnreadCount(0);
     } catch (error: any) {
-      notyf.error(error?.message || 'Could not mark notifications as read.');
+      void showSweetToast({ tone: 'error', message: error?.message || 'Could not mark notifications as read.' });
     }
   };
 
