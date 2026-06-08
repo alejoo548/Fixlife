@@ -1,4 +1,3 @@
-import http from 'http';
 import jwt from 'jsonwebtoken';
 import { Server, Socket } from 'socket.io';
 import { RowDataPacket } from 'mysql2';
@@ -71,13 +70,8 @@ const resolveRequestParticipant = async (idRequest: number, userId: number) => {
   return null;
 };
 
-export const initSocketServer = (server: http.Server, corsOptions: Record<string, unknown>) => {
-  io = new Server(server, {
-    cors: corsOptions,
-    path: '/socket.io',
-    transports: ['websocket', 'polling'],
-    maxHttpBufferSize: 128 * 1024,
-  });
+export const initSocketServer = (ioInstance: Server) => {
+  io = ioInstance;
 
   io.use(async (socket: AuthedSocket, next) => {
     const rawToken =

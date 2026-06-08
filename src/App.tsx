@@ -16,7 +16,7 @@ import { Button } from './components/common/Button';
 import { ThreeDCard } from './components/common/ThreeDCard';
 import ForgotPassword from './pages/ForgotPassword';
 import UserProfile from './pages/UserProfile';
-import { getRememberedProtectedRoute, hasRole, isAuthenticated, logoutAuthSession, getToken } from './utils/session';
+import { getRememberedProtectedRoute, clearRememberedProtectedRoute, hasRole, isAuthenticated, logoutAuthSession, getToken } from './utils/session';
 import { SupportChatWidget } from './components/support/SupportChatWidget';
 import { API_ENDPOINTS } from './config/api';
 import { isExternalStockImage, normalizeImageUrl } from './utils/imageUrls';
@@ -343,6 +343,7 @@ const App: React.FC = () => {
 
   const handleBackToLanding = () => {
     setPendingSection(null);
+    clearRememberedProtectedRoute('client');
     const leavingProtectedView =
       location.pathname.startsWith('/admin-dashboard') ||
       location.pathname === '/pro-dashboard' ||
@@ -483,7 +484,7 @@ const App: React.FC = () => {
         <Route
           path="/app"
           element={(
-            <ProtectedRoute lockHistory>
+            <ProtectedRoute>
               <Suspense fallback={<AppRouteFallback title="Loading booking flow..." subtitle="Getting the service wizard ready." />}>
                 <ServiceRequestRoute
                   onClose={handleBackToLanding}

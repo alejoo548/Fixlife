@@ -1,5 +1,4 @@
-import { Server as HttpServer } from 'http';
-import { Server, Socket } from 'socket.io';
+import { Server, Namespace, Socket } from 'socket.io';
 import jwt from 'jsonwebtoken';
 import { getJwtSecret } from '../config/security';
 import {
@@ -40,20 +39,14 @@ interface AuthenticatedSocket extends Socket {
   };
 }
 
-let io: Server | null = null;
+let nsp: Namespace | null = null;
 
-export function initializeSupportSocket(httpServer: HttpServer) {
-  if (io) return io;
+export function initializeSupportSocket(ioServer: Server) {
+  if (nsp) return nsp;
 
-  io = new Server(httpServer, {
-    cors: {
-      origin: process.env.ALLOWED_ORIGINS?.split(',') || '*',
-      credentials: true,
-    },
-    path: '/socket.io/support', 
-  });
+  nsp = ioServer.of('/support');
 
-  io.use((socket: AuthenticatedSocket, next) => {
+  nsp.use((socket: AuthenticatedSocket, next) => {
     const token = socket.handshake.auth?.token || socket.handshake.query?.token;
 
     if (!token) {
@@ -72,7 +65,7 @@ export function initializeSupportSocket(httpServer: HttpServer) {
     }
   });
 
-  io.on('connection', (socket: AuthenticatedSocket) => {
+  nsp.on('connection', (socket: AuthenticatedSocket) => {
     console.log(`[SupportSocket] User ${socket.user?.user_id} connected`);
 
     if (socket.user?.rol === 'admin' || socket.user?.rol === 'root') {
@@ -134,8 +127,8 @@ export function initializeSupportSocket(httpServer: HttpServer) {
           return;
         }
 
-        const senderRole = socket.user.rol === 'admin' || socket.user.rol === 'root' 
-          ? 'admin' 
+        const senderRole = socket.user.rol === 'admin' || socket.user.rol === 'root'
+          ? 'admin'
           : socket.user.rol === 'worker' ? 'worker' : 'client';
 
         const messageId = await insertMessage(threadId, socket.user.user_id, senderRole, trimmed);
@@ -158,24 +151,24 @@ export function initializeSupportSocket(httpServer: HttpServer) {
     });
   });
 
-  return io;
+  return nsp;
 }
 
-export function getSupportIO(): Server | null {
-  return io;
+export function getSupportIO(): Namespace | null {
+  return nsp;
 }
 
 export function emitNewSupportMessage(threadId: number, payload: any) {
-  if (!io) return;
-  io.to(`support_thread_${threadId}`).to(SUPPORT_ADMIN_ROOM).emit('support:new_message', payload);
+  if (!nsp) return;
+  nsp.to(`support_thread_${threadId}`).to(SUPPORT_ADMIN_ROOM).emit('support:new_message', payload);
 }
 
 export function emitSupportThreadCreated(payload: any) {
-  if (!io) return;
-  io.to(SUPPORT_ADMIN_ROOM).emit('support:thread_created', payload);
+  if (!nsp) return;
+  nsp.to(SUPPORT_ADMIN_ROOM).emit('support:thread_created', payload);
 }
 
 export function emitAdminActivity(payload: any) {
-  if (!io) return;
-  io.to(SUPPORT_ADMIN_ROOM).emit('admin:activity_created', payload);
+  if (!nsp) return;
+  nsp.to(SUPPORT_ADMIN_ROOM).emit('admin:activity_created', payload);
 }

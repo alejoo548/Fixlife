@@ -127,21 +127,33 @@ export const useWorkerRequestsMap = ({
 
   useEffect(() => {
     if (!leafletReady || !mapContainerRef.current || !window.L || mapInstanceRef.current) return;
-    const L = window.L;
-    const map = L.map(mapContainerRef.current, {
-      zoomControl: false,
-      attributionControl: true,
-    }).setView(FALLBACK_CENTER, 12);
-    addResilientTileLayer(L, map);
-    L.control.zoom({ position: 'bottomright' }).addTo(map);
-    mapInstanceRef.current = map;
+
+    let cancelled = false;
+    const initTimer = window.setTimeout(() => {
+      if (cancelled || !mapContainerRef.current || !window.L || mapInstanceRef.current) return;
+      const L = window.L;
+      const map = L.map(mapContainerRef.current, {
+        zoomControl: false,
+        attributionControl: true,
+        preferCanvas: true,
+        maxZoom: 17,
+      }).setView(FALLBACK_CENTER, 12);
+      addResilientTileLayer(L, map);
+      L.control.zoom({ position: 'bottomright' }).addTo(map);
+      mapInstanceRef.current = map;
+    }, 50);
+
     return () => {
-      try {
-        map.remove();
-      } catch {
-        // Leaflet may already be detached during hot reload.
+      cancelled = true;
+      window.clearTimeout(initTimer);
+      if (mapInstanceRef.current) {
+        try {
+          mapInstanceRef.current.remove();
+        } catch {
+          // Leaflet may already be detached during hot reload.
+        }
+        mapInstanceRef.current = null;
       }
-      mapInstanceRef.current = null;
     };
   }, [leafletReady]);
 
