@@ -5,6 +5,7 @@ import crypto from 'crypto';
 import { recognize } from 'tesseract.js';
 import type { NextFunction, Request, Response } from 'express';
 import { protectedUploadsDir, publicUploadsDir, ensureUploadDirectories } from '../utils/assets';
+import { sanitizeImageInPlace, ImageSanitizeError } from '../utils/imageSanitizer';
 
 ensureUploadDirectories();
 
@@ -364,6 +365,25 @@ export const validateUploadedFiles = async (req: Request, res: Response, next: N
   } catch {
     await cleanupUploadedFiles(files);
     res.status(400).json({ error: 'Could not verify uploaded image metadata.' });
+  }
+};
+
+export const sanitizeImages = async (req: Request, res: Response, next: NextFunction) => {
+  const files = flattenUploadedFiles(req);
+  const imageFiles = files.filter((f) => f.mimetype !== 'application/pdf');
+
+  try {
+    for (const file of imageFiles) {
+      await sanitizeImageInPlace(file);
+    }
+    next();
+  } catch (err) {
+    await cleanupUploadedFiles(files);
+    if (err instanceof ImageSanitizeError) {
+      res.status(400).json({ error: err.message });
+    } else {
+      res.status(400).json({ error: 'Image failed security sanitization.' });
+    }
   }
 };
 

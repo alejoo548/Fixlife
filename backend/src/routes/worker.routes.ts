@@ -25,7 +25,7 @@ import {
 } from '../controllers/worker.controller';
 import { requireWorker, verifyToken } from '../middlewares/auth.middleware';
 import { sensitiveLimiter } from '../middlewares/security.middleware';
-import { upload, uploadImageOnly, validateUploadedFiles } from '../middlewares/upload.middleware';
+import { upload, uploadImageOnly, validateUploadedFiles, sanitizeImages } from '../middlewares/upload.middleware';
 import { validate } from '../middlewares/validate.middleware';
 import { WorkerSchema } from '../schemas/worker.schema';
 
@@ -50,18 +50,19 @@ router.put('/settings', sensitiveLimiter, validate(WorkerSchema.settings), updat
 router.put('/change-password', sensitiveLimiter, validate(WorkerSchema.changePassword), changeWorkerPassword);
 router.post('/email-change/request', sensitiveLimiter, validate(WorkerSchema.emailChangeRequest), requestWorkerEmailChangeToken);
 router.post('/email-change/verify', sensitiveLimiter, validate(WorkerSchema.tokenOnly), verifyWorkerEmailChangeToken);
-router.post('/profile-image', sensitiveLimiter, uploadImageOnly.single('profile_image'), validateUploadedFiles, uploadProfileImage);
+router.post('/profile-image', sensitiveLimiter, uploadImageOnly.single('profile_image'), validateUploadedFiles, sanitizeImages, uploadProfileImage);
 router.delete('/profile-image', sensitiveLimiter, removeWorkerProfileImage);
-router.post('/portfolio', sensitiveLimiter, uploadImageOnly.array('portfolio_images', 10), validateUploadedFiles, uploadPortfolioImages);
+router.post('/portfolio', sensitiveLimiter, uploadImageOnly.array('portfolio_images', 10), validateUploadedFiles, sanitizeImages, uploadPortfolioImages);
 router.delete('/portfolio/:idPhoto', sensitiveLimiter, deletePortfolioImage);
 
 router.post(
-  '/verify', 
+  '/verify',
   upload.fields([
-    { name: 'dui_document', maxCount: 1 }, 
+    { name: 'dui_document', maxCount: 1 },
     { name: 'cert_document', maxCount: 1 }
-  ]), 
+  ]),
   validateUploadedFiles,
+  sanitizeImages,
   uploadDocuments
 );
 
