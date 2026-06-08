@@ -52,6 +52,24 @@ export function useServiceRequestLocation({
   const locationSuggestionTimerRef = useRef<number | null>(null);
   const locationSuggestionAbortRef = useRef<AbortController | null>(null);
   const locationSuggestionCacheRef = useRef<Map<string, ServiceRequestLocationSuggestion[]>>(new Map());
+  const geolocationWatchRef = useRef<number | null>(null);
+  const geolocationTimerRef = useRef<number | null>(null);
+  const geolocationSessionRef = useRef(0);
+
+  const cancelLocationDetection = () => {
+    geolocationSessionRef.current += 1;
+    if (geolocationWatchRef.current !== null) {
+      navigator.geolocation?.clearWatch(geolocationWatchRef.current);
+      geolocationWatchRef.current = null;
+    }
+    if (geolocationTimerRef.current !== null) {
+      window.clearTimeout(geolocationTimerRef.current);
+      geolocationTimerRef.current = null;
+    }
+    setGeoLoading(false);
+  };
+
+  useEffect(() => cancelLocationDetection, []);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -145,27 +163,27 @@ export function useServiceRequestLocation({
       return;
     }
 
+    cancelLocationDetection();
+    const sessionId = geolocationSessionRef.current;
     setGeoLoading(true);
     setGeoError(null);
 
     let bestPosition: GeolocationPosition | null = null;
     let settled = false;
-    let watchId: number | null = null;
-    let fallbackTimer: number | null = null;
 
     const clearWatch = () => {
-      if (watchId !== null) {
-        navigator.geolocation.clearWatch(watchId);
-        watchId = null;
+      if (geolocationWatchRef.current !== null) {
+        navigator.geolocation.clearWatch(geolocationWatchRef.current);
+        geolocationWatchRef.current = null;
       }
-      if (fallbackTimer !== null) {
-        window.clearTimeout(fallbackTimer);
-        fallbackTimer = null;
+      if (geolocationTimerRef.current !== null) {
+        window.clearTimeout(geolocationTimerRef.current);
+        geolocationTimerRef.current = null;
       }
     };
 
     const applyPosition = (pos: GeolocationPosition) => {
-      if (settled) return;
+      if (settled || sessionId !== geolocationSessionRef.current) return;
       settled = true;
       clearWatch();
 
@@ -188,8 +206,9 @@ export function useServiceRequestLocation({
       })();
     };
 
-    watchId = navigator.geolocation.watchPosition(
+    geolocationWatchRef.current = navigator.geolocation.watchPosition(
       (pos) => {
+        if (sessionId !== geolocationSessionRef.current) return;
         if (!bestPosition || pos.coords.accuracy < bestPosition.coords.accuracy) {
           bestPosition = pos;
         }
@@ -198,6 +217,7 @@ export function useServiceRequestLocation({
         }
       },
       () => {
+        if (sessionId !== geolocationSessionRef.current) return;
         if (bestPosition) {
           applyPosition(bestPosition);
           return;
@@ -210,14 +230,15 @@ export function useServiceRequestLocation({
       { enableHighAccuracy: true, timeout: GEOLOCATION_TIMEOUT_MS, maximumAge: 0 }
     );
 
-    fallbackTimer = window.setTimeout(() => {
+    geolocationTimerRef.current = window.setTimeout(() => {
+      if (sessionId !== geolocationSessionRef.current) return;
       if (bestPosition) {
         applyPosition(bestPosition);
         return;
       }
       clearWatch();
-      setGeoError('Still looking for GPS signal. Try outdoors, enable precise location, or tap the map.');
-      showToast('info', 'Still looking for a precise GPS signal. You can drag the pin to fine-tune.');
+      setGeoError('Still looking for GPS signal. Try outdoors, enable precise location, or enter the address.');
+      showToast('info', 'Still looking for a precise GPS signal. You can enter and confirm the address instead.');
       setGeoLoading(false);
     }, GEOLOCATION_SAMPLE_MS);
   };
@@ -236,5 +257,6 @@ export function useServiceRequestLocation({
     setHighlightedSuggestionIndex,
     suggestionsLoading,
     detectCurrentLocation,
+    cancelLocationDetection,
   };
 }

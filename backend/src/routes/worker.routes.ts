@@ -7,12 +7,16 @@ import {
   deletePortfolioImage,
   downloadWorkerRewardsStatementPdf,
   getWorkerMe,
+  getWorkerAppointments,
+  getWorkerAvailability,
   getWorkerRewardsDashboard,
   getWorkerRequests,
   rejectWorkerRequest,
   requestWorkerEmailChangeToken,
+  removeWorkerProfileImage,
   startWorkerRequest,
   updateWorkerSettings,
+  updateWorkerAvailability,
   uploadDocuments,
   uploadPortfolioImages,
   uploadProfileImage,
@@ -21,7 +25,7 @@ import {
 } from '../controllers/worker.controller';
 import { requireWorker, verifyToken } from '../middlewares/auth.middleware';
 import { sensitiveLimiter } from '../middlewares/security.middleware';
-import { upload, uploadImageOnly } from '../middlewares/upload.middleware';
+import { upload, uploadImageOnly, validateUploadedFiles } from '../middlewares/upload.middleware';
 import { validate } from '../middlewares/validate.middleware';
 import { WorkerSchema } from '../schemas/worker.schema';
 
@@ -30,9 +34,12 @@ const router = Router();
 router.use(verifyToken, requireWorker);
 
 router.get('/me', getWorkerMe);
+router.get('/availability', getWorkerAvailability);
+router.put('/availability', sensitiveLimiter, validate(WorkerSchema.availability), updateWorkerAvailability);
 router.get('/rewards-dashboard', getWorkerRewardsDashboard);
 router.get('/rewards-dashboard/statement.pdf', downloadWorkerRewardsStatementPdf);
 router.get('/requests', getWorkerRequests);
+router.get('/appointments', getWorkerAppointments);
 router.post('/requests/:idRequest/accept', sensitiveLimiter, acceptWorkerRequest);
 router.post('/requests/:idRequest/reject', sensitiveLimiter, rejectWorkerRequest);
 router.post('/requests/:idRequest/counter-offer', sensitiveLimiter, counterOfferWorkerRequest);
@@ -43,8 +50,9 @@ router.put('/settings', sensitiveLimiter, validate(WorkerSchema.settings), updat
 router.put('/change-password', sensitiveLimiter, validate(WorkerSchema.changePassword), changeWorkerPassword);
 router.post('/email-change/request', sensitiveLimiter, validate(WorkerSchema.emailChangeRequest), requestWorkerEmailChangeToken);
 router.post('/email-change/verify', sensitiveLimiter, validate(WorkerSchema.tokenOnly), verifyWorkerEmailChangeToken);
-router.post('/profile-image', sensitiveLimiter, uploadImageOnly.single('profile_image'), uploadProfileImage);
-router.post('/portfolio', sensitiveLimiter, uploadImageOnly.array('portfolio_images', 10), uploadPortfolioImages);
+router.post('/profile-image', sensitiveLimiter, uploadImageOnly.single('profile_image'), validateUploadedFiles, uploadProfileImage);
+router.delete('/profile-image', sensitiveLimiter, removeWorkerProfileImage);
+router.post('/portfolio', sensitiveLimiter, uploadImageOnly.array('portfolio_images', 10), validateUploadedFiles, uploadPortfolioImages);
 router.delete('/portfolio/:idPhoto', sensitiveLimiter, deletePortfolioImage);
 
 router.post(
@@ -53,6 +61,7 @@ router.post(
     { name: 'dui_document', maxCount: 1 }, 
     { name: 'cert_document', maxCount: 1 }
   ]), 
+  validateUploadedFiles,
   uploadDocuments
 );
 

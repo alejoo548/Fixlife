@@ -1,6 +1,7 @@
 export type AuthRole = 'worker' | 'admin';
 export type AuthSessionScope = 'client' | 'worker' | 'admin';
 export const AUTH_SESSION_CHANGED_EVENT = 'fixlife-auth-changed';
+const LAST_PROTECTED_ROUTE_KEY = 'fixlife:last-protected-route';
 
 export type AuthUser = {
   id_user?: number;
@@ -118,9 +119,42 @@ export const clearAuthSession = (scope: AuthSessionScope = 'client'): void => {
 
   keys.forEach((key) => localStorage.removeItem(key));
   keys.forEach((key) => sessionStorage.removeItem(key));
+  clearRememberedProtectedRoute(scope);
   notifyAuthSessionChanged();
 };
 
 export const logoutAuthSession = (scope: AuthSessionScope = 'client'): void => {
   clearAuthSession(scope);
+};
+
+type ProtectedRouteMap = Partial<Record<AuthSessionScope, string>>;
+
+const readProtectedRouteMap = (): ProtectedRouteMap => {
+  if (typeof window === 'undefined') return {};
+  return safeJsonParse<ProtectedRouteMap>(sessionStorage.getItem(LAST_PROTECTED_ROUTE_KEY)) || {};
+};
+
+const writeProtectedRouteMap = (routes: ProtectedRouteMap): void => {
+  if (typeof window === 'undefined') return;
+  sessionStorage.setItem(LAST_PROTECTED_ROUTE_KEY, JSON.stringify(routes));
+};
+
+export const rememberProtectedRoute = (scope: AuthSessionScope, route: string): void => {
+  if (typeof window === 'undefined' || !route.trim()) return;
+  const routes = readProtectedRouteMap();
+  routes[scope] = route;
+  writeProtectedRouteMap(routes);
+};
+
+export const getRememberedProtectedRoute = (scope: AuthSessionScope): string | null => {
+  const routes = readProtectedRouteMap();
+  const route = routes[scope];
+  return typeof route === 'string' && route.trim() ? route : null;
+};
+
+export const clearRememberedProtectedRoute = (scope: AuthSessionScope): void => {
+  if (typeof window === 'undefined') return;
+  const routes = readProtectedRouteMap();
+  delete routes[scope];
+  writeProtectedRouteMap(routes);
 };

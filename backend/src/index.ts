@@ -1,5 +1,5 @@
 import express, { Request, Response } from 'express';
-import { createServer } from 'http';
+import http from 'http';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import helmet from 'helmet';
@@ -21,6 +21,7 @@ import {
 } from './utils/assets';
 import { runDatabaseMigrations } from './migrations/runMigrations';
 import { startBackgroundJobWorker } from './services/backgroundJobs.service';
+import { initSocketServer } from './services/socketManager';
 
 dotenv.config();
 const isProduction = process.env.NODE_ENV === 'production';
@@ -39,12 +40,17 @@ const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS ?? '')
   .map((origin) => origin.trim())
   .filter(Boolean);
 
+if (isProduction && ALLOWED_ORIGINS.length === 0) {
+  throw new Error('ALLOWED_ORIGINS must contain at least one trusted frontend origin in production.');
+}
+
 const corsOptions =
-  isProduction && ALLOWED_ORIGINS.length > 0
+  isProduction
     ? { origin: ALLOWED_ORIGINS, credentials: true }
     : {};
 
 const app = express();
+const server = http.createServer(app);
 app.set('trust proxy', 1);
 const PORT = process.env.PORT || 8000;
 
@@ -142,11 +148,10 @@ const startServer = async () => {
     console.log('[db] Database schema is up to date.');
   }
 
-  const httpServer = createServer(app);
+  initializeSupportSocket(server);
+  initSocketServer(server, corsOptions);
 
-  initializeSupportSocket(httpServer);
-
-  httpServer.listen(Number(PORT), '0.0.0.0', () => {
+  server.listen(Number(PORT), '0.0.0.0', () => {
     console.log(`Fixlife backend listening on http://0.0.0.0:${PORT}`);
     console.log('[Support] Socket.IO support chat initialized');
   });

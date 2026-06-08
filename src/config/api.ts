@@ -133,9 +133,11 @@ export const API_ENDPOINTS = {
 
   worker: {
     me: `${API_URL}/api/worker/me`,
+    availability: `${API_URL}/api/worker/availability`,
     rewardsDashboard: `${API_URL}/api/worker/rewards-dashboard`,
     rewardsStatementPdf: `${API_URL}/api/worker/rewards-dashboard/statement.pdf`,
     requests: `${API_URL}/api/worker/requests`,
+    appointments: `${API_URL}/api/worker/appointments`,
     acceptRequest: (idRequest: number) => `${API_URL}/api/worker/requests/${idRequest}/accept`,
     rejectRequest: (idRequest: number) => `${API_URL}/api/worker/requests/${idRequest}/reject`,
     counterOffer: (idRequest: number) => `${API_URL}/api/worker/requests/${idRequest}/counter-offer`,

@@ -2,7 +2,7 @@ import { useCallback } from 'react';
 import type { Dispatch, SetStateAction } from 'react';
 import { API_ENDPOINTS } from '../../../config/api';
 import type { ServiceRequestData } from '../../../types';
-import { getAuthUser, getToken, isAuthenticated } from '../../../utils/session';
+import { clearAuthSession, getAuthUser, getToken, isAuthenticated } from '../../../utils/session';
 import type { ServiceRequestHistoryStatus } from './useServiceRequestHistory';
 
 interface Coordinates {
@@ -22,13 +22,14 @@ interface UseServiceRequestSubmitOptions {
   historyStatus: ServiceRequestHistoryStatus;
   problemFiles: File[];
   radiusKm: number;
-  resolveLocationInput: () => Promise<Coordinates | null>;
   services: ServiceOptionLike[];
   setCurrentCoords: Dispatch<SetStateAction<Coordinates | null>>;
   setData: Dispatch<SetStateAction<ServiceRequestData>>;
   setGeoError: Dispatch<SetStateAction<string | null>>;
   setIsSubmittingRequest: Dispatch<SetStateAction<boolean>>;
   setProblemFiles: Dispatch<SetStateAction<File[]>>;
+  onRequestCreated?: (request: { id_request: number | null }) => void | Promise<void>;
+  showAlert?: (input: { title: string; message: string; tone?: 'warning' | 'error' | 'success' | 'info'; confirmText?: string }) => void;
   showToast: (type: 'success' | 'error' | 'info', message: string) => void;
 }
 
@@ -39,13 +40,14 @@ export const useServiceRequestSubmit = ({
   historyStatus,
   problemFiles,
   radiusKm,
-  resolveLocationInput,
   services,
   setCurrentCoords,
   setData,
   setGeoError,
   setIsSubmittingRequest,
   setProblemFiles,
+  onRequestCreated,
+  showAlert,
   showToast,
 }: UseServiceRequestSubmitOptions) =>
   useCallback(async () => {
@@ -63,9 +65,13 @@ export const useServiceRequestSubmit = ({
       showToast('error', 'Location is required.');
       return;
     }
-    const resolvedCoords = currentCoords ?? (await resolveLocationInput());
-    if (!resolvedCoords) {
-      showToast('error', 'We need a valid location before creating the request.');
+    if (!currentCoords) {
+      showToast('error', 'Confirm the exact service location before sending.');
+      return;
+    }
+    const normalizedLocation = data.location.trim().toLocaleLowerCase();
+    if (normalizedLocation === 'el salvador' || normalizedLocation === 'salvador') {
+      showToast('error', 'Choose a specific address, landmark, or coordinates.');
       return;
     }
     if (!data.description.trim() || data.description.trim().length < 10) {
@@ -73,12 +79,24 @@ export const useServiceRequestSubmit = ({
       return;
     }
     const budgetValue = Number(data.price);
-    if (!Number.isFinite(budgetValue) || budgetValue <= 0) {
-      showToast('error', 'Budget must be greater than 0.');
+    if (!Number.isFinite(budgetValue) || budgetValue <= 0 || budgetValue > 1000) {
+      showToast('error', 'Budget must be between $0.01 and $1,000.00.');
       return;
     }
     if (problemFiles.length === 0) {
       showToast('error', 'Add at least one problem image.');
+      return;
+    }
+    if (data.booking_type === 'scheduled' && (!data.scheduled_date || !data.scheduled_time)) {
+      showToast('error', 'Select a date and time window for the scheduled visit.');
+      return;
+    }
+    const scheduledDurationMinutes = Math.round(Number(data.scheduled_duration_minutes || 120) / 60) * 60;
+    if (
+      data.booking_type === 'scheduled' &&
+      (!Number.isFinite(scheduledDurationMinutes) || scheduledDurationMinutes < 60 || scheduledDurationMinutes > 7 * 60)
+    ) {
+      showToast('error', 'Estimated visit duration must be between 1 and 7 hours.');
       return;
     }
 
@@ -91,8 +109,20 @@ export const useServiceRequestSubmit = ({
       form.append('budget', String(budgetValue));
       form.append('radius_km', String(radiusKm));
       form.append('urgency_level', String(data.urgency_level || 'standard'));
-      form.append('lat', String(resolvedCoords.lat));
-      form.append('lng', String(resolvedCoords.lng));
+      form.append('booking_type', data.booking_type || 'express');
+      if (data.booking_type === 'scheduled') {
+        const scheduledStart = new Date(`${data.scheduled_date}T${data.scheduled_time}:00`);
+        if (Number.isNaN(scheduledStart.getTime())) {
+          showToast('error', 'Select a valid date and time for the scheduled visit.');
+          return;
+        }
+        form.append('scheduled_date', data.scheduled_date);
+        form.append('scheduled_time', data.scheduled_time);
+        form.append('scheduled_start_time', scheduledStart.toISOString());
+        form.append('scheduled_duration_minutes', String(scheduledDurationMinutes));
+      }
+      form.append('lat', String(currentCoords.lat));
+      form.append('lng', String(currentCoords.lng));
       problemFiles.forEach((file) => form.append('problem_images', file));
 
       const token = getToken();
@@ -103,6 +133,16 @@ export const useServiceRequestSubmit = ({
       });
       const payload = await res.json();
       if (!res.ok || !payload?.success) {
+        if (res.status === 401 || res.status === 403) {
+          clearAuthSession('client');
+          showAlert?.({
+            title: 'Session expired',
+            message: 'Please sign in again before creating a service request.',
+            tone: 'warning',
+            confirmText: 'Sign in again',
+          });
+          return;
+        }
         if (res.status === 409 && payload?.id_request) {
           showToast('error', `You already have an active request (#${payload.id_request}).`);
           void fetchMyRequests(historyStatus);
@@ -112,12 +152,24 @@ export const useServiceRequestSubmit = ({
         return;
       }
 
-      showToast('success', `Request #${payload.request?.id_request || ''} created successfully.`);
+      const createdRequestId = Number(payload.request?.id_request || 0) || null;
       setProblemFiles([]);
       setCurrentCoords(null);
       setGeoError(null);
-      setData((prev) => ({ ...prev, description: '', location: '', price: '', urgency_level: 'standard', images: [] }));
+      setData((prev) => ({
+        ...prev,
+        description: '',
+        location: '',
+        price: '',
+        urgency_level: 'standard',
+        booking_type: 'express',
+        scheduled_date: '',
+        scheduled_time: '',
+        scheduled_duration_minutes: 120,
+        images: [],
+      }));
       void fetchMyRequests(historyStatus);
+      await onRequestCreated?.({ id_request: createdRequestId });
     } catch {
       showToast('error', 'Network error creating request.');
     } finally {
@@ -130,12 +182,13 @@ export const useServiceRequestSubmit = ({
     historyStatus,
     problemFiles,
     radiusKm,
-    resolveLocationInput,
     services,
     setCurrentCoords,
     setData,
     setGeoError,
     setIsSubmittingRequest,
     setProblemFiles,
+    onRequestCreated,
+    showAlert,
     showToast,
   ]);

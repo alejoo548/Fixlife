@@ -23,6 +23,7 @@ interface NotificationItem {
 
 interface NotificationCenterProps {
   token: string | null;
+  isActive?: boolean;
   variant?: 'landing' | 'panel' | 'admin';
   className?: string;
   theme?: 'light' | 'dark';
@@ -142,6 +143,7 @@ const renderEventGlyph = (eventType: string) => {
 
 export const NotificationCenter: React.FC<NotificationCenterProps> = ({
   token,
+  isActive = true,
   variant = 'landing',
   className = '',
   theme = 'light',
@@ -159,7 +161,7 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({
   const [dropdownPos, setDropdownPos] = useState<{ top: number; right: number } | null>(null);
 
   const fetchNotifications = async (silent = false) => {
-    if (!token) {
+    if (!token || !isActive) {
       setNotifications([]);
       setUnreadCount(0);
       return;
@@ -189,19 +191,30 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({
   };
 
   useEffect(() => {
+    if (!isActive) {
+      setIsOpen(false);
+      setNotifications([]);
+      setUnreadCount(0);
+      setLoading(false);
+      return;
+    }
     void fetchNotifications(true);
-  }, [token]);
+  }, [token, isActive]);
 
   useSSE({
     token,
     events: { notification: () => { void fetchNotifications(true); } },
-    enabled: !!token,
+    enabled: !!token && isActive,
   });
 
   useEffect(() => {
+    if (!isActive) {
+      setIsOpen(false);
+      return;
+    }
     if (!isOpen) return;
     void fetchNotifications(true);
-  }, [isOpen]);
+  }, [isOpen, isActive]);
 
   useEffect(() => {
     const handleOutsideClick = (event: MouseEvent) => {
@@ -367,7 +380,9 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({
             <p className="admin-notification-eyebrow text-[11px] font-black uppercase tracking-[0.18em] text-bird-blue">Notification Center</p>
             <h3 className="admin-notification-title mt-1 text-lg font-black text-slate-900">Recent activity</h3>
             <p className="admin-notification-subtitle mt-1 text-xs text-slate-500">
-              {unreadCount > 0
+              {!isActive
+                ? 'Go online to receive and review notifications.'
+                : unreadCount > 0
                 ? `${unreadCount} unread event${unreadCount === 1 ? '' : 's'} waiting`
                 : 'Everything is up to date.'}
             </p>
@@ -375,12 +390,13 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({
           <button
             type="button"
             onClick={() => void markAllRead()}
+            disabled={!isActive}
             className="admin-notification-read-all rounded-full border border-bird-blue/15 bg-white px-3 py-1.5 text-[11px] font-black text-bird-blue shadow-sm transition hover:border-bird-blue hover:bg-bird-blue hover:text-white"
           >
             Read all
           </button>
         </div>
-        {unreadItems.length > 0 && (
+        {isActive && unreadItems.length > 0 && (
           <div className="admin-notification-peek mt-3 flex flex-wrap gap-2">
             {unreadItems.map((item) => (
               <span
@@ -394,14 +410,15 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({
         )}
         <div className="admin-notification-filters mt-4 flex flex-wrap gap-2">
           {filterOptions.map((filter) => {
-            const isActive = activeFilter === filter.id;
+            const isSelected = activeFilter === filter.id;
             return (
               <button
                 key={filter.id}
                 type="button"
                 onClick={() => setActiveFilter(filter.id)}
-                className={`admin-notification-filter ${isActive ? 'admin-notification-filter--active' : ''} rounded-full px-3 py-1.5 text-[11px] font-black transition ${
-                  isActive
+                disabled={!isActive}
+                className={`admin-notification-filter ${isSelected ? 'admin-notification-filter--active' : ''} rounded-full px-3 py-1.5 text-[11px] font-black transition ${
+                  isSelected
                     ? 'bg-bird-blue text-white shadow-sm shadow-blue-200'
                     : 'border border-slate-200 bg-white text-slate-500 hover:border-bird-blue/25 hover:text-bird-blue'
                 }`}
@@ -410,7 +427,7 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({
                   {filter.label}
                   <span
                     className={`rounded-full px-1.5 py-0.5 text-[10px] ${
-                      isActive ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-500'
+                      isSelected ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-500'
                     }`}
                   >
                     {filterCounts[filter.id]}
@@ -423,7 +440,19 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({
       </div>
 
       <div className="admin-notification-body max-h-[420px] overflow-y-auto px-4 py-4">
-        {loading ? (
+        {!isActive ? (
+          <div className="rounded-3xl border border-dashed border-slate-200 bg-slate-50 px-5 py-8 text-center">
+            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-white shadow-sm">
+              <svg className="h-6 w-6 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M18.364 5.636A9 9 0 105.636 18.364M15 17h5l-1.4-1.4a2 2 0 01-.6-1.4V11a6 6 0 00-1.221-3.636M9 17a3 3 0 006 0M6.343 6.343A5.978 5.978 0 006 11v3.2a2 2 0 01-.6 1.4L4 17h5" />
+              </svg>
+            </div>
+            <p className="mt-4 text-sm font-bold text-slate-700">Notifications are hidden while offline</p>
+            <p className="mt-1 text-xs text-slate-500">
+              Go online to receive new alerts for jobs, payments, and payout updates.
+            </p>
+          </div>
+        ) : loading ? (
           <div className="space-y-3">
             {Array.from({ length: 3 }).map((_, index) => (
               <div key={`notif-skeleton-${index}`} className="animate-pulse rounded-2xl border border-slate-100 p-4">
@@ -541,7 +570,7 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({
             d="M15 17h5l-1.4-1.4a2 2 0 01-.6-1.4V11a6 6 0 10-12 0v3.2a2 2 0 01-.6 1.4L4 17h5m6 0a3 3 0 11-6 0m6 0H9"
           />
         </svg>
-        {unreadCount > 0 && (
+        {isActive && unreadCount > 0 && (
           <>
             <span className="absolute -right-1 -top-1 inline-flex h-5 w-5 animate-ping rounded-full bg-bird-orange/35" />
             <span className="absolute -right-1 -top-1 inline-flex min-h-[22px] min-w-[22px] items-center justify-center rounded-full bg-bird-orange px-1.5 text-[10px] font-black text-white shadow-lg shadow-orange-400/40">
