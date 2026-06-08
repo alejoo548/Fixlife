@@ -18,6 +18,7 @@ import {
   getDashboardStats,
   exportDashboardStatsPdfAdmin,
   getRequestsHistory,
+  getRequestDetailAdmin,
   getAdminActivity,
   getHeroSlidesPublic,
   getCommissionRulesAdmin,
@@ -87,6 +88,7 @@ router.put('/users/:id/status', sensitiveLimiter, updateUserStatus);
 router.get('/stats', getDashboardStats);
 router.get('/stats/export-pdf', exportDashboardStatsPdfAdmin);
 router.get('/requests-history', getRequestsHistory);
+router.get('/requests/:id', getRequestDetailAdmin);
 router.get('/commission-rules', getCommissionRulesAdmin);
 router.put('/commission-rules', sensitiveLimiter, validate(AdminSchema.commissionRules), updateCommissionRulesAdmin);
 router.get('/worker-rewards', getWorkerRewardsAdminOverview);
