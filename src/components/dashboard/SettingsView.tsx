@@ -380,12 +380,6 @@ export const SettingsView: React.FC = () => {
 
         <div className="flex flex-col md:flex-row items-center gap-5">
           <div className="w-full md:w-1/2">
-            <DropifyUpload
-              label="Profile Picture"
-              value={displayProfileImage || ''}
-              onFileSelect={handleProfileImageSelect}
-              onError={(err) => notyf.error(err)}
-            />
           </div>
 
           <div className="flex-1 w-full space-y-3">
