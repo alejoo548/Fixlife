@@ -9,8 +9,8 @@ import { useDashboardTheme } from '../../../hooks/useDashboardTheme';
 import { getAuthUser, getToken } from '../../../utils/session';
 import type { AdminRequestListItem, AdminStats } from '../types';
 
-const StableResponsiveContainer = ({ children }: { children: React.ReactNode }) => (
-  <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={240} debounce={150}>
+const StableResponsiveContainer = ({ children, height }: { children: React.ReactNode; height?: number }) => (
+  <ResponsiveContainer width="100%" height={height ?? 220} minWidth={0} debounce={80}>
     {children as React.ReactElement}
   </ResponsiveContainer>
 );
@@ -205,7 +205,7 @@ export default function OverviewModule() {
               <Briefcase size={18} />
             </div>
           </div>
-          <div className="flex-1 w-full min-h-0">
+          <div className="w-full">
             <StableResponsiveContainer>
               <BarChart data={stats.serviceCategoryStats} margin={{ top: 10, right: 0, left: -25, bottom: 0 }} barSize={14}>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={adminChartTheme.grid} />
@@ -228,7 +228,7 @@ export default function OverviewModule() {
               <CheckCircle size={18} />
             </div>
           </div>
-          <div className="flex-1 w-full min-h-0">
+          <div className="w-full">
             <StableResponsiveContainer>
               <AreaChart data={stats.completedServicesWeekly} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                 <defs>
@@ -257,7 +257,7 @@ export default function OverviewModule() {
               <MapPin size={18} />
             </div>
           </div>
-          <div className="flex-1 w-full min-h-0">
+          <div className="w-full">
             <StableResponsiveContainer>
               <BarChart data={stats.popularLocations} layout="vertical" margin={{ top: 0, right: 10, left: 10, bottom: 0 }} barSize={10}>
                 <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke={adminChartTheme.grid} />
@@ -280,7 +280,7 @@ export default function OverviewModule() {
               <p className={`text-sm font-medium ${isDark ? 'text-slate-400' : 'text-gray-500'}`}>Monthly generated income vs projected</p>
             </div>
           </div>
-          <div className="flex-1 w-full min-h-0">
+          <div className="w-full">
             <StableResponsiveContainer>
               <AreaChart data={stats.revenueData.length ? stats.revenueData : DEFAULT_REVENUE_DATA} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                 <defs>
@@ -310,7 +310,7 @@ export default function OverviewModule() {
             <h3 className={`text-xl font-bold ${isDark ? 'text-slate-100' : 'text-gray-900'}`}>User Growth</h3>
             <p className={`text-sm font-medium ${isDark ? 'text-slate-400' : 'text-gray-500'}`}>Weekly active registrations</p>
           </div>
-          <div className="flex-1 w-full min-h-0">
+          <div className="w-full">
             <StableResponsiveContainer>
               <BarChart data={stats.trafficData.length ? stats.trafficData : DEFAULT_TRAFFIC_DATA} margin={{ top: 10, right: 0, left: -25, bottom: 0 }} barSize={12}>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={adminChartTheme.grid} />
@@ -342,7 +342,7 @@ export default function OverviewModule() {
         </AdminCard>
         <AdminCard>
           <div className="admin-section-heading"><div><p className="admin-section-title">Request distribution</p><p className="admin-muted">Last 30 days by current outcome</p></div></div>
-          <div className="admin-donut-layout"><div className="admin-donut-chart"><StableResponsiveContainer><PieChart><Pie data={requestDistribution} dataKey="value" nameKey="name" innerRadius={58} outerRadius={82} paddingAngle={4}>{requestDistribution.map((item) => <Cell key={item.name} fill={item.color} />)}</Pie><Tooltip contentStyle={adminChartTheme.tooltip} itemStyle={adminChartTheme.itemStyle} /></PieChart></StableResponsiveContainer><div><strong>{stats.request_health?.created || 0}</strong><span>Total</span></div></div><div className="admin-donut-legend">{requestDistribution.map((item) => <span key={item.name}><i style={{ background: item.color }} /><small>{item.name}</small><strong>{item.value}</strong></span>)}</div></div>
+          <div className="admin-donut-layout"><div className="admin-donut-chart"><StableResponsiveContainer height={190}><PieChart><Pie data={requestDistribution} dataKey="value" nameKey="name" innerRadius={58} outerRadius={82} paddingAngle={4}>{requestDistribution.map((item) => <Cell key={item.name} fill={item.color} />)}</Pie><Tooltip contentStyle={adminChartTheme.tooltip} itemStyle={adminChartTheme.itemStyle} /></PieChart></StableResponsiveContainer><div><strong>{stats.request_health?.created || 0}</strong><span>Total</span></div></div><div className="admin-donut-legend">{requestDistribution.map((item) => <span key={item.name}><i style={{ background: item.color }} /><small>{item.name}</small><strong>{item.value}</strong></span>)}</div></div>
         </AdminCard>
         <AdminCard>
           <div className="admin-section-heading">

@@ -308,23 +308,35 @@ const ClientLiveRequestTracker: React.FC<ClientLiveRequestTrackerProps> = ({ lea
         if (!leafletReady || !mapContainerRef.current || !window.L) return;
         if (mapInstanceRef.current) return;
 
-        const L = window.L;
-        const map = L.map(mapContainerRef.current, {
-            zoomControl: false,
-            attributionControl: true,
-            dragging: true,
-            scrollWheelZoom: false,
-        }).setView([13.6929, -89.2182], 13);
+        let cancelled = false;
+        const initTimer = window.setTimeout(() => {
+            if (cancelled || !mapContainerRef.current || !window.L || mapInstanceRef.current) return;
 
-        L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
-            maxZoom: 19,
-            attribution: '&copy; OpenStreetMap &copy; CARTO',
-        }).addTo(map);
+            const L = window.L;
+            const map = L.map(mapContainerRef.current, {
+                zoomControl: false,
+                attributionControl: true,
+                dragging: true,
+                scrollWheelZoom: false,
+                preferCanvas: true,
+                maxZoom: 17,
+            }).setView([13.6929, -89.2182], 13);
 
-        L.control.zoom({ position: 'bottomright' }).addTo(map);
-        mapInstanceRef.current = map;
+            L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+                maxZoom: 17,
+                attribution: '&copy; OpenStreetMap &copy; CARTO',
+                keepBuffer: 1,
+                updateWhenIdle: true,
+                updateWhenZooming: false,
+            }).addTo(map);
+
+            L.control.zoom({ position: 'bottomright' }).addTo(map);
+            mapInstanceRef.current = map;
+        }, 50);
 
         return () => {
+            cancelled = true;
+            window.clearTimeout(initTimer);
             if (animationFrameRef.current) {
                 window.cancelAnimationFrame(animationFrameRef.current);
                 animationFrameRef.current = null;

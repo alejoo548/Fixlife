@@ -110,8 +110,8 @@ export function connectSupportSocket({
     baseUrl = API_URL.replace(/\/api$/, '');
   }
 
-  socket = io(baseUrl, {
-    path: '/socket.io/support',
+  socket = io(`${baseUrl}/support`, {
+    path: '/socket.io',
     auth: { token },
     transports: ['websocket', 'polling'],
     reconnection: true,

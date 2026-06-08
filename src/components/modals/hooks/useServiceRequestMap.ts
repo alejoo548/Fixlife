@@ -70,26 +70,32 @@ export function useServiceRequestMap({
     if (!isOpen || !mapContainerRef.current || !window.L || !leafletReady) return;
     if (mapInstanceRef.current) return;
 
-    const L = window.L;
-    const map = L.map(mapContainerRef.current, {
-      zoomControl: false,
-      attributionControl: true,
-    }).setView([13.6929, -89.2182], 12);
+    let cancelled = false;
 
-    addResilientTileLayer(L, map);
+    const initTimer = window.setTimeout(() => {
+      if (cancelled || !mapContainerRef.current || !window.L) return;
+      if (mapInstanceRef.current) return;
 
-    L.control.zoom({ position: 'bottomright' }).addTo(map);
+      const L = window.L;
+      const map = L.map(mapContainerRef.current, {
+        zoomControl: false,
+        attributionControl: true,
+        preferCanvas: true,
+        maxZoom: 17,
+      }).setView([13.6929, -89.2182], 12);
 
-    mapInstanceRef.current = map;
-    window.setTimeout(() => {
-      try {
-        map.invalidateSize();
-      } catch {
-        // ignore
-      }
-    }, 120);
+      addResilientTileLayer(L, map);
+      L.control.zoom({ position: 'bottomright' }).addTo(map);
+      mapInstanceRef.current = map;
+
+      window.setTimeout(() => {
+        try { map.invalidateSize(); } catch { /* ignore */ }
+      }, 120);
+    }, 50);
 
     return () => {
+      cancelled = true;
+      window.clearTimeout(initTimer);
       if (mapInstanceRef.current) {
         try {
           mapInstanceRef.current.remove();

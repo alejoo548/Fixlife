@@ -19,6 +19,7 @@ import {
   resolvePublicUploadPath,
   isImageFileName,
 } from './utils/assets';
+import { Server as SocketIOServer } from 'socket.io';
 import { runDatabaseMigrations } from './migrations/runMigrations';
 import { startBackgroundJobWorker } from './services/backgroundJobs.service';
 import { initSocketServer } from './services/socketManager';
@@ -148,12 +149,19 @@ const startServer = async () => {
     console.log('[db] Database schema is up to date.');
   }
 
-  initializeSupportSocket(server);
-  initSocketServer(server, corsOptions);
+  const io = new SocketIOServer(server, {
+    cors: corsOptions,
+    path: '/socket.io',
+    transports: ['websocket', 'polling'],
+    maxHttpBufferSize: 128 * 1024,
+  });
+
+  initSocketServer(io);
+  initializeSupportSocket(io);
 
   server.listen(Number(PORT), '0.0.0.0', () => {
     console.log(`Fixlife backend listening on http://0.0.0.0:${PORT}`);
-    console.log('[Support] Socket.IO support chat initialized');
+    console.log('[Support] Socket.IO support chat initialized on namespace /support');
   });
 
   startBackgroundJobWorker();
