@@ -72,6 +72,13 @@ const MIGRATIONS: MigrationDefinition[] = [
     },
   },
   {
+    id: '20260524_001_scheduled_bookings',
+    description: 'Scheduled service request fields and worker availability table',
+    run: async () => {
+      await ensureServiceRequestTables();
+    },
+  },
+  {
     id: '20260528_001_support_chat',
     description: 'Support chat threads and messages (user-admin)',
     run: async () => {

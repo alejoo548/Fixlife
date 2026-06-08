@@ -4,6 +4,8 @@ import { motion } from 'framer-motion';
 interface ServiceRequestPanelShellProps {
     isDesktopSheet: boolean;
     step: number;
+    guidedBooking?: boolean;
+    guidedBookingAlign?: 'center' | 'left';
     hasActiveTrackedRequest: boolean;
     onClose: () => void;
     notificationCenter: React.ReactNode;
@@ -13,6 +15,8 @@ interface ServiceRequestPanelShellProps {
 export function ServiceRequestPanelShell({
     isDesktopSheet,
     step,
+    guidedBooking = false,
+    guidedBookingAlign = 'center',
     hasActiveTrackedRequest,
     onClose,
     notificationCenter,
@@ -24,10 +28,14 @@ export function ServiceRequestPanelShell({
             animate={isDesktopSheet ? { opacity: 1, x: 0 } : { y: 0, opacity: 1 }}
             exit={isDesktopSheet ? { opacity: 0, x: -16 } : { y: '100%', opacity: 0 }}
             transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-            className={`pointer-events-auto flex flex-col bg-white/96 relative z-20 border-white/70 backdrop-blur-xl ${
+            className={`pointer-events-auto flex flex-col bg-white/96 z-20 border-white/70 backdrop-blur-xl ${
                 isDesktopSheet
-                    ? `h-full w-[430px] lg:w-[500px] border-r border-slate-200/80 shadow-[2px_0_24px_rgba(15,23,42,0.10)] overflow-visible`
-                    : `${step === 1 && !hasActiveTrackedRequest ? 'h-[72vh]' : 'h-[72vh]'} w-full rounded-t-[2rem] border border-b-0 shadow-[0_-12px_40px_rgba(15,23,42,0.12)] mt-auto overflow-hidden`
+                    ? guidedBooking
+                        ? guidedBookingAlign === 'left'
+                            ? 'absolute inset-y-0 left-8 my-auto h-[min(88vh,860px)] w-[min(640px,calc(100vw-64px))] overflow-hidden rounded-[28px] border border-white/80 shadow-[0_32px_90px_rgba(15,23,42,0.28)]'
+                            : 'absolute inset-0 m-auto h-[min(88vh,860px)] w-[min(760px,calc(100vw-64px))] overflow-hidden rounded-[28px] border border-white/80 shadow-[0_32px_90px_rgba(15,23,42,0.28)]'
+                        : 'relative h-full w-[430px] overflow-visible border-r border-slate-200/80 shadow-[2px_0_24px_rgba(15,23,42,0.10)] lg:w-[500px]'
+                    : `${step === 1 && !hasActiveTrackedRequest ? 'h-[92vh]' : 'h-[82vh]'} relative mt-auto w-full overflow-hidden rounded-t-[2rem] border border-b-0 shadow-[0_-12px_40px_rgba(15,23,42,0.12)]`
             }`}
         >
             {/* Mobile drag handle */}
@@ -57,7 +65,7 @@ export function ServiceRequestPanelShell({
             </div>
 
             {/* Content */}
-            <div className="flex-1 overflow-y-auto custom-scrollbar relative bg-gradient-to-b from-white to-slate-50/40">
+            <div className="flex-1 overflow-y-auto custom-scrollbar relative bg-slate-50/70">
                 {children}
             </div>
         </motion.div>

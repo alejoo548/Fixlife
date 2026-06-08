@@ -77,201 +77,180 @@ export function ServiceRequestLocationSection({
     onRadiusChange,
 }: ServiceRequestLocationSectionProps) {
     return (
-        <div>
-            <div className="flex items-center justify-between gap-2 mb-2">
-                <label className="block text-sm font-bold text-gray-700">Where?</label>
-                <div className="flex flex-wrap items-center justify-end gap-2">
+        <div className="space-y-4">
+            <div className="rounded-2xl border border-slate-200 bg-white p-4">
+                <label className="block text-sm font-black text-slate-900">Service address</label>
+                <p className="mt-1 text-xs font-semibold text-slate-500">
+                    Search an address, landmark or use your current location.
+                </p>
+
+                <div className="relative mt-3">
+                    <svg className="absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 21s7-5.2 7-12a7 7 0 10-14 0c0 6.8 7 12 7 12z" />
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 11a2 2 0 100-4 2 2 0 000 4z" />
+                    </svg>
+                    <input
+                        type="text"
+                        placeholder="Search your address"
+                        autoComplete="off"
+                        className="w-full rounded-xl border border-slate-200 bg-slate-50 py-3 pl-11 pr-4 text-sm font-bold text-slate-900 outline-none transition focus:border-bird-blue focus:bg-white focus:ring-4 focus:ring-bird-blue/10"
+                        value={location}
+                        onFocus={onMainInputFocus}
+                        onBlur={onInputBlur}
+                        onKeyDown={onLocationKeyDown}
+                        onChange={(event) => onLocationChange(event.target.value)}
+                    />
+                </div>
+                {locationInputContext === 'main' && mainSuggestionsDropdown}
+
+                <div className="mt-3 grid grid-cols-2 gap-2">
                     <button
                         type="button"
-                        onClick={onOpenSaveLocationPanel}
-                        disabled={!currentCoords || resolvingLocation || geoLoading}
-                        className="text-xs font-bold px-3 py-1.5 rounded-lg border border-bird-blue/20 bg-bird-blue text-white hover:bg-bird-darkBlue disabled:opacity-60"
+                        onClick={onDetectCurrentLocation}
+                        disabled={geoLoading}
+                        className="rounded-xl border border-slate-200 bg-white px-3 py-3 text-xs font-black text-slate-700 transition hover:border-bird-blue hover:text-bird-blue disabled:opacity-50"
                     >
-                        Add location
+                        {geoLoading ? 'Detecting...' : 'Use my location'}
                     </button>
                     <button
                         type="button"
                         onClick={onResolveLocationInput}
                         disabled={resolvingLocation || !location.trim()}
-                        className="text-xs font-bold px-3 py-1.5 rounded-lg border border-emerald-300 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 disabled:opacity-60"
+                        className="rounded-xl bg-bird-blue px-3 py-3 text-xs font-black text-white transition hover:bg-blue-600 disabled:opacity-50"
                     >
-                        {resolvingLocation ? 'Resolving...' : 'Use typed address'}
-                    </button>
-                    <button
-                        type="button"
-                        onClick={onDetectCurrentLocation}
-                        disabled={geoLoading}
-                        className="text-xs font-bold px-3 py-1.5 rounded-lg border border-bird-blue/30 bg-bird-blue/10 text-slate-900 hover:bg-bird-blue/20 disabled:opacity-60"
-                    >
-                        {geoLoading ? 'Detecting...' : 'Detect my location'}
+                        {resolvingLocation ? 'Locating...' : 'Confirm address'}
                     </button>
                 </div>
             </div>
-            <input
-                type="text"
-                placeholder="Ej: Residencial Santa Monica, Santa Tecla o 13.6841, -89.2872"
-                autoComplete="off"
-                className="w-full bg-gray-100 border-none rounded-xl px-4 py-3 text-gray-900 focus:outline-none focus:ring-2 focus:ring-gray-300 transition-all placeholder-gray-400"
-                value={location}
-                onFocus={onMainInputFocus}
-                onBlur={onInputBlur}
-                onKeyDown={onLocationKeyDown}
-                onChange={(e) => onLocationChange(e.target.value)}
-            />
-            {locationInputContext === 'main' && mainSuggestionsDropdown}
-            <p className="mt-2 text-xs font-medium text-gray-500">
-                Write a colonia, residencial, mall, or landmark in El Salvador and click <span className="font-bold text-emerald-700">Use typed address</span>,
-                or paste coordinates like <span className="font-bold text-gray-700">13.6841, -89.2872</span>.
-            </p>
-            <p className="mt-1 text-[11px] font-semibold text-gray-400">
-                Keyboard: use ↑ ↓ to move through suggestions and Enter to confirm.
-            </p>
-            {currentCoords && (
-                <p className="mt-2 text-xs font-semibold text-emerald-700">
-                    Location ready: {currentCoords.lat.toFixed(4)}, {currentCoords.lng.toFixed(4)}
-                </p>
+
+            {currentCoords ? (
+                <div className="flex items-center justify-between gap-3 rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
+                    <div className="min-w-0">
+                        <p className="text-sm font-black text-emerald-900">Pin confirmed on the map</p>
+                        <p className="mt-1 truncate text-xs font-semibold text-emerald-700">{location}</p>
+                    </div>
+                    <button
+                        type="button"
+                        onClick={onOpenSaveLocationPanel}
+                        disabled={resolvingLocation || geoLoading}
+                        className="shrink-0 rounded-xl border border-emerald-200 bg-white px-3 py-2 text-xs font-black text-emerald-700"
+                    >
+                        Save place
+                    </button>
+                </div>
+            ) : (
+                <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-4 text-xs font-semibold text-slate-500">
+                    Confirm an address to place the pin and see nearby professionals on the map.
+                </div>
             )}
+
             {showSaveLocationPanel && currentCoords && (
-                <div className="mt-3 rounded-2xl border border-bird-blue/20 bg-bird-blue/5 p-4">
+                <div className="rounded-2xl border border-bird-blue/20 bg-sky-50 p-4">
                     <div className="flex items-center justify-between gap-3">
                         <div>
-                            <p className="text-[15px] font-bold text-slate-800">Save this location</p>
-                            <p className="mt-1 text-xs text-gray-500">
-                                Register it once and reuse it in future requests.
-                            </p>
+                            <p className="text-sm font-black text-slate-900">Save this place</p>
+                            <p className="mt-1 text-xs font-semibold text-slate-500">Reuse it on your next request.</p>
                         </div>
-                        <button
-                            type="button"
-                            onClick={onCloseSaveLocationPanel}
-                            className="rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-[11px] font-bold text-gray-500 hover:text-gray-700"
-                        >
-                            Cancel
+                        <button type="button" onClick={onCloseSaveLocationPanel} className="text-xs font-black text-slate-500">
+                            Close
                         </button>
                     </div>
-                    <div className="mt-4">
-                        <label className="mb-1 block text-[11px] font-bold uppercase tracking-wide text-gray-500">
-                            Search address
-                        </label>
-                        <input
-                            type="text"
-                            placeholder="Ej: Jardines de Guadalupe, Antiguo Cuscatlan"
-                            autoComplete="off"
-                            value={location}
-                            onFocus={onSavePanelInputFocus}
-                            onBlur={onInputBlur}
-                            onKeyDown={onLocationKeyDown}
-                            onChange={(e) => onLocationChange(e.target.value)}
-                            className="w-full rounded-xl border-2 border-gray-200 bg-white px-4 py-3 text-sm text-gray-900 focus:border-bird-blue focus:outline-none"
-                        />
-                        {locationInputContext === 'save-panel' && saveSuggestionsDropdown}
-                        <p className="mt-2 text-[11px] font-semibold text-gray-400">
-                            Use the same El Salvador autocomplete here to fine-tune the pin before saving.
-                        </p>
-                    </div>
-                    <div className="mt-4 grid grid-cols-3 gap-2">
+
+                    <input
+                        type="text"
+                        value={location}
+                        onFocus={onSavePanelInputFocus}
+                        onBlur={onInputBlur}
+                        onKeyDown={onLocationKeyDown}
+                        onChange={(event) => onLocationChange(event.target.value)}
+                        className="mt-3 w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-bold text-slate-900 outline-none focus:border-bird-blue"
+                    />
+                    {locationInputContext === 'save-panel' && saveSuggestionsDropdown}
+
+                    <div className="mt-3 grid grid-cols-3 gap-2">
                         {(['home', 'work', 'favorite'] as const).map((kind) => (
                             <button
                                 key={kind}
                                 type="button"
                                 onClick={() => onSelectSaveLocationKind(kind)}
-                                className={`rounded-xl border px-3 py-2 text-xs font-bold transition ${
+                                className={`rounded-xl border px-2 py-2 text-xs font-black ${
                                     saveLocationKind === kind
-                                        ? 'border-bird-blue bg-white text-slate-900 shadow-sm'
-                                        : 'border-gray-200 bg-white text-gray-600 hover:border-bird-blue/40'
+                                        ? 'border-bird-blue bg-white text-bird-blue'
+                                        : 'border-slate-200 bg-white text-slate-600'
                                 }`}
                             >
-                                <span className="inline-flex items-center gap-2">
-                                    {renderLocationBadge(kind, 'sm')}
-                                    {kind === 'home' ? 'Home' : kind === 'work' ? 'Work' : 'Favorite'}
-                                </span>
+                                {kind === 'home' ? 'Home' : kind === 'work' ? 'Work' : 'Favorite'}
                             </button>
                         ))}
                     </div>
-                    <div className="mt-3">
-                        <label className="mb-1 block text-[11px] font-bold uppercase tracking-wide text-gray-500">
-                            {saveLocationKind === 'favorite' ? 'Location name' : 'Saved label'}
-                        </label>
+
+                    {saveLocationKind === 'favorite' && (
                         <input
                             type="text"
-                            value={saveLocationKind === 'favorite' ? saveLocationTitle : saveLocationKind === 'home' ? 'Home' : 'Work'}
-                            onChange={(e) => onSaveLocationTitleChange(e.target.value)}
-                            disabled={saveLocationKind !== 'favorite'}
-                            className="w-full rounded-xl border-2 border-gray-200 bg-white px-4 py-3 text-sm text-gray-900 focus:border-bird-blue focus:outline-none disabled:bg-gray-100 disabled:text-gray-400"
+                            value={saveLocationTitle}
+                            onChange={(event) => onSaveLocationTitleChange(event.target.value)}
+                            placeholder="Place name"
+                            className="mt-3 w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-bold text-slate-900 outline-none focus:border-bird-blue"
                         />
-                    </div>
-                    <button
-                        type="button"
-                        onClick={onSaveLocation}
-                        className="mt-4 w-full rounded-xl bg-bird-blue px-4 py-3 text-sm font-bold text-white shadow-sm hover:bg-bird-darkBlue"
-                    >
-                        Save location
+                    )}
+
+                    <button type="button" onClick={onSaveLocation} className="mt-3 w-full rounded-xl bg-slate-950 px-4 py-3 text-sm font-black text-white">
+                        Save place
                     </button>
                 </div>
             )}
-            {geoError && <p className="text-xs text-red-600 mt-2 font-semibold">{geoError}</p>}
-            <div className="mt-4 rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">
+
+            {geoError && <p className="rounded-xl bg-red-50 px-3 py-2 text-xs font-bold text-red-600">{geoError}</p>}
+
+            <div className="rounded-2xl border border-slate-200 bg-white p-4">
                 <div className="flex items-center justify-between gap-3">
                     <div>
-                        <p className="text-sm font-bold uppercase tracking-wider text-gray-500">Saved places</p>
-                        <p className="mt-1 text-xs text-gray-500">
-                            Open your saved locations in a cleaner view.
-                        </p>
+                        <p className="text-sm font-black text-slate-900">Saved places</p>
+                        <p className="mt-1 text-xs font-semibold text-slate-500">Choose one without typing again.</p>
                     </div>
-                    <button
-                        type="button"
-                        onClick={onOpenSavedPlacesModal}
-                        className="rounded-2xl border-none bg-gray-50/80 hover:bg-gray-100 transition-colors px-3 py-2 text-xs font-bold text-slate-900 hover:border-bird-blue/40 hover:bg-bird-blue/5"
-                    >
-                        <span className="inline-flex items-center gap-2">
-                            {renderLocationBadge('current', 'sm')}
-                            Open saved places
-                        </span>
+                    <button type="button" onClick={onOpenSavedPlacesModal} className="rounded-xl bg-slate-100 px-3 py-2 text-xs font-black text-slate-700">
+                        View all
                     </button>
                 </div>
-                {quickAccessLocationsCount === 0 ? (
-                    <div className="mt-4 rounded-xl border border-dashed border-gray-300 bg-gray-50 px-4 py-4 text-sm text-gray-500">
-                        Resolve a location first, then use <span className="font-bold text-gray-700">Add location</span> to save it here.
-                    </div>
-                ) : (
-                    <div className="mt-4 flex flex-wrap gap-2">
+
+                {quickAccessLocationsCount > 0 ? (
+                    <div className="mt-3 flex flex-wrap gap-2">
                         {savedPlacesPreview.map((savedLocation, index) => (
                             <button
-                                key={`${savedLocation.kind}-preview-${index}-${savedLocation.label}`}
+                                key={`${savedLocation.kind}-${index}-${savedLocation.label}`}
                                 type="button"
                                 onClick={() => onUseSavedLocation(savedLocation)}
-                                className={`inline-flex items-center gap-2 rounded-full border px-3 py-2 text-xs font-bold transition hover:shadow-sm ${getLocationChipClass(savedLocation.kind)}`}
+                                className={`inline-flex items-center gap-2 rounded-full border px-3 py-2 text-xs font-black ${getLocationChipClass(savedLocation.kind)}`}
                             >
                                 {renderLocationBadge(savedLocation.kind, 'sm')}
                                 {savedLocation.title}
                             </button>
                         ))}
-                        {quickAccessLocationsCount > savedPlacesPreview.length && (
-                            <button
-                                type="button"
-                                onClick={onOpenSavedPlacesModal}
-                                className="inline-flex items-center rounded-full border border-dashed border-gray-300 px-3 py-2 text-xs font-bold text-gray-500 hover:border-bird-blue hover:text-slate-900"
-                            >
-                                +{quickAccessLocationsCount - savedPlacesPreview.length} more
-                            </button>
-                        )}
                     </div>
+                ) : (
+                    <p className="mt-3 text-xs font-semibold text-slate-400">You do not have saved places yet.</p>
                 )}
             </div>
-            <div className="mt-3">
-                <label className="block text-xs font-bold uppercase tracking-wider text-gray-500 mb-1">
-                    Search radius
-                </label>
-                <select
-                    value={radiusKm}
-                    onChange={(e) => onRadiusChange(Number(e.target.value))}
-                    className="w-full bg-gray-50 border-2 border-gray-200 rounded-xl px-4 py-2.5 text-gray-900 focus:outline-none focus:border-bird-blue transition-all"
-                >
-                    <option value={3}>3 km</option>
-                    <option value={5}>5 km</option>
-                    <option value={8}>8 km</option>
-                    <option value={12}>12 km</option>
-                    <option value={15}>15 km</option>
-                </select>
+
+            <div className="rounded-2xl border border-slate-200 bg-white p-4">
+                <p className="text-sm font-black text-slate-900">Search distance</p>
+                <p className="mt-1 text-xs font-semibold text-slate-500">A wider radius may find more professionals.</p>
+                <div className="mt-3 grid grid-cols-5 gap-2">
+                    {[3, 5, 8, 12, 15].map((value) => (
+                        <button
+                            key={value}
+                            type="button"
+                            onClick={() => onRadiusChange(value)}
+                            className={`rounded-xl border px-2 py-2.5 text-xs font-black transition ${
+                                radiusKm === value
+                                    ? 'border-bird-blue bg-sky-50 text-bird-blue'
+                                    : 'border-slate-200 bg-white text-slate-600 hover:border-bird-blue/40'
+                            }`}
+                        >
+                            {value} km
+                        </button>
+                    ))}
+                </div>
             </div>
         </div>
     );

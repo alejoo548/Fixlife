@@ -37,6 +37,11 @@ export interface MyServiceRequest {
     budget: number;
     final_budget?: number | null;
     radius_km: number;
+    booking_type?: 'express' | 'scheduled' | string;
+    scheduled_date?: string | null;
+    scheduled_time?: string | null;
+    scheduled_start_time?: string | null;
+    scheduled_end_time?: string | null;
     status: 'pending' | 'payment_pending' | 'paid' | 'assigned' | 'in_progress' | 'awaiting_confirmation' | 'done' | 'cancelled' | string;
     created_at: string;
     assigned_worker: {

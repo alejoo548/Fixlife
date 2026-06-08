@@ -28,7 +28,7 @@ export function ServiceRequestMapOverlays({
                     <p className="text-[15px] font-bold text-slate-800 truncate">
                         {currentCoords
                             ? (locationLabel.trim() || `Lat ${currentCoords.lat.toFixed(4)}, Lng ${currentCoords.lng.toFixed(4)}`)
-                            : 'Detect location to center'}
+                            : 'Confirm an address to center'}
                     </p>
                     <p className="text-xs text-slate-900 font-bold mt-1">
                         {nearbyWorkersCount} nearby pro(s) in {radiusKm} km
