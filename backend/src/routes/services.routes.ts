@@ -28,7 +28,7 @@ import {
   updateSavedLocation,
 } from '../controllers/services.controller';
 import { verifyToken } from '../middlewares/auth.middleware';
-import { uploadProtectedImageOnly, validateUploadedFiles } from '../middlewares/upload.middleware';
+import { uploadProtectedImageOnly, validateUploadedFiles, sanitizeImages } from '../middlewares/upload.middleware';
 import {
   requestChatReadLimiter,
   requestChatSendLimiter,
@@ -57,6 +57,7 @@ router.post(
   sensitiveLimiter,
   uploadProtectedImageOnly.array('problem_images', 5),
   validateUploadedFiles,
+  sanitizeImages,
   createServiceRequest
 );
 router.post('/requests/:idRequest/cancel', verifyToken, sensitiveLimiter, cancelServiceRequest);
@@ -74,6 +75,7 @@ router.post(
   requestChatSendLimiter,
   uploadProtectedImageOnly.array('chat_images', 3),
   validateUploadedFiles,
+  sanitizeImages,
   postRequestChatMessage
 );
 router.post('/requests/:idRequest/rating', verifyToken, sensitiveLimiter, submitRequestRating);

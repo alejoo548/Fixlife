@@ -46,7 +46,7 @@ import {
 } from '../controllers/admin.controller';
 import { verifyToken, requireAdmin } from '../middlewares/auth.middleware';
 import { sensitiveLimiter } from '../middlewares/security.middleware';
-import { uploadImageOnly, validateUploadedFiles } from '../middlewares/upload.middleware';
+import { uploadImageOnly, validateUploadedFiles, sanitizeImages } from '../middlewares/upload.middleware';
 import { validate } from '../middlewares/validate.middleware';
 import { AdminSchema } from '../schemas/admin.schema';
 
@@ -111,6 +111,7 @@ router.post(
   sensitiveLimiter,
   uploadImageOnly.single('image'),
   validateUploadedFiles,
+  sanitizeImages,
   uploadHeroImageAsset
 );
 router.post(
@@ -118,6 +119,7 @@ router.post(
   sensitiveLimiter,
   uploadImageOnly.single('image'),
   validateUploadedFiles,
+  sanitizeImages,
   uploadHeroSlideImage
 );
 
