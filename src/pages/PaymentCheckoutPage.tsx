@@ -1,8 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { Notyf } from 'notyf';
-import 'notyf/notyf.min.css';
+import { showSweetToast } from '../utils/sweetAlert';
 import { API_ENDPOINTS } from '../config/api';
 import { getAuthUser, getToken } from '../utils/session';
 
@@ -16,6 +15,11 @@ interface MyServiceRequest {
     id_service: number;
     service_name: string;
     urgency_level?: 'standard' | 'urgent' | 'emergency' | string;
+    booking_type?: 'express' | 'scheduled' | string;
+    scheduled_date?: string | null;
+    scheduled_time?: string | null;
+    scheduled_start_time?: string | null;
+    scheduled_end_time?: string | null;
     description: string;
     location_text: string;
     initial_budget?: number | null;
@@ -54,7 +58,12 @@ interface MyServiceRequest {
 type CheckoutStage = 'form' | 'success' | 'error';
 type CheckoutPaymentMethod = 'paypal' | 'wompi';
 
-const notyf = new Notyf({ position: { x: 'left', y: 'bottom' }, ripple: true });
+const notyf = {
+  success: (message: string) => void showSweetToast({ tone: 'success', message }),
+  error: (message: string) => void showSweetToast({ tone: 'error', message }),
+  open: ({ type, message }: { type?: string; message: string; background?: string }) =>
+    void showSweetToast({ tone: (type as 'info' | 'success' | 'error' | 'warning') || 'info', message }),
+};
 const DEFAULT_PLATFORM_PROTECTION_RATE = 0.12;
 
 const getChargeAmount = (request: MyServiceRequest | null) =>
@@ -83,6 +92,38 @@ const getLocationMeta = (label: string) => {
         city: parts[1] || 'San Salvador',
         country: 'El Salvador',
     };
+};
+
+const isScheduledRequest = (request: MyServiceRequest | null) =>
+    String(request?.booking_type || 'express').toLowerCase() === 'scheduled';
+
+const formatScheduledWindow = (request: MyServiceRequest | null) => {
+    if (!request) return '';
+    const startValue = request.scheduled_start_time || (
+        request.scheduled_date && request.scheduled_time
+            ? `${request.scheduled_date}T${request.scheduled_time}`
+            : ''
+    );
+    if (!startValue) return '';
+
+    const start = new Date(startValue);
+    const end = request.scheduled_end_time ? new Date(request.scheduled_end_time) : null;
+    if (Number.isNaN(start.getTime())) return '';
+
+    const dateLabel = start.toLocaleDateString(undefined, {
+        weekday: 'short',
+        month: 'short',
+        day: 'numeric',
+    });
+    const startLabel = start.toLocaleTimeString(undefined, {
+        hour: 'numeric',
+        minute: '2-digit',
+    });
+    const endLabel = end && !Number.isNaN(end.getTime())
+        ? end.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })
+        : '';
+
+    return endLabel ? `${dateLabel}, ${startLabel} - ${endLabel}` : `${dateLabel}, ${startLabel}`;
 };
 
 const readString = (value: unknown) => (typeof value === 'string' ? value.trim() : '');
@@ -179,6 +220,8 @@ const PaymentCheckoutPage: React.FC<PaymentCheckoutPageProps> = ({ requestId, on
 
     const amount = useMemo(() => getChargeAmount(request), [request]);
     const locationMeta = useMemo(() => getLocationMeta(request?.location_text || ''), [request?.location_text]);
+    const scheduledWindow = useMemo(() => formatScheduledWindow(request), [request]);
+    const bookingLabel = isScheduledRequest(request) ? 'Scheduled visit' : 'Express service';
     const displayCurrency = useMemo(() => readString(request?.payment?.currency_code).toUpperCase() || 'USD', [request?.payment?.currency_code]);
     const platformFee = useMemo(() => {
         if (request?.payment?.platform_fee != null) {
@@ -503,6 +546,8 @@ const PaymentCheckoutPage: React.FC<PaymentCheckoutPageProps> = ({ requestId, on
                 <div className="mt-4 grid gap-4 sm:grid-cols-2">
                     <div>
                         <p className="text-sm font-black text-slate-900">{request?.service_name}</p>
+                        <p className="mt-1 text-xs font-black uppercase tracking-[0.16em] text-blue-600">{bookingLabel}</p>
+                        {scheduledWindow && <p className="mt-1 text-sm font-semibold text-slate-600">{scheduledWindow}</p>}
                         <p className="mt-1 text-sm text-slate-500">{locationMeta.primary}</p>
                         <p className="mt-1 text-xs text-slate-400">{locationMeta.secondary}</p>
                     </div>
@@ -613,6 +658,14 @@ const PaymentCheckoutPage: React.FC<PaymentCheckoutPageProps> = ({ requestId, on
                             <p className="text-[11px] font-black uppercase tracking-[0.24em] text-slate-400 text-center">Secure Payment</p>
                             <h1 className="mt-4 text-3xl font-black text-slate-900 text-center">Fixlife Checkout</h1>
                             <p className="mt-2 text-sm text-slate-500 text-center">{request.service_name}</p>
+                            <div className="mt-3 flex flex-col items-center gap-1">
+                                <span className="rounded-full border border-blue-100 bg-blue-50 px-3 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-blue-700">
+                                    {bookingLabel}
+                                </span>
+                                {scheduledWindow && (
+                                    <span className="text-sm font-bold text-slate-600">{scheduledWindow}</span>
+                                )}
+                            </div>
                             
                             <div className="mt-8 flex justify-center">
                                 <div className="text-center">
@@ -665,7 +718,7 @@ const PaymentCheckoutPage: React.FC<PaymentCheckoutPageProps> = ({ requestId, on
 
                             <div className="mt-5 grid gap-3 rounded-[24px] border border-slate-200 bg-white/80 p-4 sm:grid-cols-3">
                                 <div>
-                                    <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">Protected now</p>
+                                    <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">{isScheduledRequest(request) ? 'Visit payment' : 'Protected now'}</p>
                                     <p className="mt-2 text-lg font-black text-slate-950">
                                         ${amount.toFixed(2)} <span className="text-xs font-bold text-slate-400">{displayCurrency}</span>
                                     </p>

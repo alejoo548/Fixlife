@@ -2,8 +2,9 @@ import { Request, Response } from 'express';
 import { ResultSetHeader, RowDataPacket } from 'mysql2';
 import pool from '../config/db';
 import { AuthRequest } from '../middlewares/auth.middleware';
-import { createUserNotification } from '../utils/notifications';
+import { createUserNotification, notifyAdmins } from '../utils/notifications';
 import { pushToUser } from '../services/sseManager';
+import { emitChatMessage } from '../services/socketManager';
 import { getWorkerBonusPayouts, getWorkerRewardsSettings, syncWorkerBonusPayouts } from '../utils/workerRewards';
 import { resolveRequestLocation, reverseGeocodeLocation, suggestLocationTexts } from '../services/geocoding.service';
 import { getProximityBounds, getWorkerBoundsFilter } from '../services/nearbyWorkers.service';
@@ -62,6 +63,12 @@ const SERVICE_REQUEST_STATUS_ENUM =
   `ENUM('open', 'pending', 'payment_pending', 'paid', 'assigned', 'in_progress', 'awaiting_confirmation', 'done', 'cancelled')`;
 const SAVED_LOCATION_KIND_ENUM = `ENUM('home', 'work', 'favorite', 'recent')`;
 const SERVICE_CARD_SORT_INDEX = 'ux_service_cards_sort';
+const MIN_SCHEDULED_REQUEST_DURATION_MINUTES = 60;
+const MAX_SCHEDULED_REQUEST_DURATION_MINUTES = 7 * 60;
+const DEFAULT_SCHEDULED_REQUEST_DURATION_MINUTES = Math.max(
+  MIN_SCHEDULED_REQUEST_DURATION_MINUTES,
+  Math.min(Number(process.env.SCHEDULED_REQUEST_DURATION_MINUTES || 120), MAX_SCHEDULED_REQUEST_DURATION_MINUTES)
+);
 const CHAT_ENABLED_REQUEST_STATUSES = [
   'assigned',
   'payment_pending',
@@ -70,6 +77,96 @@ const CHAT_ENABLED_REQUEST_STATUSES = [
   'awaiting_confirmation',
   'done',
 ];
+
+const normalizeBookingType = (value: unknown): 'express' | 'scheduled' => {
+  return String(value || '').trim().toLowerCase() === 'scheduled' ? 'scheduled' : 'express';
+};
+
+const parseScheduledDurationMinutes = (value: unknown) => {
+  const raw = Number(value ?? DEFAULT_SCHEDULED_REQUEST_DURATION_MINUTES);
+  if (!Number.isFinite(raw)) {
+    return DEFAULT_SCHEDULED_REQUEST_DURATION_MINUTES;
+  }
+
+  const rounded = Math.round(raw / 60) * 60;
+  if (rounded < MIN_SCHEDULED_REQUEST_DURATION_MINUTES || rounded > MAX_SCHEDULED_REQUEST_DURATION_MINUTES) {
+    throw new Error('Estimated visit duration must be between 1 and 7 hours.');
+  }
+
+  return rounded;
+};
+
+const parseScheduledRequestTime = (body: any) => {
+  const bookingType = normalizeBookingType(body?.booking_type);
+  if (bookingType === 'express') {
+    return {
+      bookingType,
+      scheduledDate: null,
+      scheduledTime: null,
+      scheduledStartTime: null,
+      scheduledEndTime: null,
+      scheduledDurationMinutes: null,
+    };
+  }
+
+  const scheduledDate = String(body?.scheduled_date || '').trim();
+  const scheduledTime = String(body?.scheduled_time || '').trim();
+  const scheduledStartRaw = String(body?.scheduled_start_time || '').trim();
+  const scheduledDurationMinutes = parseScheduledDurationMinutes(body?.scheduled_duration_minutes);
+
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(scheduledDate)) {
+    throw new Error('Select a valid scheduled date.');
+  }
+  if (!/^\d{2}:\d{2}(:\d{2})?$/.test(scheduledTime)) {
+    throw new Error('Select a valid scheduled time.');
+  }
+
+  const scheduledStartDate = scheduledStartRaw
+    ? new Date(scheduledStartRaw)
+    : new Date(`${scheduledDate}T${scheduledTime.length === 5 ? `${scheduledTime}:00` : scheduledTime}Z`);
+
+  if (Number.isNaN(scheduledStartDate.getTime())) {
+    throw new Error('Select a valid scheduled time.');
+  }
+  if (scheduledStartDate.getTime() <= Date.now() + 5 * 60_000) {
+    throw new Error('Scheduled visits must be at least 5 minutes in the future.');
+  }
+
+  const scheduledEndDate = new Date(
+    scheduledStartDate.getTime() + scheduledDurationMinutes * 60_000
+  );
+  const normalizedTime = scheduledTime.length === 5 ? `${scheduledTime}:00` : scheduledTime;
+
+  return {
+    bookingType,
+    scheduledDate,
+    scheduledTime: normalizedTime,
+    scheduledStartTime: scheduledStartDate.toISOString().slice(0, 19).replace('T', ' '),
+    scheduledEndTime: scheduledEndDate.toISOString().slice(0, 19).replace('T', ' '),
+    scheduledDurationMinutes,
+  };
+};
+
+const getScheduledAvailabilityLookup = (schedule: ReturnType<typeof parseScheduledRequestTime>) => {
+  if (schedule.bookingType !== 'scheduled' || !schedule.scheduledDate || !schedule.scheduledTime) {
+    return null;
+  }
+
+  const date = new Date(`${schedule.scheduledDate}T00:00:00Z`);
+  if (Number.isNaN(date.getTime())) return null;
+
+  const start = new Date(`${schedule.scheduledDate}T${schedule.scheduledTime}`);
+  if (Number.isNaN(start.getTime())) return null;
+
+  const end = new Date(start.getTime() + Number(schedule.scheduledDurationMinutes || DEFAULT_SCHEDULED_REQUEST_DURATION_MINUTES) * 60_000);
+  if (end.toISOString().slice(0, 10) !== schedule.scheduledDate) return null;
+
+  return {
+    dayOfWeek: date.getUTCDay(),
+    startTime: schedule.scheduledTime,
+    endTime: end.toTimeString().slice(0, 8),
+  };
+};
 
 type CatalogService = {
   name: string;
@@ -1124,8 +1221,14 @@ export const ensureServiceRequestTables = async () => {
       budget DECIMAL(10,2) NOT NULL DEFAULT 0.00,
       final_budget DECIMAL(10,2) NULL,
       radius_km DECIMAL(6,2) NOT NULL DEFAULT 8.00,
+      urgency_level VARCHAR(40) NOT NULL DEFAULT 'standard',
       assigned_worker_profile INT NULL,
       assigned_at TIMESTAMP NULL,
+      booking_type ENUM('express', 'scheduled') NOT NULL DEFAULT 'express',
+      scheduled_date DATE NULL,
+      scheduled_time TIME NULL,
+      scheduled_start_time DATETIME NULL,
+      scheduled_end_time DATETIME NULL,
       status ${SERVICE_REQUEST_STATUS_ENUM} NOT NULL DEFAULT 'pending',
       created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
       updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -1134,6 +1237,7 @@ export const ensureServiceRequestTables = async () => {
       KEY idx_service_requests_status_created (status, created_at),
       KEY idx_service_requests_user (id_user),
       KEY idx_service_requests_assigned_worker (assigned_worker_profile),
+      KEY idx_scheduled_times (booking_type, status, scheduled_start_time),
       CONSTRAINT fk_service_requests_service FOREIGN KEY (id_service) REFERENCES services(id_service) ON DELETE CASCADE,
       CONSTRAINT fk_service_requests_user FOREIGN KEY (id_user) REFERENCES users(id_user) ON DELETE SET NULL,
       CONSTRAINT fk_service_requests_assigned_worker FOREIGN KEY (assigned_worker_profile) REFERENCES worker_profiles(id_worker_profile) ON DELETE SET NULL
@@ -1151,16 +1255,38 @@ export const ensureServiceRequestTables = async () => {
      FROM information_schema.columns
      WHERE table_schema = DATABASE()
        AND table_name = 'service_requests'
-       AND column_name IN ('assigned_worker_profile', 'initial_budget', 'final_budget', 'assigned_at')`
+       AND column_name IN (
+         'assigned_worker_profile',
+         'initial_budget',
+         'final_budget',
+         'assigned_at',
+         'urgency_level',
+         'booking_type',
+         'scheduled_date',
+         'scheduled_time',
+         'scheduled_start_time',
+         'scheduled_end_time'
+       )`
   );
   const requestColsCount = Number(assignedColRows[0]?.total || 0);
-  if (requestColsCount < 4) {
+  if (requestColsCount < 10) {
     const [requestCols] = await pool.execute<RowDataPacket[]>(
       `SELECT COLUMN_NAME
        FROM information_schema.columns
        WHERE table_schema = DATABASE()
          AND table_name = 'service_requests'
-         AND column_name IN ('assigned_worker_profile', 'initial_budget', 'final_budget', 'assigned_at')`
+         AND column_name IN (
+           'assigned_worker_profile',
+           'initial_budget',
+           'final_budget',
+           'assigned_at',
+           'urgency_level',
+           'booking_type',
+           'scheduled_date',
+           'scheduled_time',
+           'scheduled_start_time',
+           'scheduled_end_time'
+         )`
     );
     const requestColSet = new Set(requestCols.map((c: any) => String(c.COLUMN_NAME)));
     if (!requestColSet.has('assigned_worker_profile')) {
@@ -1175,6 +1301,24 @@ export const ensureServiceRequestTables = async () => {
     if (!requestColSet.has('assigned_at')) {
       await pool.execute(`ALTER TABLE service_requests ADD COLUMN assigned_at TIMESTAMP NULL`);
     }
+    if (!requestColSet.has('urgency_level')) {
+      await pool.execute(`ALTER TABLE service_requests ADD COLUMN urgency_level VARCHAR(40) NOT NULL DEFAULT 'standard'`);
+    }
+    if (!requestColSet.has('booking_type')) {
+      await pool.execute(`ALTER TABLE service_requests ADD COLUMN booking_type ENUM('express', 'scheduled') NOT NULL DEFAULT 'express'`);
+    }
+    if (!requestColSet.has('scheduled_date')) {
+      await pool.execute(`ALTER TABLE service_requests ADD COLUMN scheduled_date DATE NULL`);
+    }
+    if (!requestColSet.has('scheduled_time')) {
+      await pool.execute(`ALTER TABLE service_requests ADD COLUMN scheduled_time TIME NULL`);
+    }
+    if (!requestColSet.has('scheduled_start_time')) {
+      await pool.execute(`ALTER TABLE service_requests ADD COLUMN scheduled_start_time DATETIME NULL`);
+    }
+    if (!requestColSet.has('scheduled_end_time')) {
+      await pool.execute(`ALTER TABLE service_requests ADD COLUMN scheduled_end_time DATETIME NULL`);
+    }
   }
 
   const [assignedIdxRows] = await pool.execute<RowDataPacket[]>(
@@ -1186,6 +1330,17 @@ export const ensureServiceRequestTables = async () => {
   );
   if (Number(assignedIdxRows[0]?.total || 0) === 0) {
     await pool.execute(`ALTER TABLE service_requests ADD KEY idx_service_requests_assigned_worker (assigned_worker_profile)`);
+  }
+
+  const [scheduledIdxRows] = await pool.execute<RowDataPacket[]>(
+    `SELECT COUNT(*) AS total
+     FROM information_schema.statistics
+     WHERE table_schema = DATABASE()
+       AND table_name = 'service_requests'
+       AND index_name = 'idx_scheduled_times'`
+  );
+  if (Number(scheduledIdxRows[0]?.total || 0) === 0) {
+    await pool.execute(`ALTER TABLE service_requests ADD KEY idx_scheduled_times (booking_type, status, scheduled_start_time)`);
   }
 
   const [assignedFkRows] = await pool.execute<RowDataPacket[]>(
@@ -1232,6 +1387,21 @@ export const ensureServiceRequestTables = async () => {
       KEY idx_service_request_workers_request (id_request),
       CONSTRAINT fk_service_request_workers_request FOREIGN KEY (id_request) REFERENCES service_requests(id_request) ON DELETE CASCADE,
       CONSTRAINT fk_service_request_workers_worker FOREIGN KEY (id_worker_profile) REFERENCES worker_profiles(id_worker_profile) ON DELETE CASCADE
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+  `);
+
+  await pool.execute(`
+    CREATE TABLE IF NOT EXISTS worker_availabilities (
+      id_availability INT NOT NULL AUTO_INCREMENT,
+      id_worker_profile INT NOT NULL,
+      day_of_week INT NOT NULL,
+      start_time TIME NOT NULL,
+      end_time TIME NOT NULL,
+      is_active TINYINT(1) NOT NULL DEFAULT 1,
+      PRIMARY KEY (id_availability),
+      UNIQUE KEY uniq_worker_day_slot (id_worker_profile, day_of_week, start_time, end_time),
+      KEY idx_worker_availability_lookup (day_of_week, is_active, start_time, end_time),
+      CONSTRAINT fk_worker_availability_profile FOREIGN KEY (id_worker_profile) REFERENCES worker_profiles(id_worker_profile) ON DELETE CASCADE
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
   `);
 
@@ -1396,6 +1566,14 @@ export const createServiceRequest = async (req: AuthRequest, res: Response): Pro
     const radiusRaw = Number(req.body?.radius_km ?? 8);
     const radiusKm = Number.isFinite(radiusRaw) && radiusRaw > 0 ? Math.min(radiusRaw, 50) : 8;
     const urgencyLevel = normalizeUrgencyLevel(req.body?.urgency_level);
+    let schedule;
+    try {
+      schedule = parseScheduledRequestTime(req.body);
+    } catch (error: any) {
+      removeUploadedFiles(files);
+      res.status(400).json({ error: error?.message || 'Invalid scheduled visit time.' });
+      return;
+    }
 
     if (!idService || Number.isNaN(idService)) {
       removeUploadedFiles(files);
@@ -1424,9 +1602,9 @@ export const createServiceRequest = async (req: AuthRequest, res: Response): Pro
     const latitude = resolvedLocation.lat;
     const longitude = resolvedLocation.lng;
 
-    if (!Number.isFinite(budget) || budget <= 0 || budget > 100000) {
+    if (!Number.isFinite(budget) || budget <= 0 || budget > 1000) {
       removeUploadedFiles(files);
-      res.status(400).json({ error: 'Budget must be greater than 0 and less than 100000.' });
+      res.status(400).json({ error: 'Budget must be between 0.01 and 1000.00.' });
       return;
     }
     if (files.length === 0) {
@@ -1444,7 +1622,7 @@ export const createServiceRequest = async (req: AuthRequest, res: Response): Pro
     }
 
     const [svcRows] = await pool.execute<RowDataPacket[]>(
-      `SELECT id_service FROM services WHERE id_service = ? AND is_active = 1 LIMIT 1`,
+      `SELECT id_service, name FROM services WHERE id_service = ? AND is_active = 1 LIMIT 1`,
       [idService]
     );
     if (svcRows.length === 0) {
@@ -1453,29 +1631,45 @@ export const createServiceRequest = async (req: AuthRequest, res: Response): Pro
       return;
     }
 
-    const [activeRows] = await pool.execute<RowDataPacket[]>(
-      `SELECT id_request
-       FROM service_requests
-       WHERE id_user = ?
-         AND status IN ('open', 'pending', 'payment_pending', 'paid', 'assigned', 'in_progress', 'awaiting_confirmation')
-       ORDER BY created_at DESC
-       LIMIT 1`,
-      [idUser]
-    );
-    if (activeRows.length > 0) {
-      removeUploadedFiles(files);
-      res.status(409).json({
-        error: 'You already have an active request. Complete or cancel it before creating another one.',
-        id_request: Number(activeRows[0].id_request),
-      });
-      return;
-    }
-
     const [insertRequest] = await pool.execute<ResultSetHeader>(
       `INSERT INTO service_requests
-       (id_user, id_service, description, location_text, latitude, longitude, initial_budget, budget, final_budget, radius_km, urgency_level, status)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, 'pending')`,
-      [idUser, idService, description, locationText, latitude, longitude, budget, budget, radiusKm, urgencyLevel]
+       (
+         id_user,
+         id_service,
+         description,
+         location_text,
+         latitude,
+         longitude,
+         initial_budget,
+         budget,
+         final_budget,
+         radius_km,
+         urgency_level,
+         booking_type,
+         scheduled_date,
+         scheduled_time,
+         scheduled_start_time,
+         scheduled_end_time,
+         status
+       )
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, ?, ?, ?, ?, ?, 'pending')`,
+      [
+        idUser,
+        idService,
+        description,
+        locationText,
+        latitude,
+        longitude,
+        budget,
+        budget,
+        radiusKm,
+        urgencyLevel,
+        schedule.bookingType,
+        schedule.scheduledDate,
+        schedule.scheduledTime,
+        schedule.scheduledStartTime,
+        schedule.scheduledEndTime,
+      ]
     );
 
     const idRequest = Number(insertRequest.insertId);
@@ -1484,6 +1678,19 @@ export const createServiceRequest = async (req: AuthRequest, res: Response): Pro
 
     if (latitude != null && longitude != null) {
       const boundsFilter = getWorkerBoundsFilter(getProximityBounds(latitude, longitude, radiusKm));
+      const availability = getScheduledAvailabilityLookup(schedule);
+      const availabilityJoin = availability
+        ? `INNER JOIN worker_availabilities wa
+             ON wa.id_worker_profile = wp.id_worker_profile
+            AND wa.is_active = 1
+            AND wa.day_of_week = ?
+            AND wa.start_time <= ?
+            AND wa.end_time >= ?`
+        : '';
+      const availabilityParams = availability
+        ? [availability.dayOfWeek, availability.startTime, availability.endTime]
+        : [];
+
       const [nearRows] = await pool.execute<RowDataPacket[]>(
         `SELECT
            wp.id_worker_profile,
@@ -1492,6 +1699,7 @@ export const createServiceRequest = async (req: AuthRequest, res: Response): Pro
          FROM worker_profiles wp
          INNER JOIN users u ON u.id_user = wp.id_user
          INNER JOIN worker_services ws ON ws.id_worker_profile = wp.id_worker_profile
+         ${availabilityJoin}
          WHERE u.rol = 'worker'
            AND wp.is_verified = 1
            AND ws.id_service = ?
@@ -1501,11 +1709,21 @@ export const createServiceRequest = async (req: AuthRequest, res: Response): Pro
          HAVING distance_km <= ? AND distance_km <= wp.coverage_km
          ORDER BY distance_km ASC
          LIMIT 50`,
-        [longitude, latitude, idService, ...boundsFilter.params, radiusKm]
+        [longitude, latitude, ...availabilityParams, idService, ...boundsFilter.params, radiusKm]
       );
 
       await bulkInsertRequestWorkerCandidates(pool, idRequest, nearRows);
     }
+
+    await notifyAdmins({
+      eventType: 'admin_request_created',
+      title: 'New service request',
+      message: `Request #${idRequest} for ${svcRows[0].name || 'a service'} was created in ${locationText}.`,
+      tone: 'info',
+      actionUrl: `/admin-dashboard/requests?request=${idRequest}`,
+      dedupeKey: `admin-request-created-${idRequest}`,
+      metadata: { requestId: idRequest, serviceId: idService, urgencyLevel },
+    });
 
     res.status(201).json({
       success: true,
@@ -1517,6 +1735,11 @@ export const createServiceRequest = async (req: AuthRequest, res: Response): Pro
         radius_km: radiusKm,
         budget,
         location: locationText,
+        booking_type: schedule.bookingType,
+        scheduled_date: schedule.scheduledDate,
+        scheduled_time: schedule.scheduledTime,
+        scheduled_start_time: schedule.scheduledStartTime,
+        scheduled_end_time: schedule.scheduledEndTime,
         status: 'pending',
         images: files.map((f) => ({
           file_name: f.filename,
@@ -1575,6 +1798,11 @@ export const getMyServiceRequests = async (req: AuthRequest, res: Response): Pro
          sr.final_budget,
          sr.radius_km,
          sr.urgency_level,
+         sr.booking_type,
+         sr.scheduled_date,
+         sr.scheduled_time,
+         sr.scheduled_start_time,
+         sr.scheduled_end_time,
          sr.status,
          sr.created_at,
          s.name AS service_name,
@@ -1617,6 +1845,7 @@ export const getMyServiceRequests = async (req: AuthRequest, res: Response): Pro
        GROUP BY
          sr.id_request, sr.id_service, sr.description, sr.location_text, sr.latitude, sr.longitude,
          sr.initial_budget, sr.budget, sr.final_budget, sr.radius_km, sr.urgency_level, sr.status, sr.created_at, s.name, s.icon, wp.id_worker_profile, wp.latitude, wp.longitude, wp.is_online, wp.bio, u2.name, u2.lastname, u2.phone_number, u2.profile_image,
+         sr.booking_type, sr.scheduled_date, sr.scheduled_time, sr.scheduled_start_time, sr.scheduled_end_time,
         srp.provider, srp.checkout_reference, srp.currency_code, srp.amount, srp.platform_fee, srp.worker_payout, srp.commission_rate, srp.commission_snapshot_json, srp.promo_code, srp.payment_status, srp.paid_at, srp.released_at,
          srw_assigned.proposed_budget, srw_assigned.counter_message, srw_assigned.counter_status
        ORDER BY sr.created_at DESC
@@ -1638,6 +1867,11 @@ export const getMyServiceRequests = async (req: AuthRequest, res: Response): Pro
       final_budget: row.final_budget != null ? Number(row.final_budget) : null,
       radius_km: Number(row.radius_km || 8),
       urgency_level: normalizeUrgencyLevel(row.urgency_level),
+      booking_type: normalizeBookingType(row.booking_type),
+      scheduled_date: row.scheduled_date || null,
+      scheduled_time: row.scheduled_time || null,
+      scheduled_start_time: row.scheduled_start_time || null,
+      scheduled_end_time: row.scheduled_end_time || null,
       status: toPublicRequestStatus(row.status),
       created_at: row.created_at,
       assigned_worker:
@@ -1949,6 +2183,7 @@ export const autoReassignStaleAssignedRequests = async () => {
     `SELECT id_request, id_service, latitude, longitude, radius_km, assigned_worker_profile
      FROM service_requests
      WHERE status = 'assigned'
+       AND COALESCE(booking_type, 'express') = 'express'
        AND assigned_worker_profile IS NOT NULL
        AND assigned_at IS NOT NULL
        AND assigned_at < DATE_SUB(CURRENT_TIMESTAMP, INTERVAL ? MINUTE)
@@ -2048,10 +2283,13 @@ const resolveRequestParticipant = async (idRequest: number, userId: number) => {
        sr.assigned_worker_profile,
        wp.id_user AS worker_user_id
      FROM service_requests sr
+     INNER JOIN users active_user
+       ON active_user.id_user = ?
+      AND active_user.is_active = 1
      LEFT JOIN worker_profiles wp ON wp.id_worker_profile = sr.assigned_worker_profile
      WHERE sr.id_request = ?
      LIMIT 1`,
-    [idRequest]
+    [userId, idRequest]
   );
   if (rows.length === 0) return null;
   const row = rows[0];
@@ -2154,10 +2392,15 @@ export const postRequestChatMessage = async (req: AuthRequest, res: Response): P
 
     const idRequest = Number(req.params.idRequest);
     const rawMessage = String(req.body?.message || '').trim();
-    const message = rawMessage ? rawMessage.slice(0, 500) : null;
+    const message = rawMessage || null;
     if (!idRequest) {
       removeUploadedFiles(files);
       res.status(400).json({ error: 'Invalid request id.' });
+      return;
+    }
+    if (rawMessage.length > 500) {
+      removeUploadedFiles(files);
+      res.status(400).json({ error: 'Chat messages cannot exceed 500 characters.' });
       return;
     }
     if (!message && files.length === 0) {
@@ -2264,6 +2507,12 @@ export const postRequestChatMessage = async (req: AuthRequest, res: Response): P
     const chatPayload = { id_request: idRequest, latest_message_id: createdMessages[createdMessages.length - 1]?.id_message ?? primaryMessageId };
     pushToUser(userId, 'chat_message', chatPayload);
     if (recipientUserId) pushToUser(recipientUserId, 'chat_message', chatPayload);
+    emitChatMessage({
+      ...chatPayload,
+      messages: createdMessages,
+      sender_user_id: userId,
+      recipient_user_id: recipientUserId,
+    });
 
     res.status(201).json({
       success: true,
@@ -2747,6 +2996,16 @@ export const confirmRequestPayment = async (req: AuthRequest, res: Response): Pr
       });
     }
 
+    await notifyAdmins({
+      eventType: 'admin_payment_secured',
+      title: 'Request payment secured',
+      message: `${expectedAmount.toLocaleString('en-US', { style: 'currency', currency: expectedCurrencyCode })} was secured for request #${idRequest}.`,
+      tone: 'success',
+      actionUrl: `/admin-dashboard/requests?request=${idRequest}`,
+      dedupeKey: `admin-payment-secured-${idRequest}`,
+      metadata: { requestId: idRequest, amount: expectedAmount, currency: expectedCurrencyCode },
+    });
+
     if (clientEmail) {
       await enqueueBackgroundJob({
         jobType: 'send_payment_invoice_email',
@@ -3043,6 +3302,17 @@ export const confirmServiceCompletion = async (req: AuthRequest, res: Response):
         );
       }
     }
+
+
+    await notifyAdmins({
+      eventType: 'admin_job_completed',
+      title: 'Service request completed',
+      message: `Request #${idRequest} was completed and payment release processing started.`,
+      tone: 'success',
+      actionUrl: `/admin-dashboard/requests?request=${idRequest}`,
+      dedupeKey: `admin-job-completed-${idRequest}`,
+      metadata: { requestId: idRequest, payoutScheduled: Boolean(scheduledWorkerPayout) },
+    });
 
     res.json({
       success: true,

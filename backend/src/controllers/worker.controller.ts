@@ -31,6 +31,19 @@ const {
 } = servicesController;
 
 const ACTIVE_WORKER_REQUEST_STATUSES = ['payment_pending', 'paid', 'assigned', 'in_progress', 'awaiting_confirmation'];
+const SCHEDULE_CONFLICT_STATUSES = ['payment_pending', 'paid', 'assigned', 'in_progress', 'awaiting_confirmation'];
+const SCHEDULE_BUFFER_TIME_MINUTES = Math.max(
+  0,
+  Math.min(Number(process.env.BUFFER_TIME_MINUTES || 60), 240)
+);
+const SCHEDULED_REQUEST_DURATION_MINUTES = Math.max(
+  60,
+  Math.min(Number(process.env.SCHEDULED_REQUEST_DURATION_MINUTES || 120), 7 * 60)
+);
+const SCHEDULED_START_EARLY_MINUTES = Math.max(
+  0,
+  Math.min(Number(process.env.SCHEDULED_START_EARLY_MINUTES || 120), 360)
+);
 
 const toPublicRequestStatus = (status: string | null | undefined) => {
   if (!status) return 'pending';
@@ -40,8 +53,42 @@ const toPublicRequestStatus = (status: string | null | undefined) => {
 const allowedImageMimeTypes = new Set([
   'image/png',
   'image/jpeg',
-  'image/jpg',
+  'image/webp',
 ]);
+const safeTextRegex = /^[\p{L}\p{N}\s.,\-_'":;!?()]{0,500}$/u;
+
+const deletePublicUploadIfUnreferenced = async (fileName: string | null | undefined) => {
+  if (!fileName) return;
+
+  try {
+    const [rows] = await pool.execute<RowDataPacket[]>(
+      `SELECT
+         (SELECT COUNT(*) FROM users WHERE profile_image = ?) +
+         (SELECT COUNT(*) FROM worker_portfolio WHERE image_url = ?) AS total`,
+      [fileName, fileName]
+    );
+
+    if (Number(rows[0]?.total || 0) === 0) {
+      deleteUploadIfExists(fileName, 'public');
+    }
+  } catch (error) {
+    console.error('[worker-images] Could not verify upload references:', error);
+  }
+};
+
+const cleanupUnreferencedWorkerUploads = async (files: Express.Multer.File[]) => {
+  await Promise.all(files.map((file) => deletePublicUploadIfUnreferenced(file.filename)));
+};
+
+const sanitizeWorkerSafeText = (value: unknown, maxLen = 500): string | null => {
+  if (value == null) return null;
+  const trimmed = String(value).trim().slice(0, maxLen);
+  if (!trimmed) return null;
+  if (!safeTextRegex.test(trimmed)) {
+    throw new Error('Invalid text format.');
+  }
+  return trimmed;
+};
 
 let pendingEmailChecked = false;
 
@@ -76,6 +123,24 @@ const toSqlDateTime = (date: Date) => date.toISOString().slice(0, 19).replace('T
 
 const formatMonthLabel = (anchor = new Date()) =>
   anchor.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+
+const normalizeSqlTime = (value: unknown) => {
+  const raw = String(value || '').trim();
+  return raw.length === 5 ? `${raw}:00` : raw;
+};
+
+const isValidAvailabilityRange = (startTime: string, endTime: string) => {
+  return /^([01]\d|2[0-3]):[0-5]\d:[0-5]\d$/.test(startTime)
+    && /^([01]\d|2[0-3]):[0-5]\d:[0-5]\d$/.test(endTime)
+    && startTime < endTime;
+};
+
+type WorkerAvailabilityInput = {
+  dayOfWeek: number;
+  startTime: string;
+  endTime: string;
+  isActive: boolean;
+};
 
 const ensureWorkerProfile = async (userId: number) => {
   const [profiles] = await pool.execute<RowDataPacket[]>(
@@ -119,7 +184,10 @@ const getWorkerActiveRequest = async (
     `SELECT id_request, status
      FROM service_requests
      WHERE assigned_worker_profile = ?
-       AND status IN (${ACTIVE_WORKER_REQUEST_STATUSES.map(() => '?').join(', ')})
+       AND (
+         (COALESCE(booking_type, 'express') = 'express' AND status IN (${ACTIVE_WORKER_REQUEST_STATUSES.map(() => '?').join(', ')}))
+         OR (booking_type = 'scheduled' AND status = 'in_progress')
+       )
        ${excludeSql}
      ORDER BY updated_at DESC
      LIMIT 1`,
@@ -130,6 +198,55 @@ const getWorkerActiveRequest = async (
   return {
     id_request: Number(rows[0].id_request),
     status: String(rows[0].status || '').toLowerCase(),
+  };
+};
+
+const getScheduledConflict = async (
+  executor: Pick<typeof pool, 'execute'>,
+  input: {
+    profileId: number;
+    idRequest: number;
+    scheduledStartTime: string | Date | null;
+    scheduledEndTime: string | Date | null;
+  }
+) => {
+  if (!input.scheduledStartTime || !input.scheduledEndTime) return null;
+
+  const start = new Date(input.scheduledStartTime);
+  const end = new Date(input.scheduledEndTime);
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return null;
+
+  const bufferedStart = new Date(start.getTime() - SCHEDULE_BUFFER_TIME_MINUTES * 60_000);
+  const bufferedEnd = new Date(end.getTime() + SCHEDULE_BUFFER_TIME_MINUTES * 60_000);
+
+  const [rows] = await executor.execute<RowDataPacket[]>(
+    `SELECT id_request, scheduled_start_time, scheduled_end_time
+     FROM service_requests
+     WHERE assigned_worker_profile = ?
+       AND id_request <> ?
+       AND booking_type = 'scheduled'
+       AND status IN (${SCHEDULE_CONFLICT_STATUSES.map(() => '?').join(', ')})
+       AND scheduled_start_time IS NOT NULL
+       AND scheduled_end_time IS NOT NULL
+       AND scheduled_start_time < ?
+       AND scheduled_end_time > ?
+     ORDER BY scheduled_start_time ASC
+     LIMIT 1
+     FOR UPDATE`,
+    [
+      input.profileId,
+      input.idRequest,
+      ...SCHEDULE_CONFLICT_STATUSES,
+      toSqlDateTime(bufferedEnd),
+      toSqlDateTime(bufferedStart),
+    ]
+  );
+
+  if (rows.length === 0) return null;
+  return {
+    id_request: Number(rows[0].id_request),
+    scheduled_start_time: rows[0].scheduled_start_time,
+    scheduled_end_time: rows[0].scheduled_end_time,
   };
 };
 
@@ -180,6 +297,108 @@ export const getWorkerMe = async (req: AuthRequest, res: Response): Promise<void
   } catch (error: any) {
     console.error('Error in getWorkerMe:', error);
     res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
+export const getWorkerAvailability = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const userId = req.user?.user_id;
+    if (!userId) {
+      res.status(401).json({ error: 'Unauthorized' });
+      return;
+    }
+
+    await ensureServiceRequestTables();
+    const profileId = await ensureWorkerProfile(userId);
+
+    const [rows] = await pool.execute<RowDataPacket[]>(
+      `SELECT id_availability, day_of_week, start_time, end_time, is_active
+       FROM worker_availabilities
+       WHERE id_worker_profile = ?
+       ORDER BY day_of_week ASC, start_time ASC`,
+      [profileId]
+    );
+
+    res.json({
+      success: true,
+      slots: rows.map((row: any) => ({
+        id_availability: Number(row.id_availability),
+        day_of_week: Number(row.day_of_week),
+        start_time: String(row.start_time || '').slice(0, 8),
+        end_time: String(row.end_time || '').slice(0, 8),
+        is_active: Number(row.is_active || 0) === 1,
+      })),
+    });
+  } catch (error: any) {
+    console.error('Error in getWorkerAvailability:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
+export const updateWorkerAvailability = async (req: AuthRequest, res: Response): Promise<void> => {
+  const connection = await pool.getConnection();
+  try {
+    const userId = req.user?.user_id;
+    if (!userId) {
+      res.status(401).json({ error: 'Unauthorized' });
+      return;
+    }
+
+    await ensureServiceRequestTables();
+    const profileId = await ensureWorkerProfile(userId);
+    const incoming = Array.isArray(req.body?.slots) ? req.body.slots : [];
+    const slots: WorkerAvailabilityInput[] = incoming
+      .map((slot: any) => ({
+        dayOfWeek: Number(slot.day_of_week),
+        startTime: normalizeSqlTime(slot.start_time),
+        endTime: normalizeSqlTime(slot.end_time),
+        isActive: slot.is_active !== false,
+      }))
+      .filter((slot: WorkerAvailabilityInput) => slot.isActive);
+
+    for (const slot of slots) {
+      if (
+        !Number.isInteger(slot.dayOfWeek)
+        || slot.dayOfWeek < 0
+        || slot.dayOfWeek > 6
+        || !isValidAvailabilityRange(slot.startTime, slot.endTime)
+      ) {
+        res.status(400).json({ error: 'Invalid availability slot.' });
+        return;
+      }
+    }
+
+    await connection.beginTransaction();
+    await connection.execute(
+      `DELETE FROM worker_availabilities WHERE id_worker_profile = ?`,
+      [profileId]
+    );
+
+    if (slots.length > 0) {
+      await connection.execute(
+        `INSERT INTO worker_availabilities (id_worker_profile, day_of_week, start_time, end_time, is_active)
+         VALUES ${slots.map(() => '(?, ?, ?, ?, 1)').join(', ')}`,
+        slots.flatMap((slot) => [profileId, slot.dayOfWeek, slot.startTime, slot.endTime])
+      );
+    }
+
+    await connection.commit();
+
+    res.json({
+      success: true,
+      slots: slots.map((slot) => ({
+        day_of_week: slot.dayOfWeek,
+        start_time: slot.startTime,
+        end_time: slot.endTime,
+        is_active: true,
+      })),
+    });
+  } catch (error: any) {
+    await connection.rollback();
+    console.error('Error in updateWorkerAvailability:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  } finally {
+    connection.release();
   }
 };
 
@@ -701,9 +920,21 @@ export const getWorkerRequests = async (req: AuthRequest, res: Response): Promis
          AND sr.latitude IS NOT NULL
          AND sr.longitude IS NOT NULL
          AND (sr.id_user IS NULL OR sr.id_user <> wp.id_user)
+         AND (
+           COALESCE(sr.booking_type, 'express') = 'express'
+           OR EXISTS (
+             SELECT 1
+             FROM worker_availabilities wa
+             WHERE wa.id_worker_profile = wp.id_worker_profile
+               AND wa.is_active = 1
+               AND wa.day_of_week = WEEKDAY(sr.scheduled_date) + 1 - CASE WHEN WEEKDAY(sr.scheduled_date) = 6 THEN 7 ELSE 0 END
+               AND wa.start_time <= sr.scheduled_time
+               AND wa.end_time >= TIME(COALESCE(sr.scheduled_end_time, DATE_ADD(sr.scheduled_start_time, INTERVAL ? MINUTE)))
+           )
+         )
          AND (ST_Distance_Sphere(point(wp.longitude, wp.latitude), point(sr.longitude, sr.latitude)) / 1000) <= LEAST(COALESCE(sr.radius_km, 8), wp.coverage_km)
          AND srw.id_request IS NULL`,
-      [profileId, profileId]
+      [profileId, profileId, SCHEDULED_REQUEST_DURATION_MINUTES]
     );
 
     const whereParts: string[] = ['srw.id_worker_profile = ?'];
@@ -730,6 +961,11 @@ export const getWorkerRequests = async (req: AuthRequest, res: Response): Promis
          sr.longitude,
          sr.budget,
          sr.radius_km,
+         sr.booking_type,
+         sr.scheduled_date,
+         sr.scheduled_time,
+         sr.scheduled_start_time,
+         sr.scheduled_end_time,
          sr.status AS request_status,
          sr.created_at,
          sr.assigned_worker_profile,
@@ -752,7 +988,8 @@ export const getWorkerRequests = async (req: AuthRequest, res: Response): Promis
        WHERE ${whereParts.join(' AND ')}
         GROUP BY
           sr.id_request, sr.id_service, sr.description, sr.location_text, sr.latitude, sr.longitude,
-          sr.budget, sr.radius_km, sr.status, sr.created_at, sr.assigned_worker_profile,
+          sr.budget, sr.radius_km, sr.booking_type, sr.scheduled_date, sr.scheduled_time,
+          sr.scheduled_start_time, sr.scheduled_end_time, sr.status, sr.created_at, sr.assigned_worker_profile,
           s.name, s.icon, srw.distance_km, srw.status, srw.proposed_budget, srw.counter_message,
           u.id_user, u.name, u.lastname, u.profile_image
        ORDER BY
@@ -795,6 +1032,11 @@ export const getWorkerRequests = async (req: AuthRequest, res: Response): Promis
         longitude: lng,
         budget: Number(row.budget || 0),
         radius_km: Number(row.radius_km || 8),
+        booking_type: String(row.booking_type || 'express'),
+        scheduled_date: row.scheduled_date || null,
+        scheduled_time: row.scheduled_time || null,
+        scheduled_start_time: row.scheduled_start_time || null,
+        scheduled_end_time: row.scheduled_end_time || null,
         request_status: toPublicRequestStatus(row.request_status),
         worker_status: row.worker_status,
         proposed_budget: row.proposed_budget != null ? Number(row.proposed_budget) : null,
@@ -829,6 +1071,105 @@ export const getWorkerRequests = async (req: AuthRequest, res: Response): Promis
     });
   } catch (error: any) {
     console.error('Error in getWorkerRequests:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
+export const getWorkerAppointments = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const userId = req.user?.user_id;
+    if (!userId) {
+      res.status(401).json({ error: 'Unauthorized' });
+      return;
+    }
+
+    await ensureServiceRequestTables();
+
+    const [profileRows] = await pool.execute<RowDataPacket[]>(
+      `SELECT id_worker_profile
+       FROM worker_profiles
+       WHERE id_user = ?
+       LIMIT 1`,
+      [userId]
+    );
+
+    if (profileRows.length === 0) {
+      res.status(404).json({ error: 'Worker profile not found.' });
+      return;
+    }
+
+    const profileId = Number(profileRows[0].id_worker_profile);
+    const [rows] = await pool.execute<RowDataPacket[]>(
+      `SELECT
+         sr.id_request,
+         sr.id_service,
+         sr.description,
+         sr.location_text,
+         sr.latitude,
+         sr.longitude,
+         sr.budget,
+         sr.final_budget,
+         sr.status,
+         sr.scheduled_date,
+         sr.scheduled_time,
+         sr.scheduled_start_time,
+         sr.scheduled_end_time,
+         sr.created_at,
+         sr.assigned_at,
+         s.name AS service_name,
+         s.icon AS service_icon,
+         u.id_user AS client_id,
+         u.name AS client_name,
+         u.lastname AS client_lastname,
+         u.phone_number AS client_phone_number,
+         srw.proposed_budget,
+         srw.counter_status
+       FROM service_requests sr
+       INNER JOIN services s ON s.id_service = sr.id_service
+       LEFT JOIN users u ON u.id_user = sr.id_user
+       LEFT JOIN service_request_workers srw
+         ON srw.id_request = sr.id_request
+        AND srw.id_worker_profile = sr.assigned_worker_profile
+       WHERE sr.assigned_worker_profile = ?
+         AND sr.booking_type = 'scheduled'
+         AND sr.status IN ('assigned', 'payment_pending', 'paid', 'in_progress', 'awaiting_confirmation')
+         AND sr.scheduled_start_time IS NOT NULL
+         AND sr.scheduled_start_time >= DATE_SUB(UTC_TIMESTAMP(), INTERVAL 6 HOUR)
+       ORDER BY sr.scheduled_start_time ASC
+       LIMIT 100`,
+      [profileId]
+    );
+
+    const appointments = rows.map((row: any) => ({
+      id_request: Number(row.id_request),
+      id_service: Number(row.id_service),
+      service_name: row.service_name,
+      service_icon: row.service_icon || null,
+      description: row.description,
+      location_text: row.location_text,
+      latitude: row.latitude != null ? Number(row.latitude) : null,
+      longitude: row.longitude != null ? Number(row.longitude) : null,
+      budget: Number(row.final_budget ?? row.proposed_budget ?? row.budget ?? 0),
+      status: toPublicRequestStatus(row.status),
+      scheduled_date: row.scheduled_date || null,
+      scheduled_time: row.scheduled_time || null,
+      scheduled_start_time: row.scheduled_start_time || null,
+      scheduled_end_time: row.scheduled_end_time || null,
+      created_at: row.created_at,
+      assigned_at: row.assigned_at || null,
+      counter_status: row.counter_status || null,
+      client: row.client_id
+        ? {
+            id_user: Number(row.client_id),
+            name: `${row.client_name || ''} ${row.client_lastname || ''}`.trim(),
+            phone_number: row.client_phone_number || null,
+          }
+        : null,
+    }));
+
+    res.json({ success: true, appointments });
+  } catch (error: any) {
+    console.error('Error in getWorkerAppointments:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 };
@@ -871,8 +1212,23 @@ export const acceptWorkerRequest = async (req: AuthRequest, res: Response): Prom
 
     await connection.beginTransaction();
 
+    await connection.execute(
+      `SELECT id_worker_profile
+       FROM worker_profiles
+       WHERE id_worker_profile = ?
+       FOR UPDATE`,
+      [profileId]
+    );
+
     const [requestRows] = await connection.execute<RowDataPacket[]>(
-      `SELECT id_request, id_user, status, assigned_worker_profile
+      `SELECT
+         id_request,
+         id_user,
+         status,
+         assigned_worker_profile,
+         booking_type,
+         scheduled_start_time,
+         scheduled_end_time
        FROM service_requests
        WHERE id_request = ?
        FOR UPDATE`,
@@ -889,6 +1245,24 @@ export const acceptWorkerRequest = async (req: AuthRequest, res: Response): Prom
       await connection.rollback();
       res.status(409).json({ error: 'Request already taken by another worker.' });
       return;
+    }
+
+    if (String(request.booking_type || 'express').toLowerCase() === 'scheduled') {
+      const conflict = await getScheduledConflict(connection as any, {
+        profileId,
+        idRequest,
+        scheduledStartTime: request.scheduled_start_time || null,
+        scheduledEndTime: request.scheduled_end_time || null,
+      });
+
+      if (conflict) {
+        await connection.rollback();
+        res.status(409).json({
+          error: `This visit overlaps with scheduled request #${conflict.id_request}.`,
+          conflict_request_id: conflict.id_request,
+        });
+        return;
+      }
     }
 
     const [myRow] = await connection.execute<RowDataPacket[]>(
@@ -1038,8 +1412,8 @@ export const counterOfferWorkerRequest = async (req: AuthRequest, res: Response)
       res.status(400).json({ error: 'Invalid request id.' });
       return;
     }
-    if (!Number.isFinite(proposedBudget) || proposedBudget <= 0 || proposedBudget > 100000) {
-      res.status(400).json({ error: 'proposed_budget must be greater than 0 and less than 100000.' });
+    if (!Number.isFinite(proposedBudget) || proposedBudget <= 0 || proposedBudget > 1000) {
+      res.status(400).json({ error: 'proposed_budget must be between 0.01 and 1000.00.' });
       return;
     }
 
@@ -1064,8 +1438,23 @@ export const counterOfferWorkerRequest = async (req: AuthRequest, res: Response)
 
     await connection.beginTransaction();
 
+    await connection.execute(
+      `SELECT id_worker_profile
+       FROM worker_profiles
+       WHERE id_worker_profile = ?
+       FOR UPDATE`,
+      [profileId]
+    );
+
     const [requestRows] = await connection.execute<RowDataPacket[]>(
-      `SELECT id_request, id_user, status, assigned_worker_profile
+      `SELECT
+         id_request,
+         id_user,
+         status,
+         assigned_worker_profile,
+         booking_type,
+         scheduled_start_time,
+         scheduled_end_time
        FROM service_requests
        WHERE id_request = ?
        FOR UPDATE`,
@@ -1082,6 +1471,24 @@ export const counterOfferWorkerRequest = async (req: AuthRequest, res: Response)
       await connection.rollback();
       res.status(409).json({ error: 'Request already taken by another worker.' });
       return;
+    }
+
+    if (String(request.booking_type || 'express').toLowerCase() === 'scheduled') {
+      const conflict = await getScheduledConflict(connection as any, {
+        profileId,
+        idRequest,
+        scheduledStartTime: request.scheduled_start_time || null,
+        scheduledEndTime: request.scheduled_end_time || null,
+      });
+
+      if (conflict) {
+        await connection.rollback();
+        res.status(409).json({
+          error: `This visit overlaps with scheduled request #${conflict.id_request}.`,
+          conflict_request_id: conflict.id_request,
+        });
+        return;
+      }
     }
 
     const [myRow] = await connection.execute<RowDataPacket[]>(
@@ -1208,7 +1615,7 @@ export const startWorkerRequest = async (req: AuthRequest, res: Response): Promi
     }
 
     const [requestRows] = await connection.execute<RowDataPacket[]>(
-      `SELECT id_request, id_user, status, assigned_worker_profile
+      `SELECT id_request, id_user, status, assigned_worker_profile, booking_type, scheduled_start_time
        FROM service_requests
        WHERE id_request = ?
        LIMIT 1
@@ -1243,6 +1650,19 @@ export const startWorkerRequest = async (req: AuthRequest, res: Response): Promi
       await connection.rollback();
       res.status(409).json({ error: 'The client must complete payment before the job can start.' });
       return;
+    }
+
+    if (String(request.booking_type || 'express').toLowerCase() === 'scheduled' && request.scheduled_start_time) {
+      const scheduledStart = new Date(request.scheduled_start_time);
+      const earliestStart = scheduledStart.getTime() - SCHEDULED_START_EARLY_MINUTES * 60_000;
+      if (!Number.isNaN(scheduledStart.getTime()) && Date.now() < earliestStart) {
+        await connection.rollback();
+        res.status(409).json({
+          error: `This scheduled visit can start closer to ${scheduledStart.toLocaleString()}.`,
+          scheduled_start_time: request.scheduled_start_time,
+        });
+        return;
+      }
     }
 
     await connection.execute(
@@ -1527,9 +1947,19 @@ export const updateWorkerSettings = async (req: AuthRequest, res: Response): Pro
       changes.push('Phone number updated');
     }
 
+    let sanitizedBio: string | null | undefined = undefined;
+    if (bio != null) {
+      try {
+        sanitizedBio = sanitizeWorkerSafeText(bio, 500);
+      } catch {
+        res.status(400).json({ error: 'Invalid description format.' });
+        return;
+      }
+    }
+
     if (bio != null) {
       await pool.execute(`UPDATE worker_profiles SET bio = ? WHERE id_worker_profile = ?`, [
-        String(bio).trim() || null,
+        sanitizedBio ?? null,
         profileId,
       ]);
       changes.push('Description updated');
@@ -1738,7 +2168,47 @@ export const uploadProfileImage = async (req: AuthRequest, res: Response): Promi
     }
 
     if (!allowedImageMimeTypes.has(file.mimetype)) {
-      res.status(400).json({ error: 'Only PNG and JPG/JPEG images are allowed.' });
+      await cleanupUnreferencedWorkerUploads([file]);
+      res.status(400).json({ error: 'Only real PNG, JPG/JPEG and WEBP images are allowed.' });
+      return;
+    }
+
+    const [users] = await pool.execute<RowDataPacket[]>(
+      `SELECT id_user, name, email, profile_image FROM users WHERE id_user = ? LIMIT 1`,
+      [userId]
+    );
+    if (users.length === 0) {
+      await cleanupUnreferencedWorkerUploads([file]);
+      res.status(404).json({ error: 'User not found' });
+      return;
+    }
+
+    const user = users[0];
+    await pool.execute(`UPDATE users SET profile_image = ? WHERE id_user = ?`, [file.filename, userId]);
+
+    await deletePublicUploadIfUnreferenced(user.profile_image);
+
+    await sendProfileChangeNotice(user.email, user.name, ['Profile image updated']);
+    res.json({
+      success: true,
+      message: 'Profile image updated.',
+      profile_image: file.filename,
+      profile_image_url: buildAssetUrl(req, file.filename),
+    });
+  } catch (error: any) {
+    if (req.file) {
+      await cleanupUnreferencedWorkerUploads([req.file]);
+    }
+    console.error('Error in uploadProfileImage:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
+export const removeWorkerProfileImage = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const userId = req.user?.user_id;
+    if (!userId) {
+      res.status(401).json({ error: 'Unauthorized' });
       return;
     }
 
@@ -1752,19 +2222,18 @@ export const uploadProfileImage = async (req: AuthRequest, res: Response): Promi
     }
 
     const user = users[0];
-    await pool.execute(`UPDATE users SET profile_image = ? WHERE id_user = ?`, [file.filename, userId]);
+    await pool.execute(`UPDATE users SET profile_image = NULL WHERE id_user = ?`, [userId]);
+    await deletePublicUploadIfUnreferenced(user.profile_image);
 
-    deleteUploadIfExists(user.profile_image, 'public');
-
-    await sendProfileChangeNotice(user.email, user.name, ['Profile image updated']);
+    await sendProfileChangeNotice(user.email, user.name, ['Profile image removed']);
     res.json({
       success: true,
-      message: 'Profile image updated.',
-      profile_image: file.filename,
-      profile_image_url: buildAssetUrl(req, file.filename),
+      message: 'Profile image removed.',
+      profile_image: null,
+      profile_image_url: null,
     });
   } catch (error: any) {
-    console.error('Error in uploadProfileImage:', error);
+    console.error('Error in removeWorkerProfileImage:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 };
@@ -1785,7 +2254,8 @@ export const uploadPortfolioImages = async (req: AuthRequest, res: Response): Pr
 
     const invalid = files.find((file) => !allowedImageMimeTypes.has(file.mimetype));
     if (invalid) {
-      res.status(400).json({ error: 'Only PNG and JPG/JPEG images are allowed in portfolio.' });
+      await cleanupUnreferencedWorkerUploads(files);
+      res.status(400).json({ error: 'Only real PNG, JPG/JPEG and WEBP images are allowed in portfolio.' });
       return;
     }
 
@@ -1796,11 +2266,19 @@ export const uploadPortfolioImages = async (req: AuthRequest, res: Response): Pr
     );
     const currentCount = Number(countRows[0]?.total || 0);
     if (currentCount + files.length > 10) {
+      await cleanupUnreferencedWorkerUploads(files);
       res.status(400).json({ error: `You can upload up to 10 photos. Current: ${currentCount}.` });
       return;
     }
 
-    const description = req.body?.description ? String(req.body.description).trim() : null;
+    let description: string | null = null;
+    try {
+      description = sanitizeWorkerSafeText(req.body?.description, 500);
+    } catch {
+      await cleanupUnreferencedWorkerUploads(files);
+      res.status(400).json({ error: 'Invalid portfolio description format.' });
+      return;
+    }
     if (files.length > 0) {
       await pool.execute(
         `INSERT INTO worker_portfolio (id_worker_profile, image_url, description)
@@ -1826,6 +2304,7 @@ export const uploadPortfolioImages = async (req: AuthRequest, res: Response): Pr
       })),
     });
   } catch (error: any) {
+    await cleanupUnreferencedWorkerUploads((req.files as Express.Multer.File[]) || []);
     console.error('Error in uploadPortfolioImages:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
@@ -1862,7 +2341,7 @@ export const deletePortfolioImage = async (req: AuthRequest, res: Response): Pro
     const imageUrl = rows[0].image_url as string | null;
     await pool.execute(`DELETE FROM worker_portfolio WHERE id_photo = ?`, [idPhoto]);
 
-    deleteUploadIfExists(imageUrl, 'public');
+    await deletePublicUploadIfUnreferenced(imageUrl);
 
     res.json({ success: true, message: 'Portfolio photo deleted.' });
   } catch (error: any) {

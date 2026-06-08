@@ -28,7 +28,12 @@ import {
   updateSavedLocation,
 } from '../controllers/services.controller';
 import { verifyToken } from '../middlewares/auth.middleware';
-import { uploadProtectedImageOnly } from '../middlewares/upload.middleware';
+import { uploadProtectedImageOnly, validateUploadedFiles, sanitizeImages } from '../middlewares/upload.middleware';
+import {
+  requestChatReadLimiter,
+  requestChatSendLimiter,
+  sensitiveLimiter,
+} from '../middlewares/security.middleware';
 
 const router = Router();
 
@@ -46,17 +51,33 @@ router.delete('/saved-locations/:idSavedLocation', verifyToken, deleteSavedLocat
 router.delete('/saved-locations', verifyToken, clearSavedLocationsByKind);
 router.get('/my-requests', verifyToken, getMyServiceRequests);
 router.get('/requests/:idRequest/worker-profile', verifyToken, getRequestAssignedWorkerProfile);
-router.post('/requests', verifyToken, uploadProtectedImageOnly.array('problem_images', 5), createServiceRequest);
-router.post('/requests/:idRequest/cancel', verifyToken, cancelServiceRequest);
-router.post('/requests/:idRequest/worker/accept', verifyToken, acceptAssignedWorker);
-router.post('/requests/:idRequest/worker/decline', verifyToken, declineAssignedWorker);
-router.post('/requests/:idRequest/counter/accept', verifyToken, acceptCounterOffer);
-router.post('/requests/:idRequest/counter/decline', verifyToken, declineCounterOffer);
-router.post('/requests/:idRequest/payment-checkout', verifyToken, createRequestPaymentCheckout);
-router.post('/requests/:idRequest/payment-confirm', verifyToken, confirmRequestPayment);
-router.post('/requests/:idRequest/confirm-completion', verifyToken, confirmServiceCompletion);
-router.get('/requests/:idRequest/chat', verifyToken, getRequestChat);
-router.post('/requests/:idRequest/chat', verifyToken, uploadProtectedImageOnly.array('chat_images', 3), postRequestChatMessage);
-router.post('/requests/:idRequest/rating', verifyToken, submitRequestRating);
+router.post(
+  '/requests',
+  verifyToken,
+  sensitiveLimiter,
+  uploadProtectedImageOnly.array('problem_images', 5),
+  validateUploadedFiles,
+  sanitizeImages,
+  createServiceRequest
+);
+router.post('/requests/:idRequest/cancel', verifyToken, sensitiveLimiter, cancelServiceRequest);
+router.post('/requests/:idRequest/worker/accept', verifyToken, sensitiveLimiter, acceptAssignedWorker);
+router.post('/requests/:idRequest/worker/decline', verifyToken, sensitiveLimiter, declineAssignedWorker);
+router.post('/requests/:idRequest/counter/accept', verifyToken, sensitiveLimiter, acceptCounterOffer);
+router.post('/requests/:idRequest/counter/decline', verifyToken, sensitiveLimiter, declineCounterOffer);
+router.post('/requests/:idRequest/payment-checkout', verifyToken, sensitiveLimiter, createRequestPaymentCheckout);
+router.post('/requests/:idRequest/payment-confirm', verifyToken, sensitiveLimiter, confirmRequestPayment);
+router.post('/requests/:idRequest/confirm-completion', verifyToken, sensitiveLimiter, confirmServiceCompletion);
+router.get('/requests/:idRequest/chat', verifyToken, requestChatReadLimiter, getRequestChat);
+router.post(
+  '/requests/:idRequest/chat',
+  verifyToken,
+  requestChatSendLimiter,
+  uploadProtectedImageOnly.array('chat_images', 3),
+  validateUploadedFiles,
+  sanitizeImages,
+  postRequestChatMessage
+);
+router.post('/requests/:idRequest/rating', verifyToken, sensitiveLimiter, submitRequestRating);
 
 export default router;

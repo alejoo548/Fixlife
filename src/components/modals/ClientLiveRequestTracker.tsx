@@ -1,6 +1,15 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { Notyf } from 'notyf';
+import { showSweetToast } from '../../utils/sweetAlert';
+import {
+    buildRouteDistanceProfile,
+    focusRouteViewport,
+    formatEta,
+    getLiveViewportPoints,
+    getRemainingRoutePoints,
+    haversineKm,
+    polylineDistanceKm,
+} from '../dashboard/requests/workerRequestUtils';
 
 declare global {
     interface Window {
@@ -23,6 +32,11 @@ interface TrackableRequest {
     id_request: number;
     service_name: string;
     location_text: string;
+    booking_type?: 'express' | 'scheduled' | string;
+    scheduled_date?: string | null;
+    scheduled_time?: string | null;
+    scheduled_start_time?: string | null;
+    scheduled_end_time?: string | null;
     latitude?: number | null;
     longitude?: number | null;
     status: RequestStatus;
@@ -54,307 +68,41 @@ type TrackerStage =
 type CameraMode = 'balanced' | 'close';
 const CLIENT_TRACKER_CAMERA_KEY = 'fixlife.clientTracker.cameraMode';
 
-const trackerNotyf = new Notyf({ position: { x: 'left', y: 'bottom' }, ripple: true });
-
-const haversineKm = (
-    pointA: { lat: number; lng: number },
-    pointB: { lat: number; lng: number }
-) => {
-    const toRad = (value: number) => (value * Math.PI) / 180;
-    const earthRadiusKm = 6371;
-    const dLat = toRad(pointB.lat - pointA.lat);
-    const dLng = toRad(pointB.lng - pointA.lng);
-    const lat1 = toRad(pointA.lat);
-    const lat2 = toRad(pointB.lat);
-
-    const a =
-        Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-        Math.sin(dLng / 2) * Math.sin(dLng / 2) * Math.cos(lat1) * Math.cos(lat2);
-
-    return 2 * earthRadiusKm * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+const trackerNotyf = {
+    success: (message: string) => void showSweetToast({ tone: 'success', message }),
+    open: (input: { message: string; duration?: number; type?: string; background?: string }) =>
+        void showSweetToast({ tone: 'info', message: input.message, duration: input.duration }),
 };
 
-const polylineDistanceKm = (points: [number, number][]) => {
-    if (points.length < 2) return 0;
+const isScheduledRequest = (request: TrackableRequest) =>
+    String(request.booking_type || 'express').toLowerCase() === 'scheduled';
 
-    let total = 0;
-    for (let index = 1; index < points.length; index += 1) {
-        total += haversineKm(
-            { lat: points[index - 1][0], lng: points[index - 1][1] },
-            { lat: points[index][0], lng: points[index][1] }
-        );
-    }
+const formatScheduledWindow = (request: TrackableRequest) => {
+    const startValue = request.scheduled_start_time || (
+        request.scheduled_date && request.scheduled_time
+            ? `${request.scheduled_date}T${request.scheduled_time}`
+            : ''
+    );
+    if (!startValue) return '';
 
-    return total;
-};
+    const start = new Date(startValue);
+    const end = request.scheduled_end_time ? new Date(request.scheduled_end_time) : null;
+    if (Number.isNaN(start.getTime())) return '';
 
-const distancePointToSegmentSquared = (
-    point: { lat: number; lng: number },
-    start: [number, number],
-    end: [number, number]
-) => {
-    const px = point.lng;
-    const py = point.lat;
-    const x1 = start[1];
-    const y1 = start[0];
-    const x2 = end[1];
-    const y2 = end[0];
-    const dx = x2 - x1;
-    const dy = y2 - y1;
+    const dateLabel = start.toLocaleDateString(undefined, {
+        weekday: 'short',
+        month: 'short',
+        day: 'numeric',
+    });
+    const startLabel = start.toLocaleTimeString(undefined, {
+        hour: 'numeric',
+        minute: '2-digit',
+    });
+    const endLabel = end && !Number.isNaN(end.getTime())
+        ? end.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })
+        : '';
 
-    if (dx === 0 && dy === 0) {
-        const ddx = px - x1;
-        const ddy = py - y1;
-        return ddx * ddx + ddy * ddy;
-    }
-
-    const t = Math.max(0, Math.min(1, ((px - x1) * dx + (py - y1) * dy) / (dx * dx + dy * dy)));
-    const projX = x1 + t * dx;
-    const projY = y1 + t * dy;
-    const ddx = px - projX;
-    const ddy = py - projY;
-    return ddx * ddx + ddy * ddy;
-};
-
-const findNearestSegmentIndex = (
-    source: { lat: number; lng: number },
-    points: [number, number][]
-) => {
-    if (points.length < 2) return points.length === 1 ? 0 : -1;
-
-    let nearestIndex = 0;
-    let nearestDistance = Number.POSITIVE_INFINITY;
-
-    for (let index = 0; index < points.length - 1; index += 1) {
-        const distance = distancePointToSegmentSquared(source, points[index], points[index + 1]);
-        if (distance < nearestDistance) {
-            nearestDistance = distance;
-            nearestIndex = index;
-        }
-    }
-
-    return nearestIndex;
-};
-
-const getRemainingRoutePoints = (
-    points: [number, number][],
-    currentCoords: { lat: number; lng: number } | null
-) => {
-    if (!currentCoords || points.length === 0) return points;
-    if (points.length === 1) {
-        return [
-            [currentCoords.lat, currentCoords.lng] as [number, number],
-            [currentCoords.lat, currentCoords.lng] as [number, number],
-        ];
-    }
-
-    const nearestSegmentIndex = findNearestSegmentIndex(currentCoords, points);
-    if (nearestSegmentIndex < 0) return points;
-
-    const segmentEnd = points[Math.min(nearestSegmentIndex + 1, points.length - 1)];
-    const nextPoints: [number, number][] = [[currentCoords.lat, currentCoords.lng] as [number, number]];
-
-    if (segmentEnd && haversineKm(currentCoords, { lat: segmentEnd[0], lng: segmentEnd[1] }) > 0.002) {
-        nextPoints.push(segmentEnd);
-    }
-
-    const tail = points.slice(Math.min(nearestSegmentIndex + 2, points.length)) as [number, number][];
-    nextPoints.push(...tail);
-
-    if (nextPoints.length === 1) {
-        return [nextPoints[0], nextPoints[0]];
-    }
-
-    return nextPoints;
-};
-
-const getLiveViewportPoints = (
-    points: [number, number][],
-    currentCoords: { lat: number; lng: number } | null,
-    cameraMode: CameraMode = 'balanced'
-) => {
-    const remainingPoints = getRemainingRoutePoints(points, currentCoords);
-    if (remainingPoints.length <= 2) return remainingPoints;
-
-    const totalRemainingKm = polylineDistanceKm(remainingPoints);
-    const targetViewportKm =
-        cameraMode === 'close'
-            ? Math.min(Math.max(totalRemainingKm * 0.12, 0.05), 0.1)
-            : Math.min(Math.max(totalRemainingKm * 0.2, 0.08), 0.18);
-    const nextViewportPoints: [number, number][] = [remainingPoints[0]];
-    let coveredKm = 0;
-
-    for (let index = 1; index < remainingPoints.length; index += 1) {
-        coveredKm += haversineKm(
-            { lat: remainingPoints[index - 1][0], lng: remainingPoints[index - 1][1] },
-            { lat: remainingPoints[index][0], lng: remainingPoints[index][1] }
-        );
-        nextViewportPoints.push(remainingPoints[index]);
-        if (coveredKm >= targetViewportKm) break;
-    }
-
-    if (nextViewportPoints.length === 1 && remainingPoints[1]) {
-        nextViewportPoints.push(remainingPoints[1]);
-    }
-
-    return nextViewportPoints;
-};
-
-const focusRouteViewport = (
-    map: any,
-    L: any,
-    points: [number, number][],
-    isLiveRoute: boolean,
-    cameraMode: CameraMode = 'balanced'
-) => {
-    const validPoints = points.filter(([lat, lng]) => Number.isFinite(lat) && Number.isFinite(lng));
-    if (!map || !L || validPoints.length === 0) return;
-    
-    // We override points with validPoints but let's make doubly sure for Leaflet bounds
-    const cleanPoints = validPoints.map(([lat, lng]) => [Number(lat), Number(lng)] as [number, number]);
-
-    const isDesktop = typeof window !== 'undefined' ? window.innerWidth >= 1024 : true;
-    const firstPoint = cleanPoints[0];
-    const lastPoint = cleanPoints[cleanPoints.length - 1];
-    const latSpan = Math.abs(firstPoint[0] - lastPoint[0]);
-    const lngSpan = Math.abs(firstPoint[1] - lastPoint[1]);
-    const routeKm = polylineDistanceKm(cleanPoints);
-    const isVeryShortRoute = latSpan < 0.0018 && lngSpan < 0.0018;
-
-    if (isVeryShortRoute) {
-        const centerLat = (firstPoint[0] + lastPoint[0]) / 2;
-        const centerLng = (firstPoint[1] + lastPoint[1]) / 2;
-        
-        if (!Number.isFinite(centerLat) || !Number.isFinite(centerLng)) return;
-
-        const closeZoom =
-            cameraMode === 'close'
-                ? routeKm < 0.12
-                    ? 19
-                    : routeKm < 0.24
-                      ? 18
-                      : isDesktop
-                        ? 17
-                        : 16
-                : routeKm < 0.18
-                  ? 18
-                  : routeKm < 0.35
-                    ? 17
-                    : isDesktop
-                      ? 16
-                      : 15;
-        try {
-            map.flyTo([centerLat, centerLng], closeZoom, {
-                animate: false,
-                duration: 0,
-            });
-        } catch (error) {
-            console.warn('Leaflet flyTo error gracefully handled:', error);
-        }
-        return;
-    }
-
-    try {
-        const bounds = L.polyline(cleanPoints).getBounds();
-        if (!bounds || !bounds.isValid()) return;
-        
-        const mapSize = map.getSize();
-        if (!mapSize || mapSize.x === 0 || mapSize.y === 0) {
-            // Container size is 0 (e.g., rendering during animation), skip bounds calculation to avoid NaN
-            return;
-        }
-
-        const paddedBounds = bounds.pad(
-            isLiveRoute ? (cameraMode === 'close' ? 0.0015 : 0.004) : 0.05
-        );
-        
-        const fitOptions = isDesktop
-            ? {
-                  paddingTopLeft: cameraMode === 'close' ? [18, 18] : [36, 36],
-                  paddingBottomRight: cameraMode === 'close' ? [18, 24] : [36, 48],
-                  maxZoom: isLiveRoute ? (cameraMode === 'close' ? 19 : 18) : 16,
-                  animate: false,
-                  duration: 0,
-              }
-            : {
-                  paddingTopLeft: cameraMode === 'close' ? [12, 16] : [18, 24],
-                  paddingBottomRight: cameraMode === 'close' ? [12, 18] : [18, 30],
-                  maxZoom: isLiveRoute ? (cameraMode === 'close' ? 18 : 17) : 15,
-                  animate: false,
-                  duration: 0,
-              };
-
-        if (typeof map.flyToBounds === 'function') {
-            map.flyToBounds(paddedBounds, fitOptions);
-            return;
-        }
-
-        map.fitBounds(paddedBounds, fitOptions);
-    } catch (error) {
-        console.warn('Leaflet fitBounds error gracefully handled:', error);
-    }
-};
-
-const buildRouteDistanceProfile = (points: [number, number][]) => {
-    const cumulativeKm: number[] = [0];
-    let totalKm = 0;
-
-    for (let index = 1; index < points.length; index += 1) {
-        totalKm += haversineKm(
-            { lat: points[index - 1][0], lng: points[index - 1][1] },
-            { lat: points[index][0], lng: points[index][1] }
-        );
-        cumulativeKm.push(totalKm);
-    }
-
-    return {
-        totalKm,
-        cumulativeKm,
-    };
-};
-
-const getPointAtDistanceKm = (
-    points: [number, number][],
-    cumulativeKm: number[],
-    targetKm: number
-) => {
-    if (points.length === 0) return null;
-    if (points.length === 1) return { lat: points[0][0], lng: points[0][1] };
-    if (targetKm <= 0) return { lat: points[0][0], lng: points[0][1] };
-
-    const totalKm = cumulativeKm[cumulativeKm.length - 1] || 0;
-    if (targetKm >= totalKm) {
-        const lastPoint = points[points.length - 1];
-        return { lat: lastPoint[0], lng: lastPoint[1] };
-    }
-
-    for (let index = 1; index < cumulativeKm.length; index += 1) {
-        if (cumulativeKm[index] < targetKm) continue;
-
-        const startDistance = cumulativeKm[index - 1];
-        const endDistance = cumulativeKm[index];
-        const segmentSpan = Math.max(endDistance - startDistance, 0.000001);
-        const ratio = (targetKm - startDistance) / segmentSpan;
-        const startPoint = points[index - 1];
-        const endPoint = points[index];
-
-        return {
-            lat: startPoint[0] + (endPoint[0] - startPoint[0]) * ratio,
-            lng: startPoint[1] + (endPoint[1] - startPoint[1]) * ratio,
-        };
-    }
-
-    const fallbackPoint = points[points.length - 1];
-    return { lat: fallbackPoint[0], lng: fallbackPoint[1] };
-};
-
-const formatEta = (durationMin: number) => {
-    if (!Number.isFinite(durationMin) || durationMin <= 0) return '0 min';
-    if (durationMin < 60) return `${Math.max(1, Math.ceil(durationMin))} min`;
-
-    const hours = Math.floor(durationMin / 60);
-    const minutes = Math.ceil(durationMin % 60);
-    return minutes > 0 ? `${hours}h ${minutes}m` : `${hours}h`;
+    return endLabel ? `${dateLabel}, ${startLabel} - ${endLabel}` : `${dateLabel}, ${startLabel}`;
 };
 
 const statusToStage = (statusRaw: RequestStatus): TrackerStage => {
@@ -527,7 +275,23 @@ const ClientLiveRequestTracker: React.FC<ClientLiveRequestTrackerProps> = ({ lea
         }
     }, [request.id_request, routeOriginCoords, workerStartCoords]);
 
-    const isLiveRoute = ['paid', 'in_progress'].includes(String(request.status || '').toLowerCase());
+    const requestStatus = String(request.status || '').toLowerCase();
+    const scheduledStart = useMemo(() => {
+        const startValue = request.scheduled_start_time || (
+            request.scheduled_date && request.scheduled_time
+                ? `${request.scheduled_date}T${request.scheduled_time}`
+                : ''
+        );
+        if (!startValue) return null;
+        const value = new Date(startValue);
+        return Number.isNaN(value.getTime()) ? null : value;
+    }, [request.scheduled_date, request.scheduled_start_time, request.scheduled_time]);
+    const scheduledWindow = useMemo(() => formatScheduledWindow(request), [request]);
+    const isScheduledFuture = isScheduledRequest(request)
+        && !!scheduledStart
+        && scheduledStart.getTime() > Date.now()
+        && !['in_progress', 'awaiting_confirmation', 'done'].includes(requestStatus);
+    const isLiveRoute = ['paid', 'in_progress'].includes(requestStatus) && !isScheduledFuture;
     const visibleRoutePoints = useMemo(() => {
         if (!routePreview) return null;
         if (!isLiveRoute) return routePreview.points;
@@ -908,6 +672,13 @@ const ClientLiveRequestTracker: React.FC<ClientLiveRequestTrackerProps> = ({ lea
 
     const visual = stageVisual(trackerStage);
     const workerName = request.assigned_worker?.name || 'Your worker';
+    const displayedVisual = isScheduledFuture
+        ? {
+            ...visual,
+            label: 'Scheduled visit',
+            note: scheduledWindow || 'Your visit is reserved for the selected time.',
+        }
+        : visual;
 
     const showTrackerToast = (tone: 'success' | 'info', message: string) => {
         const now = Date.now();
@@ -953,7 +724,12 @@ const ClientLiveRequestTracker: React.FC<ClientLiveRequestTrackerProps> = ({ lea
         previousStageRef.current = trackerStage;
     }, [request.id_request, request.service_name, trackerStage, workerName]);
 
-    const etaLabel = routeLoading ? 'Syncing' : formatEta(metrics?.durationMin ?? routePreview?.durationMin ?? 0);
+    const etaLabel = isScheduledFuture
+        ? scheduledWindow || 'Scheduled'
+        : routeLoading
+          ? 'Syncing'
+          : formatEta(metrics?.durationMin ?? routePreview?.durationMin ?? 0);
+    const etaMetaLabel = isScheduledFuture ? 'Visit' : 'ETA';
     const distanceLabel = routeLoading ? 'Updating' : `${(metrics?.distanceKm ?? routePreview?.distanceKm ?? 0).toFixed(1)} km`;
 
     return (
@@ -992,12 +768,12 @@ const ClientLiveRequestTracker: React.FC<ClientLiveRequestTrackerProps> = ({ lea
                         className="pointer-events-auto flex-1 sm:flex-none flex items-center gap-3 sm:gap-4 bg-white/95 backdrop-blur-md px-4 sm:px-5 py-2.5 sm:py-3.5 rounded-full sm:rounded-[1.25rem] shadow-lg border border-white/60"
                     >
                         <div className="relative flex items-center justify-center shrink-0">
-                            <div className={`absolute inset-0 rounded-full blur-md opacity-40 ${visual.toneClass.includes('emerald') || visual.toneClass.includes('green') ? 'bg-emerald-500' : 'bg-blue-500'}`}></div>
+                            <div className={`absolute inset-0 rounded-full blur-md opacity-40 ${displayedVisual.toneClass.includes('emerald') || displayedVisual.toneClass.includes('green') ? 'bg-emerald-500' : 'bg-blue-500'}`}></div>
                             <div className="h-2 w-2 sm:h-2.5 sm:w-2.5 rounded-full bg-blue-500 relative z-10 animate-pulse"></div>
                         </div>
                         <div className="min-w-0">
                             <p className="text-[9px] sm:text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 leading-none mb-1 sm:mb-1.5">Status</p>
-                            <p className="text-xs sm:text-sm font-black text-slate-900 leading-none truncate">{visual.label}</p>
+                            <p className="text-xs sm:text-sm font-black text-slate-900 leading-none truncate">{displayedVisual.label}</p>
                         </div>
                     </motion.div>
                 </div>
@@ -1036,11 +812,14 @@ const ClientLiveRequestTracker: React.FC<ClientLiveRequestTrackerProps> = ({ lea
                             <div className="min-w-0">
                                 <h3 className="text-lg font-black text-slate-900 truncate">{workerName}</h3>
                                 <p className="text-sm font-semibold text-slate-500 truncate">{request.service_name}</p>
+                                {isScheduledRequest(request) && scheduledWindow && (
+                                    <p className="mt-0.5 text-xs font-bold text-blue-600 truncate">{scheduledWindow}</p>
+                                )}
                             </div>
                         </div>
                         <div className="text-right shrink-0 pl-4 border-l border-slate-100 ml-4">
-                            <div className="text-2xl font-black text-slate-900 tracking-tight">{etaLabel}</div>
-                            <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-0.5">ETA</div>
+                            <div className={`${isScheduledFuture ? 'max-w-[140px] text-sm leading-tight' : 'text-2xl'} font-black text-slate-900 tracking-tight`}>{etaLabel}</div>
+                            <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-0.5">{etaMetaLabel}</div>
                         </div>
                     </div>
 

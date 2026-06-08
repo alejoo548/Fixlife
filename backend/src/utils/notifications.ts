@@ -116,6 +116,37 @@ export const createUserNotification = async (input: {
   }
 };
 
+export const notifyAdmins = async (input: {
+  eventType: string;
+  title: string;
+  message: string;
+  tone?: NotificationTone;
+  actionUrl?: string | null;
+  dedupeKey?: string | null;
+  metadata?: Record<string, unknown> | null;
+}) => {
+  await ensureNotificationsTable();
+
+  const [admins] = await pool.execute<RowDataPacket[]>(
+    `SELECT id_user FROM users WHERE rol IN ('admin', 'root')`
+  );
+
+  await Promise.allSettled(
+    admins.map((admin) =>
+      createUserNotification({
+        userId: Number(admin.id_user),
+        eventType: input.eventType,
+        title: input.title,
+        message: input.message,
+        tone: input.tone,
+        actionUrl: input.actionUrl ?? null,
+        dedupeKey: input.dedupeKey ? `${input.dedupeKey}_${admin.id_user}` : null,
+        metadata: input.metadata ?? null,
+      })
+    )
+  );
+};
+
 export const listUserNotifications = async (
   userId: number,
   options?: { limit?: number; unreadOnly?: boolean }

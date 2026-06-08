@@ -2,6 +2,8 @@ import React, { useRef, useEffect } from 'react';
 import { SupportThread, SupportMessage } from '../../types/support';
 import { ArrowLeft } from 'lucide-react';
 import { SupportMessageInput } from './SupportMessageInput';
+import { SupportProtectedImage } from './SupportProtectedImage';
+import { getSafeSupportDisplayText } from '../../utils/supportSecurity';
 
 interface SupportChatWindowProps {
   thread: SupportThread;
@@ -24,10 +26,11 @@ export const SupportChatWindow: React.FC<SupportChatWindowProps> = ({
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages.length]);
 
-  const handleSend = (msg: string) => {
+  const handleSend = (msg: string, image?: File | null) => {
     onSendMessage({
       threadId: thread.id,
       message: msg,
+      image,
     });
   };
 
@@ -57,6 +60,7 @@ export const SupportChatWindow: React.FC<SupportChatWindowProps> = ({
 
         {messages.map((msg) => {
           const isMine = msg.senderRole !== 'admin';
+          const safeMessage = getSafeSupportDisplayText(msg.message);
 
           return (
             <div key={msg.id} className={`flex ${isMine ? 'justify-end' : 'justify-start'}`}>
@@ -70,7 +74,13 @@ export const SupportChatWindow: React.FC<SupportChatWindowProps> = ({
                 {!isMine && (
                   <div className="mb-1 text-[10.5px] font-semibold tracking-wide text-bird-blue/90">{msg.senderName}</div>
                 )}
-                <div>{msg.message}</div>
+                {msg.imageUrl && (
+                  <SupportProtectedImage
+                    imageUrl={msg.imageUrl}
+                    className={msg.message ? 'mb-2' : ''}
+                  />
+                )}
+                {safeMessage && <div>{safeMessage}</div>}
                 <div className={`mt-2 text-right text-[9.5px] ${isMine ? 'text-white/50' : 'text-gray-400'}`}>
                   {new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                 </div>

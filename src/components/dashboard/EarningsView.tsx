@@ -7,10 +7,7 @@ import {
   getBonusProgramLabel,
   getCalendarBatchSummary,
   getNextPayoutLabel,
-  getPayoutStatusBadge,
-  getPayoutStatusLabel,
 } from './workerRewardsUi';
-import { EarningsStatementSection } from './EarningsStatementSection';
 
 const ProgressBar: React.FC<{ value: number; tone?: 'blue' | 'amber' | 'emerald' }> = ({
   value,
@@ -68,8 +65,6 @@ export const EarningsView: React.FC = () => {
   const summary = data!.summary;
   const program = data!.program;
   const progress = data!.progress;
-  const fullHistory = data!.history;
-  const recentHistory = fullHistory.slice(0, 6);
   const nextBatch =
     data!.calendar.items.find((item) => item.date === summary.next_payout_date) || null;
   const nextBatchBreakdown = nextBatch ? getCalendarBatchSummary([nextBatch]) : null;
@@ -141,7 +136,7 @@ export const EarningsView: React.FC = () => {
       <motion.div
         initial={{ opacity: 0, y: 12 }}
         animate={{ opacity: 1, y: 0 }}
-        className="overflow-hidden rounded-[28px] border border-bird-blue/15 bg-gradient-to-r from-bird-blue/10 via-white to-bird-yellow/15 p-5 shadow-sm"
+        className="overflow-hidden rounded-[28px] border border-gray-200 bg-white p-5 shadow-sm"
       >
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
           <div className="max-w-3xl">
@@ -152,11 +147,11 @@ export const EarningsView: React.FC = () => {
             </p>
           </div>
           <div className="grid gap-3 lg:min-w-[380px] lg:grid-cols-2">
-            <div className="rounded-2xl border border-white/70 bg-white/80 px-4 py-3 shadow-sm">
+            <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 shadow-sm">
               <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">Commission bonus unlock</p>
               <p className="mt-1 text-lg font-black text-slate-900 sm:text-xl">{program.trial_min_completed_jobs} lifetime jobs</p>
             </div>
-            <div className="rounded-2xl border border-white/70 bg-white/80 px-4 py-3 shadow-sm">
+            <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 shadow-sm">
               <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">Monthly bonus target</p>
               <p className="mt-1 text-lg font-black text-slate-900 sm:text-xl">
                 {program.royalty_min_jobs} jobs + {program.royalty_min_completion_rate}% rate
@@ -279,7 +274,7 @@ export const EarningsView: React.FC = () => {
             </div>
           </div>
 
-          <div className="mt-6 rounded-3xl border border-bird-blue/15 bg-gradient-to-r from-bird-blue/10 via-sky-50 to-amber-50 p-4">
+          <div className="mt-6 rounded-3xl border border-slate-200 bg-slate-50 p-4">
             <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
               <div className="max-w-3xl">
                 <p className="text-[11px] font-black uppercase tracking-[0.18em] text-bird-blue">Payout policy</p>
@@ -287,7 +282,7 @@ export const EarningsView: React.FC = () => {
                   Base earnings are scheduled into payout batches first. Commission bonuses unlock after {program.trial_min_completed_jobs} lifetime completed jobs, and the monthly performance bonus unlocks once the worker closes at least {program.royalty_min_jobs} jobs with a {program.royalty_min_completion_rate}% completion rate during the cycle.
                 </p>
               </div>
-              <div className="shrink-0 rounded-2xl border border-white/70 bg-white/80 px-4 py-3 text-right">
+              <div className="shrink-0 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-right">
                 <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">Cycle gross base earnings</p>
                 <p className="mt-1 text-xl font-black text-slate-900 sm:text-2xl">{formatMoney(summary.cycle_gross_earnings)}</p>
               </div>
@@ -371,88 +366,6 @@ export const EarningsView: React.FC = () => {
         </motion.div>
       </div>
 
-      <motion.div
-        initial={{ opacity: 0, y: 18 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.18 }}
-        className="rounded-[28px] border border-gray-200 bg-white p-5 shadow-sm md:p-6"
-      >
-        <div className="flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
-          <div>
-            <p className="text-xs font-black uppercase tracking-[0.18em] text-slate-400">Recent completed work</p>
-            <h3 className="mt-2 text-xl font-black text-slate-900 sm:text-2xl">See what each recent job contributes</h3>
-          </div>
-          <div className="rounded-full border border-slate-200 bg-slate-50 px-4 py-2 text-xs font-bold text-slate-600">
-            {recentHistory.length} most recent completed jobs
-          </div>
-        </div>
-
-        <div className="mt-6 space-y-3">
-          {recentHistory.length === 0 ? (
-            <div className="rounded-3xl border border-dashed border-slate-200 bg-slate-50 px-4 py-6 text-sm font-semibold text-slate-500">
-              Completed jobs will show here once the client confirms them.
-            </div>
-          ) : (
-            recentHistory.map((item) => {
-              const totalFromJob = Number(item.worker_payout || 0) + Number(item.total_bonus || 0);
-
-              return (
-                <div key={item.id_request} className="rounded-3xl border border-slate-200 bg-slate-50 p-4">
-                  <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
-                    <div className="min-w-0 xl:max-w-[44%]">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <p className="truncate text-lg font-black text-slate-900">{item.service_name}</p>
-                        <span
-                          className={`rounded-full px-3 py-1 text-[11px] font-black uppercase tracking-[0.16em] ${getPayoutStatusBadge(item.worker_payout_status)}`}
-                        >
-                          Base {getPayoutStatusLabel(item.worker_payout_status)}
-                        </span>
-                        <span
-                          className={`rounded-full px-3 py-1 text-[11px] font-black uppercase tracking-[0.16em] ${getPayoutStatusBadge(item.bonus_status)}`}
-                        >
-                          Bonus {getPayoutStatusLabel(item.bonus_status)}
-                        </span>
-                      </div>
-
-                      <p className="mt-2 truncate text-sm font-semibold text-slate-600">
-                        {item.client_name || 'Client'} / {formatDate(item.completed_at)}
-                      </p>
-                      <p className="mt-2 truncate text-sm text-slate-500">{item.location_text}</p>
-                      <p className="mt-3 text-sm leading-6 text-slate-500">{item.description}</p>
-                    </div>
-
-                    <div className="grid flex-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
-                      <div className="rounded-2xl border border-white/70 bg-white p-3">
-                        <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">Base earnings</p>
-                        <p className="mt-2 text-xl font-black text-slate-900">{formatMoney(item.worker_payout)}</p>
-                      </div>
-                      <div className="rounded-2xl border border-amber-200 bg-amber-50 p-3">
-                        <p className="text-[11px] font-black uppercase tracking-[0.18em] text-amber-700">Commission bonus</p>
-                        <p className="mt-2 text-xl font-black text-amber-700">{formatMoney(item.commission_bonus)}</p>
-                      </div>
-                      <div className="rounded-2xl border border-bird-blue/15 bg-bird-blue/10 p-3">
-                        <p className="text-[11px] font-black uppercase tracking-[0.18em] text-bird-blue">Total from job</p>
-                        <p className="mt-2 text-xl font-black text-bird-blue">{formatMoney(totalFromJob)}</p>
-                      </div>
-                      <div className="rounded-2xl border border-slate-200 bg-white p-3">
-                        <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">Scheduled payout date</p>
-                        <p className="mt-2 text-base font-black text-slate-900">{formatDate(item.scheduled_payout_date)}</p>
-                        {item.worker_payout_paid_at && (
-                          <p className="mt-1 text-xs font-semibold text-emerald-700">
-                            Paid {formatDate(item.worker_payout_paid_at)}
-                          </p>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              );
-            })
-          )}
-        </div>
-      </motion.div>
-
-      <EarningsStatementSection history={fullHistory} />
     </div>
   );
 };

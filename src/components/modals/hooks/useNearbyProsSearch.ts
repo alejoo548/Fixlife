@@ -35,12 +35,12 @@ export const useNearbyProsSearch = <TWorker,>({
     const selectedService = services.find((svc) => svc.name === selectedCategory);
     if (!selectedService?.id_service) {
       showToast('error', 'Select a service first.');
-      return;
+      return [];
     }
 
     const resolvedCoords = currentCoords ?? (await resolveLocationInput());
     if (!resolvedCoords) {
-      return;
+      return [];
     }
 
     try {
@@ -54,11 +54,16 @@ export const useNearbyProsSearch = <TWorker,>({
       const payload = await res.json();
       if (!res.ok || !payload?.success) {
         showToast('error', payload?.error || 'Could not search nearby workers.');
-        return;
+        return [];
       }
-      setNearbyWorkers(Array.isArray(payload.workers) ? payload.workers : []);
-      showToast('success', 'Nearby workers loaded.');
+      const workers = Array.isArray(payload.workers) ? payload.workers : [];
+      setNearbyWorkers(workers);
+      if (workers.length > 0) {
+        showToast('success', 'Nearby workers loaded.');
+      }
+      return workers as TWorker[];
     } catch {
       showToast('error', 'Network error searching nearby workers.');
+      return [];
     }
   }, [currentCoords, radiusKm, resolveLocationInput, selectedCategory, services, setNearbyWorkers, showToast]);

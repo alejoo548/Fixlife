@@ -25,11 +25,6 @@ interface UseSupportChatOptions {
   isOpen: boolean;
 }
 
-/**
- * useSupportChat - Real implementation (Fase 1)
- * 
- * Uses real REST API + Socket.IO for the support chat.
- */
 export function useSupportChat({ token, isOpen }: UseSupportChatOptions) {
   const [threads, setThreads] = useState<SupportThread[]>([]);
   const [messagesByThread, setMessagesByThread] = useState<Record<number, SupportMessage[]>>({});
@@ -42,7 +37,6 @@ export function useSupportChat({ token, isOpen }: UseSupportChatOptions) {
   const activeThread = threads.find((t) => t.id === activeThreadId) || null;
   const messages = activeThreadId ? messagesByThread[activeThreadId] || [] : [];
 
-  // Socket.IO setup
   useEffect(() => {
     if (!token || !isOpen) {
       disconnectSupportSocket();
@@ -50,13 +44,11 @@ export function useSupportChat({ token, isOpen }: UseSupportChatOptions) {
       return;
     }
 
-    const s = connectSupportSocket({
+    connectSupportSocket({
       token,
       onNewMessage: (message) => {
-        // Real-time message received
         setMessagesByThread((prev) => {
           const current = prev[message.threadId] || [];
-          // Avoid duplicates
           if (current.some((m) => m.id === message.id)) {
             return prev;
           }
@@ -66,7 +58,6 @@ export function useSupportChat({ token, isOpen }: UseSupportChatOptions) {
           };
         });
 
-        // Update last activity in thread list
         setThreads((prev) =>
           prev.map((t) =>
             t.id === message.threadId
@@ -84,7 +75,6 @@ export function useSupportChat({ token, isOpen }: UseSupportChatOptions) {
     };
   }, [token, isOpen]);
 
-  // Load threads when the widget opens
   useEffect(() => {
     if (!token || !isOpen) return;
 
@@ -101,7 +91,7 @@ export function useSupportChat({ token, isOpen }: UseSupportChatOptions) {
         }
       } catch (e) {
         if (!cancelled) {
-          setError('No pudimos cargar tus casos de soporte.');
+          setError('We could not load your support cases.');
         }
       } finally {
         if (!cancelled) setIsLoading(false);
@@ -118,23 +108,20 @@ export function useSupportChat({ token, isOpen }: UseSupportChatOptions) {
   const openThread = useCallback(async (threadId: number) => {
     setActiveThreadId(threadId);
 
-    // Mark as read locally
     setThreads((prev) =>
       prev.map((t) => (t.id === threadId ? { ...t, unreadCount: 0 } : t))
     );
 
-    // Join socket room for real-time updates
     if (isSupportSocketConnected()) {
       joinSupportThread(threadId);
     }
 
-    // Load messages if we don't have them yet
     if (!messagesByThread[threadId]) {
       try {
         const msgs = await fetchSupportMessages(threadId);
         setMessagesByThread((prev) => ({ ...prev, [threadId]: msgs }));
       } catch {
-        // silent fail for now
+        setError('Could not load messages.');
       }
     }
   }, [messagesByThread]);
@@ -153,7 +140,7 @@ export function useSupportChat({ token, isOpen }: UseSupportChatOptions) {
         threadId: newThread.id,
         senderUserId: newThread.userId,
         senderRole: newThread.userRole as any,
-        senderName: 'Tú',
+        senderName: 'You',
         message: input.message,
         createdAt: new Date().toISOString(),
       };
@@ -165,14 +152,13 @@ export function useSupportChat({ token, isOpen }: UseSupportChatOptions) {
       }));
       setActiveThreadId(newThread.id);
 
-      // Join the new thread room
       if (isSupportSocketConnected()) {
         joinSupportThread(newThread.id);
       }
 
       return newThread;
     } catch (e: any) {
-      setError(e.message || 'No pudimos abrir el caso de soporte.');
+      setError(e.message || 'We could not open the support case.');
       return null;
     } finally {
       setIsSending(false);
@@ -188,13 +174,12 @@ export function useSupportChat({ token, isOpen }: UseSupportChatOptions) {
     setIsSending(true);
 
     try {
-      if (isSupportSocketConnected()) {
+      if (isSupportSocketConnected() && !input.image) {
         emitSupportMessage({
           threadId: activeThreadId,
           message: trimmed,
         });
       } else {
-        // Fallback to REST when offline
         const newMessage = await sendSupportMessage({
           threadId: activeThreadId,
           message: trimmed,
@@ -207,7 +192,6 @@ export function useSupportChat({ token, isOpen }: UseSupportChatOptions) {
         }));
       }
 
-      // Update thread list
       setThreads((prev) =>
         prev.map((t) =>
           t.id === activeThreadId
@@ -216,7 +200,7 @@ export function useSupportChat({ token, isOpen }: UseSupportChatOptions) {
         )
       );
     } catch (e: any) {
-      setError(e.message || 'No pudimos enviar el mensaje.');
+      setError(e.message || 'We could not send the message.');
     } finally {
       setIsSending(false);
     }

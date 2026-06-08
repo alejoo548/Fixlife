@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { API_ENDPOINTS, API_URL } from '../../config/api';
-import { Notyf } from 'notyf';
-import 'notyf/notyf.min.css';
+import { showSweetToast } from '../../utils/sweetAlert';
 import { motion, AnimatePresence } from 'framer-motion';
 import WorkerForgotPassword from '../../pages/WorkerForgotPassword';
 import { getAuthUser, getToken, setAuthSession, updateStoredAuthUser } from '../../utils/session';
@@ -27,11 +26,6 @@ export const WorkerAuthModal: React.FC<WorkerAuthModalProps> = ({ isOpen, onClos
   const [availableServices, setAvailableServices] = useState<ServiceOption[]>([]);
   const [selectedServiceIds, setSelectedServiceIds] = useState<number[]>([]);
 
-  const notyf = new Notyf({
-    position: { x: 'right', y: 'bottom' },
-    ripple: true,
-  });
-  
   const [formData, setFormData] = useState({
     name: '',
     lastname: '',
@@ -95,7 +89,7 @@ export const WorkerAuthModal: React.FC<WorkerAuthModalProps> = ({ isOpen, onClos
     setLoading(true);
 
     if (formData.password !== formData.confirmPassword) {
-      notyf.error('Passwords do not match');
+      void showSweetToast({ tone: 'error', message: 'Passwords do not match' });
       setLoading(false);
       return;
     }
@@ -105,37 +99,37 @@ export const WorkerAuthModal: React.FC<WorkerAuthModalProps> = ({ isOpen, onClos
     const usernameRegex = /^[a-zA-Z0-9_]+$/;
 
     if (!nameRegex.test(formData.name.trim()) || formData.name.trim().length > 50) {
-      notyf.error('First name is invalid or too long (max 50 chars, letters only)');
+      void showSweetToast({ tone: 'error', message: 'First name is invalid or too long (max 50 chars, letters only)' });
       setLoading(false);
       return;
     }
 
     if (!nameRegex.test(formData.lastname.trim()) || formData.lastname.trim().length > 50) {
-      notyf.error('Last name is invalid or too long (max 50 chars, letters only)');
+      void showSweetToast({ tone: 'error', message: 'Last name is invalid or too long (max 50 chars, letters only)' });
       setLoading(false);
       return;
     }
 
     if (formData.username && (!usernameRegex.test(formData.username.trim()) || formData.username.trim().length > 30)) {
-      notyf.error('Username is invalid or too long (max 30 chars, alphanumeric and underscores only)');
+      void showSweetToast({ tone: 'error', message: 'Username is invalid or too long (max 30 chars, alphanumeric and underscores only)' });
       setLoading(false);
       return;
     }
 
     if (!phoneRegex.test(formData.phone_number.trim()) || formData.phone_number.trim().length > 15) {
-      notyf.error('Phone number is invalid or too long (max 15 chars)');
+      void showSweetToast({ tone: 'error', message: 'Phone number is invalid or too long (max 15 chars)' });
       setLoading(false);
       return;
     }
     
     if (formData.email.trim().length > 100) {
-      notyf.error('Email is too long (max 100 chars)');
+      void showSweetToast({ tone: 'error', message: 'Email is too long (max 100 chars)' });
       setLoading(false);
       return;
     }
 
     if (formData.password.length < 8 || formData.password.length > 128) {
-      notyf.error('Password must be between 8 and 128 characters');
+      void showSweetToast({ tone: 'error', message: 'Password must be between 8 and 128 characters' });
       setLoading(false);
       return;
     }
@@ -147,7 +141,7 @@ export const WorkerAuthModal: React.FC<WorkerAuthModalProps> = ({ isOpen, onClos
       setView('specialties');
     } catch (err) {
       console.error('[WorkerAuthModal] Error:', err);
-      notyf.error('Connection error. Please try again.');
+      void showSweetToast({ tone: 'error', message: 'Connection error. Please try again.' });
     } finally {
       setLoading(false);
     }
@@ -175,17 +169,17 @@ export const WorkerAuthModal: React.FC<WorkerAuthModalProps> = ({ isOpen, onClos
       const data = await response.json();
 
       if (!response.ok) {
-        notyf.error(data.error || 'Registration failed');
+        void showSweetToast({ tone: 'error', message: data.error || 'Registration failed' });
         setLoading(false);
         return;
       }
 
       setRegisteredEmail(formData.email);
-      notyf.success('OTP sent to your email!');
+      void showSweetToast({ tone: 'success', message: 'OTP sent to your email!' });
       setView('verify');
     } catch (err) {
       console.error('[WorkerAuthModal] Error:', err);
-      notyf.error('Connection error. Please try again.');
+      void showSweetToast({ tone: 'error', message: 'Connection error. Please try again.' });
     } finally {
       setLoading(false);
     }
@@ -197,7 +191,7 @@ export const WorkerAuthModal: React.FC<WorkerAuthModalProps> = ({ isOpen, onClos
     setLoading(true);
 
     if (otp.length !== 6) {
-      notyf.error('Please enter a valid 6-digit OTP code');
+      void showSweetToast({ tone: 'error', message: 'Please enter a valid 6-digit OTP code' });
       setLoading(false);
       return;
     }
@@ -215,17 +209,17 @@ export const WorkerAuthModal: React.FC<WorkerAuthModalProps> = ({ isOpen, onClos
       const data = await response.json();
 
       if (!response.ok) {
-        notyf.error(data.error || 'Verification failed');
+        void showSweetToast({ tone: 'error', message: data.error || 'Verification failed' });
         setLoading(false);
         return;
       }
 
       setAuthSession(data.user, data.token, 'worker');
-      notyf.success('Email verified! Pro account created.');
+      void showSweetToast({ tone: 'success', message: 'Email verified! Pro account created.' });
       setView('upload');
     } catch (err) {
       console.error('[WorkerAuthModal] Error verifying:', err);
-      notyf.error('Connection error. Please try again.');
+      void showSweetToast({ tone: 'error', message: 'Connection error. Please try again.' });
     } finally {
       setLoading(false);
     }
@@ -248,27 +242,27 @@ export const WorkerAuthModal: React.FC<WorkerAuthModalProps> = ({ isOpen, onClos
       const data = await response.json();
 
       if (!response.ok) {
-        notyf.error(data.error || 'Login failed');
+        void showSweetToast({ tone: 'error', message: data.error || 'Login failed' });
         setLoading(false);
         return;
       }
 
       const isWorker = data.user?.rol === 'worker' || data.user?.pending_worker === 1 || data.user?.pending_worker === true;
       if (!isWorker) {
-        notyf.error('This account is not registered as a worker');
+        void showSweetToast({ tone: 'error', message: 'This account is not registered as a worker' });
         setLoading(false);
         return;
       }
 
       setAuthSession(data.user, data.token, 'worker');
-      notyf.success('Welcome back, Pro!');
+      void showSweetToast({ tone: 'success', message: 'Welcome back, Pro!' });
       onClose();
       setTimeout(() => {
         onSuccess?.();
       }, 100);
     } catch (err) {
       console.error('[WorkerAuthModal] Error:', err);
-      notyf.error('Connection error. Please try again.');
+      void showSweetToast({ tone: 'error', message: 'Connection error. Please try again.' });
     } finally {
       setLoading(false);
     }
@@ -283,22 +277,22 @@ export const WorkerAuthModal: React.FC<WorkerAuthModalProps> = ({ isOpen, onClos
 
   const handleUploadDocuments = async () => {
     if (!duiFile) {
-      notyf.error('Please select your ID document (DUI)');
+      void showSweetToast({ tone: 'error', message: 'Please select your ID document (DUI)' });
       return;
     }
 
     if (!certFile) {
-      notyf.error('Please select your certification document');
+      void showSweetToast({ tone: 'error', message: 'Please select your certification document' });
       return;
     }
 
     const MAX_SIZE = 10 * 1024 * 1024;
     if (duiFile.size > MAX_SIZE) {
-      notyf.error('The ID file is too large. Max size is 10MB.');
+      void showSweetToast({ tone: 'error', message: 'The ID file is too large. Max size is 10MB.' });
       return;
     }
     if (certFile && certFile.size > MAX_SIZE) {
-      notyf.error('The certification file is too large. Max size is 10MB.');
+      void showSweetToast({ tone: 'error', message: 'The certification file is too large. Max size is 10MB.' });
       return;
     }
 
@@ -321,7 +315,7 @@ export const WorkerAuthModal: React.FC<WorkerAuthModalProps> = ({ isOpen, onClos
       const data = await response.json();
 
       if (!response.ok) {
-        notyf.error(data.error || 'Error uploading documents');
+        void showSweetToast({ tone: 'error', message: data.error || 'Error uploading documents' });
         setLoading(false);
         return;
       }
@@ -335,11 +329,11 @@ export const WorkerAuthModal: React.FC<WorkerAuthModalProps> = ({ isOpen, onClos
           updateStoredAuthUser(userObj, 'worker');
       }
 
-      notyf.success('Documents uploaded! Pending admin review.');
+      void showSweetToast({ tone: 'success', message: 'Documents uploaded! Pending admin review.' });
       handleFinishUpload();
     } catch (err) {
       console.error('[WorkerAuthModal] Upload error:', err);
-      notyf.error('Connection error. Please try again.');
+      void showSweetToast({ tone: 'error', message: 'Connection error. Please try again.' });
     } finally {
       setLoading(false);
     }
@@ -565,12 +559,12 @@ export const WorkerAuthModal: React.FC<WorkerAuthModalProps> = ({ isOpen, onClos
                         });
                         const data = await res.json();
                         if (res.ok) {
-                          notyf.success('New code sent!');
+                          void showSweetToast({ tone: 'success', message: 'New code sent!' });
                         } else {
-                          notyf.error(data.error || 'Failed to resend');
+                          void showSweetToast({ tone: 'error', message: data.error || 'Failed to resend' });
                         }
                       } catch {
-                        notyf.error('Connection error');
+                        void showSweetToast({ tone: 'error', message: 'Connection error' });
                       }
                     }}
                     className="text-sm font-semibold transition-colors disabled:text-gray-400 text-bird-orange hover:text-bird-orange/80 disabled:cursor-not-allowed"
@@ -864,12 +858,12 @@ export const WorkerAuthModal: React.FC<WorkerAuthModalProps> = ({ isOpen, onClos
                           });
                           const data = await res.json();
                           if (res.ok) {
-                            notyf.success('New code sent!');
+                            void showSweetToast({ tone: 'success', message: 'New code sent!' });
                           } else {
-                            notyf.error(data.error || 'Failed to resend');
+                            void showSweetToast({ tone: 'error', message: data.error || 'Failed to resend' });
                           }
                         } catch {
-                          notyf.error('Connection error');
+                          void showSweetToast({ tone: 'error', message: 'Connection error' });
                         }
                       }}
                       className="text-sm font-semibold transition-colors disabled:text-gray-400 text-bird-orange hover:text-bird-orange/80 disabled:cursor-not-allowed"

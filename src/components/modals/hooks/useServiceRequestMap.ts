@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { addResilientTileLayer, loadLeaflet } from '../../../utils/leafletLoader';
 
 declare global {
   interface Window {
@@ -33,11 +34,6 @@ interface UseServiceRequestMapOptions {
   activeLocationKind: PinKind;
   quickAccessLocations: QuickAccessLocationLike[];
   nearbyWorkers: NearbyWorkerLike[];
-  reverseGeocodeCoords: (
-    coords: CoordinatesLike,
-    options?: { toastMessage?: string; fallbackLabel?: string }
-  ) => Promise<unknown>;
-  useSavedLocation: (location: QuickAccessLocationLike) => void;
   sameCoords: (
     left: CoordinatesLike | QuickAccessLocationLike | null | undefined,
     right: CoordinatesLike | QuickAccessLocationLike | null | undefined
@@ -53,8 +49,6 @@ export function useServiceRequestMap({
   activeLocationKind,
   quickAccessLocations,
   nearbyWorkers,
-  reverseGeocodeCoords,
-  useSavedLocation,
   sameCoords,
   createLeafletPinIcon,
   getLocationVisual,
@@ -67,51 +61,9 @@ export function useServiceRequestMap({
   const savedPlaceMarkersRef = useRef<any[]>([]);
   const nearbyWorkerMarkersRef = useRef<any[]>([]);
   const lastCenteredCoordsRef = useRef<CoordinatesLike | null>(null);
-  const reverseGeocodeCoordsRef = useRef(reverseGeocodeCoords);
-  const useSavedLocationRef = useRef(useSavedLocation);
 
   useEffect(() => {
-    reverseGeocodeCoordsRef.current = reverseGeocodeCoords;
-  }, [reverseGeocodeCoords]);
-
-  useEffect(() => {
-    useSavedLocationRef.current = useSavedLocation;
-  }, [useSavedLocation]);
-
-  useEffect(() => {
-    const loadLeaflet = async () => {
-      if (window.L) {
-        setLeafletReady(true);
-        return;
-      }
-
-      const cssId = 'leaflet-css-cdn';
-      const jsId = 'leaflet-js-cdn';
-
-      if (!document.getElementById(cssId)) {
-        const link = document.createElement('link');
-        link.id = cssId;
-        link.rel = 'stylesheet';
-        link.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
-        document.head.appendChild(link);
-      }
-
-      if (!document.getElementById(jsId)) {
-        await new Promise<void>((resolve, reject) => {
-          const script = document.createElement('script');
-          script.id = jsId;
-          script.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
-          script.async = true;
-          script.onload = () => resolve();
-          script.onerror = () => reject(new Error('Could not load map library'));
-          document.body.appendChild(script);
-        });
-      }
-
-      if (window.L) setLeafletReady(true);
-    };
-
-    loadLeaflet().catch((err) => console.error(err));
+    loadLeaflet('service-request').then(setLeafletReady).catch((err) => console.error(err));
   }, []);
 
   useEffect(() => {
@@ -124,24 +76,9 @@ export function useServiceRequestMap({
       attributionControl: true,
     }).setView([13.6929, -89.2182], 12);
 
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
-      maxZoom: 19,
-      attribution: '&copy; OpenStreetMap &copy; CARTO',
-    }).addTo(map);
+    addResilientTileLayer(L, map);
 
     L.control.zoom({ position: 'bottomright' }).addTo(map);
-
-    map.on('click', (event: any) => {
-      const nextCoords = {
-        lat: Number(event.latlng.lat.toFixed(7)),
-        lng: Number(event.latlng.lng.toFixed(7)),
-      };
-
-      void reverseGeocodeCoordsRef.current(nextCoords, {
-        toastMessage: 'Location adjusted on the map.',
-        fallbackLabel: `${nextCoords.lat}, ${nextCoords.lng}`,
-      });
-    });
 
     mapInstanceRef.current = map;
     window.setTimeout(() => {
@@ -210,33 +147,21 @@ export function useServiceRequestMap({
 
     if (!currentMarkerRef.current) {
       const me = L.marker([currentCoords.lat, currentCoords.lng], {
-        draggable: true,
+        draggable: false,
         icon: createLeafletPinIcon(L, activeLocationKind),
         zIndexOffset: 1200,
       })
         .addTo(map)
         .bindPopup(
-          `<b>${selectedVisual.label}</b><br/>Drag or tap the map to fine-tune the exact point.`
+          `<b>${selectedVisual.label}</b><br/>Confirmed service location.`
         );
-
-      me.on('dragend', () => {
-        const position = me.getLatLng();
-        const nextCoords = {
-          lat: Number(position.lat.toFixed(7)),
-          lng: Number(position.lng.toFixed(7)),
-        };
-        void reverseGeocodeCoordsRef.current(nextCoords, {
-          toastMessage: 'Location adjusted on the map.',
-          fallbackLabel: `${nextCoords.lat}, ${nextCoords.lng}`,
-        });
-      });
 
       currentMarkerRef.current = me;
     } else {
       currentMarkerRef.current.setLatLng([currentCoords.lat, currentCoords.lng]);
       currentMarkerRef.current.setIcon(createLeafletPinIcon(L, activeLocationKind));
       currentMarkerRef.current.setPopupContent(
-        `<b>${selectedVisual.label}</b><br/>Drag or tap the map to fine-tune the exact point.`
+        `<b>${selectedVisual.label}</b><br/>Confirmed service location.`
       );
     }
 
@@ -286,7 +211,6 @@ export function useServiceRequestMap({
           .addTo(map)
           .bindPopup(`<b>${location.title}</b><br/>${location.label}`);
 
-        pin.on('click', () => useSavedLocationRef.current(location));
         savedPlaceMarkersRef.current.push(pin);
       });
   }, [quickAccessLocations, currentCoords, sameCoords, createLeafletPinIcon]);

@@ -7,17 +7,20 @@ import {
   getThreadById,
   getMessagesForThread,
   insertMessage,
+  getMessageById,
   userCanAccessThread,
   updateThreadStatus,
   assignThreadToAdmin,
   getThreadWithDetails,
   mapThreadRow,
+  mapThreadDetailRow,
   mapMessageRow,
   SupportMessageRow,
 } from '../services/support.service';
-import pool from '../config/db';
-import { emitNewSupportMessage } from '../services/supportSocket.service';
+import { emitNewSupportMessage, emitSupportThreadCreated } from '../services/supportSocket.service';
 import { deleteUploadIfExists } from '../utils/assets';
+import { sanitizeImageInPlace, ImageSanitizeError } from '../utils/imageSanitizer';
+import { notifyAdmins } from '../utils/notifications';
 
 const getUploadedSupportImages = (req: Request): Express.Multer.File[] => {
   if (req.file) return [req.file];
@@ -32,6 +35,11 @@ const removeUploadedSupportImages = (files: Express.Multer.File[]) => {
   files.forEach((file) => {
     if (file.filename) deleteUploadIfExists(file.filename, 'protected');
   });
+};
+
+const parseThreadId = (raw: unknown): number | null => {
+  const id = Number(raw);
+  return Number.isInteger(id) && id > 0 ? id : null;
 };
 
 export const getMySupportThreads = async (req: AuthRequest, res: Response) => {
@@ -83,13 +91,31 @@ export const createSupportThread = async (req: AuthRequest, res: Response) => {
 
     const threadId = await createThread(userId, subject.trim(), priority);
 
+    let initialSupportMessage = null;
     if (initialMessage && typeof initialMessage === 'string' && initialMessage.trim()) {
       const role = req.user?.rol === 'worker' ? 'worker' : 'client';
-      await insertMessage(threadId, userId, role, initialMessage.trim());
+      const messageId = await insertMessage(threadId, userId, role, initialMessage.trim());
+      const messageRow = await getMessageById(messageId);
+      initialSupportMessage = messageRow ? mapMessageRow(messageRow) : null;
     }
 
     const thread = await getThreadById(threadId);
-    res.status(201).json({ success: true, thread: thread ? mapThreadRow(thread) : null });
+    const mappedThread = thread ? mapThreadRow(thread) : null;
+    if (mappedThread) {
+      emitSupportThreadCreated({ thread: mappedThread, message: initialSupportMessage });
+      if (req.user?.rol !== 'admin' && req.user?.rol !== 'root') {
+        notifyAdmins({
+          eventType: 'support_thread_created',
+          title: 'New support case opened',
+          message: `${mappedThread.userName || 'A user'} opened a support case: ${mappedThread.subject}`,
+          tone: 'info',
+          actionUrl: '/admin-dashboard/support',
+          dedupeKey: `support_thread_${threadId}`,
+          metadata: { threadId },
+        }).catch(() => undefined);
+      }
+    }
+    res.status(201).json({ success: true, thread: mappedThread });
   } catch (error) {
     console.error('[Support] createSupportThread error:', error);
     res.status(500).json({ error: 'Failed to create support thread' });
@@ -100,10 +126,15 @@ export const getSupportThreadMessages = async (req: AuthRequest, res: Response) 
   try {
     const userId = req.user?.user_id;
     const role = req.user?.rol || 'client';
-    const threadId = Number(req.params.threadId);
+    const threadId = parseThreadId(req.params.threadId);
 
     if (!userId) {
       res.status(401).json({ error: 'Unauthorized' });
+      return;
+    }
+
+    if (!threadId) {
+      res.status(400).json({ error: 'Invalid thread id' });
       return;
     }
 
@@ -126,12 +157,18 @@ export const sendSupportMessage = async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user?.user_id;
     const role = req.user?.rol || 'client';
-    const threadId = Number(req.params.threadId);
+    const threadId = parseThreadId(req.params.threadId);
     const { message } = req.body;
 
     if (!userId) {
       removeUploadedSupportImages(uploadedImages);
       res.status(401).json({ error: 'Unauthorized' });
+      return;
+    }
+
+    if (!threadId) {
+      removeUploadedSupportImages(uploadedImages);
+      res.status(400).json({ error: 'Invalid thread id' });
       return;
     }
 
@@ -148,6 +185,19 @@ export const sendSupportMessage = async (req: AuthRequest, res: Response) => {
       return;
     }
 
+    if (uploadedImages.length > 0) {
+      try {
+        for (const file of uploadedImages) {
+          await sanitizeImageInPlace(file);
+        }
+      } catch (err) {
+        removeUploadedSupportImages(uploadedImages);
+        const msg = err instanceof ImageSanitizeError ? err.message : 'Invalid image upload.';
+        res.status(400).json({ error: msg });
+        return;
+      }
+    }
+
     const imageUrl = uploadedImages[0]?.filename || null;
 
     const senderRole = role === 'admin' || role === 'root' ? 'admin' : (role === 'worker' ? 'worker' : 'client');
@@ -160,15 +210,13 @@ export const sendSupportMessage = async (req: AuthRequest, res: Response) => {
       imageUrl
     );
 
-    const [newMessageRows] = await pool.execute(
-      `SELECT sm.*, u.name AS sender_name, u.lastname AS sender_lastname
-       FROM support_messages sm
-       LEFT JOIN users u ON u.id_user = sm.sender_user_id
-       WHERE sm.id = ?`,
-      [messageId]
-    );
+    const messageRow = await getMessageById(messageId);
+    if (!messageRow) {
+      res.status(500).json({ error: 'Failed to send message' });
+      return;
+    }
 
-    const mapped = mapMessageRow((newMessageRows as SupportMessageRow[])[0]);
+    const mapped = mapMessageRow(messageRow as SupportMessageRow);
 
     emitNewSupportMessage(threadId, mapped);
 
@@ -192,8 +240,13 @@ export const updateSupportThreadStatus = async (req: AuthRequest, res: Response)
       return;
     }
 
-    const threadId = Number(req.params.threadId);
+    const threadId = parseThreadId(req.params.threadId);
     const { status } = req.body;
+
+    if (!threadId) {
+      res.status(400).json({ error: 'Invalid thread id' });
+      return;
+    }
 
     const success = await updateThreadStatus(threadId, status);
 
@@ -203,7 +256,7 @@ export const updateSupportThreadStatus = async (req: AuthRequest, res: Response)
     }
 
     const thread = await getThreadWithDetails(threadId);
-    res.json({ success: true, thread });
+    res.json({ success: true, thread: thread ? mapThreadDetailRow(thread) : null });
   } catch (error) {
     console.error('[Support] updateSupportThreadStatus error:', error);
     res.status(500).json({ error: 'Failed to update thread status' });
@@ -218,8 +271,13 @@ export const assignSupportThread = async (req: AuthRequest, res: Response) => {
       return;
     }
 
-    const threadId = Number(req.params.threadId);
+    const threadId = parseThreadId(req.params.threadId);
     const { adminUserId } = req.body;
+
+    if (!threadId) {
+      res.status(400).json({ error: 'Invalid thread id' });
+      return;
+    }
 
     const success = await assignThreadToAdmin(threadId, adminUserId);
 
@@ -229,7 +287,7 @@ export const assignSupportThread = async (req: AuthRequest, res: Response) => {
     }
 
     const thread = await getThreadWithDetails(threadId);
-    res.json({ success: true, thread });
+    res.json({ success: true, thread: thread ? mapThreadDetailRow(thread) : null });
   } catch (error) {
     console.error('[Support] assignSupportThread error:', error);
     res.status(500).json({ error: 'Failed to assign thread' });
@@ -240,10 +298,15 @@ export const getSupportThreadDetails = async (req: AuthRequest, res: Response) =
   try {
     const userId = req.user?.user_id;
     const role = req.user?.rol || 'client';
-    const threadId = Number(req.params.threadId);
+    const threadId = parseThreadId(req.params.threadId);
 
     if (!userId) {
       res.status(401).json({ error: 'Unauthorized' });
+      return;
+    }
+
+    if (!threadId) {
+      res.status(400).json({ error: 'Invalid thread id' });
       return;
     }
 
@@ -259,7 +322,7 @@ export const getSupportThreadDetails = async (req: AuthRequest, res: Response) =
       return;
     }
 
-    res.json({ success: true, thread });
+    res.json({ success: true, thread: mapThreadDetailRow(thread) });
   } catch (error) {
     console.error('[Support] getSupportThreadDetails error:', error);
     res.status(500).json({ error: 'Failed to load thread' });
