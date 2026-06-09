@@ -20,6 +20,7 @@ import {
   getRequestsHistory,
   getRequestDetailAdmin,
   getAdminActivity,
+  updateRequestAdmin,
   getHeroSlidesPublic,
   getCommissionRulesAdmin,
   getFinanceSettlementReportAdmin,
@@ -89,6 +90,7 @@ router.get('/stats', getDashboardStats);
 router.get('/stats/export-pdf', exportDashboardStatsPdfAdmin);
 router.get('/requests-history', getRequestsHistory);
 router.get('/requests/:idRequest', getRequestDetailAdmin);
+router.post('/requests/:idRequest/actions', sensitiveLimiter, validate(AdminSchema.requestAction), updateRequestAdmin);
 router.get('/commission-rules', getCommissionRulesAdmin);
 router.put('/commission-rules', sensitiveLimiter, validate(AdminSchema.commissionRules), updateCommissionRulesAdmin);
 router.get('/worker-rewards', getWorkerRewardsAdminOverview);
