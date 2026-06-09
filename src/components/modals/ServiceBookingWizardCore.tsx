@@ -3977,7 +3977,7 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                                                                             {msg.message && <p className="leading-relaxed">{msg.message}</p>}
                                                                                             {msg.image_url && (
                                                                                                 <a href={msg.image_url} target="_blank" rel="noreferrer" className="mt-2 block rounded-xl overflow-hidden border border-black/10 shadow-sm">
-                                                                                                    <img src={msg.image_url} alt="Chat attachment" className="max-h-40 w-full object-cover hover:scale-105 transition-transform" />
+                                                                                                    <img src={msg.image_url} alt="Chat attachment" loading="lazy" className="max-h-40 w-full object-cover hover:scale-105 transition-transform" />
                                                                                                 </a>
                                                                                             )}
                                                                                             <p className={`text-[10px] text-right mt-1.5 ${isMe ? 'text-slate-400' : 'text-slate-400'}`}>

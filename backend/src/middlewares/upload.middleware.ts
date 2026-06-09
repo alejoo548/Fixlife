@@ -40,6 +40,7 @@ const FORMAT_MIME_TYPES: Record<string, Set<string>> = {
   webp: new Set(['image/webp']),
   avif: new Set(['image/avif']),
 };
+const OCR_ENABLED = process.env.OCR_ENABLED !== 'false';
 const OCR_SUPPORTED_FORMATS = new Set(['jpeg', 'png', 'webp']);
 const OCR_MAX_BYTES = Number(process.env.IMAGE_OCR_MAX_BYTES || 4 * 1024 * 1024);
 const OCR_TEXT_MAX_LENGTH = Number(process.env.IMAGE_OCR_TEXT_MAX_LENGTH || 4000);
@@ -183,6 +184,9 @@ const moveToContentAddressedFile = async (
 };
 
 const extractOcrText = async (filePath: string, format: string, size: number) => {
+  if (!OCR_ENABLED) {
+    return { skipped: true, reason: 'OCR disabled via OCR_ENABLED=false.', text: '', confidence: null };
+  }
   if (!OCR_SUPPORTED_FORMATS.has(format)) {
     return {
       skipped: true,
