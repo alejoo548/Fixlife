@@ -80,6 +80,7 @@ export const useWorkerRequestsMap = ({
   const lastViewportKeyRef = useRef<string | null>(null);
   const arrivalSoonRef = useRef<Set<number>>(new Set());
   const arrivedRef = useRef<Set<number>>(new Set());
+  const hasCenteredOnWorkerRef = useRef(false);
 
   const selectedRequestCoords = useMemo(() => {
     const lat = toFiniteNumber(selectedRequest?.latitude);
@@ -386,8 +387,12 @@ export const useWorkerRequestsMap = ({
     }
     if (routeActive && isValidLatLngList(remainingPoints)) {
       focusRouteViewport(map, window.L, remainingPoints, true, routeCameraMode);
-    } else if (!routePreview) {
+    } else if (!routePreview && !hasCenteredOnWorkerRef.current) {
+      // Center on the worker only the first time we get a fix. Re-centering on
+      // every GPS update fights the user panning the map and causes jank on
+      // low-power devices (Raspberry Pi).
       map.setView([workerCoords.lat, workerCoords.lng], 12);
+      hasCenteredOnWorkerRef.current = true;
     }
   }, [remainingPoints, routeActive, routeCameraMode, routePreview, workerCoords?.lat, workerCoords?.lng]);
 

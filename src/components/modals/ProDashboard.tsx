@@ -459,9 +459,12 @@ export const ProDashboard: React.FC<ProDashboardProps> = ({ isOpen, onClose, onS
                         {userName || 'User'}
                      </span>
                      {userAvatar ? (
-                        <img 
-                           src={userAvatar} 
+                        <img
+                           src={userAvatar}
                            alt={userName}
+                           loading="lazy"
+                           decoding="async"
+                           onError={() => setUserAvatar(null)}
                            className="w-8 h-8 md:w-10 md:h-10 rounded-full object-cover border-2 border-white shadow-sm"
                         />
                      ) : (

@@ -104,6 +104,11 @@ export const WorkerRequestChatPanel: React.FC<WorkerRequestChatPanelProps> = ({
                     <img
                       src={request.client.profile_image_url}
                       alt=""
+                      loading="lazy"
+                      decoding="async"
+                      onError={(event) => {
+                        (event.currentTarget as HTMLImageElement).style.display = 'none';
+                      }}
                       className="h-11 w-11 rounded-full border border-slate-200 object-cover"
                     />
                   ) : (
@@ -196,6 +201,12 @@ export const WorkerRequestChatPanel: React.FC<WorkerRequestChatPanelProps> = ({
                                 <img
                                   src={message.image_url}
                                   alt="Chat attachment"
+                                  loading="lazy"
+                                  decoding="async"
+                                  onError={(event) => {
+                                    const img = event.currentTarget as HTMLImageElement;
+                                    img.style.display = 'none';
+                                  }}
                                   className="max-h-64 w-full object-cover"
                                 />
                               </a>
