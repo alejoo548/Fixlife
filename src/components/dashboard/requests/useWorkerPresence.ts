@@ -7,6 +7,25 @@ const PRESENCE_PUSH_ACTIVE_ROUTE_MS = 8_000;
 const PRESENCE_MOVE_IDLE_KM = 0.08;
 const PRESENCE_MOVE_ACTIVE_ROUTE_KM = 0.02;
 const PRESENCE_PUSH_BACKGROUND_MS = 60_000;
+const LAST_COORDS_KEY = 'fixlife:worker-last-coords';
+
+const readStoredCoords = (): { lat: number; lng: number } | null => {
+  try {
+    const raw = localStorage.getItem(LAST_COORDS_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as { lat?: unknown; lng?: unknown };
+    const lat = Number(parsed.lat);
+    const lng = Number(parsed.lng);
+    if (Number.isFinite(lat) && Number.isFinite(lng)) return { lat, lng };
+  } catch {}
+  return null;
+};
+
+const writeStoredCoords = (lat: number, lng: number) => {
+  try {
+    localStorage.setItem(LAST_COORDS_KEY, JSON.stringify({ lat, lng }));
+  } catch {}
+};
 
 interface UseWorkerPresenceOptions {
   token: string | null;
@@ -19,7 +38,9 @@ export const useWorkerPresence = ({
   isOnline,
   routeActive,
 }: UseWorkerPresenceOptions) => {
-  const [workerCoords, setWorkerCoords] = useState<{ lat: number; lng: number } | null>(null);
+  const [workerCoords, setWorkerCoords] = useState<{ lat: number; lng: number } | null>(
+    () => readStoredCoords()
+  );
   const [presenceBusy, setPresenceBusy] = useState(false);
   const lastPushRef = useRef<{
     isOnline: boolean;
@@ -27,6 +48,14 @@ export const useWorkerPresence = ({
     lng?: number;
     at: number;
   } | null>(null);
+
+  const persistCoords = (lat: number, lng: number) => {
+    writeStoredCoords(lat, lng);
+    setWorkerCoords((current) => {
+      if (current && haversineKm(current, { lat, lng }) < 0.001) return current;
+      return { lat, lng };
+    });
+  };
 
   const pushPresence = async (
     isOnlineNow: boolean,
@@ -90,25 +119,25 @@ export const useWorkerPresence = ({
 
     let watchId: number | null = null;
     if (navigator.geolocation) {
-      // Immediate fix on load/toggle — uses cached GPS so fires in <1s.
-      // Fixes the bug where watchPosition's first success can take 10-12s
-      // (or never fire before timeout), leaving workerCoords null on reload.
+      // Get a position immediately (uses browser cache up to 60 s).
+      // Ensures workerCoords and backend are updated without waiting for
+      // watchPosition's first callback, which can take 10-12 s on cold GPS.
       navigator.geolocation.getCurrentPosition(
         (position) => {
           const lat = Number(position.coords.latitude.toFixed(7));
           const lng = Number(position.coords.longitude.toFixed(7));
-          setWorkerCoords({ lat, lng });
+          persistCoords(lat, lng);
           void pushPresence(true, lat, lng, true);
         },
         () => void pushPresence(true, undefined, undefined, true),
-        { enableHighAccuracy: false, timeout: 8000, maximumAge: 60000 },
+        { enableHighAccuracy: false, timeout: 8000, maximumAge: 60_000 },
       );
 
       watchId = navigator.geolocation.watchPosition(
         (position) => {
           const lat = Number(position.coords.latitude.toFixed(7));
           const lng = Number(position.coords.longitude.toFixed(7));
-          setWorkerCoords({ lat, lng });
+          persistCoords(lat, lng);
           void pushPresence(true, lat, lng);
         },
         () => void pushPresence(true),
