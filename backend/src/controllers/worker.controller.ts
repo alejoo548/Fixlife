@@ -266,7 +266,8 @@ export const getWorkerMe = async (req: AuthRequest, res: Response): Promise<void
 
     const profileId = await ensureWorkerProfile(userId);
     const [profiles] = await pool.execute<RowDataPacket[]>(
-      `SELECT id_worker_profile, id_user, bio, banner_image, dui_document, cert_document, is_verified
+      `SELECT id_worker_profile, id_user, bio, banner_image, dui_document, cert_document, is_verified,
+              is_online, latitude, longitude, coverage_km, last_seen_at
        FROM worker_profiles
        WHERE id_worker_profile = ?
        LIMIT 1`,
