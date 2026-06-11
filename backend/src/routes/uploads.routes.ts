@@ -28,13 +28,22 @@ const canAccessProtectedUpload = async (req: AuthRequest, fileName: string) => {
     `SELECT 1
      FROM service_request_images sri
      INNER JOIN service_requests sr ON sr.id_request = sri.id_request
-     LEFT JOIN service_request_workers srw
-       ON srw.id_request = sr.id_request
-     LEFT JOIN worker_profiles wp
-       ON wp.id_worker_profile = srw.id_worker_profile
-       OR wp.id_worker_profile = sr.assigned_worker_profile
      WHERE sri.image_url = ?
-       AND (sr.id_user = ? OR wp.id_user = ?)
+       AND (
+         sr.id_user = ?
+         OR EXISTS (
+           SELECT 1
+           FROM worker_profiles wp
+           LEFT JOIN service_request_workers srw
+             ON srw.id_request = sr.id_request
+            AND srw.id_worker_profile = wp.id_worker_profile
+           WHERE wp.id_user = ?
+             AND (
+               sr.assigned_worker_profile = wp.id_worker_profile
+               OR srw.status IN ('new', 'accepted')
+             )
+         )
+       )
      LIMIT 1`,
     [fileName, user.user_id, user.user_id]
   );
@@ -55,13 +64,31 @@ const canAccessProtectedUpload = async (req: AuthRequest, fileName: string) => {
   return chatImageRows.length > 0;
 };
 
-const readAuthUser = (req: AuthRequest): AuthRequest['user'] => {
+const readAuthUser = async (req: AuthRequest): Promise<AuthRequest['user']> => {
   const authHeader = String(req.headers.authorization || '');
   const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7).trim() : '';
   if (!token) return undefined;
 
   try {
-    return jwt.verify(token, getJwtSecret()) as AuthRequest['user'];
+    const decoded = jwt.verify(token, getJwtSecret()) as AuthRequest['user'];
+    const userId = Number(decoded?.user_id || 0);
+    if (!Number.isSafeInteger(userId) || userId <= 0) return undefined;
+
+    const [rows] = await pool.execute<RowDataPacket[]>(
+      `SELECT id_user, rol, pending_worker
+       FROM users
+       WHERE id_user = ? AND is_active = 1
+       LIMIT 1`,
+      [userId]
+    );
+    if (rows.length === 0) return undefined;
+
+    return {
+      user_id: userId,
+      rol: String(rows[0].rol || ''),
+      pending_worker:
+        rows[0].pending_worker != null ? Number(rows[0].pending_worker) : undefined,
+    };
   } catch {
     return undefined;
   }
@@ -82,7 +109,7 @@ router.get('/protected/:fileName', async (req: AuthRequest, res: Response): Prom
     );
 
     if (!hasValidSignature) {
-      req.user = readAuthUser(req);
+      req.user = await readAuthUser(req);
       if (!req.user) {
         res.status(401).json({ error: 'Authentication required' });
         return;

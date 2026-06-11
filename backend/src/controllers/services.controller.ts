@@ -459,6 +459,7 @@ const requeueAssignedRequest = async (
      SET status = 'pending',
          assigned_worker_profile = NULL,
          assigned_at = NULL,
+         worker_arrived_at = NULL,
          updated_at = CURRENT_TIMESTAMP
      WHERE id_request = ?`,
     [input.idRequest]
@@ -1319,6 +1320,9 @@ export const ensureServiceRequestTables = async () => {
     if (!requestColSet.has('scheduled_end_time')) {
       await pool.execute(`ALTER TABLE service_requests ADD COLUMN scheduled_end_time DATETIME NULL`);
     }
+    if (!requestColSet.has('worker_arrived_at')) {
+      await pool.execute(`ALTER TABLE service_requests ADD COLUMN worker_arrived_at DATETIME NULL`);
+    }
   }
 
   const [assignedIdxRows] = await pool.execute<RowDataPacket[]>(
@@ -1694,6 +1698,7 @@ export const createServiceRequest = async (req: AuthRequest, res: Response): Pro
       const [nearRows] = await pool.execute<RowDataPacket[]>(
         `SELECT
            wp.id_worker_profile,
+           wp.id_user AS worker_user_id,
            wp.coverage_km,
            (ST_Distance_Sphere(point(wp.longitude, wp.latitude), point(?, ?)) / 1000) AS distance_km
          FROM worker_profiles wp
@@ -1713,6 +1718,26 @@ export const createServiceRequest = async (req: AuthRequest, res: Response): Pro
       );
 
       await bulkInsertRequestWorkerCandidates(pool, idRequest, nearRows);
+      await Promise.all(
+        nearRows.map((row) =>
+          createUserNotification({
+            userId: Number(row.worker_user_id),
+            eventType: 'request_available',
+            title: 'New request nearby',
+            message: `A new service request is available ${Number(row.distance_km || 0).toFixed(1)} km away.`,
+            tone: 'info',
+            requestId: idRequest,
+            actionUrl: '/pro-dashboard',
+            dedupeKey: `request-${idRequest}-available-worker-${Number(row.id_worker_profile)}`,
+            metadata: {
+              request_status: 'pending',
+              distance_km: Number(row.distance_km || 0),
+              booking_type: schedule.bookingType,
+              scheduled_start_time: schedule.scheduledStartTime,
+            },
+          })
+        )
+      );
     }
 
     res.status(201).json({
@@ -2122,6 +2147,7 @@ export const cancelServiceRequest = async (req: AuthRequest, res: Response): Pro
        SET status = 'cancelled',
            assigned_worker_profile = NULL,
            assigned_at = NULL,
+           worker_arrived_at = NULL,
            updated_at = CURRENT_TIMESTAMP
        WHERE id_request = ?`,
       [idRequest]
@@ -2221,6 +2247,7 @@ export const autoReassignStaleAssignedRequests = async () => {
          SET status = 'pending',
              assigned_worker_profile = NULL,
              assigned_at = NULL,
+             worker_arrived_at = NULL,
              updated_at = CURRENT_TIMESTAMP
          WHERE id_request = ?`,
         [idRequest]
@@ -3762,6 +3789,7 @@ export const declineCounterOffer = async (req: AuthRequest, res: Response): Prom
        SET status = 'pending',
            assigned_worker_profile = NULL,
            assigned_at = NULL,
+           worker_arrived_at = NULL,
            updated_at = CURRENT_TIMESTAMP
        WHERE id_request = ?`,
       [idRequest]
