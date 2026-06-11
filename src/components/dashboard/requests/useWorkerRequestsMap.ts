@@ -59,6 +59,7 @@ export const useWorkerRequestsMap = ({
   onSelectRequest,
 }: UseWorkerRequestsMapOptions) => {
   const [leafletReady, setLeafletReady] = useState(false);
+  const [mapReady, setMapReady] = useState(false);
   const [routePreview, setRoutePreview] = useState<RoutePreview | null>(null);
   const [routeLoading, setRouteLoading] = useState(false);
   const [routeError, setRouteError] = useState<string | null>(null);
@@ -142,6 +143,10 @@ export const useWorkerRequestsMap = ({
       addResilientTileLayer(L, map);
       L.control.zoom({ position: 'bottomright' }).addTo(map);
       mapInstanceRef.current = map;
+      // Flip state so marker/route/request effects re-run now that the map
+      // exists. Without this, any data (coords, requests, route) that was ready
+      // before this async init never gets drawn until an unrelated dep changes.
+      setMapReady(true);
     }, 50);
 
     return () => {
@@ -155,6 +160,7 @@ export const useWorkerRequestsMap = ({
         }
         mapInstanceRef.current = null;
       }
+      setMapReady(false);
     };
   }, [leafletReady]);
 
@@ -329,7 +335,7 @@ export const useWorkerRequestsMap = ({
       focusRouteViewport(map, L, remainingPoints, routeActive, routeCameraMode);
       lastViewportKeyRef.current = viewportKey;
     }
-  }, [remainingPoints, routeActive, routeCameraMode, simulatedTraffic, trafficEnabled]);
+  }, [mapReady, remainingPoints, routeActive, routeCameraMode, simulatedTraffic, trafficEnabled]);
 
   useEffect(() => {
     if (!mapInstanceRef.current || !window.L) return;
@@ -361,7 +367,7 @@ export const useWorkerRequestsMap = ({
         .on('click', () => onSelectRequest(request.id_request));
       requestMarkersRef.current.push(marker);
     });
-  }, [onSelectRequest, requests, selectedRequest?.id_request]);
+  }, [mapReady, onSelectRequest, requests, selectedRequest?.id_request]);
 
   useEffect(() => {
     if (!mapInstanceRef.current || !window.L) return;
@@ -394,7 +400,7 @@ export const useWorkerRequestsMap = ({
       map.setView([workerCoords.lat, workerCoords.lng], 12);
       hasCenteredOnWorkerRef.current = true;
     }
-  }, [remainingPoints, routeActive, routeCameraMode, routePreview, workerCoords?.lat, workerCoords?.lng]);
+  }, [mapReady, remainingPoints, routeActive, routeCameraMode, routePreview, workerCoords?.lat, workerCoords?.lng]);
 
   useEffect(() => {
     if (!routeActive || !selectedRequest || !routePreview || !isValidCoord(workerCoords)) {
