@@ -1,12 +1,16 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
+import { MapPinned, Navigation, RefreshCw, WifiOff } from 'lucide-react';
 import { API_ENDPOINTS } from '../../config/api';
 import { useChatSocket } from '../../hooks/useChatSocket';
 import { useSSE } from '../../hooks/useSSE';
-import { showSweetToast } from '../../utils/sweetAlert';
+import { useWorkerWorkspace } from '../../hooks/useWorkerWorkspace';
+import { showSweetConfirm, showSweetToast } from '../../utils/sweetAlert';
 import { CounterOfferModal } from './requests/CounterOfferModal';
 import { WorkerRequestCard } from './requests/WorkerRequestCard';
 import { WorkerRequestChatPanel } from './requests/WorkerRequestChatPanel';
+import { WorkerCurrentJobPanel } from './requests/WorkerCurrentJobPanel';
+import { WorkerDaySummary } from './requests/WorkerDaySummary';
 import type {
   ChatMessage,
   RequestsViewProps,
@@ -14,15 +18,11 @@ import type {
   WorkerRequestsPayload,
 } from './requests/workerRequestTypes';
 import {
-  formatEta,
-  formatScheduledWindow,
-  getServiceIconLabel,
   haversineKm,
   isScheduledRequest,
   isValidCoord,
   mergeChatMessages,
   toFiniteNumber,
-  workerRequestStatusLabel,
 } from './requests/workerRequestUtils';
 import { useWorkerPresence } from './requests/useWorkerPresence';
 import { useWorkerRequestChat } from './requests/useWorkerRequestChat';
@@ -55,6 +55,14 @@ export const RequestsView: React.FC<RequestsViewProps> = ({
     status: string;
   } | null>(null);
   const [activeRouteRequestId, setActiveRouteRequestId] = useState<number | null>(null);
+  const [arrivedRequestIds, setArrivedRequestIds] = useState<Set<number>>(() => {
+    if (typeof window === 'undefined') return new Set();
+    try {
+      return new Set(JSON.parse(window.sessionStorage.getItem('fixlife:worker-arrived') || '[]'));
+    } catch {
+      return new Set();
+    }
+  });
   const [loading, setLoading] = useState(false);
   const [busyId, setBusyId] = useState<number | null>(null);
   const [chatPanelOpen, setChatPanelOpen] = useState(false);
@@ -80,6 +88,25 @@ export const RequestsView: React.FC<RequestsViewProps> = ({
 
   const { presenceBusy, pushPresence, setWorkerCoords, workerCoords } =
     useWorkerPresence({ token, isOnline, routeActive });
+  const {
+    connected: workspaceSocketConnected,
+    data: workerWorkspace,
+    refresh: refreshWorkspace,
+  } = useWorkerWorkspace({
+    token,
+    enabled: isWorkerActive,
+    onRealtimeUpdate: (payload) => {
+      const tone = payload.tone === 'warning' ? 'warning' : payload.tone === 'success' ? 'success' : 'info';
+      void showSweetToast({
+        tone,
+        message: payload.title
+          ? `${payload.title}${payload.message ? `: ${payload.message}` : ''}`
+          : payload.message || 'Your workspace was updated.',
+        duration: 3600,
+      });
+      void fetchRequests(true);
+    },
+  });
 
   const {
     centerRoute,
@@ -293,7 +320,7 @@ export const RequestsView: React.FC<RequestsViewProps> = ({
         return false;
       }
       notify.success(successMessage);
-      await fetchRequests(true);
+      await Promise.all([fetchRequests(true), refreshWorkspace(true)]);
       return true;
     } catch {
       notify.error('Network error updating this request.');
@@ -303,16 +330,38 @@ export const RequestsView: React.FC<RequestsViewProps> = ({
     }
   };
 
-  const handleAction = (idRequest: number, action: 'accept' | 'reject') =>
-    postWorkerAction(
+  const handleAction = async (idRequest: number, action: 'accept' | 'reject') => {
+    const confirmed = await showSweetConfirm({
+      title: action === 'accept' ? 'Accept this request?' : 'Pass on this request?',
+      message:
+        action === 'accept'
+          ? 'The visit will be added to your jobs and its reserved time will no longer be available for another service.'
+          : 'This request will leave your available list. The client will continue looking for another professional.',
+      tone: action === 'accept' ? 'info' : 'warning',
+      confirmText: action === 'accept' ? 'Accept request' : 'Pass request',
+      destructive: action === 'reject',
+    });
+    if (!confirmed) return;
+    await postWorkerAction(
       idRequest,
       action === 'accept'
         ? API_ENDPOINTS.worker.acceptRequest(idRequest)
         : API_ENDPOINTS.worker.rejectRequest(idRequest),
       action === 'accept' ? 'Request accepted.' : 'Request rejected.'
     );
+  };
 
   const handleProgress = async (idRequest: number, action: 'start' | 'complete') => {
+    const confirmed = await showSweetConfirm({
+      title: action === 'start' ? 'Start working now?' : 'Finish this job?',
+      message:
+        action === 'start'
+          ? 'The client will see that work has started. Confirm that you are at the address and ready.'
+          : 'The client will be asked to review and confirm the completed service.',
+      tone: action === 'start' ? 'info' : 'warning',
+      confirmText: action === 'start' ? 'Start work' : 'Mark completed',
+    });
+    if (!confirmed) return;
     const success = await postWorkerAction(
       idRequest,
       action === 'start'
@@ -331,7 +380,34 @@ export const RequestsView: React.FC<RequestsViewProps> = ({
       }
     } else {
       setActiveRouteRequestId((current) => (current === idRequest ? null : current));
+      setArrivedRequestIds((current) => {
+        const next = new Set(current);
+        next.delete(idRequest);
+        window.sessionStorage.setItem('fixlife:worker-arrived', JSON.stringify([...next]));
+        return next;
+      });
     }
+  };
+
+  const markArrived = async (idRequest: number) => {
+    const confirmed = await showSweetConfirm({
+      title: 'Confirm your arrival',
+      message: 'Only confirm after reaching the service address. The Start work action will become available.',
+      tone: 'info',
+      confirmText: 'I have arrived',
+    });
+    if (!confirmed) return;
+    const success = await postWorkerAction(
+      idRequest,
+      API_ENDPOINTS.worker.arriveRequest(idRequest),
+      'Arrival confirmed. You can start the work when ready.'
+    );
+    if (!success) return;
+    setArrivedRequestIds((current) => {
+      const next = new Set(current).add(idRequest);
+      window.sessionStorage.setItem('fixlife:worker-arrived', JSON.stringify([...next]));
+      return next;
+    });
   };
 
   const openCounter = (idRequest: number, budget: number) => {
@@ -368,7 +444,7 @@ export const RequestsView: React.FC<RequestsViewProps> = ({
         return;
       }
       notify.success('Counter offer sent successfully.');
-      await fetchRequests(true);
+      await Promise.all([fetchRequests(true), refreshWorkspace(true)]);
     } catch {
       notify.error('Network error sending counter offer.');
     } finally {
@@ -404,6 +480,10 @@ export const RequestsView: React.FC<RequestsViewProps> = ({
         ? 'On route'
         : routeStatusLabel;
   const selectedScheduled = isScheduledRequest(selectedRequest);
+  const selectedArrived = selectedRequest
+    ? Boolean(selectedRequest.worker_arrived_at) ||
+      arrivedRequestIds.has(selectedRequest.id_request)
+    : false;
 
   return (
     <>
@@ -411,43 +491,86 @@ export const RequestsView: React.FC<RequestsViewProps> = ({
         initial={mobileView === 'list' ? { y: 0 } : { y: '100%' }}
         animate={{ y: 0 }}
         transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-        className={`relative z-20 flex h-full min-h-0 w-full flex-col overflow-hidden border-gray-200 bg-white/95 shadow-2xl backdrop-blur-lg lg:w-[430px] lg:border-r xl:w-[450px] ${
+        className={`relative z-[510] flex h-full min-h-0 w-full flex-col overflow-hidden bg-white/96 shadow-2xl backdrop-blur-xl lg:absolute lg:inset-y-4 lg:left-4 lg:h-auto lg:w-[420px] lg:rounded-[28px] lg:border lg:border-white/80 xl:w-[440px] ${
           mobileView === 'map' ? 'hidden lg:flex' : 'flex'
         }`}
       >
-        <div className="border-b border-gray-200 bg-white/95 p-3 sm:p-4">
-          <div className="grid grid-cols-3 gap-2">
-            {(['new', 'accepted', 'rejected'] as const).map((tab) => (
+        <div className="border-b border-slate-200/80 bg-white/95 px-4 pb-4 pt-5">
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <p className="text-[10px] font-black uppercase tracking-[0.2em] text-bird-blue">
+                Worker workspace
+              </p>
+              <h2 className="mt-1 text-xl font-black text-slate-950">Service requests</h2>
+              <p className="mt-1 text-xs font-semibold text-slate-500">{listHint}</p>
+            </div>
+            <button
+              type="button"
+              onClick={() => void fetchRequests()}
+              disabled={loading || !isWorkerActive}
+              title="Refresh requests"
+              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 shadow-sm transition hover:border-sky-200 hover:text-bird-blue disabled:opacity-40"
+            >
+              <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+            </button>
+          </div>
+
+          <div className="mt-4 grid grid-cols-3 rounded-xl bg-slate-100 p-1">
+            {([
+              ['new', 'Available'],
+              ['accepted', 'My jobs'],
+              ['rejected', 'Passed'],
+            ] as const).map(([tab, label]) => (
               <button
                 key={tab}
                 onClick={() => setStatusFilter(tab)}
-                className={`rounded-lg px-2 py-2 text-xs font-bold uppercase transition ${
+                className={`rounded-lg px-2 py-2.5 text-[11px] font-black transition ${
                   statusFilter === tab
-                    ? 'bg-bird-blue text-white'
-                    : 'border border-gray-200 bg-white text-gray-600 hover:bg-gray-100'
+                    ? 'bg-white text-slate-950 shadow-sm'
+                    : 'text-slate-500 hover:text-slate-800'
                 }`}
               >
-                {tab}
+                {label}
               </button>
             ))}
           </div>
-          <p className="mt-2 text-xs font-semibold text-gray-500">{listHint}</p>
           {statusFilter === 'new' && activeWorkerRequest && (
-            <p className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-800">
-              Finish request #{activeWorkerRequest.id_request} before accepting another job.
-            </p>
+            <div className="mt-3 flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5">
+              <Navigation className="mt-0.5 h-4 w-4 shrink-0 text-amber-700" />
+              <p className="text-xs font-semibold leading-5 text-amber-900">
+                Request #{activeWorkerRequest.id_request} is active. Finish it before accepting another job.
+              </p>
+            </div>
           )}
         </div>
-        <div className="custom-scrollbar min-h-0 flex-1 space-y-3 overflow-y-auto p-3 pb-24 lg:pb-4">
+        <WorkerDaySummary
+          workspace={workerWorkspace}
+          connected={workspaceSocketConnected}
+        />
+        <div className="custom-scrollbar min-h-0 flex-1 space-y-3 overflow-y-auto bg-slate-50/70 p-3 pb-24 lg:pb-4">
           {loading ? (
-            <div className="rounded-2xl border bg-white px-4 py-8 text-center text-sm font-bold text-slate-500">
-              Refreshing requests...
+            <div className="rounded-2xl border border-slate-200 bg-white px-4 py-10 text-center shadow-sm">
+              <RefreshCw className="mx-auto h-5 w-5 animate-spin text-bird-blue" />
+              <p className="mt-3 text-sm font-black text-slate-800">Finding nearby work</p>
+              <p className="mt-1 text-xs font-semibold text-slate-500">Syncing the latest requests for you.</p>
             </div>
           ) : !visibleRequests.length ? (
-            <div className="flex h-full items-center justify-center p-6 text-center text-sm font-semibold text-gray-500">
-              {isWorkerActive
-                ? 'No requests in this tab.'
-                : 'Go online to view nearby and active requests.'}
+            <div className="flex h-full min-h-[280px] flex-col items-center justify-center px-8 text-center">
+              <div className="flex h-14 w-14 items-center justify-center rounded-full bg-white shadow-sm">
+                {isWorkerActive ? (
+                  <MapPinned className="h-6 w-6 text-bird-blue" />
+                ) : (
+                  <WifiOff className="h-6 w-6 text-slate-400" />
+                )}
+              </div>
+              <h3 className="mt-4 text-base font-black text-slate-900">
+                {isWorkerActive ? 'Nothing here right now' : 'You are offline'}
+              </h3>
+              <p className="mt-2 max-w-[260px] text-sm font-medium leading-6 text-slate-500">
+                {isWorkerActive
+                  ? 'New nearby requests will appear here automatically.'
+                  : 'Go online to view nearby requests and manage active jobs.'}
+              </p>
             </div>
           ) : (
             visibleRequests.map((request) => (
@@ -469,7 +592,6 @@ export const RequestsView: React.FC<RequestsViewProps> = ({
                   setSelectedRequestId(id);
                   setActiveRouteRequestId(id);
                 }}
-                onProgress={handleProgress}
               />
             ))
           )}
@@ -477,7 +599,7 @@ export const RequestsView: React.FC<RequestsViewProps> = ({
       </motion.aside>
 
       <main
-        className={`relative flex-1 overflow-hidden ${
+        className={`relative h-full min-w-0 flex-1 overflow-hidden lg:w-full ${
           mobileView === 'map' ? 'block' : 'hidden lg:block'
         }`}
       >
@@ -486,8 +608,11 @@ export const RequestsView: React.FC<RequestsViewProps> = ({
           <div className="absolute right-4 top-4 z-[500] h-3 w-3 animate-pulse rounded-full bg-bird-blue" />
         )}
         {!isWorkerActive && (
-          <div className="absolute inset-0 z-[400] flex items-center justify-center bg-white/70 backdrop-blur-sm">
-            <div className="mx-4 max-w-sm rounded-3xl border bg-white p-6 text-center shadow-xl">
+          <div className="absolute inset-0 z-[400] flex items-center justify-center bg-slate-100/70 backdrop-blur-sm">
+            <div className="mx-4 max-w-sm rounded-[28px] border border-white/80 bg-white/95 p-6 text-center shadow-[0_28px_70px_rgba(15,23,42,0.16)]">
+              <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-slate-100">
+                <WifiOff className="h-6 w-6 text-slate-500" />
+              </div>
               <h3 className="text-xl font-black text-slate-900">Location hidden while offline</h3>
               <p className="mt-2 text-sm font-semibold text-slate-600">
                 Go online to share your GPS position and receive request updates.
@@ -496,126 +621,34 @@ export const RequestsView: React.FC<RequestsViewProps> = ({
           </div>
         )}
 
-        {selectedRequest && (
-          <section className="absolute inset-x-3 bottom-4 z-[500] lg:bottom-auto lg:left-4 lg:right-auto lg:top-4 lg:w-[350px]">
-            <div className="rounded-3xl border border-white/80 bg-white/95 p-5 shadow-2xl backdrop-blur-xl">
-              <div className="flex items-start justify-between gap-3">
-                <div className="flex min-w-0 gap-3">
-                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-bird-blue font-black text-white">
-                    {getServiceIconLabel(
-                      selectedRequest.service_icon,
-                      selectedRequest.service_name
-                    )}
-                  </div>
-                  <div className="min-w-0">
-                    <h3 className="truncate text-lg font-black text-slate-950">
-                      {selectedRequest.service_name}
-                    </h3>
-                    <p className="truncate text-xs font-semibold text-slate-500">
-                      {selectedRequest.location_text || 'Location pending'}
-                    </p>
-                  </div>
-                </div>
-                <span className="rounded-full bg-slate-100 px-3 py-1 text-[10px] font-black uppercase text-slate-700">
-                  {workerRequestStatusLabel(selectedRequest.request_status)}
-                </span>
-              </div>
-
-              <div className="mt-3 flex flex-wrap gap-2">
-                <span className="rounded-full bg-sky-50 px-3 py-1 text-[11px] font-bold text-sky-700">
-                  {selectedScheduled
-                    ? formatScheduledWindow(selectedRequest)
-                    : 'Express request'}
-                </span>
-                <span className="rounded-full bg-amber-50 px-3 py-1 text-[11px] font-bold text-amber-800">
-                  ${selectedRequest.budget.toFixed(2)}
-                </span>
-              </div>
-
-              <div className="mt-4 grid grid-cols-3 gap-2">
-                <RouteMetric label="ETA" value={routeLoading ? '...' : displayedRouteMetrics ? formatEta(displayedRouteMetrics.durationMin) : '--'} />
-                <RouteMetric label="Distance" value={displayedRouteMetrics ? `${displayedRouteMetrics.distanceKm.toFixed(1)} km` : '--'} />
-                <RouteMetric label="Status" value={routeStatus} />
-              </div>
-              {routeError && <p className="mt-3 text-xs font-semibold text-amber-700">{routeError}</p>}
-
-              <div className="mt-4 grid grid-cols-2 gap-3">
-                <button
-                  onClick={toggleRoute}
-                  disabled={!routePreview || routeLoading || !canTravel}
-                  className="rounded-2xl bg-bird-blue py-3 text-sm font-black text-white disabled:opacity-50"
-                >
-                  {!canTravel ? 'Waiting approval' : routeActive ? 'Pause route' : 'Start route'}
-                </button>
-                <button
-                  onClick={() => setRoutePanelExpanded((open) => !open)}
-                  className="rounded-2xl bg-slate-100 py-3 text-sm font-black text-slate-700"
-                >
-                  {routePanelExpanded ? 'Hide tools' : 'Route tools'}
-                </button>
-              </div>
-
-              {routePanelExpanded && (
-                <div className="mt-3 space-y-3 border-t border-slate-100 pt-3">
-                  <div className="grid grid-cols-2 gap-2">
-                    {(['balanced', 'close'] as const).map((mode) => (
-                      <button
-                        key={mode}
-                        onClick={() => setRouteCameraMode(mode)}
-                        className={`rounded-xl px-3 py-2 text-xs font-black ${
-                          routeCameraMode === mode
-                            ? 'bg-bird-blue text-white'
-                            : 'bg-slate-100 text-slate-600'
-                        }`}
-                      >
-                        {mode === 'close' ? 'Close follow' : 'Balanced'}
-                      </button>
-                    ))}
-                  </div>
-                  <div className="grid grid-cols-2 gap-2">
-                    <button onClick={centerRoute} className="rounded-xl bg-slate-100 py-2 text-xs font-black text-slate-700">
-                      Center route
-                    </button>
-                    <button
-                      onClick={() => setChatPanelOpen(true)}
-                      disabled={!canChat}
-                      className="rounded-xl border border-bird-blue/20 py-2 text-xs font-black text-bird-blue disabled:opacity-40"
-                    >
-                      Open chat
-                    </button>
-                  </div>
-                  <button
-                    onClick={() => setTrafficEnabled((enabled) => !enabled)}
-                    className="flex w-full items-center justify-between rounded-xl bg-slate-50 px-3 py-2 text-xs font-bold text-slate-700"
-                  >
-                    <span>
-                      Traffic {trafficEnabled && simulatedTraffic ? `+${Math.ceil(simulatedTraffic.delayMin)} min` : 'off'}
-                    </span>
-                    <span className={trafficEnabled ? 'text-emerald-600' : 'text-slate-400'}>
-                      {trafficEnabled ? 'On' : 'Off'}
-                    </span>
-                  </button>
-                </div>
-              )}
-
-              {selectedRequest.request_status === 'paid' && (
-                <JobButton
-                  busy={busyId === selectedRequest.id_request}
-                  label="Start job"
-                  busyLabel="Starting..."
-                  onClick={() => void handleProgress(selectedRequest.id_request, 'start')}
-                />
-              )}
-              {selectedRequest.request_status === 'in_progress' && (
-                <JobButton
-                  busy={busyId === selectedRequest.id_request}
-                  label="Finish job"
-                  busyLabel="Saving..."
-                  onClick={() => void handleProgress(selectedRequest.id_request, 'complete')}
-                />
-              )}
-            </div>
-          </section>
+        {selectedRequest && statusFilter === 'accepted' && (
+          <WorkerCurrentJobPanel
+            request={selectedRequest}
+            scheduled={selectedScheduled}
+            routeActive={routeActive}
+            arrived={selectedArrived}
+            canChat={canChat}
+            canTravel={canTravel}
+            routeLoading={routeLoading}
+            routeReady={!!routePreview && !routeLoading}
+            routeError={routeError}
+            routeStatus={routeStatus}
+            routeMetrics={displayedRouteMetrics}
+            routePanelExpanded={routePanelExpanded}
+            routeCameraMode={routeCameraMode}
+            trafficEnabled={trafficEnabled}
+            trafficDelayMinutes={simulatedTraffic?.delayMin || 0}
+            busy={busyId === selectedRequest.id_request}
+            onToggleTools={() => setRoutePanelExpanded((open) => !open)}
+            onOpenChat={() => setChatPanelOpen(true)}
+            onCenterRoute={centerRoute}
+            onCameraModeChange={setRouteCameraMode}
+            onTrafficToggle={() => setTrafficEnabled((enabled) => !enabled)}
+            onTravel={toggleRoute}
+            onArrive={() => void markArrived(selectedRequest.id_request)}
+            onStart={() => void handleProgress(selectedRequest.id_request, 'start')}
+            onComplete={() => void handleProgress(selectedRequest.id_request, 'complete')}
+          />
         )}
 
         <AnimatePresence>
@@ -671,30 +704,3 @@ export const RequestsView: React.FC<RequestsViewProps> = ({
     </>
   );
 };
-
-const RouteMetric = ({ label, value }: { label: string; value: string }) => (
-  <div className="rounded-2xl border border-slate-100 bg-slate-50 px-2 py-3">
-    <p className="text-[9px] font-black uppercase text-slate-400">{label}</p>
-    <p className="mt-1 truncate text-sm font-black text-slate-900">{value}</p>
-  </div>
-);
-
-const JobButton = ({
-  busy,
-  busyLabel,
-  label,
-  onClick,
-}: {
-  busy: boolean;
-  busyLabel: string;
-  label: string;
-  onClick: () => void;
-}) => (
-  <button
-    onClick={onClick}
-    disabled={busy}
-    className="mt-3 w-full rounded-2xl bg-bird-blue py-3 text-sm font-black text-white disabled:opacity-50"
-  >
-    {busy ? busyLabel : label}
-  </button>
-);

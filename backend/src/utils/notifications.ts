@@ -3,6 +3,7 @@ import pool from '../config/db';
 import { pushToUser } from '../services/sseManager';
 import { shouldRunRuntimeSchemaSync } from '../config/schemaSync';
 import { isDatabaseSchemaReady } from '../services/schemaState.service';
+import { emitUserUpdate } from '../services/socketManager';
 
 export type NotificationTone = 'info' | 'success' | 'warning';
 
@@ -114,6 +115,14 @@ export const createUserNotification = async (input: {
   if (input.requestId != null) {
     pushToUser(input.userId, 'request_updated', { id_request: input.requestId });
   }
+  emitUserUpdate(input.userId, {
+    event_type: input.eventType,
+    id_request: input.requestId ?? null,
+    title: input.title,
+    message: input.message,
+    tone,
+    metadata: input.metadata ?? null,
+  });
 };
 
 export const notifyAdmins = async (input: {

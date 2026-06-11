@@ -966,6 +966,7 @@ export const getWorkerRequests = async (req: AuthRequest, res: Response): Promis
          sr.scheduled_time,
          sr.scheduled_start_time,
          sr.scheduled_end_time,
+         sr.worker_arrived_at,
          sr.status AS request_status,
          sr.created_at,
          sr.assigned_worker_profile,
@@ -989,7 +990,7 @@ export const getWorkerRequests = async (req: AuthRequest, res: Response): Promis
         GROUP BY
           sr.id_request, sr.id_service, sr.description, sr.location_text, sr.latitude, sr.longitude,
           sr.budget, sr.radius_km, sr.booking_type, sr.scheduled_date, sr.scheduled_time,
-          sr.scheduled_start_time, sr.scheduled_end_time, sr.status, sr.created_at, sr.assigned_worker_profile,
+          sr.scheduled_start_time, sr.scheduled_end_time, sr.worker_arrived_at, sr.status, sr.created_at, sr.assigned_worker_profile,
           s.name, s.icon, srw.distance_km, srw.status, srw.proposed_budget, srw.counter_message,
           u.id_user, u.name, u.lastname, u.profile_image
        ORDER BY
@@ -1000,9 +1001,23 @@ export const getWorkerRequests = async (req: AuthRequest, res: Response): Promis
     );
 
     const requests = rows.map((row: any) => {
-      const lat = row.latitude != null ? Number(row.latitude) : null;
-      const lng = row.longitude != null ? Number(row.longitude) : null;
+      const exactLat = row.latitude != null ? Number(row.latitude) : null;
+      const exactLng = row.longitude != null ? Number(row.longitude) : null;
+      const isUnacceptedCandidate = String(row.worker_status || '').toLowerCase() === 'new';
+      const lat =
+        exactLat != null
+          ? isUnacceptedCandidate
+            ? Number(exactLat.toFixed(2))
+            : exactLat
+          : null;
+      const lng =
+        exactLng != null
+          ? isUnacceptedCandidate
+            ? Number(exactLng.toFixed(2))
+            : exactLng
+          : null;
       const routeUrl =
+        !isUnacceptedCandidate &&
         lat != null &&
         lng != null &&
         workerLat != null &&
@@ -1020,6 +1035,15 @@ export const getWorkerRequests = async (req: AuthRequest, res: Response): Promis
                 url: buildProtectedAssetUrl(req, name),
               }))
           : [];
+      const locationParts = String(row.location_text || '')
+        .split(',')
+        .map((part) => part.trim())
+        .filter(Boolean);
+      const approximateLocation =
+        locationParts.length > 2
+          ? locationParts.slice(-3).join(', ')
+          : locationParts.join(', ');
+      const clientFirstName = String(row.client_name || '').trim() || 'Client';
 
       return {
         id_request: Number(row.id_request),
@@ -1027,7 +1051,11 @@ export const getWorkerRequests = async (req: AuthRequest, res: Response): Promis
         service_name: row.service_name,
         service_icon: row.service_icon || null,
         description: row.description,
-        location_text: row.location_text,
+        location_text: isUnacceptedCandidate
+          ? approximateLocation
+            ? `Near ${approximateLocation}`
+            : 'Approximate area available'
+          : row.location_text,
         latitude: lat,
         longitude: lng,
         budget: Number(row.budget || 0),
@@ -1037,6 +1065,7 @@ export const getWorkerRequests = async (req: AuthRequest, res: Response): Promis
         scheduled_time: row.scheduled_time || null,
         scheduled_start_time: row.scheduled_start_time || null,
         scheduled_end_time: row.scheduled_end_time || null,
+        worker_arrived_at: row.worker_arrived_at || null,
         request_status: toPublicRequestStatus(row.request_status),
         worker_status: row.worker_status,
         proposed_budget: row.proposed_budget != null ? Number(row.proposed_budget) : null,
@@ -1048,7 +1077,9 @@ export const getWorkerRequests = async (req: AuthRequest, res: Response): Promis
         client: row.client_id
           ? {
               id_user: Number(row.client_id),
-              name: `${row.client_name || ''} ${row.client_lastname || ''}`.trim(),
+              name: isUnacceptedCandidate
+                ? clientFirstName
+                : `${row.client_name || ''} ${row.client_lastname || ''}`.trim(),
               profile_image_url: buildAssetUrl(req, row.client_profile_image || null),
             }
           : null,
@@ -1174,6 +1205,160 @@ export const getWorkerAppointments = async (req: AuthRequest, res: Response): Pr
   }
 };
 
+export const getWorkerWorkspace = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const userId = req.user?.user_id;
+    if (!userId) {
+      res.status(401).json({ error: 'Unauthorized' });
+      return;
+    }
+
+    await ensureServiceRequestTables();
+    const [profileRows] = await pool.execute<RowDataPacket[]>(
+      `SELECT id_worker_profile FROM worker_profiles WHERE id_user = ? LIMIT 1`,
+      [userId]
+    );
+    if (profileRows.length === 0) {
+      res.status(404).json({ error: 'Worker profile not found.' });
+      return;
+    }
+
+    const profileId = Number(profileRows[0].id_worker_profile);
+    const [rows] = await pool.execute<RowDataPacket[]>(
+      `SELECT
+         sr.id_request,
+         sr.description,
+         sr.location_text,
+         sr.latitude,
+         sr.longitude,
+         sr.budget,
+         sr.final_budget,
+         sr.booking_type,
+         sr.status,
+         sr.scheduled_start_time,
+         sr.scheduled_end_time,
+         sr.created_at,
+         s.name AS service_name,
+         s.icon AS service_icon,
+         u.name AS client_name,
+         u.lastname AS client_lastname,
+         srw.proposed_budget
+       FROM service_requests sr
+       INNER JOIN services s ON s.id_service = sr.id_service
+       LEFT JOIN users u ON u.id_user = sr.id_user
+       LEFT JOIN service_request_workers srw
+         ON srw.id_request = sr.id_request
+        AND srw.id_worker_profile = ?
+       WHERE sr.assigned_worker_profile = ?
+         AND sr.status IN ('assigned', 'payment_pending', 'paid', 'in_progress', 'awaiting_confirmation', 'done')
+         AND (
+           (sr.scheduled_start_time IS NOT NULL
+             AND sr.scheduled_start_time >= DATE_SUB(CURDATE(), INTERVAL 1 DAY)
+             AND sr.scheduled_start_time < DATE_ADD(CURDATE(), INTERVAL 8 DAY))
+           OR (COALESCE(sr.booking_type, 'express') = 'express'
+             AND DATE(COALESCE(sr.updated_at, sr.created_at)) = CURDATE())
+         )
+       ORDER BY COALESCE(sr.scheduled_start_time, sr.created_at) ASC
+       LIMIT 120`,
+      [profileId, profileId]
+    );
+
+    const jobs = rows.map((row: any) => {
+      const start = row.scheduled_start_time ? new Date(row.scheduled_start_time) : null;
+      const end = row.scheduled_end_time ? new Date(row.scheduled_end_time) : null;
+      return {
+        id_request: Number(row.id_request),
+        service_name: String(row.service_name || 'Service'),
+        service_icon: row.service_icon || null,
+        description: String(row.description || ''),
+        location_text: String(row.location_text || ''),
+        latitude: row.latitude != null ? Number(row.latitude) : null,
+        longitude: row.longitude != null ? Number(row.longitude) : null,
+        amount: Number(row.final_budget ?? row.proposed_budget ?? row.budget ?? 0),
+        booking_type: String(row.booking_type || 'express'),
+        status: toPublicRequestStatus(row.status),
+        scheduled_start_time: row.scheduled_start_time || null,
+        scheduled_end_time: row.scheduled_end_time || null,
+        duration_minutes:
+          start && end && end > start
+            ? Math.round((end.getTime() - start.getTime()) / 60_000)
+            : SCHEDULED_REQUEST_DURATION_MINUTES,
+        client_name: `${row.client_name || ''} ${row.client_lastname || ''}`.trim(),
+      };
+    });
+
+    const todayKey = new Date().toISOString().slice(0, 10);
+    const todayJobs = jobs.filter((job) => {
+      if (!job.scheduled_start_time) return job.booking_type === 'express';
+      return new Date(job.scheduled_start_time).toISOString().slice(0, 10) === todayKey;
+    });
+    const pendingStatuses = new Set([
+      'assigned',
+      'payment_pending',
+      'paid',
+      'in_progress',
+      'awaiting_confirmation',
+    ]);
+    const scheduledToday = todayJobs
+      .filter((job) => job.scheduled_start_time)
+      .sort(
+        (left, right) =>
+          new Date(left.scheduled_start_time as string).getTime() -
+          new Date(right.scheduled_start_time as string).getTime()
+      );
+    let totalDistanceKm = 0;
+    for (let index = 1; index < scheduledToday.length; index += 1) {
+      const previous = scheduledToday[index - 1];
+      const current = scheduledToday[index];
+      if (
+        previous.latitude != null &&
+        previous.longitude != null &&
+        current.latitude != null &&
+        current.longitude != null
+      ) {
+        const toRad = (value: number) => (value * Math.PI) / 180;
+        const dLat = toRad(current.latitude - previous.latitude);
+        const dLng = toRad(current.longitude - previous.longitude);
+        const a =
+          Math.sin(dLat / 2) ** 2 +
+          Math.cos(toRad(previous.latitude)) *
+            Math.cos(toRad(current.latitude)) *
+            Math.sin(dLng / 2) ** 2;
+        totalDistanceKm += 6371 * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+      }
+    }
+    const now = Date.now();
+    const nextJob =
+      scheduledToday.find(
+        (job) =>
+          job.scheduled_start_time &&
+          new Date(job.scheduled_start_time).getTime() >= now
+      ) || null;
+
+    res.json({
+      success: true,
+      summary: {
+        estimated_earnings: Number(
+          todayJobs.reduce((sum, job) => sum + job.amount, 0).toFixed(2)
+        ),
+        pending_jobs: todayJobs.filter((job) => pendingStatuses.has(job.status)).length,
+        completed_jobs: todayJobs.filter((job) => job.status === 'done').length,
+        total_distance_km: Number(totalDistanceKm.toFixed(1)),
+        next_job: nextJob,
+      },
+      agenda: {
+        buffer_minutes: SCHEDULE_BUFFER_TIME_MINUTES,
+        range_start: new Date().toISOString(),
+        range_end: new Date(Date.now() + 7 * 24 * 60 * 60_000).toISOString(),
+        jobs,
+      },
+    });
+  } catch (error) {
+    console.error('Error in getWorkerWorkspace:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
 export const acceptWorkerRequest = async (req: AuthRequest, res: Response): Promise<void> => {
   const connection = await pool.getConnection();
   try {
@@ -1283,6 +1468,7 @@ export const acceptWorkerRequest = async (req: AuthRequest, res: Response): Prom
        SET status = 'assigned',
            assigned_worker_profile = ?,
            assigned_at = CURRENT_TIMESTAMP,
+           worker_arrived_at = NULL,
            final_budget = COALESCE(final_budget, budget),
            updated_at = CURRENT_TIMESTAMP
        WHERE id_request = ?`,
@@ -1506,7 +1692,7 @@ export const counterOfferWorkerRequest = async (req: AuthRequest, res: Response)
 
     await connection.execute(
       `UPDATE service_requests
-       SET status = 'assigned', assigned_worker_profile = ?, assigned_at = CURRENT_TIMESTAMP, final_budget = NULL, updated_at = CURRENT_TIMESTAMP
+       SET status = 'assigned', assigned_worker_profile = ?, assigned_at = CURRENT_TIMESTAMP, worker_arrived_at = NULL, final_budget = NULL, updated_at = CURRENT_TIMESTAMP
        WHERE id_request = ?`,
       [profileId, idRequest]
     );
@@ -1570,6 +1756,103 @@ export const counterOfferWorkerRequest = async (req: AuthRequest, res: Response)
   }
 };
 
+export const arriveWorkerRequest = async (req: AuthRequest, res: Response): Promise<void> => {
+  const connection = await pool.getConnection();
+  try {
+    const userId = Number(req.user?.user_id || 0);
+    const idRequest = Number(req.params.idRequest);
+    if (!userId) {
+      res.status(401).json({ error: 'Unauthorized' });
+      return;
+    }
+    if (!Number.isSafeInteger(idRequest) || idRequest <= 0) {
+      res.status(400).json({ error: 'Invalid request id.' });
+      return;
+    }
+
+    await ensureServiceRequestTables();
+    await connection.beginTransaction();
+    const [profileRows] = await connection.execute<RowDataPacket[]>(
+      `SELECT id_worker_profile
+       FROM worker_profiles
+       WHERE id_user = ? AND is_verified = 1
+       LIMIT 1
+       FOR UPDATE`,
+      [userId]
+    );
+    if (profileRows.length === 0) {
+      await connection.rollback();
+      res.status(403).json({ error: 'A verified worker profile is required.' });
+      return;
+    }
+
+    const profileId = Number(profileRows[0].id_worker_profile);
+    const [requestRows] = await connection.execute<RowDataPacket[]>(
+      `SELECT id_request, id_user, status, assigned_worker_profile, worker_arrived_at
+       FROM service_requests
+       WHERE id_request = ?
+       LIMIT 1
+       FOR UPDATE`,
+      [idRequest]
+    );
+    if (requestRows.length === 0) {
+      await connection.rollback();
+      res.status(404).json({ error: 'Request not found.' });
+      return;
+    }
+
+    const request = requestRows[0];
+    if (Number(request.assigned_worker_profile || 0) !== profileId) {
+      await connection.rollback();
+      res.status(403).json({ error: 'This request is assigned to another worker.' });
+      return;
+    }
+    if (String(request.status || '').toLowerCase() !== 'paid') {
+      await connection.rollback();
+      res.status(409).json({ error: 'Arrival can only be confirmed for a paid job.' });
+      return;
+    }
+
+    if (!request.worker_arrived_at) {
+      await connection.execute(
+        `UPDATE service_requests
+         SET worker_arrived_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
+         WHERE id_request = ?`,
+        [idRequest]
+      );
+    }
+    await connection.commit();
+
+    const requestOwnerId = Number(request.id_user || 0);
+    if (requestOwnerId) {
+      await createUserNotification({
+        userId: requestOwnerId,
+        eventType: 'worker_arrived',
+        title: 'Your worker has arrived',
+        message: `Your professional confirmed arrival for request #${idRequest}.`,
+        tone: 'info',
+        requestId: idRequest,
+        actionUrl: '/app',
+        dedupeKey: `request-${idRequest}-worker-arrived-client`,
+        metadata: { request_status: 'paid', worker_arrived: true },
+      });
+    }
+
+    res.json({
+      success: true,
+      message: 'Arrival confirmed.',
+      id_request: idRequest,
+      worker_arrived_at: request.worker_arrived_at || new Date().toISOString(),
+    });
+  } catch (error) {
+    await connection.rollback();
+    console.error('Error in arriveWorkerRequest:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  } finally {
+    connection.release();
+  }
+};
+
 export const startWorkerRequest = async (req: AuthRequest, res: Response): Promise<void> => {
   const connection = await pool.getConnection();
   try {
@@ -1615,7 +1898,7 @@ export const startWorkerRequest = async (req: AuthRequest, res: Response): Promi
     }
 
     const [requestRows] = await connection.execute<RowDataPacket[]>(
-      `SELECT id_request, id_user, status, assigned_worker_profile, booking_type, scheduled_start_time
+      `SELECT id_request, id_user, status, assigned_worker_profile, booking_type, scheduled_start_time, worker_arrived_at
        FROM service_requests
        WHERE id_request = ?
        LIMIT 1
@@ -1651,6 +1934,11 @@ export const startWorkerRequest = async (req: AuthRequest, res: Response): Promi
       res.status(409).json({ error: 'The client must complete payment before the job can start.' });
       return;
     }
+    if (!request.worker_arrived_at) {
+      await connection.rollback();
+      res.status(409).json({ error: 'Confirm arrival before starting the work.' });
+      return;
+    }
 
     if (String(request.booking_type || 'express').toLowerCase() === 'scheduled' && request.scheduled_start_time) {
       const scheduledStart = new Date(request.scheduled_start_time);
@@ -1678,13 +1966,13 @@ export const startWorkerRequest = async (req: AuthRequest, res: Response): Promi
     if (requestOwnerId) {
       await createUserNotification({
         userId: requestOwnerId,
-        eventType: 'worker_arriving',
-        title: 'Your worker is on the way',
-        message: `Your pro is heading to request #${idRequest}. You can follow the tracker live.`,
+        eventType: 'job_started',
+        title: 'Work has started',
+        message: `Your professional started working on request #${idRequest}.`,
         tone: 'info',
         requestId: idRequest,
         actionUrl: '/app',
-        dedupeKey: `request-${idRequest}-worker-arriving-client`,
+        dedupeKey: `request-${idRequest}-job-started-client`,
         metadata: { request_status: 'in_progress' },
       });
     }
