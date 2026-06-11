@@ -1266,11 +1266,12 @@ export const ensureServiceRequestTables = async () => {
          'scheduled_date',
          'scheduled_time',
          'scheduled_start_time',
-         'scheduled_end_time'
+         'scheduled_end_time',
+         'worker_arrived_at'
        )`
   );
   const requestColsCount = Number(assignedColRows[0]?.total || 0);
-  if (requestColsCount < 10) {
+  if (requestColsCount < 11) {
     const [requestCols] = await pool.execute<RowDataPacket[]>(
       `SELECT COLUMN_NAME
        FROM information_schema.columns
@@ -1286,7 +1287,8 @@ export const ensureServiceRequestTables = async () => {
            'scheduled_date',
            'scheduled_time',
            'scheduled_start_time',
-           'scheduled_end_time'
+           'scheduled_end_time',
+           'worker_arrived_at'
          )`
     );
     const requestColSet = new Set(requestCols.map((c: any) => String(c.COLUMN_NAME)));

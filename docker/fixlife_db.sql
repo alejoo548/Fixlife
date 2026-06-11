@@ -174,7 +174,8 @@ CREATE TABLE `service_requests` (
   `scheduled_date` date DEFAULT NULL,
   `scheduled_time` time DEFAULT NULL,
   `scheduled_start_time` datetime DEFAULT NULL,
-  `scheduled_end_time` datetime DEFAULT NULL
+  `scheduled_end_time` datetime DEFAULT NULL,
+  `worker_arrived_at` datetime DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 --
