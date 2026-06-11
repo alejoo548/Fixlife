@@ -272,7 +272,7 @@ export const RequestsView: React.FC<RequestsViewProps> = ({
     },
   });
 
-  useChatSocket<ChatMessage>({
+  const { connected: chatSocketConnected } = useChatSocket<ChatMessage>({
     token,
     requestId: selectedRequest?.id_request || null,
     enabled: !!token && !!selectedRequest && canChat && chatPanelOpen,
@@ -667,6 +667,7 @@ export const RequestsView: React.FC<RequestsViewProps> = ({
 
         <WorkerRequestChatPanel
           open={!!selectedRequest && chatPanelOpen && canChat}
+          connected={chatSocketConnected}
           request={selectedRequest}
           messages={selectedRequest ? chatByRequest[selectedRequest.id_request] || [] : []}
           text={selectedRequest ? chatTextByRequest[selectedRequest.id_request] || '' : ''}
