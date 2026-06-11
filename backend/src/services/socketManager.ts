@@ -215,3 +215,21 @@ export const emitChatMessage = (payload: {
     io.to(userRoom(payload.recipient_user_id)).emit('chat:message', eventPayload);
   }
 };
+
+export const emitUserUpdate = (
+  userId: number,
+  payload: {
+    event_type: string;
+    id_request?: number | null;
+    title?: string;
+    message?: string;
+    tone?: 'info' | 'success' | 'warning';
+    metadata?: Record<string, unknown> | null;
+  }
+) => {
+  if (!io || !Number.isSafeInteger(userId) || userId <= 0) return;
+  io.to(userRoom(userId)).emit('worker:update', {
+    ...payload,
+    emitted_at: new Date().toISOString(),
+  });
+};
