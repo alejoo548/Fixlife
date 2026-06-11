@@ -90,6 +90,20 @@ export const useWorkerPresence = ({
 
     let watchId: number | null = null;
     if (navigator.geolocation) {
+      // Immediate fix on load/toggle — uses cached GPS so fires in <1s.
+      // Fixes the bug where watchPosition's first success can take 10-12s
+      // (or never fire before timeout), leaving workerCoords null on reload.
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          const lat = Number(position.coords.latitude.toFixed(7));
+          const lng = Number(position.coords.longitude.toFixed(7));
+          setWorkerCoords({ lat, lng });
+          void pushPresence(true, lat, lng, true);
+        },
+        () => void pushPresence(true, undefined, undefined, true),
+        { enableHighAccuracy: false, timeout: 8000, maximumAge: 60000 },
+      );
+
       watchId = navigator.geolocation.watchPosition(
         (position) => {
           const lat = Number(position.coords.latitude.toFixed(7));
