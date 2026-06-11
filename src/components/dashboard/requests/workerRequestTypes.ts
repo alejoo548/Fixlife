@@ -19,6 +19,7 @@ export interface WorkerRequest {
   scheduled_time?: string | null;
   scheduled_start_time?: string | null;
   scheduled_end_time?: string | null;
+  worker_arrived_at?: string | null;
   request_status:
     | 'open'
     | 'payment_pending'
@@ -34,6 +35,12 @@ export interface WorkerRequest {
   route_url: string | null;
   proposed_budget?: number | null;
   counter_message?: string | null;
+  images?: Array<{ file_name: string; url: string }>;
+  client?: {
+    id_user: number;
+    name: string;
+    profile_image_url?: string | null;
+  } | null;
 }
 
 export interface ChatMessage {

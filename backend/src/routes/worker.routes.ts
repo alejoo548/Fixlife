@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import {
   acceptWorkerRequest,
+  arriveWorkerRequest,
   completeWorkerRequest,
   counterOfferWorkerRequest,
   changeWorkerPassword,
@@ -10,6 +11,7 @@ import {
   getWorkerAppointments,
   getWorkerAvailability,
   getWorkerRewardsDashboard,
+  getWorkerWorkspace,
   getWorkerRequests,
   rejectWorkerRequest,
   requestWorkerEmailChangeToken,
@@ -23,7 +25,11 @@ import {
   updateWorkerPresence,
   verifyWorkerEmailChangeToken,
 } from '../controllers/worker.controller';
-import { requireWorker, verifyToken } from '../middlewares/auth.middleware';
+import {
+  requireVerifiedWorker,
+  requireWorker,
+  verifyToken,
+} from '../middlewares/auth.middleware';
 import { sensitiveLimiter } from '../middlewares/security.middleware';
 import { upload, uploadImageOnly, validateUploadedFiles, sanitizeImages } from '../middlewares/upload.middleware';
 import { validate } from '../middlewares/validate.middleware';
@@ -36,16 +42,18 @@ router.use(verifyToken, requireWorker);
 router.get('/me', getWorkerMe);
 router.get('/availability', getWorkerAvailability);
 router.put('/availability', sensitiveLimiter, validate(WorkerSchema.availability), updateWorkerAvailability);
-router.get('/rewards-dashboard', getWorkerRewardsDashboard);
-router.get('/rewards-dashboard/statement.pdf', downloadWorkerRewardsStatementPdf);
-router.get('/requests', getWorkerRequests);
-router.get('/appointments', getWorkerAppointments);
-router.post('/requests/:idRequest/accept', sensitiveLimiter, acceptWorkerRequest);
-router.post('/requests/:idRequest/reject', sensitiveLimiter, rejectWorkerRequest);
-router.post('/requests/:idRequest/counter-offer', sensitiveLimiter, counterOfferWorkerRequest);
-router.post('/requests/:idRequest/start', sensitiveLimiter, startWorkerRequest);
-router.post('/requests/:idRequest/complete', sensitiveLimiter, completeWorkerRequest);
-router.put('/presence', updateWorkerPresence);
+router.get('/rewards-dashboard', requireVerifiedWorker, getWorkerRewardsDashboard);
+router.get('/rewards-dashboard/statement.pdf', requireVerifiedWorker, downloadWorkerRewardsStatementPdf);
+router.get('/requests', requireVerifiedWorker, getWorkerRequests);
+router.get('/workspace', requireVerifiedWorker, getWorkerWorkspace);
+router.get('/appointments', requireVerifiedWorker, getWorkerAppointments);
+router.post('/requests/:idRequest/accept', requireVerifiedWorker, sensitiveLimiter, acceptWorkerRequest);
+router.post('/requests/:idRequest/reject', requireVerifiedWorker, sensitiveLimiter, rejectWorkerRequest);
+router.post('/requests/:idRequest/counter-offer', requireVerifiedWorker, sensitiveLimiter, counterOfferWorkerRequest);
+router.post('/requests/:idRequest/arrive', requireVerifiedWorker, sensitiveLimiter, arriveWorkerRequest);
+router.post('/requests/:idRequest/start', requireVerifiedWorker, sensitiveLimiter, startWorkerRequest);
+router.post('/requests/:idRequest/complete', requireVerifiedWorker, sensitiveLimiter, completeWorkerRequest);
+router.put('/presence', requireVerifiedWorker, updateWorkerPresence);
 router.put('/settings', sensitiveLimiter, validate(WorkerSchema.settings), updateWorkerSettings);
 router.put('/change-password', sensitiveLimiter, validate(WorkerSchema.changePassword), changeWorkerPassword);
 router.post('/email-change/request', sensitiveLimiter, validate(WorkerSchema.emailChangeRequest), requestWorkerEmailChangeToken);
