@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { AlertCircle, BriefcaseBusiness, Briefcase, CheckCircle, CheckCircle2, Clock3, DollarSign, Download, MapPin, RefreshCw, Users } from 'lucide-react';
-import { Area, AreaChart, Bar, BarChart, CartesianGrid, Cell, Legend, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
+import { Area, AreaChart, Bar, BarChart, CartesianGrid, Cell, LabelList, Legend, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { showSweetToast } from '../../../utils/sweetAlert';
 import { Link } from 'react-router-dom';
 import { adminApi } from '../api/adminApi';
@@ -132,6 +132,37 @@ export default function OverviewModule() {
 
   const cardBase = `${isDark ? 'bg-slate-800/70' : 'bg-white/70'} backdrop-blur-xl rounded-3xl border ${isDark ? 'border-slate-700/50' : 'border-white'} shadow-xl ${isDark ? 'shadow-slate-900/20' : 'shadow-gray-200/20'} p-6 flex flex-col`;
 
+  // Location names come as full addresses ("Bulevar Venezuela, Barrio El
+  // Calvario, Centro Histórico, ..."). Show only the most specific first
+  // segment, truncated, so the vertical axis stays readable. The full address
+  // is kept for the tooltip.
+  const topLocations = (stats.popularLocations || [])
+    .slice(0, 6)
+    .map((loc) => {
+      const full = String(loc.name || '').trim() || 'Unknown area';
+      const firstSegment = full.split(',')[0].trim() || full;
+      const label = firstSegment.length > 22 ? `${firstSegment.slice(0, 21)}…` : firstSegment;
+      return { name: label, fullName: full, value: Number(loc.value || 0) };
+    });
+  const topLocationsMax = topLocations.reduce((max, loc) => Math.max(max, loc.value), 0);
+
+  const LocationTooltip = ({ active, payload }: any) => {
+    if (!active || !payload?.length) return null;
+    const point = payload[0]?.payload;
+    return (
+      <div
+        className={`max-w-[260px] rounded-2xl px-3.5 py-2.5 text-xs shadow-xl ${
+          isDark ? 'bg-slate-900/95 text-slate-100 border border-slate-700/60' : 'bg-white/97 text-slate-900'
+        }`}
+      >
+        <p className="font-bold leading-snug break-words">{point?.fullName}</p>
+        <p className={`mt-1 font-semibold ${isDark ? 'text-sky-300' : 'text-bird-blue'}`}>
+          {point?.value} {point?.value === 1 ? 'request' : 'requests'}
+        </p>
+      </div>
+    );
+  };
+
   return (
     <div className="admin-page-stack">
       {/* Greeting Banner */}
@@ -257,16 +288,44 @@ export default function OverviewModule() {
               <MapPin size={18} />
             </div>
           </div>
-          <div className="w-full">
-            <StableResponsiveContainer>
-              <BarChart data={stats.popularLocations} layout="vertical" margin={{ top: 0, right: 10, left: 10, bottom: 0 }} barSize={10}>
-                <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke={adminChartTheme.grid} />
-                <XAxis type="number" axisLine={false} tickLine={false} tick={{ fill: adminChartTheme.tick, fontSize: 12 }} />
-                <YAxis type="category" dataKey="name" axisLine={false} tickLine={false} tick={{ fill: adminChartTheme.tick, fontSize: 12 }} width={90} />
-                <Tooltip cursor={{ fill: adminChartTheme.cursor }} contentStyle={adminChartTheme.tooltip} itemStyle={adminChartTheme.itemStyle} labelStyle={{ color: adminChartTheme.tooltip.color }} />
-                <Bar dataKey="value" name="Requests" fill="#FFC20E" radius={[0, 6, 6, 0]} />
-              </BarChart>
-            </StableResponsiveContainer>
+          <div className="w-full flex-1">
+            {topLocations.length === 0 ? (
+              <div className={`flex h-full min-h-[180px] flex-col items-center justify-center text-center ${isDark ? 'text-slate-500' : 'text-gray-400'}`}>
+                <MapPin size={22} className="mb-2 opacity-60" />
+                <p className="text-sm font-semibold">No location data yet</p>
+              </div>
+            ) : (
+              <StableResponsiveContainer height={240}>
+                <BarChart data={topLocations} layout="vertical" margin={{ top: 4, right: 36, left: 4, bottom: 4 }} barCategoryGap={12}>
+                  <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke={adminChartTheme.grid} />
+                  <XAxis
+                    type="number"
+                    domain={[0, Math.max(1, topLocationsMax)]}
+                    allowDecimals={false}
+                    axisLine={false}
+                    tickLine={false}
+                    tick={{ fill: adminChartTheme.tick, fontSize: 12 }}
+                  />
+                  <YAxis
+                    type="category"
+                    dataKey="name"
+                    axisLine={false}
+                    tickLine={false}
+                    tick={{ fill: adminChartTheme.tick, fontSize: 11 }}
+                    width={140}
+                    interval={0}
+                  />
+                  <Tooltip cursor={{ fill: adminChartTheme.cursor }} content={<LocationTooltip />} />
+                  <Bar dataKey="value" name="Requests" fill="#FFC20E" radius={[0, 8, 8, 0]} maxBarSize={18}>
+                    <LabelList
+                      dataKey="value"
+                      position="right"
+                      style={{ fill: adminChartTheme.tick, fontSize: 11, fontWeight: 700 }}
+                    />
+                  </Bar>
+                </BarChart>
+              </StableResponsiveContainer>
+            )}
           </div>
         </div>
       </div>

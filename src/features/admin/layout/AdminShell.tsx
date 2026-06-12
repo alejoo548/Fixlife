@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
-import { Activity, Banknote, ChevronLeft, ChevronRight, FileText, Gauge, Headphones, Image, LogOut, Menu, Search, Settings, ShieldCheck, Users, Wrench, X } from 'lucide-react';
+import { Activity, Banknote, ChevronLeft, ChevronRight, FileText, Gauge, Headphones, Image, LogOut, Menu, Search, Settings, ShieldCheck, ShieldAlert, Users, Wrench, X } from 'lucide-react';
 import { DashboardThemeToggle } from '../../../components/common/DashboardThemeToggle';
 import { useDashboardTheme } from '../../../hooks/useDashboardTheme';
 import { getAuthUser, logoutAuthSession } from '../../../utils/session';
@@ -20,6 +20,7 @@ const navGroups = [
   ]},
   { label: 'People & catalog', items: [
     { to: `${BASE}/users`, label: 'Users', icon: Users }, { to: `${BASE}/pros`, label: 'Professionals', icon: ShieldCheck },
+    { to: `${BASE}/admins`, label: 'Administrators', icon: ShieldAlert },
     { to: `${BASE}/services`, label: 'Services', icon: Wrench }, { to: `${BASE}/content`, label: 'Content', icon: Image },
   ]},
   { label: 'Control', items: [
@@ -31,6 +32,7 @@ const navGroups = [
 const titles: Record<string, [string, string]> = {
   overview: ['Overview', 'Live platform health and priorities'], requests: ['Service requests', 'Investigate and manage every job'],
   users: ['Users', 'Client accounts and access'], pros: ['Professionals', 'Verification, tiers and performance'],
+  admins: ['Administrators', 'Staff accounts and access levels'],
   services: ['Services', 'Operational service catalog'], content: ['Homepage content', 'Cards and public presentation'],
   finance: ['Finance', 'Revenue, settlements and exceptions'], support: ['Support', 'Customer support workspace'],
   activity: ['Admin activity', 'Audited changes across platform'],

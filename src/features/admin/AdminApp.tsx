@@ -6,6 +6,7 @@ import { Skeleton } from './components/AdminUI';
 const OverviewModule = lazy(() => import('./modules/OverviewModule'));
 const RequestsModule = lazy(() => import('./modules/RequestsModule'));
 const UsersModule = lazy(() => import('./modules/UsersModule'));
+const AdminsModule = lazy(() => import('./modules/AdminsModule'));
 const ProsModule = lazy(() => import('./modules/ProsModule'));
 const ServicesModule = lazy(() => import('./modules/ServicesModule'));
 const ContentModule = lazy(() => import('./modules/ContentModule'));
@@ -23,6 +24,7 @@ export const AdminApp = ({ onClose }: { isOpen: boolean; onClose: () => void }) 
     <Route path="overview" element={<Lazy><OverviewModule /></Lazy>} />
     <Route path="requests" element={<Lazy><RequestsModule /></Lazy>} />
     <Route path="users" element={<Lazy><UsersModule /></Lazy>} />
+    <Route path="admins" element={<Lazy><AdminsModule /></Lazy>} />
     <Route path="pros" element={<Lazy><ProsModule /></Lazy>} />
     <Route path="services" element={<Lazy><ServicesModule /></Lazy>} />
     <Route path="content" element={<Lazy><ContentModule /></Lazy>} />
