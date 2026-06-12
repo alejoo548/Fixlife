@@ -1097,7 +1097,10 @@ export const getUsersAdmin = async (req: AuthRequest, res: Response): Promise<vo
       params.push(like, like, like, like);
     }
 
-    if (roleFilter) {
+    if (roleFilter === 'admin') {
+      // The "Admins" section lists every staff account: admins plus the root.
+      whereParts.push(`u.rol IN ('admin', 'root')`);
+    } else if (roleFilter) {
       whereParts.push(`u.rol = ?`);
       params.push(roleFilter);
     }
@@ -1347,8 +1350,19 @@ export const updateUserRole = async (req: AuthRequest, res: Response): Promise<v
     }
 
     const currentRole = String(rows[0].rol || '').toLowerCase();
+    const actorRole = String(req.user?.rol || '').toLowerCase();
+    const actorId = Number(req.user?.user_id || 0);
+
+    if (actorId === userId) {
+      res.status(403).json({ error: 'You cannot change your own role.' });
+      return;
+    }
     if (currentRole === 'root') {
       res.status(403).json({ error: 'Root user cannot be modified.' });
+      return;
+    }
+    if (currentRole === 'admin' && actorRole !== 'root') {
+      res.status(403).json({ error: 'Only the root administrator can modify other admins.' });
       return;
     }
     if (currentRole === 'worker') {
@@ -1420,13 +1434,19 @@ export const updateUserStatus = async (req: AuthRequest, res: Response): Promise
     }
 
     const currentRole = String(rows[0].rol || '').toLowerCase();
+    const actorRole = String(req.user?.rol || '').toLowerCase();
+    const actorId = Number(req.user?.user_id || 0);
+
     if (currentRole === 'root') {
       res.status(403).json({ error: 'Root user cannot be modified.' });
       return;
     }
-
-    if (req.user?.user_id === userId && desiredActive === 0) {
-      res.status(400).json({ error: 'You cannot deactivate your own account.' });
+    if (actorId === userId) {
+      res.status(403).json({ error: 'You cannot change your own account status.' });
+      return;
+    }
+    if (currentRole === 'admin' && actorRole !== 'root') {
+      res.status(403).json({ error: 'Only the root administrator can modify other admins.' });
       return;
     }
 
