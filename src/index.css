@@ -1457,24 +1457,49 @@ html {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  gap: 18px;
-  padding: 14px 4px;
+  gap: 16px;
+  padding: 13px 12px;
   border-top: 1px solid var(--admin-border);
   text-decoration: none;
   color: var(--admin-text);
   transition: background var(--admin-transition);
-  border-radius: 8px;
+  border-radius: 10px;
+}
+.admin-compact-list > a:first-child,
+.admin-compact-list > div:first-child {
+  border-top: 0;
 }
 .admin-compact-list > a:hover {
   background: var(--admin-surface-muted);
 }
-.admin-compact-list div > div:first-child,
+/* Left block: title + meta. Must target the <a> wrapper rows too, not only
+   div>div, otherwise the column layout never applies and the title and meta
+   collapse onto one line. */
+.admin-compact-list > a > div:first-child,
+.admin-compact-list > div > div:first-child,
 .admin-primary-cell {
   display: flex;
   flex-direction: column;
   gap: 3px;
+  min-width: 0;
+  flex: 1 1 auto;
 }
-.admin-compact-list span,
+.admin-compact-list strong {
+  font-size: 13px;
+  font-weight: 700;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+.admin-compact-list span {
+  font-size: 11px;
+  color: var(--admin-muted);
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .admin-primary-cell span {
   font-size: 11px;
   color: var(--admin-muted);
@@ -1483,15 +1508,19 @@ html {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.admin-compact-list div > div:last-child {
+.admin-compact-list > a > div:last-child,
+.admin-compact-list > div > div:last-child {
   display: flex;
   align-items: flex-end;
-  gap: 6px;
+  gap: 5px;
   flex-direction: column;
+  flex-shrink: 0;
+  text-align: right;
 }
 .admin-compact-list small {
   color: var(--admin-soft);
   font-size: 11px;
+  white-space: nowrap;
 }
 
 /* ── Filter bar ── */
