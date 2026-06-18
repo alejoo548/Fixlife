@@ -18,7 +18,7 @@ export const SupportThreadList: React.FC<SupportThreadListProps> = ({
   if (isLoading) {
     return (
       <div className="flex h-full items-center justify-center">
-        <div className="text-sm font-medium text-gray-500">Cargando tus casos...</div>
+        <div className="text-sm font-medium text-gray-500">Loading your cases...</div>
       </div>
     );
   }
@@ -29,15 +29,15 @@ export const SupportThreadList: React.FC<SupportThreadListProps> = ({
         <div className="mb-4 rounded-2xl bg-gray-100 p-4">
           <MessageCircle size={32} className="text-gray-400" />
         </div>
-        <div className="text-lg font-black text-gray-900">No tienes casos abiertos</div>
+        <div className="text-lg font-black text-gray-900">You have no open cases</div>
         <p className="mt-2 max-w-[240px] text-sm text-gray-500">
-          ¿Tienes alguna duda o problema? Abre un nuevo caso de soporte.
+          Have a question or problem? Open a new support case.
         </p>
         <button
           onClick={onNewThread}
           className="mt-6 rounded-2xl bg-bird-blue px-6 py-3 text-sm font-bold text-white transition hover:bg-bird-darkBlue"
         >
-          Abrir nuevo caso
+          Open new case
         </button>
       </div>
     );

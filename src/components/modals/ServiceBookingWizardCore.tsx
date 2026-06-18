@@ -3674,7 +3674,7 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                                 const finishApproved = Boolean(request.approvals?.finish_work.client);
                                                 const completeApproved = Boolean(request.approvals?.complete_service.client);
                                                 const finishUnlockAt = request.work_started_at
-                                                    ? new Date(request.work_started_at).getTime() + 10 * 60_000
+                                                    ? new Date(request.work_started_at).getTime() + 1 * 60_000
                                                     : Number.POSITIVE_INFINITY;
                                                 const finishRemainingSeconds = Math.max(0, Math.ceil((finishUnlockAt - workflowNow) / 1000));
                                                 const canApproveStart = isWorkflowV2 && ['arrived', 'start_pending'].includes(requestStatus) && !startApproved;

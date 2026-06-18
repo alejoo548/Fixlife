@@ -3508,7 +3508,7 @@ type WorkflowAction = 'start_work' | 'finish_work' | 'complete_service';
 type WorkflowActorRole = 'client' | 'worker';
 
 const WORKFLOW_ACTIONS = new Set<WorkflowAction>(['start_work', 'finish_work', 'complete_service']);
-const MINIMUM_WORK_DURATION_MS = 10 * 60 * 1000;
+const MINIMUM_WORK_DURATION_MS = 1 * 60 * 1000;
 
 export const approveServiceWorkflowAction = async (req: AuthRequest, res: Response): Promise<void> => {
   const connection = await pool.getConnection();
@@ -3607,7 +3607,7 @@ export const approveServiceWorkflowAction = async (req: AuthRequest, res: Respon
       if (!Number.isFinite(startedAt) || Date.now() < unlockAt) {
         await connection.rollback();
         res.status(409).json({
-          error: 'Finish work unlocks 10 minutes after both parties approve the start.',
+          error: 'Finish work unlocks 1 minute after both parties approve the start.',
           code: 'MINIMUM_WORK_TIME',
           unlock_at: Number.isFinite(unlockAt) ? new Date(unlockAt).toISOString() : null,
         });

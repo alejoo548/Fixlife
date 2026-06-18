@@ -63,7 +63,7 @@ export const SupportChatWidget: React.FC<SupportChatWidgetProps> = ({ token, use
       <button
         onClick={handleToggle}
         className="fixed bottom-6 right-6 z-[200] flex h-14 w-14 items-center justify-center rounded-2xl border border-white/40 bg-bird-blue/95 text-white shadow-[0_10px_30px_rgba(0,0,0,0.18)] backdrop-blur-xl transition-all duration-200 hover:bg-bird-blue hover:shadow-[0_14px_36px_rgba(0,0,0,0.22)] active:scale-[0.96]"
-        aria-label="Abrir soporte"
+        aria-label="Open support"
       >
         {isOpen ? (
           <X size={23} />
@@ -102,16 +102,16 @@ export const SupportChatWidget: React.FC<SupportChatWidgetProps> = ({ token, use
               <div className="flex items-center justify-between border-b border-white/50 bg-white/70 px-5 py-4 backdrop-blur-xl">
                 <div className="min-w-0">
                   <div className="flex items-center gap-2">
-                    <div className="text-[17px] font-black tracking-[-0.2px] text-gray-900">Soporte</div>
+                    <div className="text-[17px] font-black tracking-[-0.2px] text-gray-900">Support</div>
                     {isOpen && (
                       <div
                         className={`h-2 w-2 rounded-full ${isSocketConnected ? 'bg-emerald-500' : 'bg-gray-300'}`}
-                        title={isSocketConnected ? 'Conectado en tiempo real' : 'Modo offline'}
+                        title={isSocketConnected ? 'Connected in real time' : 'Offline mode'}
                       />
                     )}
                   </div>
                   <div className="truncate text-xs font-medium text-gray-500">
-                    {activeThread ? activeThread.subject : 'Estamos para ayudarte'}
+                    {activeThread ? activeThread.subject : "We're here to help"}
                   </div>
                 </div>
 
@@ -121,7 +121,7 @@ export const SupportChatWidget: React.FC<SupportChatWidgetProps> = ({ token, use
                       onClick={() => setShowCreateForm(true)}
                       className="flex items-center gap-1.5 rounded-2xl border border-bird-blue/10 bg-bird-blue px-3.5 py-2 text-sm font-bold text-white shadow-sm transition active:scale-[0.985] hover:bg-bird-darkBlue"
                     >
-                      <Plus size={15} /> Nuevo caso
+                      <Plus size={15} /> New case
                     </button>
                   )}
 
@@ -162,7 +162,7 @@ export const SupportChatWidget: React.FC<SupportChatWidgetProps> = ({ token, use
 
               {/* Footer - more subtle */}
               <div className="border-t border-white/50 bg-white/60 px-5 py-3 text-center text-[11px] font-medium text-gray-500 backdrop-blur">
-                Normalmente respondemos en menos de 2 horas
+                We usually reply within 2 hours
               </div>
             </motion.div>
           </div>

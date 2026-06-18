@@ -46,10 +46,10 @@ CREATE TABLE `admin_activity_log` (
 
 INSERT INTO `admin_activity_log` (`id_activity`, `id_admin`, `action_type`, `entity_type`, `entity_id`, `summary`, `metadata`, `created_at`) VALUES
 (1, 19, 'upload', 'hero_slide', 15, 'Updated image for slide #15', NULL, '2026-03-27 20:06:50'),
-(2, 19, 'role_change', 'user', 24, 'Changed role for \"Rafael Hernandez\" to admin', '{\"from\":\"client\",\"to\":\"admin\"}', '2026-03-27 20:07:22'),
-(3, 19, 'role_change', 'user', 24, 'Changed role for \"Rafael Hernandez\" to client', '{\"from\":\"admin\",\"to\":\"client\"}', '2026-03-27 20:07:39'),
-(4, 19, 'status_change', 'user', 22, 'Deactivated \"Alejandro Medrano\"', '{\"is_active\":0}', '2026-04-10 21:36:17'),
-(5, 19, 'status_change', 'user', 22, 'Activated \"Alejandro Medrano\"', '{\"is_active\":1}', '2026-04-10 21:36:19');
+(2, 19, 'role_change', 'user', 24, 'Changed role for \"Test Client\" to admin', '{\"from\":\"client\",\"to\":\"admin\"}', '2026-03-27 20:07:22'),
+(3, 19, 'role_change', 'user', 24, 'Changed role for \"Test Client\" to client', '{\"from\":\"admin\",\"to\":\"client\"}', '2026-03-27 20:07:39'),
+(4, 19, 'status_change', 'user', 22, 'Deactivated \"Test Worker\"', '{\"is_active\":0}', '2026-04-10 21:36:17'),
+(5, 19, 'status_change', 'user', 22, 'Activated \"Test Worker\"', '{\"is_active\":1}', '2026-04-10 21:36:19');
 
 -- --------------------------------------------------------
 
