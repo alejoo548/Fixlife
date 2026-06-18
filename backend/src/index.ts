@@ -121,8 +121,9 @@ app.use((err: any, _req: Request, res: Response, _next: any) => {
     });
   }
 
+  const isProd = process.env.NODE_ENV === 'production';
   return res.status(err.status || 500).json({
-    error: err.message || 'Internal server error',
+    error: isProd ? 'Internal server error' : (err.message || 'Internal server error'),
   });
 });
 

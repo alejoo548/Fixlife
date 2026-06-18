@@ -21,6 +21,7 @@ import { emitNewSupportMessage, emitSupportThreadCreated } from '../services/sup
 import { deleteUploadIfExists } from '../utils/assets';
 import { sanitizeImageInPlace, ImageSanitizeError } from '../utils/imageSanitizer';
 import { notifyAdmins } from '../utils/notifications';
+import { sanitizeNameLike, sanitizeMessage } from '../utils/sanitize';
 
 const getUploadedSupportImages = (req: Request): Express.Multer.File[] => {
   if (req.file) return [req.file];
@@ -82,19 +83,21 @@ export const createSupportThread = async (req: AuthRequest, res: Response) => {
       return;
     }
 
-    const { subject, priority = 'normal', initialMessage } = req.body;
+    const subject = sanitizeNameLike(req.body.subject, 120);
+    const initialMessage = sanitizeMessage(req.body.initialMessage, 2000);
+    const priority = req.body.priority || 'normal';
 
-    if (!subject || typeof subject !== 'string' || subject.trim().length < 3) {
+    if (!subject || subject.length < 3) {
       res.status(400).json({ error: 'Subject is required (min 3 characters)' });
       return;
     }
 
-    const threadId = await createThread(userId, subject.trim(), priority);
+    const threadId = await createThread(userId, subject, priority);
 
     let initialSupportMessage = null;
-    if (initialMessage && typeof initialMessage === 'string' && initialMessage.trim()) {
+    if (initialMessage) {
       const role = req.user?.rol === 'worker' ? 'worker' : 'client';
-      const messageId = await insertMessage(threadId, userId, role, initialMessage.trim());
+      const messageId = await insertMessage(threadId, userId, role, initialMessage);
       const messageRow = await getMessageById(messageId);
       initialSupportMessage = messageRow ? mapMessageRow(messageRow) : null;
     }
@@ -158,7 +161,7 @@ export const sendSupportMessage = async (req: AuthRequest, res: Response) => {
     const userId = req.user?.user_id;
     const role = req.user?.rol || 'client';
     const threadId = parseThreadId(req.params.threadId);
-    const { message } = req.body;
+    const message = sanitizeMessage(req.body.message, 2000);
 
     if (!userId) {
       removeUploadedSupportImages(uploadedImages);

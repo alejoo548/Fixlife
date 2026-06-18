@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { nameLikeText, strictText, messageText } from '../utils/sanitize';
 
 const safeTextRegex = /^[\p{L}\p{N}\s.,\-_'":;!?()]{0,500}$/u;
 
@@ -7,25 +8,25 @@ export const AdminSchema = {
 
   userRole: z.object({
     rol: z.enum(['client', 'admin']),
-    reason: z.string().trim().min(8).max(500),
+    reason: messageText(500).refine(v => v.length >= 8, 'Reason must contain at least 8 characters.'),
   }).strict(),
 
   userStatus: z.object({
     is_active: z.union([z.boolean(), z.literal(0), z.literal(1), z.literal('0'), z.literal('1')]),
-    reason: z.string().trim().min(8).max(500),
+    reason: messageText(500).refine(v => v.length >= 8, 'Reason must contain at least 8 characters.'),
   }).strict(),
 
   requestAction: z.object({
     action: z.enum(['cancel', 'reassign', 'escalate', 'resolve']),
-    reason: z.string().trim().min(8, 'Reason must contain at least 8 characters.').max(500),
+    reason: messageText(500).refine(v => v.length >= 8, 'Reason must contain at least 8 characters.'),
   }).strict(),
 
   workerDecision: z.object({
-    reason: z.string().trim().min(8, 'Reason must contain at least 8 characters.').max(500),
+    reason: messageText(500).refine(v => v.length >= 8, 'Reason must contain at least 8 characters.'),
   }).strict(),
 
   payoutAction: z.object({
-    reason: z.string().trim().min(8, 'Reason must contain at least 8 characters.').max(500),
+    reason: messageText(500).refine(v => v.length >= 8, 'Reason must contain at least 8 characters.'),
   }).strict(),
 
   workerRewardsSettings: z.object({
@@ -37,46 +38,15 @@ export const AdminSchema = {
   }).strict(),
 
   createService: z.object({
-    name: z
-      .string()
-      .trim()
-      .min(1, 'Service name is required.')
-      .max(100, 'Service name too long.'),
-    description: z
-      .string()
-      .trim()
-      .max(500, 'Description too long.')
-      .regex(safeTextRegex, 'Invalid description format.')
-      .optional()
-      .or(z.literal('')),
-    icon: z
-      .string()
-      .trim()
-      .max(100, 'Icon value too long.')
-      .optional()
-      .or(z.literal('')),
+    name: nameLikeText(100).refine(v => v.length >= 1, 'Service name is required.'),
+    description: messageText(500).optional().or(z.literal('')),
+    icon: strictText(100).optional().or(z.literal('')),
   }),
 
   updateService: z.object({
-    name: z
-      .string()
-      .trim()
-      .min(1, 'Service name is required.')
-      .max(100, 'Service name too long.')
-      .optional(),
-    description: z
-      .string()
-      .trim()
-      .max(500, 'Description too long.')
-      .regex(safeTextRegex, 'Invalid description format.')
-      .optional()
-      .or(z.literal('')),
-    icon: z
-      .string()
-      .trim()
-      .max(100, 'Icon value too long.')
-      .optional()
-      .or(z.literal('')),
+    name: nameLikeText(100).optional(),
+    description: messageText(500).optional().or(z.literal('')),
+    icon: strictText(100).optional().or(z.literal('')),
     is_active: z
       .union([z.boolean(), z.literal(0), z.literal(1), z.literal('0'), z.literal('1')])
       .optional(),
@@ -88,41 +58,11 @@ export const AdminSchema = {
       .number()
       .int()
       .positive('id_service must be a positive integer.'),
-    image_url: z
-      .string()
-      .trim()
-      .max(500, 'Image URL too long.')
-      .optional()
-      .nullable()
-      .or(z.literal('')),
-    badge: z
-      .string()
-      .trim()
-      .max(40, 'Badge too long.')
-      .optional()
-      .nullable()
-      .or(z.literal('')),
-    headline: z
-      .string()
-      .trim()
-      .max(150, 'Headline too long.')
-      .optional()
-      .nullable()
-      .or(z.literal('')),
-    summary: z
-      .string()
-      .trim()
-      .max(500, 'Summary too long.')
-      .optional()
-      .nullable()
-      .or(z.literal('')),
-    cta_label: z
-      .string()
-      .trim()
-      .max(60, 'CTA label too long.')
-      .optional()
-      .nullable()
-      .or(z.literal('')),
+    image_url: strictText(500).optional().nullable().or(z.literal('')),
+    badge: nameLikeText(40).optional().nullable().or(z.literal('')),
+    headline: nameLikeText(150).optional().nullable().or(z.literal('')),
+    summary: messageText(500).optional().nullable().or(z.literal('')),
+    cta_label: nameLikeText(60).optional().nullable().or(z.literal('')),
     sort_order: z
       .coerce
       .number()
@@ -140,41 +80,11 @@ export const AdminSchema = {
       .int()
       .positive('id_service must be a positive integer.')
       .optional(),
-    image_url: z
-      .string()
-      .trim()
-      .max(500, 'Image URL too long.')
-      .optional()
-      .nullable()
-      .or(z.literal('')),
-    badge: z
-      .string()
-      .trim()
-      .max(40, 'Badge too long.')
-      .optional()
-      .nullable()
-      .or(z.literal('')),
-    headline: z
-      .string()
-      .trim()
-      .max(150, 'Headline too long.')
-      .optional()
-      .nullable()
-      .or(z.literal('')),
-    summary: z
-      .string()
-      .trim()
-      .max(500, 'Summary too long.')
-      .optional()
-      .nullable()
-      .or(z.literal('')),
-    cta_label: z
-      .string()
-      .trim()
-      .max(60, 'CTA label too long.')
-      .optional()
-      .nullable()
-      .or(z.literal('')),
+    image_url: strictText(500).optional().nullable().or(z.literal('')),
+    badge: nameLikeText(40).optional().nullable().or(z.literal('')),
+    headline: nameLikeText(150).optional().nullable().or(z.literal('')),
+    summary: messageText(500).optional().nullable().or(z.literal('')),
+    cta_label: nameLikeText(60).optional().nullable().or(z.literal('')),
     sort_order: z
       .coerce
       .number()

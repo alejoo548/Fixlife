@@ -7,6 +7,7 @@ import {getAllBonusPayoutsForAdmin,getWorkerRewardsSettings,markWorkerBonusPayou
 import { createUserNotification } from '../utils/notifications';
 import { emitToUser } from '../services/socketManager';
 import { emitAdminActivity } from '../services/supportSocket.service';
+import { recordSystemEvent } from '../services/systemEvents.service';
 import { ensureServiceCardsTable, ensureServiceRequestTables } from './services.controller';
 import { ensureUsersActiveColumn, ensureUsersPendingWorkerColumn } from '../utils/users';
 import { buildProtectedAssetUrl, buildPublicAssetUrl, deleteUploadIfExists } from '../utils/assets';
@@ -977,6 +978,14 @@ export const approveWorker = async (req: AuthRequest, res: Response): Promise<vo
         userId,
         { name: workerName || null, reason }
       );
+      await recordSystemEvent({
+        level: 'info',
+        component: 'admin',
+        eventType: 'worker_approved',
+        message: 'Worker profile approved.',
+        metadata: { targetUserId: userId, actor: req.user?.user_id },
+      }).catch(() => undefined);
+
       res.json({ success: true, message: 'Worker approved successfully.' });
     } catch (error) {
       await connection.rollback();
@@ -1054,6 +1063,15 @@ export const rejectWorker = async (req: AuthRequest, res: Response): Promise<voi
         userId,
         { name: workerName || null, reason }
       );
+
+      await recordSystemEvent({
+        level: 'warning',
+        component: 'admin',
+        eventType: 'worker_rejected',
+        message: 'Worker profile rejected.',
+        metadata: { targetUserId: userId, actor: req.user?.user_id, reason },
+      }).catch(() => undefined);
+
       res.json({ success: true, message: 'Worker rejected successfully.' });
     } catch (error) {
       await connection.rollback();
@@ -1392,6 +1410,14 @@ export const updateUserRole = async (req: AuthRequest, res: Response): Promise<v
       { from: currentRole, to: newRole, reason }
     );
 
+    await recordSystemEvent({
+      level: 'warning',
+      component: 'admin',
+      eventType: 'user_role_changed',
+      message: `User role changed to ${newRole}.`,
+      metadata: { targetUserId: userId, from: currentRole, to: newRole, actor: req.user?.user_id },
+    }).catch(() => undefined);
+
     res.json({ success: true, message: 'Role updated successfully.' });
   } catch (error: any) {
     console.error('Error in updateUserRole:', error);
@@ -1466,6 +1492,14 @@ export const updateUserStatus = async (req: AuthRequest, res: Response): Promise
       userId,
       { is_active: desiredActive, reason }
     );
+
+    await recordSystemEvent({
+      level: 'warning',
+      component: 'admin',
+      eventType: 'user_status_changed',
+      message: `User status changed to ${desiredActive === 1 ? 'active' : 'inactive'}.`,
+      metadata: { targetUserId: userId, is_active: desiredActive, actor: req.user?.user_id },
+    }).catch(() => undefined);
 
     res.json({ success: true, message: 'User status updated successfully.' });
   } catch (error: any) {

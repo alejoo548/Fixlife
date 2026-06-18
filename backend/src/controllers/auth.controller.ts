@@ -10,6 +10,7 @@ import { AuthRequest } from '../middlewares/auth.middleware';
 import { OAuth2Client } from 'google-auth-library';
 import { getJwtSecret } from '../config/security';
 import { deleteUploadIfExists } from '../utils/assets';
+import { recordSystemEvent } from '../services/systemEvents.service';
 
 const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || '';
 const RECAPTCHA_SECRET_KEY = process.env.RECAPTCHA_SECRET_KEY || '';
@@ -255,7 +256,7 @@ export const registerWorker = async (req: Request, res: Response): Promise<void>
     }
   } catch (error: any) {
     console.error('Error in registerWorker:', error);
-    res.status(500).json({ error: error.message || 'Internal server error' });
+    res.status(500).json({ error: 'Internal server error' });
   }
 };
 
@@ -306,7 +307,7 @@ export const resendOtp = async (req: Request, res: Response): Promise<void> => {
     res.json({ success: true, message: 'New verification code sent to your email.' });
   } catch (error: any) {
     console.error('Error in resendOtp:', error);
-    res.status(500).json({ error: error.message || 'Internal server error' });
+    res.status(500).json({ error: 'Internal server error' });
   }
 };
 
@@ -401,7 +402,7 @@ export const verifyWorkerEmail = async (req: Request, res: Response): Promise<vo
     }
   } catch (error: any) {
     console.error('Error in verifyWorkerEmail:', error);
-    res.status(500).json({ error: error.message || 'Internal server error' });
+    res.status(500).json({ error: 'Internal server error' });
   }
 };
 
@@ -515,7 +516,7 @@ export const registerUser = async (req: Request, res: Response): Promise<void> =
     }
   } catch (error: any) {
     console.error('Error in registerUser:', error);
-    res.status(500).json({ error: error.message || 'Internal server error' });
+    res.status(500).json({ error: 'Internal server error' });
   }
 };
 
@@ -550,6 +551,13 @@ export const login = async (req: Request, res: Response): Promise<void> => {
     // Account locked due to previous failed login attempts?
     if (user.locked_until && new Date(user.locked_until) > new Date()) {
       res.status(403).json({ error: 'Too many failed attempts. Account temporarily locked. Try again later.' });
+      await recordSystemEvent({
+        level: 'warning',
+        component: 'auth',
+        eventType: 'login_blocked',
+        message: 'Login attempt on locked account.',
+        metadata: { email: trimmedEmail },
+      }).catch(() => undefined);
       return;
     }
 
@@ -574,6 +582,13 @@ export const login = async (req: Request, res: Response): Promise<void> => {
       await pool.execute(updateSql, params);
 
       res.status(401).json({ error: 'Invalid credentials' });
+      await recordSystemEvent({
+        level: 'warning',
+        component: 'auth',
+        eventType: 'login_failed',
+        message: 'Failed login attempt.',
+        metadata: { email: trimmedEmail, reason: 'invalid_password' },
+      }).catch(() => undefined);
       return;
     }
 
@@ -587,6 +602,14 @@ export const login = async (req: Request, res: Response): Promise<void> => {
       'UPDATE users SET last_login = NOW(), failed_login_attempts = 0, locked_until = NULL WHERE id_user = ?',
       [user.id_user]
     );
+
+    await recordSystemEvent({
+      level: 'info',
+      component: 'auth',
+      eventType: 'login_success',
+      message: 'User logged in successfully.',
+      metadata: { userId: user.id_user, role: user.rol },
+    }).catch(() => undefined);
 
     const userData: any = {
       name: user.name,
@@ -629,7 +652,7 @@ export const login = async (req: Request, res: Response): Promise<void> => {
     });
   } catch (error: any) {
     console.error('Error in login:', error);
-    res.status(500).json({ error: error.message || 'Internal server error' });
+    res.status(500).json({ error: 'Internal server error' });
   }
 };
 
@@ -794,7 +817,7 @@ export const googleLogin = async (req: Request, res: Response): Promise<void> =>
     }
   } catch (error: any) {
     console.error('Error in googleLogin:', error);
-    res.status(500).json({ error: error.message || 'Internal server error' });
+    res.status(500).json({ error: 'Internal server error' });
   }
 };
 
@@ -901,6 +924,14 @@ export const resetPassword = async (req: Request, res: Response): Promise<void> 
        WHERE email = ?`,
       [passwordHash, trimmedEmail]
     );
+
+    await recordSystemEvent({
+      level: 'info',
+      component: 'auth',
+      eventType: 'password_reset_success',
+      message: 'Password reset completed.',
+      metadata: { email: trimmedEmail },
+    }).catch(() => undefined);
 
     res.json({ success: true, message: 'Password updated successfully' });
   } catch (error: any) {
