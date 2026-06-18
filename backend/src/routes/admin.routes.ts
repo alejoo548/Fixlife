@@ -46,6 +46,7 @@ import {
   updateHeroSlides,
   uploadHeroImageAsset,
   uploadHeroSlideImage,
+  searchAdmin,
 } from '../controllers/admin.controller';
 import { verifyToken, requireAdmin } from '../middlewares/auth.middleware';
 import { sensitiveLimiter } from '../middlewares/security.middleware';
@@ -109,6 +110,7 @@ router.get('/finance-closures', getFinanceClosureReportAdmin);
 router.get('/system-events', getSystemEventsAdmin);
 router.get('/background-jobs', getBackgroundJobsAdminController);
 router.get('/activity', getAdminActivity);
+router.get('/search', searchAdmin);
 
 // Hero Slides Editor
 router.put('/hero-slides', sensitiveLimiter, validate(AdminSchema.heroSlides), updateHeroSlides);

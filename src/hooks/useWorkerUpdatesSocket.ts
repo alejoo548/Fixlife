@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { io, Socket } from 'socket.io-client';
-import { API_URL } from '../config/api';
+import { getSocketBaseUrl, getDefaultSocketOptions } from '../config/api';
 
 export interface WorkerUpdatePayload {
   event_type: string;
@@ -25,7 +25,7 @@ export const useWorkerUpdatesSocket = ({
   const onUpdateRef = useRef(onUpdate);
   const [connected, setConnected] = useState(false);
   const socketUrl = useMemo(
-    () => API_URL.replace(/\/api\/?$/i, '').replace(/\/+$/, ''),
+    () => getSocketBaseUrl(),
     []
   );
 
@@ -40,14 +40,8 @@ export const useWorkerUpdatesSocket = ({
       setConnected(false);
       return;
     }
-    const socket = io(socketUrl, {
-      path: '/socket.io',
-      auth: { token },
-      transports: ['websocket', 'polling'],
-      reconnection: true,
-      reconnectionAttempts: 10,
-      reconnectionDelay: 800,
-    });
+    const opts = getDefaultSocketOptions(token!);
+    const socket = io(socketUrl, opts);
     socketRef.current = socket;
     socket.on('connect', () => setConnected(true));
     socket.on('disconnect', () => setConnected(false));

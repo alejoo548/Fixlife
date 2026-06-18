@@ -17,6 +17,7 @@ import {
   requestWorkerEmailChangeToken,
   removeWorkerProfileImage,
   startWorkerRequest,
+  startWorkerRoute,
   updateWorkerSettings,
   updateWorkerAvailability,
   uploadDocuments,
@@ -51,6 +52,7 @@ router.post('/requests/:idRequest/accept', requireVerifiedWorker, sensitiveLimit
 router.post('/requests/:idRequest/reject', requireVerifiedWorker, sensitiveLimiter, rejectWorkerRequest);
 router.post('/requests/:idRequest/counter-offer', requireVerifiedWorker, sensitiveLimiter, counterOfferWorkerRequest);
 router.post('/requests/:idRequest/arrive', requireVerifiedWorker, sensitiveLimiter, arriveWorkerRequest);
+router.post('/requests/:idRequest/route-start', requireVerifiedWorker, sensitiveLimiter, startWorkerRoute);
 router.post('/requests/:idRequest/start', requireVerifiedWorker, sensitiveLimiter, startWorkerRequest);
 router.post('/requests/:idRequest/complete', requireVerifiedWorker, sensitiveLimiter, completeWorkerRequest);
 router.put('/presence', requireVerifiedWorker, updateWorkerPresence);

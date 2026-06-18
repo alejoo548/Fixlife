@@ -158,12 +158,21 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({
   const dropdownRef = useRef<HTMLDivElement | null>(null);
   const [dropdownPos, setDropdownPos] = useState<{ top: number; right: number } | null>(null);
 
+  const lastFetchRef = useRef(0);
+  const MIN_FETCH_INTERVAL = 15000; // 15s throttle to reduce spam
+
   const fetchNotifications = async (silent = false) => {
     if (!token || !isActive) {
       setNotifications([]);
       setUnreadCount(0);
       return;
     }
+
+    const now = Date.now();
+    if (silent && now - lastFetchRef.current < MIN_FETCH_INTERVAL) {
+      return; // throttle silent/background refreshes
+    }
+    lastFetchRef.current = now;
 
     if (!silent) setLoading(true);
     try {
@@ -211,7 +220,7 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({
       return;
     }
     if (!isOpen) return;
-    void fetchNotifications(true);
+    void fetchNotifications(false); // explicit when user opens
   }, [isOpen, isActive]);
 
   useEffect(() => {

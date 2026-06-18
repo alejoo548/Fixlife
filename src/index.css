@@ -288,6 +288,55 @@
   background: rgba(56, 189, 248, 0.9);
 }
 
+/* Additional high-contrast fixes for worker dashboard (dark mode text visibility) */
+.dashboard-theme-dark [class~="bg-sky-50"],
+.dashboard-theme-dark [class~="bg-sky-50/80"],
+.dashboard-theme-dark [class~="bg-emerald-50"],
+.dashboard-theme-dark [class~="bg-amber-50"],
+.dashboard-theme-dark [class~="bg-amber-100"],
+.dashboard-theme-dark [class~="bg-violet-50"],
+.dashboard-theme-dark [class~="bg-blue-50"] {
+  background-color: rgba(30, 41, 59, 0.92) !important;
+}
+
+.dashboard-theme-dark [class~="text-emerald-700"],
+.dashboard-theme-dark [class~="text-emerald-600"],
+.dashboard-theme-dark [class~="text-amber-700"],
+.dashboard-theme-dark [class~="text-amber-800"],
+.dashboard-theme-dark [class~="text-amber-950"],
+.dashboard-theme-dark [class~="text-violet-700"],
+.dashboard-theme-dark [class~="text-sky-700"],
+.dashboard-theme-dark [class~="text-blue-700"] {
+  color: #e0f2fe !important;
+}
+
+.dashboard-theme-dark [class~="border-emerald-200"],
+.dashboard-theme-dark [class~="border-amber-200"],
+.dashboard-theme-dark [class~="border-violet-200"],
+.dashboard-theme-dark [class~="border-sky-200"] {
+  border-color: rgba(71, 85, 105, 0.65) !important;
+}
+
+.dashboard-theme-dark .bg-emerald-50,
+.dashboard-theme-dark .bg-amber-50,
+.dashboard-theme-dark .bg-sky-50 {
+  background-color: rgba(30, 41, 59, 0.92) !important;
+}
+
+/* Ensure badge style texts stay readable in colored light surfaces under dark */
+.dashboard-theme-dark [class*="bg-"][class*="text-amber-"],
+.dashboard-theme-dark [class*="bg-"][class*="text-emerald-"],
+.dashboard-theme-dark [class*="bg-"][class*="text-sky-"],
+.dashboard-theme-dark [class*="bg-"][class*="text-violet-"] {
+  color: #e0f2fe !important;
+}
+
+.dashboard-theme-dark .text-slate-950,
+.dashboard-theme-dark .text-slate-900,
+.dashboard-theme-dark .text-gray-900 {
+  color: var(--dashboard-text) !important;
+}
+
 .dashboard-theme-dark .recharts-cartesian-grid line {
   stroke: rgba(71, 85, 105, 0.45) !important;
 }

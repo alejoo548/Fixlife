@@ -1,12 +1,12 @@
 import { Check } from 'lucide-react';
 
 const steps = [
-  { key: 'assigned', label: 'Accepted' },
-  { key: 'payment_pending', label: 'Approved' },
-  { key: 'paid', label: 'Paid' },
-  { key: 'traveling', label: 'On the way' },
+  { key: 'assigned', label: 'Pro approved' },
+  { key: 'route_in_progress', label: 'On route' },
   { key: 'arrived', label: 'Arrived' },
   { key: 'in_progress', label: 'Working' },
+  { key: 'payment_pending', label: 'Work finished' },
+  { key: 'paid', label: 'Paid' },
   { key: 'done', label: 'Completed' },
 ] as const;
 
@@ -21,13 +21,17 @@ export const WorkerRequestTimeline = ({
 }) => {
   const normalized = String(status || '').toLowerCase();
   const visualStatus =
-    normalized === 'awaiting_confirmation'
-      ? 'in_progress'
-      : normalized === 'paid' && arrived
-        ? 'arrived'
-        : normalized === 'paid' && routeActive
-          ? 'traveling'
-          : normalized;
+    normalized === 'start_pending'
+      ? 'arrived'
+      : normalized === 'finish_pending'
+        ? 'in_progress'
+        : normalized === 'completion_pending'
+          ? 'paid'
+          : normalized === 'awaiting_confirmation'
+            ? 'in_progress'
+            : normalized === 'assigned' && routeActive
+              ? 'route_in_progress'
+              : normalized;
   const currentIndex = Math.max(
     0,
     steps.findIndex((step) => step.key === visualStatus)

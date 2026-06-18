@@ -133,7 +133,7 @@ export const ScheduleView: React.FC = () => {
             <div>
               <div className="flex items-center gap-2">
                 <p className="text-[10px] font-black uppercase tracking-[0.2em] text-bird-blue">
-                  Professional agenda
+                  Work calendar
                 </p>
                 <span
                   className={`inline-flex items-center gap-1 text-[10px] font-black ${

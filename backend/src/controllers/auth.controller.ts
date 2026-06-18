@@ -5,7 +5,7 @@ import crypto from 'crypto';
 import pool from '../config/db';
 import { ResultSetHeader, RowDataPacket } from 'mysql2';
 import { sendVerificationEmail, sendPasswordResetEmail } from '../utils/email';
-import { ensureUsersActiveColumn, ensureUsersPendingWorkerColumn, ensureUsersPhoneNumberNullable } from '../utils/users';
+import { ensureUsersActiveColumn, ensureUsersPendingWorkerColumn, ensureUsersPhoneNumberNullable, ensureUsersLoginSecurityColumns } from '../utils/users';
 import { AuthRequest } from '../middlewares/auth.middleware';
 import { OAuth2Client } from 'google-auth-library';
 import { getJwtSecret } from '../config/security';
@@ -376,11 +376,9 @@ export const verifyWorkerEmail = async (req: Request, res: Response): Promise<vo
         success: true,
         message: 'Email verified successfully',
         user: {
-          id_user: user.id_user,
           name: user.name,
           lastname: user.lastname,
           email: user.email,
-          phone_number: user.phone_number,
           rol: user.rol,
           username: user.username,
           profile_image: user.profile_image,
@@ -389,8 +387,6 @@ export const verifyWorkerEmail = async (req: Request, res: Response): Promise<vo
             id_worker_profile: worker.id_worker_profile,
             bio: worker.bio,
             banner_image: worker.banner_image,
-            dui_document: worker.dui_document,
-            cert_document: worker.cert_document,
             is_verified: Boolean(worker.is_verified)
           }
         },
@@ -503,11 +499,9 @@ export const registerUser = async (req: Request, res: Response): Promise<void> =
         success: true,
         message: 'User account created successfully',
         user: {
-          id_user: userId,
           name: trimmedName,
           lastname: trimmedLastname,
           email: trimmedEmail,
-          phone_number: trimmedPhoneNumber || null,
           rol: 'client',
           username: trimmedUsername || null
         },
@@ -538,9 +532,10 @@ export const login = async (req: Request, res: Response): Promise<void> => {
 
     await ensureUsersActiveColumn();
     await ensureUsersPendingWorkerColumn();
+    await ensureUsersLoginSecurityColumns();
 
     const [users] = await pool.execute<RowDataPacket[]>(
-      `SELECT id_user, name, lastname, email, phone_number, password_hash, rol, username, profile_image, is_active, pending_worker
+      `SELECT id_user, name, lastname, email, phone_number, password_hash, rol, username, profile_image, is_active, pending_worker, failed_login_attempts, locked_until
        FROM users WHERE email = ?`,
       [trimmedEmail]
     );
@@ -552,8 +547,32 @@ export const login = async (req: Request, res: Response): Promise<void> => {
 
     const user = users[0];
 
+    // Account locked due to previous failed login attempts?
+    if (user.locked_until && new Date(user.locked_until) > new Date()) {
+      res.status(403).json({ error: 'Too many failed attempts. Account temporarily locked. Try again later.' });
+      return;
+    }
+
     const passwordMatch = await bcrypt.compare(password, user.password_hash);
     if (!passwordMatch) {
+      // Increment failed attempts and possibly lock the account
+      const currentAttempts = Number(user.failed_login_attempts || 0) + 1;
+      const MAX_FAILED_ATTEMPTS = 6;
+      const LOCK_MINUTES = 15;
+
+      let updateSql = 'UPDATE users SET failed_login_attempts = ?';
+      const params: any[] = [currentAttempts];
+
+      if (currentAttempts >= MAX_FAILED_ATTEMPTS) {
+        updateSql += ', locked_until = DATE_ADD(NOW(), INTERVAL ? MINUTE)';
+        params.push(LOCK_MINUTES);
+      }
+
+      updateSql += ' WHERE id_user = ?';
+      params.push(user.id_user);
+
+      await pool.execute(updateSql, params);
+
       res.status(401).json({ error: 'Invalid credentials' });
       return;
     }
@@ -563,17 +582,16 @@ export const login = async (req: Request, res: Response): Promise<void> => {
       return;
     }
 
+    // Success: reset security counters + update last_login
     await pool.execute(
-      'UPDATE users SET last_login = NOW() WHERE id_user = ?',
+      'UPDATE users SET last_login = NOW(), failed_login_attempts = 0, locked_until = NULL WHERE id_user = ?',
       [user.id_user]
     );
 
     const userData: any = {
-      id_user: user.id_user,
       name: user.name,
       lastname: user.lastname,
       email: user.email,
-      phone_number: user.phone_number,
       rol: user.rol,
       username: user.username,
       profile_image: user.profile_image,
@@ -593,8 +611,6 @@ export const login = async (req: Request, res: Response): Promise<void> => {
           id_worker_profile: worker.id_worker_profile,
           bio: worker.bio,
           banner_image: worker.banner_image,
-          dui_document: worker.dui_document, 
-          cert_document: worker.cert_document,
           is_verified: Boolean(worker.is_verified)
         };
       }
@@ -634,6 +650,7 @@ export const googleLogin = async (req: Request, res: Response): Promise<void> =>
     await ensureUsersActiveColumn();
     await ensureUsersPendingWorkerColumn();
     await ensureUsersPhoneNumberNullable();
+    await ensureUsersLoginSecurityColumns();
 
     const ticket = await googleClient.verifyIdToken({
       idToken: credential,
@@ -666,7 +683,7 @@ export const googleLogin = async (req: Request, res: Response): Promise<void> =>
       await connection.beginTransaction();
 
       const [users] = await connection.execute<RowDataPacket[]>(
-        `SELECT id_user, name, lastname, email, phone_number, rol, username, profile_image, is_active, pending_worker
+        `SELECT id_user, name, lastname, email, phone_number, rol, username, profile_image, is_active, pending_worker, failed_login_attempts, locked_until
          FROM users WHERE email = ?`,
         [email]
       );
@@ -678,6 +695,13 @@ export const googleLogin = async (req: Request, res: Response): Promise<void> =>
 
       if (users.length > 0) {
         const user = users[0];
+
+        if (user.locked_until && new Date(user.locked_until) > new Date()) {
+          await connection.rollback();
+          res.status(403).json({ error: 'Too many failed attempts. Account temporarily locked. Try again later.' });
+          return;
+        }
+
         if (user.is_active === 0) {
           await connection.rollback();
           res.status(403).json({ error: 'Account is inactive. Contact support.' });
@@ -694,11 +718,9 @@ export const googleLogin = async (req: Request, res: Response): Promise<void> =>
         }
 
         userData = {
-          id_user: userId,
           name: user.name,
           lastname: (!currentLastname || currentLastname.toLowerCase() === 'google') ? lastname : user.lastname,
           email: user.email,
-          phone_number: user.phone_number,
           rol: userRole,
           username: user.username,
           profile_image: user.profile_image,
@@ -719,18 +741,19 @@ export const googleLogin = async (req: Request, res: Response): Promise<void> =>
         pendingWorker = 0;
 
         userData = {
-          id_user: userId,
           name,
           lastname,
           email,
-          phone_number: null,
           rol: userRole,
           username: null,
           pending_worker: pendingWorker,
         };
       }
 
-      await connection.execute('UPDATE users SET last_login = NOW() WHERE id_user = ?', [userId]);
+      await connection.execute(
+        'UPDATE users SET last_login = NOW(), failed_login_attempts = 0, locked_until = NULL WHERE id_user = ?',
+        [userId]
+      );
 
       if (userRole === 'worker' || pendingWorker === 1) {
         const [workerProfiles] = await connection.execute<RowDataPacket[]>(
@@ -745,8 +768,6 @@ export const googleLogin = async (req: Request, res: Response): Promise<void> =>
             id_worker_profile: worker.id_worker_profile,
             bio: worker.bio,
             banner_image: worker.banner_image,
-            dui_document: worker.dui_document,
-            cert_document: worker.cert_document,
             is_verified: Boolean(worker.is_verified),
           };
         }
@@ -824,8 +845,7 @@ export const forgotPassword = async (req: Request, res: Response): Promise<void>
 
     res.json({ 
       success: true, 
-      message: 'Reset code sent to your email.',
-      email: trimmedEmail 
+      message: 'If the email exists, a reset code has been sent.' 
     });
 
   } catch (error: any) {
@@ -846,8 +866,8 @@ export const resetPassword = async (req: Request, res: Response): Promise<void> 
     const trimmedEmail = email.trim();
     const trimmedToken = token.trim();
 
-    if (newPassword.length < 8) {
-      res.status(400).json({ error: 'Password must be at least 8 characters' });
+    if (!isValidPassword(newPassword)) {
+      res.status(400).json({ error: 'Password must be 8-128 chars and include at least 1 uppercase letter, 1 lowercase letter and 1 number.' });
       return;
     }
 
@@ -858,21 +878,16 @@ export const resetPassword = async (req: Request, res: Response): Promise<void> 
       [trimmedEmail]
     );
 
-    if (users.length === 0) {
-      res.status(400).json({ error: 'Invalid email' });
-      return;
-    }
-
     const user = users[0];
+    const isValidReset =
+      user &&
+      user.verification_token &&
+      user.verification_token === trimmedToken &&
+      user.token_expires_at &&
+      new Date(user.token_expires_at) >= new Date();
 
-    if (!user.verification_token || user.verification_token !== trimmedToken) {
-      res.status(400).json({ error: 'Invalid verification code' });
-      return;
-    }
-
-    const expiresAt = new Date(user.token_expires_at);
-    if (expiresAt < new Date()) {
-      res.status(400).json({ error: 'Verification code has expired' });
+    if (!isValidReset) {
+      res.status(400).json({ error: 'Invalid email or verification code' });
       return;
     }
 
@@ -913,20 +928,16 @@ export const verifyResetToken = async (req: Request, res: Response): Promise<voi
       [trimmedEmail]
     );
 
-    if (users.length === 0) {
-      res.status(400).json({ error: 'Invalid email' });
-      return;
-    }
-
     const user = users[0];
+    const isValid =
+      user &&
+      user.verification_token &&
+      user.verification_token === trimmedToken &&
+      user.token_expires_at &&
+      new Date(user.token_expires_at) >= new Date();
 
-    if (!user.verification_token || user.verification_token !== trimmedToken) {
-      res.status(400).json({ error: 'Invalid verification code' });
-      return;
-    }
-
-    if (!user.token_expires_at || new Date(user.token_expires_at) < new Date()) {
-      res.status(400).json({ error: 'Verification code has expired' });
+    if (!isValid) {
+      res.status(400).json({ error: 'Invalid email or verification code' });
       return;
     }
 
