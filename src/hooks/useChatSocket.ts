@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { io, Socket } from 'socket.io-client';
-import { API_URL } from '../config/api';
+import { getSocketBaseUrl, getDefaultSocketOptions } from '../config/api';
 
 export interface ChatSocketPayload<TMessage = unknown> {
   id_request: number;
@@ -29,7 +29,7 @@ export const useChatSocket = <TMessage,>({
     onMessageRef.current = onMessage;
   }, [onMessage]);
 
-  const socketUrl = useMemo(() => API_URL.replace(/\/api\/?$/i, '').replace(/\/+$/, ''), []);
+  const socketUrl = useMemo(() => getSocketBaseUrl(), []);
 
   useEffect(() => {
     if (!enabled || !token) {
@@ -39,14 +39,8 @@ export const useChatSocket = <TMessage,>({
       return;
     }
 
-    const socket = io(socketUrl, {
-      path: '/socket.io',
-      auth: { token },
-      transports: ['websocket', 'polling'],
-      reconnection: true,
-      reconnectionAttempts: 8,
-      reconnectionDelay: 800,
-    });
+    const opts = getDefaultSocketOptions(token!);
+    const socket = io(socketUrl, opts);
 
     socketRef.current = socket;
 

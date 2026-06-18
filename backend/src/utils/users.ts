@@ -6,6 +6,7 @@ import { isDatabaseSchemaReady } from '../services/schemaState.service';
 let usersActiveColumnChecked = false;
 let usersPendingWorkerColumnChecked = false;
 let usersPhoneNullableChecked = false;
+let usersLoginSecurityColumnsChecked = false;
 
 export const ensureUsersActiveColumn = async (): Promise<void> => {
   if (usersActiveColumnChecked) return;
@@ -87,4 +88,46 @@ export const ensureUsersPhoneNumberNullable = async (): Promise<void> => {
   }
 
   usersPhoneNullableChecked = true;
+};
+
+export const ensureUsersLoginSecurityColumns = async (): Promise<void> => {
+  if (usersLoginSecurityColumnsChecked) return;
+  if (isDatabaseSchemaReady()) {
+    usersLoginSecurityColumnsChecked = true;
+    return;
+  }
+  if (!shouldRunRuntimeSchemaSync()) {
+    usersLoginSecurityColumnsChecked = true;
+    return;
+  }
+
+  // failed_login_attempts
+  const [attemptsRows] = await pool.execute<RowDataPacket[]>(
+    `SELECT COUNT(*) as total
+     FROM information_schema.COLUMNS
+     WHERE table_schema = DATABASE()
+       AND table_name = 'users'
+       AND column_name = 'failed_login_attempts'`
+  );
+  if (Number(attemptsRows[0]?.total || 0) === 0) {
+    await pool.execute(
+      `ALTER TABLE users ADD COLUMN failed_login_attempts TINYINT UNSIGNED NOT NULL DEFAULT 0`
+    );
+  }
+
+  // locked_until
+  const [lockedRows] = await pool.execute<RowDataPacket[]>(
+    `SELECT COUNT(*) as total
+     FROM information_schema.COLUMNS
+     WHERE table_schema = DATABASE()
+       AND table_name = 'users'
+       AND column_name = 'locked_until'`
+  );
+  if (Number(lockedRows[0]?.total || 0) === 0) {
+    await pool.execute(
+      `ALTER TABLE users ADD COLUMN locked_until DATETIME NULL DEFAULT NULL`
+    );
+  }
+
+  usersLoginSecurityColumnsChecked = true;
 };

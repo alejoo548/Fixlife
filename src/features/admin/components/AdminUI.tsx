@@ -14,7 +14,11 @@ const statusTone = (status: string) => {
   return 'neutral';
 };
 
-export const formatAdminLabel = (value: string) => value.replace(/_/g, ' ').replace(/\b\w/g, (char) => char.toUpperCase());
+export const formatAdminLabel = (value: string) => {
+  const v = String(value || '').toLowerCase();
+  if (v === 'done') return 'Completed';
+  return value.replace(/_/g, ' ').replace(/\b\w/g, (char) => char.toUpperCase());
+};
 export const StatusBadge = ({ status }: { status: string }) => <span className={`admin-badge admin-badge--${statusTone(status)}`}>{formatAdminLabel(status)}</span>;
 
 export const MetricCard = ({ label, value, note, icon, variant = 'primary' }: { label: string; value: ReactNode; note?: string; icon?: ReactNode; variant?: 'primary' | 'success' | 'warning' | 'info' | 'danger' }) => (

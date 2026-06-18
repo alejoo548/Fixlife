@@ -5,7 +5,7 @@ import pool from '../config/db';
 import { AuthRequest } from '../middlewares/auth.middleware';
 import {getAllBonusPayoutsForAdmin,getWorkerRewardsSettings,markWorkerBonusPayoutAsPaid,syncAllWorkerBonusPayouts,updateWorkerRewardsSettings,} from '../utils/workerRewards';
 import { createUserNotification } from '../utils/notifications';
-import { pushToUser } from '../services/sseManager';
+import { emitToUser } from '../services/socketManager';
 import { emitAdminActivity } from '../services/supportSocket.service';
 import { ensureServiceCardsTable, ensureServiceRequestTables } from './services.controller';
 import { ensureUsersActiveColumn, ensureUsersPendingWorkerColumn } from '../utils/users';
@@ -968,7 +968,7 @@ export const approveWorker = async (req: AuthRequest, res: Response): Promise<vo
 
       const workerName = `${userRows[0]?.name || ''} ${userRows[0]?.lastname || ''}`.trim();
       await connection.commit();
-      pushToUser(userId, 'worker_status', { is_verified: 1 });
+      emitToUser(userId, 'worker_status', { is_verified: 1 });
       await logAdminActivity(
         req,
         'approve',
@@ -1045,7 +1045,7 @@ export const rejectWorker = async (req: AuthRequest, res: Response): Promise<voi
 
       const workerName = `${userRows[0]?.name || ''} ${userRows[0]?.lastname || ''}`.trim();
       await connection.commit();
-      pushToUser(userId, 'worker_status', { is_verified: 2 });
+      emitToUser(userId, 'worker_status', { is_verified: 2 });
       await logAdminActivity(
         req,
         'reject',
@@ -2255,7 +2255,7 @@ export const updateRequestAdmin = async (req: AuthRequest, res: Response): Promi
       }
       await Promise.allSettled(notifications.map(async (n) => {
         await createUserNotification({ userId: n.userId, eventType: n.eventType, title: n.title, message: n.message, tone: n.tone, requestId: idRequest, dedupeKey: `admin_${action}_${idRequest}_${n.userId}` });
-        pushToUser(n.userId, 'notification', { eventType: n.eventType, title: n.title, message: n.message });
+        emitToUser(n.userId, 'notification', { eventType: n.eventType, title: n.title, message: n.message });
       }));
     };
     notifyParties().catch(() => undefined);
@@ -3175,7 +3175,7 @@ export const updateWorkerTierAdmin = async (req: AuthRequest, res: Response): Pr
             reason,
           },
         });
-        pushToUser(workerUserId, 'worker_tier_updated', {
+        emitToUser(workerUserId, 'worker_tier_updated', {
           membership_tier: updated.next_tier,
           previous_tier: updated.previous_tier,
         });

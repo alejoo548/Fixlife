@@ -213,6 +213,7 @@ const ServiceRequestRoute: React.FC<{
   const [searchParams] = useSearchParams();
   const serviceId = Number(searchParams.get('serviceId') || 0);
   const serviceName = searchParams.get('serviceName')?.trim() || undefined;
+  const openHistory = searchParams.get('openHistory') === 'true';
 
   return (
     <ServiceRequestWizard
@@ -221,6 +222,7 @@ const ServiceRequestRoute: React.FC<{
       initialServiceId={Number.isFinite(serviceId) && serviceId > 0 ? serviceId : undefined}
       initialServiceName={serviceName}
       onOpenCheckout={onOpenCheckout}
+      openOnHistory={openHistory}
     />
   );
 };
@@ -827,7 +829,7 @@ const App: React.FC = () => {
         <Route path="*" element={<SessionAwareRouteFallback />} />
       </Routes>
 
-      {/* Support widget — only for non-admin users; admins use the Admin Panel */}
+      {}
       {!hasRole('admin', 'admin') && (
         <SupportChatWidget token={getToken()} />
       )}

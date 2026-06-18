@@ -143,7 +143,7 @@ export const WorkerRequestCard: React.FC<WorkerRequestCardProps> = ({
               Accept
             </button>
           </>
-        ) : request.request_status === 'assigned' ? (
+        ) : request.request_status === 'assigned' && !request.client_approved_at ? (
           <button
             type="button"
             disabled
@@ -151,7 +151,7 @@ export const WorkerRequestCard: React.FC<WorkerRequestCardProps> = ({
           >
             Waiting for client approval
           </button>
-        ) : request.request_status === 'payment_pending' ? (
+        ) : request.request_status === 'assigned' ? (
           <button
             type="button"
             onClick={(event) => {
@@ -164,7 +164,7 @@ export const WorkerRequestCard: React.FC<WorkerRequestCardProps> = ({
             <Navigation className="h-4 w-4" />
             Open route
           </button>
-        ) : request.request_status === 'paid' || request.request_status === 'in_progress' ? (
+        ) : ['route_in_progress', 'arrived', 'start_pending', 'in_progress', 'finish_pending', 'payment_pending', 'paid', 'completion_pending'].includes(request.request_status) ? (
           <button
             type="button"
             onClick={(event) => {

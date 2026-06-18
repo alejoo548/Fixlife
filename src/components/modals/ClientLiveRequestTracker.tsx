@@ -37,6 +37,7 @@ interface TrackableRequest {
     scheduled_time?: string | null;
     scheduled_start_time?: string | null;
     scheduled_end_time?: string | null;
+    worker_arrived_at?: string | null;
     latitude?: number | null;
     longitude?: number | null;
     status: RequestStatus;
@@ -108,9 +109,10 @@ const formatScheduledWindow = (request: TrackableRequest) => {
 const statusToStage = (statusRaw: RequestStatus): TrackerStage => {
     const status = String(statusRaw || '').toLowerCase();
     if (status === 'done') return 'completed';
-    if (status === 'awaiting_confirmation') return 'work_in_progress';
-    if (status === 'in_progress') return 'on_the_way';
-    if (status === 'paid') return 'on_the_way';
+    if (['paid', 'completion_pending'].includes(status)) return 'payment_secured';
+    if (['in_progress', 'finish_pending'].includes(status)) return 'work_in_progress';
+    if (['arrived', 'start_pending'].includes(status)) return 'arrived';
+    if (status === 'route_in_progress') return 'on_the_way';
     if (status === 'payment_pending') return 'awaiting_payment';
     return 'worker_accepted';
 };
@@ -153,16 +155,16 @@ const stageVisual = (stage: TrackerStage) => {
     }
     if (stage === 'payment_secured') {
         return {
-            label: 'Payment secured',
+            label: 'Payment completed',
             toneClass: 'bg-gray-100 text-gray-700 border-gray-200',
-            note: 'Funds are secured. Your worker can head out any moment.',
+            note: 'Payment succeeded. Both parties must approve final service closure.',
         };
     }
     if (stage === 'awaiting_payment') {
         return {
-            label: 'Waiting for payment',
+            label: 'Work finished - payment due',
             toneClass: 'bg-gray-100 text-gray-700 border-gray-200',
-            note: 'Your worker accepted. Secure payment so the trip can start.',
+            note: 'Both parties confirmed work finish. Complete payment to continue.',
         };
     }
     return {
@@ -233,18 +235,35 @@ const ClientLiveRequestTracker: React.FC<ClientLiveRequestTrackerProps> = ({ lea
 
     const destinationCoords = useMemo(() => {
         if (request.latitude == null || request.longitude == null) return null;
-        return {
-            lat: Number(request.latitude),
-            lng: Number(request.longitude),
-        };
+        const lat = Number(request.latitude);
+        const lng = Number(request.longitude);
+        if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+        if (lat < -90 || lat > 90 || lng < -180 || lng > 180) return null;
+        return { lat, lng };
     }, [request.latitude, request.longitude]);
+
+    // Guard: if no valid location on the request, render a safe placeholder instead of running map/route logic.
+    // This prevents "Invalid LatLng (NaN, NaN)" when opening My Requests History with completed or location-less requests.
+    if (!destinationCoords) {
+        return (
+            <div className="h-full w-full flex items-center justify-center rounded-2xl border border-slate-200 bg-slate-50 p-8 text-center">
+                <div>
+                    <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-white text-2xl">📍</div>
+                    <p className="text-sm font-bold text-slate-700">No live location available</p>
+                    <p className="mt-1 text-[11px] text-slate-500">Request #{request.id_request} • {request.service_name}</p>
+                    <p className="mt-2 text-[10px] uppercase tracking-[0.12em] text-slate-400">This service does not have coordinates for map tracking.</p>
+                </div>
+            </div>
+        );
+    }
 
     const workerStartCoords = useMemo(() => {
         if (request.assigned_worker?.latitude != null && request.assigned_worker?.longitude != null) {
-            return {
-                lat: Number(request.assigned_worker.latitude),
-                lng: Number(request.assigned_worker.longitude),
-            };
+            const lat = Number(request.assigned_worker.latitude);
+            const lng = Number(request.assigned_worker.longitude);
+            if (Number.isFinite(lat) && Number.isFinite(lng)) {
+                return { lat, lng };
+            }
         }
 
         if (!destinationCoords) return null;
@@ -291,7 +310,7 @@ const ClientLiveRequestTracker: React.FC<ClientLiveRequestTrackerProps> = ({ lea
         && !!scheduledStart
         && scheduledStart.getTime() > Date.now()
         && !['in_progress', 'awaiting_confirmation', 'done'].includes(requestStatus);
-    const isLiveRoute = ['paid', 'in_progress'].includes(requestStatus) && !isScheduledFuture;
+    const isLiveRoute = requestStatus === 'route_in_progress' && !isScheduledFuture;
     const visibleRoutePoints = useMemo(() => {
         if (!routePreview) return null;
         if (!isLiveRoute) return routePreview.points;
@@ -503,7 +522,7 @@ const ClientLiveRequestTracker: React.FC<ClientLiveRequestTrackerProps> = ({ lea
             return;
         }
 
-        if (status !== 'paid' && status !== 'in_progress') {
+        if (status !== 'route_in_progress') {
             setDisplayedWorkerCoords(currentWorkerCoords);
             setMetrics({
                 distanceKm: routePreview.distanceKm,
@@ -525,9 +544,7 @@ const ClientLiveRequestTracker: React.FC<ClientLiveRequestTrackerProps> = ({ lea
             durationMin: Number(remainingDurationMin.toFixed(1)),
         });
 
-        if (status === 'paid') {
-            setTrackerStage('payment_secured');
-        } else if (remainingDistanceKm <= 0.04) {
+        if (remainingDistanceKm <= 0.04) {
             setTrackerStage('arrived');
         } else if (remainingDistanceKm <= 0.25) {
             setTrackerStage('nearby');

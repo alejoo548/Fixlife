@@ -15,7 +15,7 @@ import {
   syncWorkerBonusPayouts,
 } from '../utils/workerRewards';
 import { createUserNotification } from '../utils/notifications';
-import { pushToUser } from '../services/sseManager';
+import { emitToUser } from '../services/socketManager';
 import { buildProtectedAssetUrl, buildPublicAssetUrl, deleteUploadIfExists } from '../utils/assets';
 import { shouldRunRuntimeSchemaSync } from '../config/schemaSync';
 import { getWorkerPayouts } from '../services/paymentLedger.service';
@@ -30,8 +30,8 @@ const {
   ensureWorkerGeoColumns,
 } = servicesController;
 
-const ACTIVE_WORKER_REQUEST_STATUSES = ['payment_pending', 'paid', 'assigned', 'in_progress', 'awaiting_confirmation'];
-const SCHEDULE_CONFLICT_STATUSES = ['payment_pending', 'paid', 'assigned', 'in_progress', 'awaiting_confirmation'];
+const ACTIVE_WORKER_REQUEST_STATUSES = ['assigned', 'route_in_progress', 'arrived', 'start_pending', 'in_progress', 'finish_pending', 'payment_pending', 'paid', 'completion_pending', 'awaiting_confirmation'];
+const SCHEDULE_CONFLICT_STATUSES = [...ACTIVE_WORKER_REQUEST_STATUSES];
 const SCHEDULE_BUFFER_TIME_MINUTES = Math.max(
   0,
   Math.min(Number(process.env.BUFFER_TIME_MINUTES || 60), 240)
@@ -967,7 +967,19 @@ export const getWorkerRequests = async (req: AuthRequest, res: Response): Promis
          sr.scheduled_time,
          sr.scheduled_start_time,
          sr.scheduled_end_time,
+         sr.workflow_version,
+         sr.client_approved_at,
+         sr.route_started_at,
          sr.worker_arrived_at,
+         sr.work_started_at,
+         sr.work_finished_at,
+         sr.completed_at,
+         EXISTS(SELECT 1 FROM service_request_workflow_approvals a WHERE a.id_request = sr.id_request AND a.action = 'start_work' AND a.actor_role = 'client') AS start_client_approved,
+         EXISTS(SELECT 1 FROM service_request_workflow_approvals a WHERE a.id_request = sr.id_request AND a.action = 'start_work' AND a.actor_role = 'worker') AS start_worker_approved,
+         EXISTS(SELECT 1 FROM service_request_workflow_approvals a WHERE a.id_request = sr.id_request AND a.action = 'finish_work' AND a.actor_role = 'client') AS finish_client_approved,
+         EXISTS(SELECT 1 FROM service_request_workflow_approvals a WHERE a.id_request = sr.id_request AND a.action = 'finish_work' AND a.actor_role = 'worker') AS finish_worker_approved,
+         EXISTS(SELECT 1 FROM service_request_workflow_approvals a WHERE a.id_request = sr.id_request AND a.action = 'complete_service' AND a.actor_role = 'client') AS complete_client_approved,
+         EXISTS(SELECT 1 FROM service_request_workflow_approvals a WHERE a.id_request = sr.id_request AND a.action = 'complete_service' AND a.actor_role = 'worker') AS complete_worker_approved,
          sr.status AS request_status,
          sr.created_at,
          sr.assigned_worker_profile,
@@ -991,7 +1003,8 @@ export const getWorkerRequests = async (req: AuthRequest, res: Response): Promis
         GROUP BY
           sr.id_request, sr.id_service, sr.description, sr.location_text, sr.latitude, sr.longitude,
           sr.budget, sr.radius_km, sr.booking_type, sr.scheduled_date, sr.scheduled_time,
-          sr.scheduled_start_time, sr.scheduled_end_time, sr.worker_arrived_at, sr.status, sr.created_at, sr.assigned_worker_profile,
+          sr.scheduled_start_time, sr.scheduled_end_time, sr.workflow_version, sr.client_approved_at, sr.route_started_at,
+          sr.worker_arrived_at, sr.work_started_at, sr.work_finished_at, sr.completed_at, sr.status, sr.created_at, sr.assigned_worker_profile,
           s.name, s.icon, srw.distance_km, srw.status, srw.proposed_budget, srw.counter_message,
           u.id_user, u.name, u.lastname, u.profile_image
        ORDER BY
@@ -1066,7 +1079,18 @@ export const getWorkerRequests = async (req: AuthRequest, res: Response): Promis
         scheduled_time: row.scheduled_time || null,
         scheduled_start_time: row.scheduled_start_time || null,
         scheduled_end_time: row.scheduled_end_time || null,
+        workflow_version: Number(row.workflow_version || 1),
+        client_approved_at: row.client_approved_at || null,
+        route_started_at: row.route_started_at || null,
         worker_arrived_at: row.worker_arrived_at || null,
+        work_started_at: row.work_started_at || null,
+        work_finished_at: row.work_finished_at || null,
+        completed_at: row.completed_at || null,
+        approvals: {
+          start_work: { client: Boolean(row.start_client_approved), worker: Boolean(row.start_worker_approved) },
+          finish_work: { client: Boolean(row.finish_client_approved), worker: Boolean(row.finish_worker_approved) },
+          complete_service: { client: Boolean(row.complete_client_approved), worker: Boolean(row.complete_worker_approved) },
+        },
         request_status: toPublicRequestStatus(row.request_status),
         worker_status: row.worker_status,
         proposed_budget: row.proposed_budget != null ? Number(row.proposed_budget) : null,
@@ -1164,7 +1188,7 @@ export const getWorkerAppointments = async (req: AuthRequest, res: Response): Pr
         AND srw.id_worker_profile = sr.assigned_worker_profile
        WHERE sr.assigned_worker_profile = ?
          AND sr.booking_type = 'scheduled'
-         AND sr.status IN ('assigned', 'payment_pending', 'paid', 'in_progress', 'awaiting_confirmation')
+         AND sr.status IN ('assigned', 'route_in_progress', 'arrived', 'start_pending', 'in_progress', 'finish_pending', 'payment_pending', 'paid', 'completion_pending', 'awaiting_confirmation')
          AND sr.scheduled_start_time IS NOT NULL
          AND sr.scheduled_start_time >= DATE_SUB(UTC_TIMESTAMP(), INTERVAL 6 HOUR)
        ORDER BY sr.scheduled_start_time ASC
@@ -1251,7 +1275,7 @@ export const getWorkerWorkspace = async (req: AuthRequest, res: Response): Promi
          ON srw.id_request = sr.id_request
         AND srw.id_worker_profile = ?
        WHERE sr.assigned_worker_profile = ?
-         AND sr.status IN ('assigned', 'payment_pending', 'paid', 'in_progress', 'awaiting_confirmation', 'done')
+         AND sr.status IN ('assigned', 'route_in_progress', 'arrived', 'start_pending', 'in_progress', 'finish_pending', 'payment_pending', 'paid', 'completion_pending', 'awaiting_confirmation', 'done')
          AND (
            (sr.scheduled_start_time IS NOT NULL
              AND sr.scheduled_start_time >= DATE_SUB(CURDATE(), INTERVAL 1 DAY)
@@ -1295,9 +1319,14 @@ export const getWorkerWorkspace = async (req: AuthRequest, res: Response): Promi
     });
     const pendingStatuses = new Set([
       'assigned',
+      'route_in_progress',
+      'arrived',
+      'start_pending',
       'payment_pending',
       'paid',
       'in_progress',
+      'finish_pending',
+      'completion_pending',
       'awaiting_confirmation',
     ]);
     const scheduledToday = todayJobs
@@ -1757,6 +1786,75 @@ export const counterOfferWorkerRequest = async (req: AuthRequest, res: Response)
   }
 };
 
+export const startWorkerRoute = async (req: AuthRequest, res: Response): Promise<void> => {
+  const connection = await pool.getConnection();
+  try {
+    const userId = Number(req.user?.user_id || 0);
+    const idRequest = Number(req.params.idRequest);
+    if (!userId || !Number.isSafeInteger(idRequest) || idRequest <= 0) {
+      res.status(400).json({ error: 'Invalid request.' });
+      return;
+    }
+    await ensureServiceRequestTables();
+    await connection.beginTransaction();
+    const [rows] = await connection.execute<RowDataPacket[]>(
+      `SELECT sr.id_request, sr.id_user, sr.status, sr.workflow_version, sr.client_approved_at,
+              sr.assigned_worker_profile, wp.id_worker_profile
+       FROM service_requests sr
+       INNER JOIN worker_profiles wp ON wp.id_worker_profile = sr.assigned_worker_profile
+       WHERE sr.id_request = ? AND wp.id_user = ?
+       LIMIT 1 FOR UPDATE`,
+      [idRequest, userId]
+    );
+    if (rows.length === 0) {
+      await connection.rollback();
+      res.status(404).json({ error: 'Assigned request not found.' });
+      return;
+    }
+    const request = rows[0];
+    if (Number(request.workflow_version || 1) < 2) {
+      await connection.rollback();
+      res.status(409).json({ error: 'This request uses the legacy route flow.' });
+      return;
+    }
+    const status = String(request.status || '').toLowerCase();
+    if (status === 'route_in_progress') {
+      await connection.rollback();
+      res.json({ success: true, request_status: status, already_started: true });
+      return;
+    }
+    if (status !== 'assigned' || !request.client_approved_at) {
+      await connection.rollback();
+      res.status(409).json({ error: 'Client approval is required before starting the route.' });
+      return;
+    }
+    await connection.execute(
+      `UPDATE service_requests SET status = 'route_in_progress', route_started_at = COALESCE(route_started_at, CURRENT_TIMESTAMP), updated_at = CURRENT_TIMESTAMP WHERE id_request = ?`,
+      [idRequest]
+    );
+    await connection.commit();
+    const clientId = Number(request.id_user || 0);
+    if (clientId) {
+      await createUserNotification({
+        userId: clientId,
+        eventType: 'worker_route_started',
+        title: 'Worker is on the way',
+        message: `Your professional started the route for request #${idRequest}.`,
+        tone: 'info', requestId: idRequest, actionUrl: '/app',
+        dedupeKey: `request-${idRequest}-route-started`, metadata: { request_status: 'route_in_progress' },
+      });
+      emitToUser(clientId, 'request_updated', { id_request: idRequest, request_status: 'route_in_progress' });
+    }
+    res.json({ success: true, id_request: idRequest, request_status: 'route_in_progress' });
+  } catch (error) {
+    await connection.rollback();
+    console.error('Error in startWorkerRoute:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  } finally {
+    connection.release();
+  }
+};
+
 export const arriveWorkerRequest = async (req: AuthRequest, res: Response): Promise<void> => {
   const connection = await pool.getConnection();
   try {
@@ -1789,7 +1887,8 @@ export const arriveWorkerRequest = async (req: AuthRequest, res: Response): Prom
 
     const profileId = Number(profileRows[0].id_worker_profile);
     const [requestRows] = await connection.execute<RowDataPacket[]>(
-      `SELECT id_request, id_user, status, assigned_worker_profile, worker_arrived_at
+      `SELECT id_request, id_user, status, workflow_version, assigned_worker_profile, worker_arrived_at,
+              booking_type, scheduled_start_time, latitude, longitude
        FROM service_requests
        WHERE id_request = ?
        LIMIT 1
@@ -1808,16 +1907,68 @@ export const arriveWorkerRequest = async (req: AuthRequest, res: Response): Prom
       res.status(403).json({ error: 'This request is assigned to another worker.' });
       return;
     }
-    if (String(request.status || '').toLowerCase() !== 'paid') {
+    const requestStatus = String(request.status || '').toLowerCase();
+    const isV2 = Number(request.workflow_version || 1) >= 2;
+    if (isV2 && request.worker_arrived_at && ['arrived', 'start_pending', 'in_progress', 'finish_pending', 'payment_pending', 'paid', 'completion_pending', 'done'].includes(requestStatus)) {
       await connection.rollback();
-      res.status(409).json({ error: 'Arrival can only be confirmed for a paid job.' });
+      res.json({ success: true, id_request: idRequest, request_status: requestStatus, worker_arrived_at: request.worker_arrived_at, already_arrived: true });
       return;
+    }
+    if (isV2 ? requestStatus !== 'route_in_progress' : requestStatus !== 'paid') {
+      await connection.rollback();
+      res.status(409).json({ error: isV2 ? 'Start the route before confirming arrival.' : 'Arrival can only be confirmed for a paid job.' });
+      return;
+    }
+
+    let arrivalWarning: string | null = null;
+    let distanceM: number | null = null;
+    if (isV2) {
+      const latitude = Number(req.body?.latitude);
+      const longitude = Number(req.body?.longitude);
+      const accuracyM = Number(req.body?.accuracy_m);
+      const hasCoords = Number.isFinite(latitude) && Number.isFinite(longitude);
+      if (hasCoords) {
+        if (request.latitude != null && request.longitude != null) {
+          const [distanceRows] = await connection.execute<RowDataPacket[]>(
+            `SELECT ST_Distance_Sphere(point(?, ?), point(?, ?)) AS distance_m`,
+            [longitude, latitude, Number(request.longitude), Number(request.latitude)]
+          );
+          const measuredDistance = Number(distanceRows[0]?.distance_m);
+          distanceM = Number.isFinite(measuredDistance) ? Math.round(measuredDistance) : null;
+        }
+        if (!Number.isFinite(accuracyM) || accuracyM > 100) {
+          arrivalWarning = 'GPS accuracy was low. Client approval is still required before work starts.';
+        } else if (distanceM != null && distanceM > 200) {
+          arrivalWarning = `GPS reports ${distanceM} m from destination. Client approval is still required before work starts.`;
+        }
+        await connection.execute(
+          `UPDATE worker_profiles SET latitude = ?, longitude = ?, last_seen_at = CURRENT_TIMESTAMP WHERE id_worker_profile = ?`,
+          [latitude, longitude, profileId]
+        );
+      } else {
+        arrivalWarning = 'GPS was unavailable. Client approval is still required before work starts.';
+      }
+    }
+
+    if (String(request.booking_type || 'express').toLowerCase() === 'scheduled' && request.scheduled_start_time) {
+      const scheduledStart = new Date(request.scheduled_start_time);
+      const earliestArrival = scheduledStart.getTime() - SCHEDULED_START_EARLY_MINUTES * 60_000;
+      if (!Number.isNaN(scheduledStart.getTime()) && Date.now() < earliestArrival) {
+        await connection.rollback();
+        res.status(409).json({
+          error: `You can confirm arrival closer to ${scheduledStart.toLocaleString()}.`,
+          scheduled_start_time: request.scheduled_start_time,
+        });
+        return;
+      }
     }
 
     if (!request.worker_arrived_at) {
       await connection.execute(
         `UPDATE service_requests
-         SET worker_arrived_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
+         SET worker_arrived_at = CURRENT_TIMESTAMP,
+             status = CASE WHEN workflow_version >= 2 THEN 'arrived' ELSE status END,
+             updated_at = CURRENT_TIMESTAMP
          WHERE id_request = ?`,
         [idRequest]
       );
@@ -1835,7 +1986,7 @@ export const arriveWorkerRequest = async (req: AuthRequest, res: Response): Prom
         requestId: idRequest,
         actionUrl: '/app',
         dedupeKey: `request-${idRequest}-worker-arrived-client`,
-        metadata: { request_status: 'paid', worker_arrived: true },
+        metadata: { request_status: isV2 ? 'arrived' : 'paid', worker_arrived: true },
       });
     }
 
@@ -1844,6 +1995,9 @@ export const arriveWorkerRequest = async (req: AuthRequest, res: Response): Prom
       message: 'Arrival confirmed.',
       id_request: idRequest,
       worker_arrived_at: request.worker_arrived_at || new Date().toISOString(),
+      request_status: isV2 ? 'arrived' : requestStatus,
+      warning: arrivalWarning,
+      distance_m: distanceM,
     });
   } catch (error) {
     await connection.rollback();
@@ -1899,7 +2053,7 @@ export const startWorkerRequest = async (req: AuthRequest, res: Response): Promi
     }
 
     const [requestRows] = await connection.execute<RowDataPacket[]>(
-      `SELECT id_request, id_user, status, assigned_worker_profile, booking_type, scheduled_start_time, worker_arrived_at
+      `SELECT id_request, id_user, status, workflow_version, assigned_worker_profile, booking_type, scheduled_start_time, worker_arrived_at
        FROM service_requests
        WHERE id_request = ?
        LIMIT 1
@@ -1916,6 +2070,11 @@ export const startWorkerRequest = async (req: AuthRequest, res: Response): Promi
     if (Number(request.assigned_worker_profile || 0) !== profileId) {
       await connection.rollback();
       res.status(403).json({ error: 'This request is assigned to another worker.' });
+      return;
+    }
+    if (Number(request.workflow_version || 1) >= 2) {
+      await connection.rollback();
+      res.status(409).json({ error: 'Use the shared start-work approval for this request.' });
       return;
     }
     const currentStatus = String(request.status || '').toLowerCase();
@@ -2045,7 +2204,7 @@ export const completeWorkerRequest = async (req: AuthRequest, res: Response): Pr
     }
 
     const [requestRows] = await connection.execute<RowDataPacket[]>(
-      `SELECT id_request, id_user, status, assigned_worker_profile
+      `SELECT id_request, id_user, status, workflow_version, assigned_worker_profile
        FROM service_requests
        WHERE id_request = ?
        LIMIT 1
@@ -2062,6 +2221,11 @@ export const completeWorkerRequest = async (req: AuthRequest, res: Response): Pr
     if (Number(request.assigned_worker_profile || 0) !== profileId) {
       await connection.rollback();
       res.status(403).json({ error: 'This request is assigned to another worker.' });
+      return;
+    }
+    if (Number(request.workflow_version || 1) >= 2) {
+      await connection.rollback();
+      res.status(409).json({ error: 'Use the shared finish-work approval for this request.' });
       return;
     }
     if (String(request.status || '').toLowerCase() !== 'in_progress') {
@@ -2187,7 +2351,7 @@ export const updateWorkerPresence = async (req: AuthRequest, res: Response): Pro
       const activeRequest = activeRows[0];
       const requestOwnerId = Number(activeRequest?.id_user || 0);
       if (requestOwnerId) {
-        pushToUser(requestOwnerId, 'worker_location', {
+        emitToUser(requestOwnerId, 'worker_location', {
           id_request: Number(activeRequest.id_request),
           id_worker_profile: Number(profileId),
           latitude: lat,

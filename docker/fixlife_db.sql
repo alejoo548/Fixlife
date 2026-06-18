@@ -163,7 +163,7 @@ CREATE TABLE `service_requests` (
   `budget` decimal(10,2) NOT NULL DEFAULT '0.00',
   `radius_km` decimal(6,2) NOT NULL DEFAULT '8.00',
   `urgency_level` varchar(40) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'standard',
-  `status` enum('open','pending','payment_pending','paid','assigned','in_progress','awaiting_confirmation','done','cancelled') COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'pending',
+  `status` enum('open','pending','assigned','route_in_progress','arrived','start_pending','in_progress','finish_pending','payment_pending','paid','completion_pending','awaiting_confirmation','done','cancelled') COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'pending',
   `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   `assigned_worker_profile` int DEFAULT NULL,
@@ -175,7 +175,13 @@ CREATE TABLE `service_requests` (
   `scheduled_time` time DEFAULT NULL,
   `scheduled_start_time` datetime DEFAULT NULL,
   `scheduled_end_time` datetime DEFAULT NULL,
-  `worker_arrived_at` datetime DEFAULT NULL
+  `worker_arrived_at` datetime DEFAULT NULL,
+  `workflow_version` tinyint unsigned NOT NULL DEFAULT '1',
+  `client_approved_at` datetime DEFAULT NULL,
+  `route_started_at` datetime DEFAULT NULL,
+  `work_started_at` datetime DEFAULT NULL,
+  `work_finished_at` datetime DEFAULT NULL,
+  `completed_at` datetime DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 --

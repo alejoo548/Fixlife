@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import {
   acceptAssignedWorker,
+  approveServiceWorkflowAction,
   acceptCounterOffer,
   cancelServiceRequest,
   confirmRequestPayment,
@@ -68,6 +69,7 @@ router.post('/requests/:idRequest/counter/decline', verifyToken, sensitiveLimite
 router.post('/requests/:idRequest/payment-checkout', verifyToken, sensitiveLimiter, createRequestPaymentCheckout);
 router.post('/requests/:idRequest/payment-confirm', verifyToken, sensitiveLimiter, confirmRequestPayment);
 router.post('/requests/:idRequest/confirm-completion', verifyToken, sensitiveLimiter, confirmServiceCompletion);
+router.post('/requests/:idRequest/workflow-approval', verifyToken, sensitiveLimiter, approveServiceWorkflowAction);
 router.get('/requests/:idRequest/chat', verifyToken, requestChatReadLimiter, getRequestChat);
 router.post(
   '/requests/:idRequest/chat',

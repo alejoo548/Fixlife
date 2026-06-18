@@ -48,12 +48,17 @@ export const getServiceIconLabel = (icon: string | null | undefined, serviceName
 
 export const workerRequestStatusLabel = (statusRaw: string) => {
   const status = String(statusRaw || '').toLowerCase();
-  if (status === 'assigned') return 'Client review';
+  if (status === 'assigned') return 'Ready for route';
+  if (status === 'route_in_progress') return 'On the way';
+  if (status === 'arrived') return 'Arrival verified';
+  if (status === 'start_pending') return 'Start approval';
+  if (status === 'finish_pending') return 'Finish approval';
   if (status === 'payment_pending') return 'Payment pending';
+  if (status === 'completion_pending') return 'Final approval';
   if (status === 'awaiting_confirmation') return 'Client confirmation';
   if (status === 'in_progress') return 'In progress';
   if (status === 'done') return 'Completed';
-  if (status === 'paid') return 'Ready to go';
+  if (status === 'paid') return 'Final approval';
   return status ? status.charAt(0).toUpperCase() + status.slice(1) : 'Pending';
 };
 
@@ -333,6 +338,10 @@ export const focusRouteViewport = (
     .polyline(points)
     .getBounds()
     .pad(isLiveRoute ? (mode === 'close' ? 0.0015 : 0.02) : 0.12);
+  if (!bounds.isValid()) return;
+  const sw = bounds.getSouthWest();
+  const ne = bounds.getNorthEast();
+  if (!sw || !ne || sw.lat === ne.lat || sw.lng === ne.lng) return;
   const options = isDesktop
     ? {
         paddingTopLeft: mode === 'close' ? [260, 88] : [210, 78],
@@ -348,6 +357,10 @@ export const focusRouteViewport = (
         animate: true,
         duration: 0.42,
       };
-  if (typeof map.flyToBounds === 'function') map.flyToBounds(bounds, options);
-  else map.fitBounds(bounds, options);
+  try {
+    if (typeof map.flyToBounds === 'function') map.flyToBounds(bounds, options);
+    else map.fitBounds(bounds, options);
+  } catch {
+    // degenerate bounds; skip fly animation
+  }
 };

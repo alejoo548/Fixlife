@@ -31,12 +31,16 @@ interface UseWorkerPresenceOptions {
   token: string | null;
   isOnline: boolean | null;
   routeActive: boolean;
+  isVerified?: boolean;
+  onFirstCoordsReady?: () => void;
 }
 
 export const useWorkerPresence = ({
   token,
   isOnline,
   routeActive,
+  isVerified = true,
+  onFirstCoordsReady,
 }: UseWorkerPresenceOptions) => {
   const [workerCoords, setWorkerCoords] = useState<{ lat: number; lng: number } | null>(
     () => readStoredCoords()
@@ -48,6 +52,9 @@ export const useWorkerPresence = ({
     lng?: number;
     at: number;
   } | null>(null);
+  const coordsFiredRef = useRef(false);
+  const onFirstCoordsReadyRef = useRef(onFirstCoordsReady);
+  onFirstCoordsReadyRef.current = onFirstCoordsReady;
 
   const persistCoords = (lat: number, lng: number) => {
     writeStoredCoords(lat, lng);
@@ -63,7 +70,7 @@ export const useWorkerPresence = ({
     lng?: number,
     force = false
   ) => {
-    if (!token) return;
+    if (!token || !isVerified) return;
     const now = Date.now();
     const lastPush = lastPushRef.current;
     const isBackground =
@@ -103,6 +110,13 @@ export const useWorkerPresence = ({
         },
         body: JSON.stringify({ is_online: isOnlineNow ? 1 : 0, lat, lng }),
       });
+      // First time we push valid coords while going online: trigger a request
+      // refresh so the backfill query in getWorkerRequests can find requests
+      // that arrived before our GPS was stored in the backend.
+      if (isOnlineNow && Number.isFinite(lat) && Number.isFinite(lng) && !coordsFiredRef.current) {
+        coordsFiredRef.current = true;
+        onFirstCoordsReadyRef.current?.();
+      }
     } catch {
       lastPushRef.current = lastPush;
     } finally {
@@ -113,6 +127,7 @@ export const useWorkerPresence = ({
   useEffect(() => {
     if (!token || typeof isOnline !== 'boolean') return;
     if (!isOnline) {
+      coordsFiredRef.current = false;
       void pushPresence(false);
       return;
     }

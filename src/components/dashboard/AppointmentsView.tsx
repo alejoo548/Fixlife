@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { API_ENDPOINTS } from '../../config/api';
 import { useSSE } from '../../hooks/useSSE';
-import { getToken } from '../../utils/session';
+import { getAuthUser, getToken } from '../../utils/session';
 
 interface Appointment {
   id_request: number;
@@ -68,6 +68,13 @@ export const AppointmentsView: React.FC = () => {
       setLoading(false);
       return;
     }
+    const user = getAuthUser('worker');
+    const isVerified = user?.worker_profile?.is_verified;
+    const verified = isVerified === true || isVerified === 1 || isVerified === '1' || isVerified === 'true';
+    if (!verified) {
+      setLoading(false);
+      return;
+    }
 
     if (!silent) setLoading(true);
     setError(null);
@@ -109,7 +116,7 @@ export const AppointmentsView: React.FC = () => {
     <div className="h-full overflow-y-auto p-4 sm:p-6">
       <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <p className="text-[11px] font-black uppercase tracking-[0.18em] text-bird-blue">Mi Agenda</p>
+          <p className="text-[11px] font-black uppercase tracking-[0.18em] text-bird-blue">Upcoming</p>
           <h2 className="mt-1 text-2xl font-black text-slate-900">Scheduled visits</h2>
         </div>
         <button

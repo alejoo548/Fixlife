@@ -1,10 +1,16 @@
 import { useMemo } from 'react';
 
 const ACTIVE_TRACKED_REQUEST_PRIORITY = [
+  'start_pending',
+  'arrived',
   'in_progress',
-  'awaiting_confirmation',
+  'finish_pending',
+  'route_in_progress',
+  'completion_pending',
   'paid',
   'payment_pending',
+  'assigned',
+  'awaiting_confirmation',
 ];
 
 interface ActiveTrackedRequestLike {

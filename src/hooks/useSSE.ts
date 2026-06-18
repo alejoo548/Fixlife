@@ -1,5 +1,6 @@
-import { useEffect, useRef } from 'react';
-import { API_URL } from '../config/api';
+import { useEffect, useMemo, useRef } from 'react';
+import { io, Socket } from 'socket.io-client';
+import { getSocketBaseUrl, getDefaultSocketOptions } from '../config/api';
 
 type EventMap = Record<string, (data: unknown) => void>;
 
@@ -9,44 +10,68 @@ interface UseSSEOptions {
   enabled?: boolean;
 }
 
+// socket.io-client returns the same Socket instance for the same URL+token.
+// We ref-count so the socket only disconnects when the last useSSE unmounts.
+const socketRefCounts = new Map<string, number>();
+
+function acquireSocket(socketUrl: string, token: string): Socket {
+  const key = `${socketUrl}|${token}`;
+  const count = socketRefCounts.get(key) ?? 0;
+  socketRefCounts.set(key, count + 1);
+
+  const opts = getDefaultSocketOptions(token);
+  const socket = io(socketUrl, opts);
+
+  // Silence repeated connection errors to reduce console spam on transient failures
+  socket.on('connect_error', () => {
+    // intentionally silent (consumers can react via their own state if needed)
+  });
+
+  return socket;
+}
+
+function releaseSocket(socketUrl: string, token: string, socket: Socket): void {
+  const key = `${socketUrl}|${token}`;
+  const count = (socketRefCounts.get(key) ?? 1) - 1;
+  if (count <= 0) {
+    socketRefCounts.delete(key);
+    socket.disconnect();
+  } else {
+    socketRefCounts.set(key, count);
+  }
+}
+
 /**
- * Maintains a single SSE connection and dispatches named server events to handlers.
- * Automatically reconnects if the connection drops (browser handles this via EventSource).
+ * Drop-in replacement for the old SSE-based hook, now backed by socket.io.
+ * API is identical — all callers work unchanged.
+ * Multiple useSSE calls with the same token share one underlying WebSocket.
+ * The connection is torn down only when the last caller unmounts or disables.
  */
 export function useSSE({ token, events, enabled = true }: UseSSEOptions): void {
-  // Keep event handlers in a ref so they never cause the effect to re-run
   const handlersRef = useRef<EventMap>(events);
   handlersRef.current = events;
+
+  const socketUrl = useMemo(() => getSocketBaseUrl(), []);
 
   useEffect(() => {
     if (!token || !enabled) return;
 
-    const url = `${API_URL}/api/events?token=${encodeURIComponent(token)}`;
-    const es = new EventSource(url);
+    const socket = acquireSocket(socketUrl, token);
 
-    const attached: Array<() => void> = [];
-
-    // Attach a listener for every event name present at mount time
     const eventNames = Object.keys(handlersRef.current);
+    const teardowns: Array<() => void> = [];
+
     for (const name of eventNames) {
-      const listener = (e: MessageEvent) => {
-        try {
-          handlersRef.current[name]?.(JSON.parse(e.data));
-        } catch {
-          handlersRef.current[name]?.(null);
-        }
+      const listener = (data: unknown) => {
+        handlersRef.current[name]?.(data);
       };
-      es.addEventListener(name, listener);
-      attached.push(() => es.removeEventListener(name, listener));
+      socket.on(name, listener);
+      teardowns.push(() => socket.off(name, listener));
     }
 
-    es.onerror = () => {
-      // EventSource auto-reconnects; nothing extra needed
-    };
-
     return () => {
-      attached.forEach((off) => off());
-      es.close();
+      teardowns.forEach((off) => off());
+      releaseSocket(socketUrl, token, socket);
     };
-  }, [token, enabled]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [token, enabled, socketUrl]); // eslint-disable-line react-hooks/exhaustive-deps
 }

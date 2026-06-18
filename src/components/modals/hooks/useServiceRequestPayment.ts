@@ -107,7 +107,7 @@ export const useServiceRequestPayment = <TRequest extends PaymentRequestLike>({
         return;
       }
 
-      showToast('success', 'Payment secured. Your pro can now start the job.');
+      showToast('success', 'Payment completed. Final service approval is now available.');
       setPaymentModalRequest(null);
       await fetchMyRequests(historyStatus, true);
     } catch {

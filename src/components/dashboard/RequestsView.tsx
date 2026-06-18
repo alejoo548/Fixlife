@@ -46,6 +46,7 @@ export const RequestsView: React.FC<RequestsViewProps> = ({
   isOnline,
   mobileView,
   token,
+  isVerified = true,
 }) => {
   const [statusFilter, setStatusFilter] = useState<RequestTab>('new');
   const [requests, setRequests] = useState<WorkerRequest[]>([]);
@@ -74,7 +75,7 @@ export const RequestsView: React.FC<RequestsViewProps> = ({
   const firstLoadRef = useRef(true);
   const knownNewIdsRef = useRef<Set<number>>(new Set());
 
-  const isWorkerActive = isOnline === true;
+  const isWorkerActive = isOnline === true && isVerified;
   const visibleRequests = isWorkerActive ? requests : [];
   const selectedRequest = useMemo(
     () =>
@@ -84,10 +85,19 @@ export const RequestsView: React.FC<RequestsViewProps> = ({
     [selectedRequestId, visibleRequests]
   );
   const routeActive =
-    !!selectedRequest && activeRouteRequestId === selectedRequest.id_request;
+    !!selectedRequest && (
+      activeRouteRequestId === selectedRequest.id_request ||
+      String(selectedRequest.request_status || '').toLowerCase() === 'route_in_progress'
+    );
 
   const { presenceBusy, pushPresence, setWorkerCoords, workerCoords } =
-    useWorkerPresence({ token, isOnline, routeActive });
+    useWorkerPresence({
+      token,
+      isOnline,
+      routeActive,
+      isVerified,
+      onFirstCoordsReady: () => void fetchRequests(true),
+    });
   const {
     connected: workspaceSocketConnected,
     data: workerWorkspace,
@@ -137,14 +147,20 @@ export const RequestsView: React.FC<RequestsViewProps> = ({
     onSelectRequest: setSelectedRequestId,
   });
 
+  const SCHEDULED_EARLY_MS = 2 * 60 * 60 * 1000;
+  const isScheduledTooEarly =
+    isScheduledRequest(selectedRequest) &&
+    !!selectedRequest?.scheduled_start_time &&
+    new Date(selectedRequest.scheduled_start_time).getTime() - Date.now() > SCHEDULED_EARLY_MS;
   const canTravel =
+    !isScheduledTooEarly &&
     !!selectedRequest &&
-    ['payment_pending', 'paid', 'in_progress', 'awaiting_confirmation', 'done'].includes(
+    ['assigned', 'route_in_progress', 'arrived', 'start_pending', 'in_progress', 'finish_pending', 'payment_pending', 'paid', 'completion_pending', 'done'].includes(
       String(selectedRequest.request_status || '').toLowerCase()
     );
   const canChat =
     !!selectedRequest &&
-    ['assigned', 'payment_pending', 'paid', 'in_progress', 'awaiting_confirmation', 'done'].includes(
+    ['assigned', 'route_in_progress', 'arrived', 'start_pending', 'in_progress', 'finish_pending', 'payment_pending', 'paid', 'completion_pending', 'done'].includes(
       String(selectedRequest.request_status || '').toLowerCase()
     ) &&
     String(selectedRequest.worker_status || '').toLowerCase() === 'accepted';
@@ -243,6 +259,17 @@ export const RequestsView: React.FC<RequestsViewProps> = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isWorkerActive, statusFilter, token]);
 
+  // Polling fallback: SSE/socket events are fire-and-forget; if the connection
+  // drops or the event arrives before GPS coords are pushed to the backend,
+  // the worker would never see new requests until a manual reload. This covers
+  // the gap for the 'new' tab (the most time-sensitive case).
+  useEffect(() => {
+    if (!isWorkerActive || statusFilter !== 'new') return;
+    const id = window.setInterval(() => void fetchRequests(true), 30_000);
+    return () => window.clearInterval(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isWorkerActive, statusFilter, token]);
+
   useEffect(() => {
     if (isWorkerActive) return;
     setSelectedRequestId(null);
@@ -253,6 +280,12 @@ export const RequestsView: React.FC<RequestsViewProps> = ({
   }, [isWorkerActive]);
 
   useEffect(() => setRoutePanelExpanded(false), [selectedRequest?.id_request]);
+  useEffect(() => {
+    if (!selectedRequest) return;
+    if (String(selectedRequest.request_status || '').toLowerCase() !== 'route_in_progress') {
+      setActiveRouteRequestId((current) => current === selectedRequest.id_request ? null : current);
+    }
+  }, [selectedRequest?.id_request, selectedRequest?.request_status]);
 
   useSSE({
     token,
@@ -351,34 +384,49 @@ export const RequestsView: React.FC<RequestsViewProps> = ({
     );
   };
 
-  const handleProgress = async (idRequest: number, action: 'start' | 'complete') => {
+  const handleWorkflowApproval = async (
+    idRequest: number,
+    action: 'start_work' | 'finish_work' | 'complete_service'
+  ) => {
+    const labels = {
+      start_work: ['Approve work start?', 'Approve start'],
+      finish_work: ['Approve work finish?', 'Approve finish'],
+      complete_service: ['Approve final service closure?', 'Approve closure'],
+    } as const;
     const confirmed = await showSweetConfirm({
-      title: action === 'start' ? 'Start working now?' : 'Finish this job?',
-      message:
-        action === 'start'
-          ? 'The client will see that work has started. Confirm that you are at the address and ready.'
-          : 'The client will be asked to review and confirm the completed service.',
-      tone: action === 'start' ? 'info' : 'warning',
-      confirmText: action === 'start' ? 'Start work' : 'Mark completed',
+      title: labels[action][0],
+      message: 'Your approval is saved. Service advances only after client also approves.',
+      tone: action === 'start_work' ? 'info' : 'warning',
+      confirmText: labels[action][1],
     });
     if (!confirmed) return;
-    const success = await postWorkerAction(
-      idRequest,
-      action === 'start'
-        ? API_ENDPOINTS.worker.startRequest(idRequest)
-        : API_ENDPOINTS.worker.completeRequest(idRequest),
-      action === 'start'
-        ? 'Trip started. Live location is now shared with the client.'
-        : 'Job marked as completed.'
-    );
-    if (!success) return;
-    if (action === 'start') {
-      setSelectedRequestId(idRequest);
-      setActiveRouteRequestId(idRequest);
-      if (isValidCoord(workerCoords)) {
-        void pushPresence(true, workerCoords.lat, workerCoords.lng, true);
+    if (!token) return;
+    setBusyId(idRequest);
+    let success = false;
+    try {
+      const response = await fetch(API_ENDPOINTS.services.workflowApproval(idRequest), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ action }),
+      });
+      const payload = await response.json();
+      if (!response.ok || !payload?.success) {
+        notify.error(payload?.error || 'Could not save approval.');
+        return;
       }
-    } else {
+      notify.success(payload.message || 'Approval saved.');
+      success = true;
+      await Promise.all([fetchRequests(true), refreshWorkspace(true)]);
+    } catch {
+      notify.error('Network error saving approval.');
+    } finally {
+      setBusyId(null);
+    }
+    if (!success) return;
+    if (action === 'start_work') {
+      setSelectedRequestId(idRequest);
+      setActiveRouteRequestId(null);
+    } else if (action === 'complete_service') {
       setActiveRouteRequestId((current) => (current === idRequest ? null : current));
       setArrivedRequestIds((current) => {
         const next = new Set(current);
@@ -397,11 +445,39 @@ export const RequestsView: React.FC<RequestsViewProps> = ({
       confirmText: 'I have arrived',
     });
     if (!confirmed) return;
-    const success = await postWorkerAction(
-      idRequest,
-      API_ENDPOINTS.worker.arriveRequest(idRequest),
-      'Arrival confirmed. You can start the work when ready.'
-    );
+    if (!token) return;
+    setBusyId(idRequest);
+    let success = false;
+    try {
+      const position = navigator.geolocation
+        ? await new Promise<GeolocationPosition | null>((resolve) =>
+            navigator.geolocation.getCurrentPosition(resolve, () => resolve(null), {
+              enableHighAccuracy: true, timeout: 12000, maximumAge: 5000,
+            })
+          )
+        : null;
+      const response = await fetch(API_ENDPOINTS.worker.arriveRequest(idRequest), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({
+          latitude: position?.coords.latitude,
+          longitude: position?.coords.longitude,
+          accuracy_m: position?.coords.accuracy,
+        }),
+      });
+      const payload = await response.json();
+      if (!response.ok || !payload?.success) {
+        notify.error(payload?.error || 'Could not verify arrival.');
+        return;
+      }
+      notify.success(payload.warning || 'Arrival confirmed. Both parties can approve work start.');
+      success = true;
+      await Promise.all([fetchRequests(true), refreshWorkspace(true)]);
+    } catch {
+      notify.error('Could not confirm arrival. Retry once.');
+    } finally {
+      setBusyId(null);
+    }
     if (!success) return;
     setArrivedRequestIds((current) => {
       const next = new Set(current).add(idRequest);
@@ -453,9 +529,17 @@ export const RequestsView: React.FC<RequestsViewProps> = ({
     }
   };
 
-  const toggleRoute = () => {
+  const toggleRoute = async () => {
     if (!selectedRequest || !routePreview || routeLoading || !canTravel) return;
     const starting = activeRouteRequestId !== selectedRequest.id_request;
+    if (starting && Number(selectedRequest.workflow_version || 1) >= 2 && selectedRequest.request_status === 'assigned') {
+      const success = await postWorkerAction(
+        selectedRequest.id_request,
+        API_ENDPOINTS.worker.startRoute(selectedRequest.id_request),
+        'Route started. Live GPS is shared with client.'
+      );
+      if (!success) return;
+    }
     setActiveRouteRequestId(starting ? selectedRequest.id_request : null);
     showRouteAlert({
       tone: 'info',
@@ -644,10 +728,11 @@ export const RequestsView: React.FC<RequestsViewProps> = ({
             onCenterRoute={centerRoute}
             onCameraModeChange={setRouteCameraMode}
             onTrafficToggle={() => setTrafficEnabled((enabled) => !enabled)}
-            onTravel={toggleRoute}
+            onTravel={() => void toggleRoute()}
             onArrive={() => void markArrived(selectedRequest.id_request)}
-            onStart={() => void handleProgress(selectedRequest.id_request, 'start')}
-            onComplete={() => void handleProgress(selectedRequest.id_request, 'complete')}
+            onStart={() => void handleWorkflowApproval(selectedRequest.id_request, 'start_work')}
+            onComplete={() => void handleWorkflowApproval(selectedRequest.id_request, 'finish_work')}
+            onFinalize={() => void handleWorkflowApproval(selectedRequest.id_request, 'complete_service')}
           />
         )}
 

@@ -47,7 +47,7 @@ export function ServiceRequestHistorySection({
                     <option value="assigned">Assigned</option>
                     <option value="in_progress">In Progress</option>
                     <option value="awaiting_confirmation">Awaiting Confirmation</option>
-                    <option value="done">Done</option>
+                    <option value="done">Completed</option>
                     <option value="cancelled">Cancelled</option>
                 </select>
             </div>

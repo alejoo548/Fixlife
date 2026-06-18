@@ -8,7 +8,6 @@ import workerRoutes from './routes/worker.routes';
 import adminRoutes from './routes/admin.routes';
 import servicesRoutes from './routes/services.routes';
 import notificationsRoutes from './routes/notifications.routes';
-import eventsRoute from './routes/events.route';
 import uploadsRoutes from './routes/uploads.routes';
 import supportRoutes from './routes/support.routes';
 import { initializeSupportSocket } from './services/supportSocket.service';
@@ -99,7 +98,6 @@ app.use('/api/worker', workerRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/services', servicesRoutes);
 app.use('/api/notifications', notificationsRoutes);
-app.use('/api/events', eventsRoute);
 app.use('/api/uploads', uploadsRoutes);
 app.use('/api/support', supportRoutes);
 

@@ -85,6 +85,36 @@ const MIGRATIONS: MigrationDefinition[] = [
       await ensureSupportTables();
     },
   },
+  {
+    id: '20260613_001_request_chat_messages',
+    description: 'Service request chat messages table (worker-client)',
+    run: async () => {
+      await pool.execute(`
+        CREATE TABLE IF NOT EXISTS service_request_chat_messages (
+          id_message INT NOT NULL AUTO_INCREMENT,
+          id_request INT NOT NULL,
+          sender_role ENUM('client','worker') NOT NULL,
+          id_user INT NOT NULL,
+          id_worker_profile INT NULL,
+          message VARCHAR(500) NULL,
+          image_url VARCHAR(255) NULL,
+          created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          PRIMARY KEY (id_message),
+          KEY idx_sr_chat_request_created (id_request, created_at),
+          KEY idx_sr_chat_sender (id_user),
+          CONSTRAINT fk_sr_chat_request FOREIGN KEY (id_request) REFERENCES service_requests(id_request) ON DELETE CASCADE,
+          CONSTRAINT fk_sr_chat_user FOREIGN KEY (id_user) REFERENCES users(id_user) ON DELETE CASCADE
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+      `);
+    },
+  },
+  {
+    id: '20260613_002_double_approval_workflow',
+    description: 'Double approval service workflow, timestamps and states',
+    run: async () => {
+      await ensureServiceRequestTables();
+    },
+  },
 ];
 
 const ensureMigrationsTable = async () => {

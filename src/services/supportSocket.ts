@@ -1,4 +1,5 @@
 import { io, Socket } from 'socket.io-client';
+import { getSocketBaseUrl, getDefaultSocketOptions } from '../config/api';
 import { SupportMessage, SupportThread } from '../types/support';
 
 export interface AdminActivityEvent {
@@ -62,11 +63,16 @@ function setupSocketListeners() {
   });
 
   socket.on('connect_error', (err) => {
-    console.error('[SupportSocket] Connection error:', err.message);
+    // Reduced logging to avoid console spam on transient WS failures (common in some envs/builds)
+    if (import.meta.env.DEV) {
+      console.warn('[SupportSocket] Connection error (will retry):', err.message);
+    }
   });
 
   socket.on('support:error', (error: { message: string }) => {
-    console.error('[SupportSocket] Server error:', error.message);
+    if (import.meta.env.DEV) {
+      console.warn('[SupportSocket] Server error:', error.message);
+    }
   });
 }
 
@@ -101,23 +107,10 @@ export function connectSupportSocket({
 
   currentToken = token;
 
-  const explicitSocketUrl = import.meta.env.VITE_SUPPORT_SOCKET_URL;
-  let baseUrl: string;
-  if (explicitSocketUrl) {
-    baseUrl = explicitSocketUrl.replace(/\/$/, '');
-  } else {
-    const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
-    baseUrl = API_URL.replace(/\/api$/, '');
-  }
+  const baseUrl = getSocketBaseUrl();
+  const opts = getDefaultSocketOptions(token);
 
-  socket = io(`${baseUrl}/support`, {
-    path: '/socket.io',
-    auth: { token },
-    transports: ['websocket', 'polling'],
-    reconnection: true,
-    reconnectionAttempts: 10,
-    reconnectionDelay: 1000,
-  });
+  socket = io(`${baseUrl}/support`, opts);
 
   setupSocketListeners();
 
