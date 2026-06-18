@@ -68,7 +68,7 @@ export const aiChatLimiter = rateLimit({
   max: 15,
   standardHeaders: true,
   legacyHeaders: false,
-  message: { error: 'Demasiadas solicitudes al chat. Espera un momento e intenta de nuevo.' },
+  message: { error: 'Too many chat requests. Please wait a moment and try again.' },
 });
 
 export const requestChatReadLimiter = rateLimit({
