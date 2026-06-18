@@ -1,10 +1,10 @@
 import { z } from 'zod';
+import { nameLikeText, strictText, messageText } from '../utils/sanitize';
 
 const phoneRegex = /^\+?[0-9]{8,15}$/;
 const otpRegex = /^\d{6}$/;
 const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{8,128}$/;
-const safeTextRegex = /^[\p{L}\p{N}\s.,\-_'":;!?()]{0,500}$/u;
 
 export const WorkerSchema = {
   settings: z.object({
@@ -14,13 +14,7 @@ export const WorkerSchema = {
       .regex(phoneRegex, 'Invalid phone format.')
       .nullable()
       .optional(),
-    bio: z
-      .string()
-      .trim()
-      .max(500, 'Invalid bio format.')
-      .regex(safeTextRegex, 'Invalid bio format.')
-      .nullable()
-      .optional(),
+    bio: nameLikeText(500).nullable().optional(),
   }),
 
   changePassword: z.object({

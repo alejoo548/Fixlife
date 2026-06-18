@@ -37,6 +37,15 @@ import { enqueueBackgroundJob } from '../services/backgroundJobs.service';
 import { storePaypalWebhookEvent, verifyPaypalWebhookSignature } from '../services/paypalWebhook.service';
 import { isDatabaseSchemaReady } from '../services/schemaState.service';
 import { recordSystemEvent } from '../services/systemEvents.service';
+import { sanitizeMessage, sanitizeStrictText } from '../utils/sanitize';
+
+const assertRequestOwnership = async (idRequest: number, userId: number): Promise<boolean> => {
+  const [rows] = await pool.execute<RowDataPacket[]>(
+    `SELECT 1 FROM service_requests WHERE id_request = ? AND id_user = ? LIMIT 1`,
+    [idRequest, userId]
+  );
+  return rows.length > 0;
+};
 
 type ServiceCardRow = RowDataPacket & {
   id_card: number;
@@ -1623,7 +1632,8 @@ export const createServiceRequest = async (req: AuthRequest, res: Response): Pro
     const idService = Number(req.body?.id_service);
     const description = String(req.body?.description || '').trim();
     const locationText = String(req.body?.location || '').trim();
-    const budget = Number(req.body?.budget);
+    const budgetRaw = Number(req.body?.budget);
+    const budget = Number.isFinite(budgetRaw) && budgetRaw > 0 ? Math.min(budgetRaw, 1000) : 0;
     const latitudeRaw = req.body?.lat != null && req.body?.lat !== '' ? Number(req.body?.lat) : null;
     const longitudeRaw = req.body?.lng != null && req.body?.lng !== '' ? Number(req.body?.lng) : null;
     const radiusRaw = Number(req.body?.radius_km ?? 8);
@@ -1643,16 +1653,22 @@ export const createServiceRequest = async (req: AuthRequest, res: Response): Pro
       res.status(400).json({ error: 'id_service is required.' });
       return;
     }
-    if (!description || description.length < 10 || description.length > 1000) {
+    const cleanDescription = sanitizeMessage(description, 1000);
+    const cleanLocation = sanitizeStrictText(locationText, 255);
+    if (!cleanDescription || cleanDescription.length < 10) {
       removeUploadedFiles(files);
       res.status(400).json({ error: 'Description must be between 10 and 1000 characters.' });
       return;
     }
-    if (!locationText || locationText.length > 255) {
+    if (!cleanLocation) {
       removeUploadedFiles(files);
       res.status(400).json({ error: 'Location is required (max 255 chars).' });
       return;
     }
+
+    // Re-assign sanitized values for DB insert
+    const finalDescription = cleanDescription;
+    const finalLocationText = cleanLocation;
 
     const resolvedLocation = await resolveRequestLocation(locationText, latitudeRaw, longitudeRaw);
     if (!resolvedLocation) {
@@ -1670,6 +1686,7 @@ export const createServiceRequest = async (req: AuthRequest, res: Response): Pro
       res.status(400).json({ error: 'Budget must be between 0.01 and 1000.00.' });
       return;
     }
+    const initialBudget = budget; // force initial_budget = budget (no mass assignment)
     if (files.length === 0) {
       res.status(400).json({ error: 'At least one problem image is required.' });
       return;
@@ -1720,11 +1737,11 @@ export const createServiceRequest = async (req: AuthRequest, res: Response): Pro
       [
         idUser,
         idService,
-        description,
-        locationText,
+        finalDescription,
+        finalLocationText,
         latitude,
         longitude,
-        budget,
+        initialBudget,
         budget,
         radiusKm,
         urgencyLevel,
@@ -2279,6 +2296,15 @@ export const cancelServiceRequest = async (req: AuthRequest, res: Response): Pro
     );
 
     await connection.commit();
+
+    await recordSystemEvent({
+      level: 'info',
+      component: 'services',
+      eventType: 'request_cancelled',
+      message: 'Service request cancelled by client.',
+      metadata: { requestId: idRequest, userId },
+    }).catch(() => undefined);
+
     res.json({
       success: true,
       message: 'Request cancelled successfully.',
@@ -2467,6 +2493,13 @@ export const getRequestChat = async (req: AuthRequest, res: Response): Promise<v
 
     const participant = await resolveRequestParticipant(idRequest, userId);
     if (!participant) {
+      await recordSystemEvent({
+        level: 'warning',
+        component: 'services',
+        eventType: 'chat_access_denied',
+        message: 'Chat access denied (ownership failed).',
+        metadata: { requestId: idRequest, userId },
+      }).catch(() => undefined);
       res.status(403).json({ error: 'Access denied for this request chat.' });
       return;
     }
@@ -2519,7 +2552,7 @@ export const postRequestChatMessage = async (req: AuthRequest, res: Response): P
 
     const idRequest = Number(req.params.idRequest);
     const rawMessage = String(req.body?.message || '').trim();
-    const message = rawMessage || null;
+    const message = rawMessage ? sanitizeMessage(rawMessage) : null;
     if (!idRequest) {
       removeUploadedFiles(files);
       res.status(400).json({ error: 'Invalid request id.' });
@@ -2537,6 +2570,13 @@ export const postRequestChatMessage = async (req: AuthRequest, res: Response): P
 
     const participant = await resolveRequestParticipant(idRequest, userId);
     if (!participant) {
+      await recordSystemEvent({
+        level: 'warning',
+        component: 'services',
+        eventType: 'chat_access_denied',
+        message: 'Chat send access denied (ownership failed).',
+        metadata: { requestId: idRequest, userId },
+      }).catch(() => undefined);
       removeUploadedFiles(files);
       res.status(403).json({ error: 'Access denied for this request chat.' });
       return;
@@ -3173,6 +3213,14 @@ export const confirmRequestPayment = async (req: AuthRequest, res: Response): Pr
         },
       });
     }
+
+    await recordSystemEvent({
+      level: 'info',
+      component: 'services',
+      eventType: 'payment_confirmed',
+      message: 'Service request payment confirmed.',
+      metadata: { requestId: idRequest, userId, amount: expectedAmount },
+    }).catch(() => undefined);
 
     res.json({
       success: true,

@@ -39,10 +39,12 @@ const resolveRequestParticipant = async (idRequest: number, userId: number) => {
       sr.id_user AS client_user_id,
       sr.status AS request_status,
       sr.assigned_worker_profile,
-      wp.id_user AS worker_user_id
+      wp.id_user AS worker_user_id,
+      u.is_active AS client_active
     FROM service_requests sr
+    INNER JOIN users u ON u.id_user = sr.id_user
     LEFT JOIN worker_profiles wp ON wp.id_worker_profile = sr.assigned_worker_profile
-    WHERE sr.id_request = ?
+    WHERE sr.id_request = ? AND u.is_active = 1
     LIMIT 1`,
     [idRequest]
   );

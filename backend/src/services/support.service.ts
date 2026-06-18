@@ -1,6 +1,6 @@
 import { Pool, PoolConnection, ResultSetHeader, RowDataPacket } from 'mysql2/promise';
 import pool from '../config/db';
-import { hasUnsafeSupportText, sanitizeSupportText } from '../schemas/support.schema';
+import { sanitizeNameLike, sanitizeMessage } from '../utils/sanitize';
 
 let supportTablesChecked = false;
 
@@ -324,9 +324,7 @@ export function mapThreadDetailRow(row: SupportThreadRow & {
   assigned_admin_lastname?: string;
 }) {
   const rawSubject = row.subject || '';
-  const safeSubject = hasUnsafeSupportText(rawSubject)
-    ? '[Subject blocked for security]'
-    : sanitizeSupportText(rawSubject, 120, { singleLine: true });
+  const safeSubject = sanitizeNameLike(rawSubject, 120) || '[Subject blocked for security]';
   const adminName = `${row.assigned_admin_name || ''} ${row.assigned_admin_lastname || ''}`.trim();
 
   return {
@@ -347,9 +345,7 @@ export function mapThreadDetailRow(row: SupportThreadRow & {
 
 export function mapThreadRow(row: SupportThreadRow) {
   const rawSubject = row.subject || '';
-  const safeSubject = hasUnsafeSupportText(rawSubject)
-    ? '[Subject blocked for security]'
-    : sanitizeSupportText(rawSubject, 120, { singleLine: true });
+  const safeSubject = sanitizeNameLike(rawSubject, 120) || '[Subject blocked for security]';
 
   return {
     id: row.id,
@@ -367,9 +363,7 @@ export function mapThreadRow(row: SupportThreadRow) {
 
 export function mapMessageRow(row: SupportMessageRow) {
   const rawMessage = row.message || '';
-  const safeMessage = hasUnsafeSupportText(rawMessage)
-    ? '[Message blocked for security]'
-    : sanitizeSupportText(rawMessage, 2000);
+  const safeMessage = sanitizeMessage(rawMessage, 2000) || '[Message blocked for security]';
 
   return {
     id: row.id,

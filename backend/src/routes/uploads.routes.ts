@@ -6,6 +6,7 @@ import pool from '../config/db';
 import { getJwtSecret } from '../config/security';
 import { AuthRequest } from '../middlewares/auth.middleware';
 import { hasValidProtectedAssetSignature, resolveProtectedUploadPath } from '../utils/assets';
+import { recordSystemEvent } from '../services/systemEvents.service';
 
 const router = Router();
 
@@ -120,6 +121,14 @@ router.get('/protected/:fileName', async (req: AuthRequest, res: Response): Prom
     );
 
     if (!hasValidSignature) {
+      await recordSystemEvent({
+        level: 'warning',
+        component: 'uploads',
+        eventType: 'protected_asset_signature_failed',
+        message: 'Invalid signature on protected asset access attempt.',
+        metadata: { fileName, ip: req.ip },
+      }).catch(() => undefined);
+
       req.user = await readAuthUser(req);
       if (!req.user) {
         res.status(401).json({ error: 'Authentication required' });

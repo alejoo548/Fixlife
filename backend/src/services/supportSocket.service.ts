@@ -7,7 +7,7 @@ import {
   mapMessageRow,
   userCanAccessThread,
 } from './support.service';
-import { hasUnsafeSupportText, sanitizeSupportText } from '../schemas/support.schema';
+import { sanitizeMessage } from '../utils/sanitize';
 
 const SUPPORT_ADMIN_ROOM = 'support_admins';
 
@@ -106,14 +106,9 @@ export function initializeSupportSocket(ioServer: Server) {
         return;
       }
 
-      const message = data?.message;
-      const trimmed = sanitizeSupportText(message, 2000);
+      const message = sanitizeMessage(data?.message, 2000);
 
-      if (!trimmed) return;
-      if (String(message ?? '').length > 2000 || hasUnsafeSupportText(message)) {
-        socket.emit('support:error', { message: 'Message contains invalid content' });
-        return;
-      }
+      if (!message) return;
 
       if (isMessageRateLimited(socket.user.user_id)) {
         socket.emit('support:error', { message: 'You are sending messages too quickly. Please slow down.' });
@@ -131,7 +126,7 @@ export function initializeSupportSocket(ioServer: Server) {
           ? 'admin'
           : socket.user.rol === 'worker' ? 'worker' : 'client';
 
-        const messageId = await insertMessage(threadId, socket.user.user_id, senderRole, trimmed);
+        const messageId = await insertMessage(threadId, socket.user.user_id, senderRole, message);
         const messageRow = await getMessageById(messageId);
         if (!messageRow) {
           socket.emit('support:error', { message: 'Failed to send message' });

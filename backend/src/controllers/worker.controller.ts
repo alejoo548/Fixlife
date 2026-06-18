@@ -22,6 +22,7 @@ import { getWorkerPayouts } from '../services/paymentLedger.service';
 import {
   queueWorkerPayoutStatementEmail,
 } from '../services/workerPayoutStatement.service';
+import { sanitizeMessage, sanitizeStrictText } from '../utils/sanitize';
 
 const servicesController = require(path.join(__dirname, './services.controller'));
 const {
@@ -55,7 +56,6 @@ const allowedImageMimeTypes = new Set([
   'image/jpeg',
   'image/webp',
 ]);
-const safeTextRegex = /^[\p{L}\p{N}\s.,\-_'":;!?()]{0,500}$/u;
 
 const deletePublicUploadIfUnreferenced = async (fileName: string | null | undefined) => {
   if (!fileName) return;
@@ -78,16 +78,6 @@ const deletePublicUploadIfUnreferenced = async (fileName: string | null | undefi
 
 const cleanupUnreferencedWorkerUploads = async (files: Express.Multer.File[]) => {
   await Promise.all(files.map((file) => deletePublicUploadIfUnreferenced(file.filename)));
-};
-
-const sanitizeWorkerSafeText = (value: unknown, maxLen = 500): string | null => {
-  if (value == null) return null;
-  const trimmed = String(value).trim().slice(0, maxLen);
-  if (!trimmed) return null;
-  if (!safeTextRegex.test(trimmed)) {
-    throw new Error('Invalid text format.');
-  }
-  return trimmed;
 };
 
 let pendingEmailChecked = false;
@@ -1456,7 +1446,8 @@ export const acceptWorkerRequest = async (req: AuthRequest, res: Response): Prom
     }
 
     const request = requestRows[0];
-    if (!['open', 'pending'].includes(String(request.status)) || request.assigned_worker_profile != null) {
+    const reqStatus = String(request.status || "").toLowerCase();
+    if (!["pending", "assigned"].includes(reqStatus)) {
       await connection.rollback();
       res.status(409).json({ error: 'Request already taken by another worker.' });
       return;
@@ -1621,8 +1612,7 @@ export const counterOfferWorkerRequest = async (req: AuthRequest, res: Response)
 
     const idRequest = Number(req.params.idRequest);
     const proposedBudget = Number(req.body?.proposed_budget);
-    const counterMessageRaw = req.body?.counter_message != null ? String(req.body.counter_message) : '';
-    const counterMessage = counterMessageRaw.trim().slice(0, 255) || null;
+    const counterMessage = sanitizeMessage(req.body?.counter_message, 255) || null;
 
     if (!idRequest) {
       res.status(400).json({ error: 'Invalid request id.' });
@@ -1683,7 +1673,8 @@ export const counterOfferWorkerRequest = async (req: AuthRequest, res: Response)
     }
 
     const request = requestRows[0];
-    if (!['open', 'pending'].includes(String(request.status)) || request.assigned_worker_profile != null) {
+    const reqStatus = String(request.status || "").toLowerCase();
+    if (!["pending", "assigned"].includes(reqStatus)) {
       await connection.rollback();
       res.status(409).json({ error: 'Request already taken by another worker.' });
       return;
@@ -2400,15 +2391,7 @@ export const updateWorkerSettings = async (req: AuthRequest, res: Response): Pro
       changes.push('Phone number updated');
     }
 
-    let sanitizedBio: string | null | undefined = undefined;
-    if (bio != null) {
-      try {
-        sanitizedBio = sanitizeWorkerSafeText(bio, 500);
-      } catch {
-        res.status(400).json({ error: 'Invalid description format.' });
-        return;
-      }
-    }
+    const sanitizedBio = bio != null ? sanitizeStrictText(bio, 500) : undefined;
 
     if (bio != null) {
       await pool.execute(`UPDATE worker_profiles SET bio = ? WHERE id_worker_profile = ?`, [
@@ -2724,14 +2707,7 @@ export const uploadPortfolioImages = async (req: AuthRequest, res: Response): Pr
       return;
     }
 
-    let description: string | null = null;
-    try {
-      description = sanitizeWorkerSafeText(req.body?.description, 500);
-    } catch {
-      await cleanupUnreferencedWorkerUploads(files);
-      res.status(400).json({ error: 'Invalid portfolio description format.' });
-      return;
-    }
+    const description = sanitizeStrictText(req.body?.description, 500) || null;
     if (files.length > 0) {
       await pool.execute(
         `INSERT INTO worker_portfolio (id_worker_profile, image_url, description)
