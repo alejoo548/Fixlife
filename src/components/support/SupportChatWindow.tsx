@@ -46,7 +46,7 @@ export const SupportChatWindow: React.FC<SupportChatWindowProps> = ({
         </button>
         <div className="min-w-0 flex-1">
           <div className="font-bold text-gray-900">{thread.subject}</div>
-          <div className="text-xs text-gray-500">Soporte Fixlife • Respuesta en ~2h</div>
+          <div className="text-xs text-gray-500">Fixlife Support • Response in ~2h</div>
         </div>
       </div>
 
@@ -54,7 +54,7 @@ export const SupportChatWindow: React.FC<SupportChatWindowProps> = ({
       <div className="flex-1 space-y-4 overflow-y-auto px-4 py-4 custom-scrollbar">
         {messages.length === 0 && (
           <div className="py-8 text-center text-sm text-gray-500">
-            Este es el inicio de tu conversación con el equipo de soporte.
+            This is the start of your conversation with the support team.
           </div>
         )}
 

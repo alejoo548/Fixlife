@@ -80,7 +80,7 @@ export const WorkerCurrentJobAction = ({
     tone = 'bg-emerald-600 text-white hover:bg-emerald-700';
   } else if (normalized === 'in_progress' || normalized === 'finish_pending') {
     const approved = Boolean(approvals?.finish_work.worker);
-    const unlockAt = workStartedAt ? new Date(workStartedAt).getTime() + 10 * 60_000 : Number.POSITIVE_INFINITY;
+    const unlockAt = workStartedAt ? new Date(workStartedAt).getTime() + 1 * 60_000 : Number.POSITIVE_INFINITY;
     const remainingSeconds = Math.max(0, Math.ceil((unlockAt - now) / 1000));
     const unlocked = remainingSeconds === 0;
     label = approved ? 'Waiting for client approval' : unlocked ? 'Approve work finish' : `Finish unlocks in ${Math.floor(remainingSeconds / 60)}:${String(remainingSeconds % 60).padStart(2, '0')}`;

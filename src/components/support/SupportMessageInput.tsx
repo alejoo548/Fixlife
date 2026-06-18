@@ -98,7 +98,7 @@ export const SupportMessageInput: React.FC<SupportMessageInputProps> = ({
           value={message}
           onChange={(e) => setMessage(sanitizeSupportTextInput(e.target.value, 2000))}
           onKeyDown={handleKeyDown}
-          placeholder="Escribe tu mensaje..."
+          placeholder="Type your message..."
           maxLength={2000}
           className="flex-1 bg-transparent text-[15px] placeholder:text-gray-400 focus:outline-none"
           disabled={disabled}
@@ -117,8 +117,8 @@ export const SupportMessageInput: React.FC<SupportMessageInputProps> = ({
         {imageError
           ? imageError
           : hasUnsafeContent
-            ? 'No se permiten caracteres o patrones maliciosos.'
-            : 'Soporte disponible de 8am a 8pm'}
+            ? 'Malicious characters or patterns are not allowed.'
+            : 'Support available 8am to 8pm'}
       </div>
     </div>
   );

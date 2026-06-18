@@ -272,7 +272,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   const clientCompleteApproved = Boolean(primaryRequest?.approvals?.complete_service.client);
   const canApproveStart = ['arrived', 'start_pending'].includes(primaryStatus) && !clientStartApproved;
   const finishUnlockAt = primaryRequest?.work_started_at
-    ? new Date(primaryRequest.work_started_at).getTime() + 10 * 60_000
+    ? new Date(primaryRequest.work_started_at).getTime() + 1 * 60_000
     : Number.POSITIVE_INFINITY;
   const canApproveFinish = ['in_progress', 'finish_pending'].includes(primaryStatus) && !clientFinishApproved && Date.now() >= finishUnlockAt;
   const canApproveCompletion = ['paid', 'completion_pending'].includes(primaryStatus) && !clientCompleteApproved;
@@ -1406,7 +1406,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                         <p className="text-[10px] font-black uppercase tracking-[0.18em] text-violet-700">Finish work approval</p>
                         <h4 className="mt-2 text-xl font-black text-slate-950">Work in progress</h4>
                         <p className="mt-2 text-sm font-semibold leading-6 text-slate-600">
-                          {clientFinishApproved ? 'Your finish approval is saved. Waiting for worker.' : canApproveFinish ? 'Confirm technical work is finished. Payment unlocks after both approve.' : 'Finish approval unlocks 10 minutes after work starts.'}
+                          {clientFinishApproved ? 'Your finish approval is saved. Waiting for worker.' : canApproveFinish ? 'Confirm technical work is finished. Payment unlocks after both approve.' : 'Finish approval unlocks 1 minute after work starts.'}
                         </p>
                         {canApproveFinish && (
                           <button type="button" disabled={requestActionBusy} onClick={() => void approveWorkflowAction('finish_work')} className="mt-4 w-full rounded-xl bg-violet-600 px-5 py-3.5 text-sm font-black text-white disabled:opacity-50">

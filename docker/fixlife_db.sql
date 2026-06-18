@@ -46,10 +46,10 @@ CREATE TABLE `admin_activity_log` (
 
 INSERT INTO `admin_activity_log` (`id_activity`, `id_admin`, `action_type`, `entity_type`, `entity_id`, `summary`, `metadata`, `created_at`) VALUES
 (1, 19, 'upload', 'hero_slide', 15, 'Updated image for slide #15', NULL, '2026-03-27 20:06:50'),
-(2, 19, 'role_change', 'user', 24, 'Changed role for \"Rafael Hernandez\" to admin', '{\"from\":\"client\",\"to\":\"admin\"}', '2026-03-27 20:07:22'),
-(3, 19, 'role_change', 'user', 24, 'Changed role for \"Rafael Hernandez\" to client', '{\"from\":\"admin\",\"to\":\"client\"}', '2026-03-27 20:07:39'),
-(4, 19, 'status_change', 'user', 22, 'Deactivated \"Alejandro Medrano\"', '{\"is_active\":0}', '2026-04-10 21:36:17'),
-(5, 19, 'status_change', 'user', 22, 'Activated \"Alejandro Medrano\"', '{\"is_active\":1}', '2026-04-10 21:36:19');
+(2, 19, 'role_change', 'user', 24, 'Changed role for \"Test Client\" to admin', '{\"from\":\"client\",\"to\":\"admin\"}', '2026-03-27 20:07:22'),
+(3, 19, 'role_change', 'user', 24, 'Changed role for \"Test Client\" to client', '{\"from\":\"admin\",\"to\":\"client\"}', '2026-03-27 20:07:39'),
+(4, 19, 'status_change', 'user', 22, 'Deactivated \"Test Worker\"', '{\"is_active\":0}', '2026-04-10 21:36:17'),
+(5, 19, 'status_change', 'user', 22, 'Activated \"Test Worker\"', '{\"is_active\":1}', '2026-04-10 21:36:19');
 
 -- --------------------------------------------------------
 
@@ -319,9 +319,9 @@ CREATE TABLE `users` (
 --
 
 INSERT INTO `users` (`id_user`, `name`, `lastname`, `email`, `phone_number`, `password_hash`, `rol`, `profile_image`, `created_at`, `last_login`, `username`, `verification_token`, `token_expires_at`, `pending_email`, `is_active`, `pending_worker`) VALUES
-(19, 'Pablo', 'Escobar', 'paescobar831@gmail.com', '978465453', '$2b$12$pe9DAzHVYRO0aMcc9YyyAOvK713kyBTcWWgbn5kDgMP94NFP79u6O', 'root', NULL, '2026-03-12 05:12:56', '2026-04-15 18:32:27', 'pabloski', NULL, NULL, NULL, 1, 0),
-(22, 'Alejandro', 'Medrano', 'medranoalejandro418@gmail.com', '21548413', '$2b$12$UxQpv8jjQWDNeOUYJ1bFzeEZA57IoSF9vkTYvrHRVZe1D33QCTP4m', 'worker', NULL, '2026-03-13 17:43:53', '2026-04-10 21:28:30', NULL, NULL, NULL, NULL, 1, 0),
-(24, 'Rafael', 'Hernandez', 'rafamoihernandez@gmail.com', '978465453', '$2b$12$xYQm/SgjAlOTe9MEUQbTY.Lo8sqxMegsRoPdwddI2uMokHdlahWgi', 'client', NULL, '2026-03-27 13:39:56', '2026-04-10 21:45:37', 'rafita', NULL, NULL, NULL, 1, 0);
+(19, 'Test', 'Admin', 'test-admin@example.com', '0000000001', '$2b$12$XZ9qgfA/b7B/UP4toviGu.FMvWQo25jO58y8ozAegjy0s0nQVgizK', 'root', NULL, '2026-03-12 05:12:56', '2026-04-15 18:32:27', 'testadmin', NULL, NULL, NULL, 1, 0),
+(22, 'Test', 'Worker', 'test-worker@example.com', '0000000002', '$2b$12$XZ9qgfA/b7B/UP4toviGu.FMvWQo25jO58y8ozAegjy0s0nQVgizK', 'worker', NULL, '2026-03-13 17:43:53', '2026-04-10 21:28:30', NULL, NULL, NULL, NULL, 1, 0),
+(24, 'Test', 'Client', 'test-client@example.com', '0000000003', '$2b$12$XZ9qgfA/b7B/UP4toviGu.FMvWQo25jO58y8ozAegjy0s0nQVgizK', 'client', NULL, '2026-03-27 13:39:56', '2026-04-10 21:45:37', 'testclient', NULL, NULL, NULL, 1, 0);
 
 -- --------------------------------------------------------
 
