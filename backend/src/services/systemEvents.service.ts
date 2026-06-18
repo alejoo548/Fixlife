@@ -15,6 +15,12 @@ type SystemEventRow = RowDataPacket & {
 
 let systemEventsTableChecked = false;
 
+const clampLimit = (value: unknown, fallback: number, max: number) => {
+  const parsed = Math.floor(Number(value));
+  if (!Number.isFinite(parsed)) return fallback;
+  return Math.min(Math.max(parsed, 1), max);
+};
+
 export const ensureSystemEventsTable = async () => {
   if (systemEventsTableChecked) return;
 
@@ -79,7 +85,7 @@ export const getSystemEvents = async (input: {
     params.push(String(input.level).slice(0, 20));
   }
 
-  const safeLimit = Math.max(1, Math.min(Number(input.limit || 30), 100));
+  const safeLimit = clampLimit(input.limit, 30, 100);
   const [rows] = await pool.execute<SystemEventRow[]>(
     `SELECT id_event, level, component, event_type, message, metadata_json, created_at
      FROM system_events

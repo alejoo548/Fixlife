@@ -45,6 +45,20 @@ const OCR_SUPPORTED_FORMATS = new Set(['jpeg', 'png', 'webp']);
 const OCR_MAX_BYTES = Number(process.env.IMAGE_OCR_MAX_BYTES || 4 * 1024 * 1024);
 const OCR_TEXT_MAX_LENGTH = Number(process.env.IMAGE_OCR_TEXT_MAX_LENGTH || 4000);
 const OCR_LANGUAGES = String(process.env.IMAGE_OCR_LANGUAGES || 'eng+spa');
+const MB = 1024 * 1024;
+const uploadLimits = {
+  fileSize: 10 * MB,
+  files: 8,
+  fields: 30,
+  parts: 40,
+  fieldNameSize: 80,
+  fieldSize: 20 * 1024,
+};
+const imageUploadLimits = {
+  ...uploadLimits,
+  fileSize: 5 * MB,
+  files: 10,
+};
 
 const hasValidImageFormat = (file: Express.Multer.File): boolean => {
   const extension = path.extname(file.originalname).toLowerCase();
@@ -394,17 +408,17 @@ export const sanitizeImages = async (req: Request, res: Response, next: NextFunc
 export const upload = multer({
   storage: createStorage(protectedUploadsDir),
   fileFilter: docsAndImageFilter,
-  limits: { fileSize: 10 * 1024 * 1024 }
+  limits: uploadLimits
 });
 
 export const uploadImageOnly = multer({
   storage: createStorage(publicUploadsDir),
   fileFilter: imageOnlyFilter,
-  limits: { fileSize: 5 * 1024 * 1024 }
+  limits: imageUploadLimits
 });
 
 export const uploadProtectedImageOnly = multer({
   storage: createStorage(protectedUploadsDir),
   fileFilter: imageOnlyFilter,
-  limits: { fileSize: 5 * 1024 * 1024 }
+  limits: imageUploadLimits
 });

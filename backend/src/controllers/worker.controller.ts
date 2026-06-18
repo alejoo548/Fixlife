@@ -1917,7 +1917,13 @@ export const arriveWorkerRequest = async (req: AuthRequest, res: Response): Prom
       const latitude = Number(req.body?.latitude);
       const longitude = Number(req.body?.longitude);
       const accuracyM = Number(req.body?.accuracy_m);
-      const hasCoords = Number.isFinite(latitude) && Number.isFinite(longitude);
+      const hasCoords =
+        Number.isFinite(latitude) &&
+        latitude >= -90 &&
+        latitude <= 90 &&
+        Number.isFinite(longitude) &&
+        longitude >= -180 &&
+        longitude <= 180;
       if (hasCoords) {
         if (request.latitude != null && request.longitude != null) {
           const [distanceRows] = await connection.execute<RowDataPacket[]>(
@@ -1927,7 +1933,7 @@ export const arriveWorkerRequest = async (req: AuthRequest, res: Response): Prom
           const measuredDistance = Number(distanceRows[0]?.distance_m);
           distanceM = Number.isFinite(measuredDistance) ? Math.round(measuredDistance) : null;
         }
-        if (!Number.isFinite(accuracyM) || accuracyM > 100) {
+        if (!Number.isFinite(accuracyM) || accuracyM <= 0 || accuracyM > 100) {
           arrivalWarning = 'GPS accuracy was low. Client approval is still required before work starts.';
         } else if (distanceM != null && distanceM > 200) {
           arrivalWarning = `GPS reports ${distanceM} m from destination. Client approval is still required before work starts.`;

@@ -15,6 +15,7 @@ import {
   buildInvoiceNumber,
   capturePaypalOrder,
   createPaypalOrder,
+  getDefaultFrontendUrl,
   getRequestChargeAmount,
   parseRequestedPaymentMethod,
   sanitizePaymentValue,
@@ -778,17 +779,26 @@ export const getNearbyWorkers = async (req: Request, res: Response): Promise<voi
     const idService = Number(req.query.id_service);
     const lat = Number(req.query.lat);
     const lng = Number(req.query.lng);
-    const radiusKmRaw = Number(req.query.radius_km ?? 8);
-    const radiusKm = Number.isFinite(radiusKmRaw) && radiusKmRaw > 0 ? Math.min(radiusKmRaw, 50) : 8;
+    const hasRadius = req.query.radius_km != null && req.query.radius_km !== '';
+    const radiusKmRaw = hasRadius ? Number(req.query.radius_km) : 8;
 
-    if (!idService || Number.isNaN(idService)) {
+    if (!Number.isSafeInteger(idService) || idService <= 0) {
       res.status(400).json({ error: 'id_service is required.' });
       return;
     }
-    if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
-      res.status(400).json({ error: 'lat and lng are required.' });
+    if (!Number.isFinite(lat) || lat < -90 || lat > 90) {
+      res.status(400).json({ error: 'A valid latitude is required.' });
       return;
     }
+    if (!Number.isFinite(lng) || lng < -180 || lng > 180) {
+      res.status(400).json({ error: 'A valid longitude is required.' });
+      return;
+    }
+    if (!Number.isFinite(radiusKmRaw) || radiusKmRaw <= 0) {
+      res.status(400).json({ error: 'A positive search radius is required.' });
+      return;
+    }
+    const radiusKm = Math.min(radiusKmRaw, 50);
 
     const boundsFilter = getWorkerBoundsFilter(getProximityBounds(lat, lng, radiusKm));
 
@@ -880,8 +890,12 @@ export const reverseGeocode = async (req: Request, res: Response): Promise<void>
     const lat = Number(req.query.lat);
     const lng = Number(req.query.lng);
 
-    if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
-      res.status(400).json({ error: 'lat and lng are required.' });
+    if (!Number.isFinite(lat) || lat < -90 || lat > 90) {
+      res.status(400).json({ error: 'A valid latitude is required.' });
+      return;
+    }
+    if (!Number.isFinite(lng) || lng < -180 || lng > 180) {
+      res.status(400).json({ error: 'A valid longitude is required.' });
       return;
     }
 
@@ -2786,8 +2800,9 @@ export const createRequestPaymentCheckout = async (req: AuthRequest, res: Respon
     const { amount, platformFee, workerPayout } = commission;
     const commissionSnapshotJson = JSON.stringify(commission.snapshot);
     const checkoutReference = buildCheckoutReference(idRequest);
-    const defaultReturnUrl = `http://localhost:3000/checkout/${idRequest}?paypal=success`;
-    const defaultCancelUrl = `http://localhost:3000/checkout/${idRequest}?paypal=cancel`;
+    const frontendUrl = getDefaultFrontendUrl();
+    const defaultReturnUrl = `${frontendUrl}/checkout/${idRequest}?paypal=success`;
+    const defaultCancelUrl = `${frontendUrl}/checkout/${idRequest}?paypal=cancel`;
     const returnUrl = sanitizeRedirectUrl(returnUrlInput, defaultReturnUrl);
     const cancelUrl = sanitizeRedirectUrl(cancelUrlInput, defaultCancelUrl);
 

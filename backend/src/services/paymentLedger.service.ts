@@ -22,6 +22,11 @@ type LedgerEntryType =
 let paymentLedgerTablesChecked = false;
 
 const toSqlDate = (date: Date) => date.toISOString().slice(0, 10);
+const clampLimit = (value: unknown, fallback: number, max: number) => {
+  const parsed = Math.floor(Number(value));
+  if (!Number.isFinite(parsed)) return fallback;
+  return Math.min(Math.max(parsed, 1), max);
+};
 
 const insertLedgerEntry = async (
   executor: SqlExecutor,
@@ -497,7 +502,7 @@ export const getAllWorkerPayoutsForAdmin = async (status = 'all') => {
 
 export const getRecentPaymentLedger = async (limit = 40) => {
   await ensurePaymentLedgerTables();
-  const safeLimit = Math.max(1, Math.min(Number(limit || 40), 100));
+  const safeLimit = clampLimit(limit, 40, 100);
   const [rows] = await pool.execute<RowDataPacket[]>(
     `SELECT
        spl.id_ledger_entry,

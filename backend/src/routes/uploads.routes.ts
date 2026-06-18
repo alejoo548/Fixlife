@@ -1,9 +1,8 @@
 import { Router, Response } from 'express';
 import path from 'path';
 import { RowDataPacket } from 'mysql2';
-import jwt from 'jsonwebtoken';
 import pool from '../config/db';
-import { getJwtSecret } from '../config/security';
+import { verifyAccessToken } from '../config/security';
 import { AuthRequest } from '../middlewares/auth.middleware';
 import { hasValidProtectedAssetSignature, resolveProtectedUploadPath } from '../utils/assets';
 import { recordSystemEvent } from '../services/systemEvents.service';
@@ -82,7 +81,7 @@ const readAuthUser = async (req: AuthRequest): Promise<AuthRequest['user']> => {
   if (!token) return undefined;
 
   try {
-    const decoded = jwt.verify(token, getJwtSecret()) as AuthRequest['user'];
+    const decoded = verifyAccessToken(token);
     const userId = Number(decoded?.user_id || 0);
     if (!Number.isSafeInteger(userId) || userId <= 0) return undefined;
 
