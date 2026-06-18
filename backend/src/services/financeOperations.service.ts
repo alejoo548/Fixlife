@@ -30,6 +30,12 @@ type FinanceCaseRow = RowDataPacket & {
   location_text: string | null;
 };
 
+const clampLimit = (value: unknown, fallback: number, max: number) => {
+  const parsed = Math.floor(Number(value));
+  if (!Number.isFinite(parsed)) return fallback;
+  return Math.min(Math.max(parsed, 1), max);
+};
+
 let financeOperationsTablesChecked = false;
 
 const toSqlDateTime = (date: Date) => date.toISOString().slice(0, 19).replace('T', ' ');
@@ -229,7 +235,7 @@ export const getFinanceCases = async (input?: {
     params.push(String(input.caseType).toLowerCase());
   }
 
-  const safeLimit = Math.max(1, Math.min(Number(input?.limit || 40), 100));
+  const safeLimit = clampLimit(input?.limit, 40, 100);
   const [rows] = await pool.execute<FinanceCaseRow[]>(
     `SELECT
        fc.id_case,

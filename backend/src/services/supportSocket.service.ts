@@ -1,6 +1,7 @@
 import { Server, Namespace, Socket } from 'socket.io';
-import jwt from 'jsonwebtoken';
-import { getJwtSecret } from '../config/security';
+import { RowDataPacket } from 'mysql2';
+import pool from '../config/db';
+import { verifyAccessToken } from '../config/security';
 import {
   getMessageById,
   insertMessage,
@@ -46,18 +47,34 @@ export function initializeSupportSocket(ioServer: Server) {
 
   nsp = ioServer.of('/support');
 
-  nsp.use((socket: AuthenticatedSocket, next) => {
-    const token = socket.handshake.auth?.token || socket.handshake.query?.token;
+  nsp.use(async (socket: AuthenticatedSocket, next) => {
+    const token = socket.handshake.auth?.token;
 
     if (!token) {
       return next(new Error('Authentication token required'));
     }
 
     try {
-      const decoded = jwt.verify(token as string, getJwtSecret()) as { user_id: number; rol: string };
+      const decoded = verifyAccessToken(String(token));
+      const userId = Number(decoded?.user_id || 0);
+      if (!Number.isSafeInteger(userId) || userId <= 0) {
+        return next(new Error('Invalid or expired token'));
+      }
+
+      const [rows] = await pool.execute<RowDataPacket[]>(
+        `SELECT id_user, rol
+         FROM users
+         WHERE id_user = ? AND is_active = 1
+         LIMIT 1`,
+        [userId]
+      );
+      if (rows.length === 0) {
+        return next(new Error('Invalid or expired token'));
+      }
+
       socket.user = {
-        user_id: decoded.user_id,
-        rol: decoded.rol,
+        user_id: userId,
+        rol: String(rows[0].rol || ''),
       };
       next();
     } catch (err) {

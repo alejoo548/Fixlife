@@ -1,7 +1,6 @@
 import { Router, Request, Response } from 'express';
-import jwt from 'jsonwebtoken';
 import { registerClient, removeClient } from '../services/sseManager';
-import { getJwtSecret } from '../config/security';
+import { verifyAccessToken } from '../config/security';
 
 const router = Router();
 
@@ -15,7 +14,7 @@ router.get('/', (req: Request, res: Response): void => {
 
   let decoded: { user_id: number; rol: string };
   try {
-    decoded = jwt.verify(token, getJwtSecret()) as { user_id: number; rol: string };
+    decoded = verifyAccessToken(token);
   } catch {
     res.status(401).json({ error: 'Invalid token' });
     return;

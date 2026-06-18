@@ -94,8 +94,15 @@ export const ensureSupportTables = async (executor: Pool | PoolConnection = pool
 
 // ============== Queries ==============
 
+const clampLimit = (value: unknown, fallback: number, max: number) => {
+  const parsed = Math.floor(Number(value));
+  if (!Number.isFinite(parsed)) return fallback;
+  return Math.min(Math.max(parsed, 1), max);
+};
+
 export async function getThreadsForUser(userId: number, limit = 30): Promise<SupportThreadRow[]> {
   await ensureSupportTables();
+  const safeLimit = clampLimit(limit, 30, 100);
 
   const [rows] = await pool.execute<SupportThreadRow[]>(
     `
@@ -111,7 +118,7 @@ export async function getThreadsForUser(userId: number, limit = 30): Promise<Sup
     LEFT JOIN users u ON u.id_user = st.user_id
     WHERE st.user_id = ?
     ORDER BY st.last_message_at DESC, st.created_at DESC
-    LIMIT ${Number(limit)}
+    LIMIT ${safeLimit}
     `,
     [userId]
   );
@@ -121,6 +128,7 @@ export async function getThreadsForUser(userId: number, limit = 30): Promise<Sup
 
 export async function getAllThreadsForAdmin(limit = 50): Promise<SupportThreadRow[]> {
   await ensureSupportTables();
+  const safeLimit = clampLimit(limit, 50, 200);
 
   const [rows] = await pool.execute<SupportThreadRow[]>(
     `
@@ -138,7 +146,7 @@ export async function getAllThreadsForAdmin(limit = 50): Promise<SupportThreadRo
       CASE WHEN st.status = 'open' THEN 0 ELSE 1 END,
       st.last_message_at DESC,
       st.created_at DESC
-    LIMIT ${Number(limit)}
+    LIMIT ${safeLimit}
     `
   );
 
@@ -179,6 +187,7 @@ export async function getThreadById(threadId: number): Promise<SupportThreadRow 
 
 export async function getMessagesForThread(threadId: number, limit = 100): Promise<SupportMessageRow[]> {
   await ensureSupportTables();
+  const safeLimit = clampLimit(limit, 100, 500);
 
   const [rows] = await pool.execute<SupportMessageRow[]>(
     `
@@ -190,7 +199,7 @@ export async function getMessagesForThread(threadId: number, limit = 100): Promi
     LEFT JOIN users u ON u.id_user = sm.sender_user_id
     WHERE sm.thread_id = ?
     ORDER BY sm.created_at ASC
-    LIMIT ${Number(limit)}
+    LIMIT ${safeLimit}
     `,
     [threadId]
   );

@@ -1,8 +1,7 @@
-import jwt from 'jsonwebtoken';
 import { Server, Socket } from 'socket.io';
 import { RowDataPacket } from 'mysql2';
 import pool from '../config/db';
-import { getJwtSecret } from '../config/security';
+import { verifyAccessToken } from '../config/security';
 
 type SocketUser = {
   user_id: number;
@@ -86,7 +85,7 @@ export const initSocketServer = (ioInstance: Server) => {
     }
 
     try {
-      const decoded = jwt.verify(String(rawToken), getJwtSecret()) as SocketUser;
+      const decoded = verifyAccessToken(String(rawToken));
       const userId = Number(decoded?.user_id || 0);
       if (!Number.isSafeInteger(userId) || userId <= 0) {
         next(new Error('Unauthorized'));

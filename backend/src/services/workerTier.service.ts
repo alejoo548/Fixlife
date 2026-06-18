@@ -30,6 +30,12 @@ type WorkerTierHistoryRow = RowDataPacket & {
   created_at: string;
 };
 
+const clampLimit = (value: unknown, fallback: number, max: number) => {
+  const parsed = Math.floor(Number(value));
+  if (!Number.isFinite(parsed)) return fallback;
+  return Math.min(Math.max(parsed, 1), max);
+};
+
 let workerTierTablesChecked = false;
 
 const DEFAULT_TIER_BENEFITS: Record<WorkerTier, {
@@ -361,7 +367,7 @@ export const getWorkerTierHistory = async (input?: { limit?: number; idWorkerPro
     params.push(Number(input.idWorkerProfile));
   }
 
-  const safeLimit = Math.max(1, Math.min(Number(input?.limit || 40), 100));
+  const safeLimit = clampLimit(input?.limit, 40, 100);
   const [rows] = await pool.execute<WorkerTierHistoryRow[]>(
     `SELECT
        wth.id_history,

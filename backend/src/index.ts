@@ -39,30 +39,48 @@ const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS ?? '')
   .split(',')
   .map((origin) => origin.trim())
   .filter(Boolean);
+const DEVELOPMENT_ORIGINS = [
+  'http://localhost:3000',
+  'http://127.0.0.1:3000',
+  'http://localhost:5173',
+  'http://127.0.0.1:5173',
+];
 
 if (isProduction && ALLOWED_ORIGINS.length === 0) {
   throw new Error('ALLOWED_ORIGINS must contain at least one trusted frontend origin in production.');
 }
 
-const corsOptions =
-  isProduction
-    ? { origin: ALLOWED_ORIGINS, credentials: true }
-    : {};
+const trustedOrigins = isProduction
+  ? ALLOWED_ORIGINS
+  : [...new Set([...ALLOWED_ORIGINS, ...DEVELOPMENT_ORIGINS])];
+
+const corsOptions = {
+  origin: (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) => {
+    if (!origin) {
+      callback(null, true);
+      return;
+    }
+    callback(null, trustedOrigins.includes(origin));
+  },
+  credentials: true,
+};
 
 const app = express();
 const server = http.createServer(app);
 app.set('trust proxy', 1);
+app.disable('x-powered-by');
 const PORT = process.env.PORT || 8000;
 
 app.use(cors(corsOptions));
 app.use(
   helmet({
     crossOriginResourcePolicy: false,
+    referrerPolicy: { policy: 'no-referrer' },
   })
 );
 app.use(globalLimiter);
 app.use(express.json({ limit: '1mb' }));
-app.use(express.urlencoded({ extended: true, limit: '1mb' }));
+app.use(express.urlencoded({ extended: false, limit: '100kb', parameterLimit: 50 }));
 
 app.use(
   '/uploads/public',

@@ -1,7 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
-import jwt from 'jsonwebtoken';
 import { RowDataPacket } from 'mysql2';
-import { getJwtSecret } from '../config/security';
+import { verifyAccessToken } from '../config/security';
 import pool from '../config/db';
 
 export interface AuthRequest extends Request {
@@ -17,7 +16,7 @@ export const verifyToken = async (req: AuthRequest, res: Response, next: NextFun
   }
 
   try {
-    const decoded = jwt.verify(token, getJwtSecret()) as { user_id: number; rol: string; pending_worker?: number };
+    const decoded = verifyAccessToken(token);
     const userId = Number(decoded?.user_id || 0);
     if (!Number.isSafeInteger(userId) || userId <= 0) {
       res.status(401).json({ error: 'Unauthorized, invalid token' });
@@ -105,7 +104,7 @@ export const verifyTokenOptional = async (
   }
 
   try {
-    const decoded = jwt.verify(token, getJwtSecret()) as { user_id: number; rol: string; pending_worker?: number };
+    const decoded = verifyAccessToken(token);
     const userId = Number(decoded?.user_id || 0);
     if (!Number.isSafeInteger(userId) || userId <= 0) {
       res.status(401).json({ error: 'Unauthorized, invalid token' });

@@ -38,6 +38,11 @@ let backgroundWorkerTickInFlight = false;
 let scheduledMaintenanceLastRun = 0;
 
 const BACKGROUND_JOB_INTERVAL_MS = 8000;
+const clampLimit = (value: unknown, fallback: number, max: number) => {
+  const parsed = Math.floor(Number(value));
+  if (!Number.isFinite(parsed)) return fallback;
+  return Math.min(Math.max(parsed, 1), max);
+};
 const SCHEDULED_MAINTENANCE_INTERVAL_MS = Math.max(
   60_000,
   Number(process.env.SCHEDULED_MAINTENANCE_INTERVAL_MS || 5 * 60_000),
@@ -435,7 +440,7 @@ export const enqueueBackgroundJob = async (input: {
 }) => {
   await ensureBackgroundJobsTable();
 
-  const attemptsMax = Math.max(1, Math.min(Number(input.attemptsMax || 5), 10));
+  const attemptsMax = clampLimit(input.attemptsMax, 5, 10);
   const payloadJson = JSON.stringify(input.payload || {});
   const runAfter = input.runAfter
     ? input.runAfter.toISOString().slice(0, 19).replace("T", " ")
@@ -514,7 +519,7 @@ const runJobHandler = async (row: BackgroundJobRow) => {
 export const processPendingBackgroundJobs = async (limit = 5) => {
   await ensureBackgroundJobsTable();
 
-  const safeLimit = Math.max(1, Math.min(Number(limit || 5), 20));
+  const safeLimit = clampLimit(limit, 5, 20);
   const [rows] = await pool.execute<BackgroundJobRow[]>(
     `SELECT id_job, job_key, job_type, payload_json, status, attempts_made, attempts_max, run_after
     FROM background_jobs
@@ -632,7 +637,7 @@ export const stopBackgroundJobWorker = () => {
 
 export const getBackgroundJobsAdmin = async (limit = 30) => {
   await ensureBackgroundJobsTable();
-  const safeLimit = Math.max(1, Math.min(Number(limit || 30), 100));
+  const safeLimit = clampLimit(limit, 30, 100);
   const [rows] = await pool.execute<RowDataPacket[]>(
     `SELECT
       id_job,

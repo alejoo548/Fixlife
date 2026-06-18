@@ -1,6 +1,5 @@
 import { Request, Response } from 'express';
 import bcrypt from 'bcrypt';
-import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
 import pool from '../config/db';
 import { ResultSetHeader, RowDataPacket } from 'mysql2';
@@ -8,7 +7,7 @@ import { sendVerificationEmail, sendPasswordResetEmail } from '../utils/email';
 import { ensureUsersActiveColumn, ensureUsersPendingWorkerColumn, ensureUsersPhoneNumberNullable, ensureUsersLoginSecurityColumns } from '../utils/users';
 import { AuthRequest } from '../middlewares/auth.middleware';
 import { OAuth2Client } from 'google-auth-library';
-import { getJwtSecret } from '../config/security';
+import { signAccessToken } from '../config/security';
 import { deleteUploadIfExists } from '../utils/assets';
 import { recordSystemEvent } from '../services/systemEvents.service';
 
@@ -367,11 +366,11 @@ export const verifyWorkerEmail = async (req: Request, res: Response): Promise<vo
       
       const worker = workerProfiles[0];
 
-      const token = jwt.sign(
-        { user_id: user.id_user, rol: user.rol, pending_worker: user.pending_worker ? 1 : 0 },
-        getJwtSecret(),
-        { expiresIn: '7d' }
-      );
+      const token = signAccessToken({
+        user_id: user.id_user,
+        rol: user.rol,
+        pending_worker: user.pending_worker ? 1 : 0,
+      });
 
       res.status(200).json({
         success: true,
@@ -490,11 +489,7 @@ export const registerUser = async (req: Request, res: Response): Promise<void> =
 
       await connection.commit();
 
-      const token = jwt.sign(
-        { user_id: userId, rol: 'client', pending_worker: 0 },
-        getJwtSecret(),
-        { expiresIn: '7d' }
-      );
+      const token = signAccessToken({ user_id: userId, rol: 'client', pending_worker: 0 });
 
       res.status(201).json({
         success: true,
@@ -639,11 +634,11 @@ export const login = async (req: Request, res: Response): Promise<void> => {
       }
     }
 
-    const token = jwt.sign(
-      { user_id: user.id_user, rol: user.rol, pending_worker: user.pending_worker ? 1 : 0 },
-      getJwtSecret(),
-      { expiresIn: '7d' }
-    );
+    const token = signAccessToken({
+      user_id: user.id_user,
+      rol: user.rol,
+      pending_worker: user.pending_worker ? 1 : 0,
+    });
 
     res.json({
       success: true,
@@ -798,11 +793,11 @@ export const googleLogin = async (req: Request, res: Response): Promise<void> =>
 
       await connection.commit();
 
-      const token = jwt.sign(
-        { user_id: userId, rol: userRole, pending_worker: pendingWorker },
-        getJwtSecret(),
-        { expiresIn: '7d' }
-      );
+      const token = signAccessToken({
+        user_id: userId,
+        rol: userRole,
+        pending_worker: pendingWorker,
+      });
 
       res.json({
         success: true,
