@@ -110,17 +110,17 @@ const formatScheduledWindow = (request: MyServiceRequest | null) => {
     const end = request.scheduled_end_time ? new Date(request.scheduled_end_time) : null;
     if (Number.isNaN(start.getTime())) return '';
 
-    const dateLabel = start.toLocaleDateString(undefined, {
+    const dateLabel = start.toLocaleDateString('en-US', {
         weekday: 'short',
         month: 'short',
         day: 'numeric',
     });
-    const startLabel = start.toLocaleTimeString(undefined, {
+    const startLabel = start.toLocaleTimeString('en-US', {
         hour: 'numeric',
         minute: '2-digit',
     });
     const endLabel = end && !Number.isNaN(end.getTime())
-        ? end.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })
+        ? end.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
         : '';
 
     return endLabel ? `${dateLabel}, ${startLabel} - ${endLabel}` : `${dateLabel}, ${startLabel}`;

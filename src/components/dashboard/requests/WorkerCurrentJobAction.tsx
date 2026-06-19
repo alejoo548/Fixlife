@@ -58,7 +58,7 @@ export const WorkerCurrentJobAction = ({
     const scheduledDate = scheduledStartTime ? new Date(scheduledStartTime) : null;
     const tooEarly = !canTravel && scheduledDate && !Number.isNaN(scheduledDate.getTime());
     hint = tooEarly
-      ? `Navigation unlocks 2 h before the visit · ${scheduledDate.toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' })} ${scheduledDate.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}`
+      ? `Navigation unlocks 2 h before the visit · ${scheduledDate.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })} ${scheduledDate.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}`
       : clientApproved ? 'Start navigation and share your live position.' : 'Client must approve worker selection first.';
     action = clientApproved ? onTravel : undefined;
     disabled = !clientApproved || !canTravel || !routeReady;

@@ -25,7 +25,7 @@ const formatDateTime = (value: string | null) => {
   if (!value) return 'Not scheduled';
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return 'Not scheduled';
-  return date.toLocaleString([], {
+  return date.toLocaleString('en-US', {
     weekday: 'short',
     month: 'short',
     day: 'numeric',
@@ -38,7 +38,7 @@ const formatTime = (value: string | null) => {
   if (!value) return '';
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return '';
-  return date.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+  return date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
 };
 
 const statusLabel = (status: string) => {

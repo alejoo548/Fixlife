@@ -236,15 +236,17 @@ export const RequestsView: React.FC<RequestsViewProps> = ({
           : null
       );
 
+      let freshCount = 0;
       if (statusFilter === 'new') {
         const ids = new Set(next.map((request) => request.id_request));
         if (!firstLoadRef.current) {
-          const fresh = [...ids].filter((id) => !knownNewIdsRef.current.has(id)).length;
-          if (fresh > 0) notify.success(`${fresh} new request(s) nearby.`);
+          freshCount = [...ids].filter((id) => !knownNewIdsRef.current.has(id)).length;
+          if (freshCount > 0) notify.success(`${freshCount} new request(s) nearby.`);
         }
         knownNewIdsRef.current = ids;
         firstLoadRef.current = false;
       }
+      if (!silent && freshCount === 0) notify.success('Requests updated.');
     } catch {
       if (!silent) notify.error('Network error loading requests.');
     } finally {
@@ -593,7 +595,7 @@ export const RequestsView: React.FC<RequestsViewProps> = ({
               onClick={() => void fetchRequests()}
               disabled={loading || !isWorkerActive}
               title="Refresh requests"
-              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 shadow-sm transition hover:border-sky-200 hover:text-bird-blue disabled:opacity-40"
+              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 shadow-sm transition hover:border-sky-200 hover:text-bird-blue active:scale-90 active:bg-sky-50 disabled:opacity-40"
             >
               <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
             </button>

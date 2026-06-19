@@ -33,12 +33,14 @@ export const sanitizeNameLike = (value: unknown, maxLen = 120): string => {
 
 /**
  * For long descriptions / messages (chat, support, service description).
- * Allows more characters but still blocks dangerous ones.
+ * Allow-list: letters, numbers, whitespace/newlines and the punctuation
+ * actually needed to write a sentence. Blocks emoji, symbol spam and
+ * other junk while keeping normal spelling (accents, commas, periods, etc).
  */
 export const sanitizeMessage = (value: unknown, maxLen = 4000): string => {
   if (typeof value !== 'string') return '';
   return value
-    .replace(/[\u0000-\u001F\u007F\u200B-\u200D\uFEFF`\\]/g, '')
+    .replace(/[^\p{L}\p{N}\s.,;:!?'"()/_\-@#&%\n]/gu, '')
     .trim()
     .slice(0, maxLen);
 };

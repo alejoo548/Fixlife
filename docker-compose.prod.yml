@@ -11,10 +11,21 @@ services:
         VITE_TOMTOM_TRAFFIC_KEY: ${VITE_TOMTOM_TRAFFIC_KEY:-}
     container_name: fixlife_frontend_prod
     restart: unless-stopped
+    mem_limit: 128m
+    cpus: 0.5
+    labels:
+      - "autoheal=true"
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:80"]
+      timeout: 10s
+      retries: 5
+      interval: 15s
+      start_period: 15s
     ports:
       - "80:80"
     depends_on:
-      - backend
+      backend:
+        condition: service_healthy
     networks:
       - fixlife-network
 
@@ -22,8 +33,19 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile
+      target: prod
     container_name: fixlife_backend_prod
     restart: unless-stopped
+    mem_limit: 384m
+    cpus: 1.5
+    labels:
+      - "autoheal=true"
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:8000/api/health').then((res) => process.exit(res.ok ? 0 : 1)).catch(() => process.exit(1))"]
+      timeout: 10s
+      retries: 12
+      interval: 5s
+      start_period: 20s
     environment:
       - DB_HOST=mysql
       - DB_PORT=3306
@@ -57,6 +79,11 @@ services:
     image: mysql:8.0
     container_name: fixlife_mysql_prod
     restart: unless-stopped
+    mem_limit: 512m
+    cpus: 1.5
+    labels:
+      - "autoheal=true"
+    command: --innodb-buffer-pool-size=128M --performance-schema=OFF
     environment:
       - MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD}
       - MYSQL_DATABASE=${MYSQL_DATABASE:-fixlife_db}
@@ -69,6 +96,21 @@ services:
       interval: 10s
     networks:
       - fixlife-network
+
+  # Watches containers labeled autoheal=true and restarts any that Docker
+  # marks "unhealthy" (alive but broken) — restart policy alone only
+  # covers a crashed/exited container, not a stuck-but-running one.
+  autoheal:
+    image: willfarrell/autoheal:latest
+    container_name: fixlife_autoheal_prod
+    restart: unless-stopped
+    mem_limit: 32m
+    environment:
+      - AUTOHEAL_CONTAINER_LABEL=autoheal
+      - AUTOHEAL_INTERVAL=10
+      - AUTOHEAL_START_PERIOD=30
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
 
 networks:
   fixlife-network:

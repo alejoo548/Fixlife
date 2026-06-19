@@ -35,7 +35,7 @@ const getPaypalAccessToken = async () => {
   }
 
   const auth = Buffer.from(`${clientId}:${clientSecret}`).toString('base64');
-  const response = await fetch(`${getPaypalBaseUrl()}/v1/oauth2/token`, {
+  const response = await fetchPaypalWithTimeout(`${getPaypalBaseUrl()}/v1/oauth2/token`, {
     method: 'POST',
     headers: {
       Authorization: `Basic ${auth}`,
@@ -43,11 +43,31 @@ const getPaypalAccessToken = async () => {
     },
     body: 'grant_type=client_credentials',
   });
-  const payload = await response.json();
+  const payload = await parsePaypalResponse(response);
   if (!response.ok || !payload?.access_token) {
     throw new Error(String(payload?.error_description || payload?.error || 'Could not get PayPal access token.'));
   }
   return String(payload.access_token);
+};
+
+const PAYPAL_REQUEST_TIMEOUT_MS = 15000;
+
+const fetchPaypalWithTimeout = async (url: string, init: RequestInit): Promise<Response> => {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), PAYPAL_REQUEST_TIMEOUT_MS);
+  try {
+    return await fetch(url, { ...init, signal: controller.signal });
+  } finally {
+    clearTimeout(timeout);
+  }
+};
+
+const parsePaypalResponse = async (response: Response) => {
+  try {
+    return await response.json();
+  } catch {
+    return null;
+  }
 };
 
 export const ensurePaypalWebhookTables = async () => {
@@ -97,7 +117,7 @@ export const verifyPaypalWebhookSignature = async (input: {
     webhook_event: input.payload,
   };
 
-  const response = await fetch(`${getPaypalBaseUrl()}/v1/notifications/verify-webhook-signature`, {
+  const response = await fetchPaypalWithTimeout(`${getPaypalBaseUrl()}/v1/notifications/verify-webhook-signature`, {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${accessToken}`,
@@ -105,9 +125,9 @@ export const verifyPaypalWebhookSignature = async (input: {
     },
     body: JSON.stringify(body),
   });
-  const payload = await response.json();
+  const payload = await parsePaypalResponse(response);
 
-  if (!response.ok) {
+  if (!response.ok || !payload) {
     throw new Error(String(payload?.message || payload?.name || 'PayPal webhook verification failed.'));
   }
 

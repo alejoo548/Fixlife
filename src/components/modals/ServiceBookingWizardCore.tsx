@@ -137,14 +137,14 @@ const formatScheduledServiceWindow = (
     const end = request.scheduled_end_time ? new Date(request.scheduled_end_time) : null;
     if (Number.isNaN(start.getTime())) return 'Time pending';
 
-    const dateLabel = start.toLocaleDateString([], {
+    const dateLabel = start.toLocaleDateString('en-US', {
         weekday: 'short',
         month: 'short',
         day: 'numeric',
     });
-    const startLabel = start.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+    const startLabel = start.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
     const endLabel = end && !Number.isNaN(end.getTime())
-        ? end.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
+        ? end.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
         : null;
 
     return endLabel ? `${dateLabel} · ${startLabel} - ${endLabel}` : `${dateLabel} · ${startLabel}`;
@@ -191,7 +191,7 @@ const formatRequestVisit = (data: ServiceRequestData) => {
     if (data.booking_type === 'express') return 'As soon as possible';
     const start = new Date(`${data.scheduled_date}T${data.scheduled_time}:00`);
     if (Number.isNaN(start.getTime())) return 'Schedule needs review';
-    return start.toLocaleString([], {
+    return start.toLocaleString('en-US', {
         weekday: 'short',
         month: 'short',
         day: 'numeric',
@@ -3751,7 +3751,7 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                                         <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-2 text-xs font-semibold text-slate-500 mb-4">
                                                             <div className="flex items-center gap-1.5">
                                                                 <svg className="w-4 h-4 text-slate-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                                                                <span>{new Date(request.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                                                                <span>{new Date(request.created_at).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}</span>
                                                             </div>
                                                             {request.payment?.checkout_reference && (
                                                                 <div className="flex items-center gap-1.5 min-w-0">
@@ -4052,7 +4052,7 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
 
                                                             {openChatRequestId === request.id_request && (
                                                                 <div className="mt-4 space-y-3">
-                                                                    <div className="max-h-60 overflow-y-auto rounded-xl border border-slate-200 bg-white p-4 space-y-4 flex flex-col">
+                                                                    <div className="max-h-96 min-h-[180px] overflow-y-auto rounded-xl border border-slate-200 bg-white p-4 space-y-4 flex flex-col">
                                                                         {(chatByRequest[request.id_request] || []).length === 0 ? (
                                                                             <p className="text-sm text-slate-500 font-medium text-center py-6">No messages yet. Say hi!</p>
                                                                         ) : (
@@ -4076,7 +4076,7 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                                                                                 </a>
                                                                                             )}
                                                                                             <p className={`text-[10px] text-right mt-1.5 ${isMe ? 'text-slate-400' : 'text-slate-400'}`}>
-                                                                                                {new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                                                                                {new Date(msg.created_at).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
                                                                                             </p>
                                                                                         </motion.div>
                                                                                     );

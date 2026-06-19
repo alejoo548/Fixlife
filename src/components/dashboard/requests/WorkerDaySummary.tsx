@@ -11,7 +11,7 @@ export const WorkerDaySummary = ({
 }) => {
   const summary = workspace?.summary;
   const nextStart = summary?.next_job?.scheduled_start_time
-    ? new Date(summary.next_job.scheduled_start_time).toLocaleTimeString([], {
+    ? new Date(summary.next_job.scheduled_start_time).toLocaleTimeString('en-US', {
         hour: 'numeric',
         minute: '2-digit',
       })
