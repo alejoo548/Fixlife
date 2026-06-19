@@ -1,4 +1,5 @@
 import React from 'react';
+import { recoverFromChunkError } from '../../utils/chunkRecovery';
 
 interface AppErrorBoundaryState {
   error: Error | null;
@@ -13,6 +14,7 @@ export class AppErrorBoundary extends React.Component<React.PropsWithChildren, A
 
   componentDidCatch(error: Error, info: React.ErrorInfo) {
     console.error('Fixlife render error:', error, info);
+    recoverFromChunkError(error);
   }
 
   render() {

@@ -75,7 +75,7 @@ export const SupportThreadList: React.FC<SupportThreadListProps> = ({
                 <Clock size={13} />
                 <span>
                   {isRecent
-                    ? lastDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+                    ? lastDate.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
                     : lastDate.toLocaleDateString()}
                 </span>
                 <span className="text-gray-300">•</span>

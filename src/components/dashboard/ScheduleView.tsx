@@ -44,7 +44,7 @@ const statusLabel = (status: string) => {
 };
 
 const formatHour = (hour: number) =>
-  new Date(2026, 0, 1, hour).toLocaleTimeString([], {
+  new Date(2026, 0, 1, hour).toLocaleTimeString('en-US', {
     hour: 'numeric',
     minute: '2-digit',
   });
@@ -112,15 +112,15 @@ export const ScheduleView: React.FC = () => {
 
   const rangeLabel =
     mode === 'day'
-      ? anchor.toLocaleDateString([], {
+      ? anchor.toLocaleDateString('en-US', {
           weekday: 'long',
           month: 'long',
           day: 'numeric',
         })
-      : `${weekDays[0].toLocaleDateString([], {
+      : `${weekDays[0].toLocaleDateString('en-US', {
           month: 'short',
           day: 'numeric',
-        })} - ${weekDays[6].toLocaleDateString([], {
+        })} - ${weekDays[6].toLocaleDateString('en-US', {
           month: 'short',
           day: 'numeric',
         })}`;
@@ -264,7 +264,7 @@ const TimelineCalendar = ({
           return (
             <div key={key} className="border-r border-slate-200 px-3 py-3 text-center last:border-r-0">
               <p className="text-[10px] font-black uppercase text-slate-400">
-                {day.toLocaleDateString([], { weekday: mode === 'day' ? 'long' : 'short' })}
+                {day.toLocaleDateString('en-US', { weekday: mode === 'day' ? 'long' : 'short' })}
               </p>
               <div className="mt-1 flex items-center justify-center gap-2">
                 <span
@@ -392,9 +392,9 @@ const TimelineJob = ({
             <p className="truncate text-[11px] font-black">{job.service_name}</p>
             <p className="mt-0.5 flex items-center gap-1 text-[9px] font-bold text-slate-500">
               <Clock3 className="h-3 w-3 shrink-0" />
-              {start.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}
+              {start.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
               {' - '}
-              {end.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}
+              {end.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
             </p>
           </div>
           {!compact && (

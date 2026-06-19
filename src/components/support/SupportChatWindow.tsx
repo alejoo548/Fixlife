@@ -82,7 +82,7 @@ export const SupportChatWindow: React.FC<SupportChatWindowProps> = ({
                 )}
                 {safeMessage && <div>{safeMessage}</div>}
                 <div className={`mt-2 text-right text-[9.5px] ${isMine ? 'text-white/50' : 'text-gray-400'}`}>
-                  {new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                  {new Date(msg.createdAt).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
                 </div>
               </div>
             </div>

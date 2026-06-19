@@ -219,7 +219,7 @@ export const WorkerRequestChatPanel: React.FC<WorkerRequestChatPanelProps> = ({
                                 mine ? 'text-white/65' : 'text-slate-400'
                               }`}
                             >
-                              {new Date(message.created_at).toLocaleTimeString([], {
+                              {new Date(message.created_at).toLocaleTimeString('en-US', {
                                 hour: 'numeric',
                                 minute: '2-digit',
                               })}
@@ -344,7 +344,7 @@ const ChatDate = ({ date }: { date: string }) => {
       ? 'Today'
       : value.toDateString() === yesterday.toDateString()
         ? 'Yesterday'
-        : value.toLocaleDateString([], { month: 'short', day: 'numeric' });
+        : value.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 
   return (
     <div className="flex items-center gap-3 py-1">

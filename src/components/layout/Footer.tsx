@@ -24,6 +24,11 @@ export const Footer: React.FC<FooterProps> = ({
     { label: 'FAQ', target: 'faq' },
   ];
 
+  const companyLinks = [
+    { label: 'Reviews', target: 'testimonials' },
+    { label: 'Become a Pro', onClick: onOpenPro },
+  ];
+
   return (
     <footer className="relative bg-gradient-to-b from-transparent via-orange-50/30 to-gray-50 pt-16 pb-10 border-t border-gray-200">
       <div className="absolute inset-0 overflow-hidden pointer-events-none z-0">
@@ -34,7 +39,7 @@ export const Footer: React.FC<FooterProps> = ({
 
       <div className="max-w-[1400px] mx-auto px-4 md:px-8 relative z-10">
         <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-12 gap-8 lg:gap-8 mb-16 text-gray-900">
-          <div className="col-span-2 lg:col-span-4 flex flex-col items-start gap-6 mb-8 lg:mb-0">
+          <div className="col-span-2 lg:col-span-6 flex flex-col items-start gap-6 mb-8 lg:mb-0">
             <button
               type="button"
               onClick={onGoHome}
@@ -79,7 +84,7 @@ export const Footer: React.FC<FooterProps> = ({
             </div>
           </div>
 
-          <div className="col-span-1 lg:col-span-2">
+          <div className="col-span-1 lg:col-span-3">
             <h4 className="text-gray-900 font-bold text-base mb-5 flex items-center gap-2">
               <div className="w-1 h-5 bg-bird-blue rounded-full" />
               Platform
@@ -102,62 +107,27 @@ export const Footer: React.FC<FooterProps> = ({
             </ul>
           </div>
 
-          <div className="col-span-1 lg:col-span-2">
+          <div className="col-span-1 lg:col-span-3">
             <h4 className="text-gray-900 font-bold text-base mb-5 flex items-center gap-2">
               <div className="w-1 h-5 bg-bird-yellow rounded-full" />
               Company
             </h4>
             <ul className="flex flex-col gap-3">
-              {['About Us', 'Careers', 'Blog', 'Press', 'Partners'].map((item) => (
-                <li key={item}>
+              {companyLinks.map((item) => (
+                <li key={item.label}>
                   <button
                     type="button"
-                    onClick={onGoHome}
+                    onClick={() => (item.onClick ? item.onClick() : onNavigateSection?.(item.target as string))}
                     className="text-gray-600 hover:text-bird-blue hover:translate-x-1 transition-all text-sm font-medium inline-flex items-center gap-2 group"
                   >
                     <svg className="w-4 h-4 opacity-0 group-hover:opacity-100 transition-opacity" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                     </svg>
-                    {item}
+                    {item.label}
                   </button>
                 </li>
               ))}
             </ul>
-          </div>
-
-          <div className="col-span-2 lg:col-span-4 mt-8 lg:mt-0">
-            <h4 className="text-gray-900 font-bold text-base mb-5 flex items-center gap-2">
-              <div className="w-1 h-5 bg-bird-orange rounded-full" />
-              Stay updated
-            </h4>
-            <div className="p-6 rounded-2xl bg-gradient-to-br from-white to-gray-50 border border-gray-200 backdrop-blur-sm shadow-lg hover:shadow-xl transition-shadow">
-              <div className="flex items-start gap-3 mb-4">
-                <div className="w-10 h-10 rounded-xl bg-bird-blue/10 flex items-center justify-center shrink-0">
-                  <svg className="w-5 h-5 text-bird-blue" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-                  </svg>
-                </div>
-                <div>
-                  <p className="text-gray-900 font-semibold text-sm mb-1">Get exclusive offers</p>
-                  <p className="text-gray-600 text-xs">Maintenance tips and special deals.</p>
-                </div>
-              </div>
-              <form className="flex flex-col gap-3" onSubmit={(event) => event.preventDefault()}>
-                <div className="relative">
-                  <input
-                    type="email"
-                    placeholder="Your email address"
-                    className="w-full bg-white border-2 border-gray-200 rounded-xl px-4 py-3 text-gray-900 text-sm focus:outline-none focus:border-bird-blue focus:ring-2 focus:ring-bird-blue/20 transition-all"
-                  />
-                </div>
-                <button
-                  type="submit"
-                  className="w-full py-3 rounded-xl bg-gradient-to-r from-bird-yellow to-bird-orange text-gray-900 font-bold text-sm hover:shadow-lg hover:shadow-bird-yellow/30 hover:-translate-y-0.5 transition-all"
-                >
-                  Subscribe Now
-                </button>
-              </form>
-            </div>
           </div>
         </div>
 
@@ -186,14 +156,15 @@ export const Footer: React.FC<FooterProps> = ({
               </span>
             </button>
             <span className="text-gray-300 hidden md:inline">|</span>
-            <button type="button" onClick={onGoHome} className="hover:text-bird-blue transition-colors font-medium">
-              Privacy Policy
+            <button
+              type="button"
+              onClick={() => onNavigateSection?.('faq')}
+              className="hover:text-bird-blue transition-colors font-medium"
+            >
+              Help Center
             </button>
-            <button type="button" onClick={onGoHome} className="hover:text-bird-blue transition-colors font-medium">
-              Terms of Service
-            </button>
-            <button type="button" onClick={onGoHome} className="hover:text-bird-blue transition-colors font-medium">
-              Sitemap
+            <button type="button" onClick={onBookService} className="hover:text-bird-blue transition-colors font-medium">
+              Book a Service
             </button>
           </div>
         </div>

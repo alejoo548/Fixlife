@@ -47,6 +47,8 @@ export default defineConfig(() => {
     },
     build: {
       target: 'es2020',
+      minify: 'esbuild',
+      sourcemap: false,
       cssMinify: true,
       reportCompressedSize: false,
       chunkSizeWarningLimit: 600,

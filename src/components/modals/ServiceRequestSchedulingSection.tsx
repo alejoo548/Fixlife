@@ -98,7 +98,7 @@ const sameMonth = (left: Date, right: Date) =>
     left.getFullYear() === right.getFullYear() && left.getMonth() === right.getMonth();
 
 const monthLabel = (date: Date) =>
-    date.toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
+    date.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
 
 const buildCalendarDays = (visibleMonth: Date, minDate: string, maxDate: string) => {
     const firstOfMonth = new Date(visibleMonth.getFullYear(), visibleMonth.getMonth(), 1);

@@ -318,10 +318,7 @@ CREATE TABLE `users` (
 -- Volcado de datos para la tabla `users`
 --
 
-INSERT INTO `users` (`id_user`, `name`, `lastname`, `email`, `phone_number`, `password_hash`, `rol`, `profile_image`, `created_at`, `last_login`, `username`, `verification_token`, `token_expires_at`, `pending_email`, `is_active`, `pending_worker`) VALUES
-(19, 'Test', 'Admin', 'test-admin@example.com', '0000000001', '$2b$12$XZ9qgfA/b7B/UP4toviGu.FMvWQo25jO58y8ozAegjy0s0nQVgizK', 'root', NULL, '2026-03-12 05:12:56', '2026-04-15 18:32:27', 'testadmin', NULL, NULL, NULL, 1, 0),
-(22, 'Test', 'Worker', 'test-worker@example.com', '0000000002', '$2b$12$XZ9qgfA/b7B/UP4toviGu.FMvWQo25jO58y8ozAegjy0s0nQVgizK', 'worker', NULL, '2026-03-13 17:43:53', '2026-04-10 21:28:30', NULL, NULL, NULL, NULL, 1, 0),
-(24, 'Test', 'Client', 'test-client@example.com', '0000000003', '$2b$12$XZ9qgfA/b7B/UP4toviGu.FMvWQo25jO58y8ozAegjy0s0nQVgizK', 'client', NULL, '2026-03-27 13:39:56', '2026-04-10 21:45:37', 'testclient', NULL, NULL, NULL, 1, 0);
+-- User seed data intentionally omitted from version control.
 
 -- --------------------------------------------------------
 

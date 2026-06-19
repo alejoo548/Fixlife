@@ -110,6 +110,42 @@ const getPaypalBaseUrl = () =>
     ? 'https://api-m.paypal.com'
     : 'https://api-m.sandbox.paypal.com';
 
+const PAYPAL_REQUEST_TIMEOUT_MS = 15000;
+
+// Network blips and PayPal's own transient 5xx responses shouldn't surface as a hard failure
+// to the user on the first try; retry once after a short delay before giving up.
+const fetchPaypal = async (url: string, init: RequestInit): Promise<Response> => {
+  const attempt = async (): Promise<Response> => {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), PAYPAL_REQUEST_TIMEOUT_MS);
+    try {
+      return await fetch(url, { ...init, signal: controller.signal });
+    } finally {
+      clearTimeout(timeout);
+    }
+  };
+
+  try {
+    const response = await attempt();
+    if (response.status >= 500) {
+      await new Promise((resolve) => setTimeout(resolve, 500));
+      return attempt();
+    }
+    return response;
+  } catch (error) {
+    await new Promise((resolve) => setTimeout(resolve, 500));
+    return attempt();
+  }
+};
+
+const parsePaypalResponse = async (response: Response) => {
+  try {
+    return await response.json();
+  } catch {
+    return null;
+  }
+};
+
 const getPaypalCredentials = () => {
   const clientId = String(process.env.PAYPAL_CLIENT_ID || '').trim();
   const clientSecret = String(process.env.PAYPAL_CLIENT_SECRET || '').trim();
@@ -123,7 +159,7 @@ const getPaypalAccessToken = async () => {
   }
 
   const auth = Buffer.from(`${clientId}:${clientSecret}`).toString('base64');
-  const response = await fetch(`${getPaypalBaseUrl()}/v1/oauth2/token`, {
+  const response = await fetchPaypal(`${getPaypalBaseUrl()}/v1/oauth2/token`, {
     method: 'POST',
     headers: {
       Authorization: `Basic ${auth}`,
@@ -132,7 +168,7 @@ const getPaypalAccessToken = async () => {
     body: 'grant_type=client_credentials',
   });
 
-  const payload = await response.json();
+  const payload = await parsePaypalResponse(response);
   if (!response.ok || !payload?.access_token) {
     const message = payload?.error_description || payload?.error || 'Could not authenticate with PayPal.';
     throw new Error(String(message));
@@ -180,7 +216,7 @@ export const createPaypalOrder = async (input: {
     };
   }
 
-  const response = await fetch(`${getPaypalBaseUrl()}/v2/checkout/orders`, {
+  const response = await fetchPaypal(`${getPaypalBaseUrl()}/v2/checkout/orders`, {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${accessToken}`,
@@ -189,7 +225,7 @@ export const createPaypalOrder = async (input: {
     body: JSON.stringify(orderPayload),
   });
 
-  const payload = await response.json();
+  const payload = await parsePaypalResponse(response);
   if (!response.ok || !payload?.id) {
     const message = payload?.message || payload?.name || 'PayPal order creation failed.';
     throw new Error(String(message));
@@ -207,7 +243,7 @@ export const createPaypalOrder = async (input: {
 
 export const capturePaypalOrder = async (paypalOrderId: string) => {
   const accessToken = await getPaypalAccessToken();
-  const response = await fetch(`${getPaypalBaseUrl()}/v2/checkout/orders/${encodeURIComponent(paypalOrderId)}/capture`, {
+  const response = await fetchPaypal(`${getPaypalBaseUrl()}/v2/checkout/orders/${encodeURIComponent(paypalOrderId)}/capture`, {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${accessToken}`,
@@ -215,8 +251,8 @@ export const capturePaypalOrder = async (paypalOrderId: string) => {
     },
   });
 
-  const payload = await response.json();
-  if (!response.ok) {
+  const payload = await parsePaypalResponse(response);
+  if (!response.ok || !payload) {
     const message = payload?.details?.[0]?.description || payload?.message || payload?.name || 'PayPal capture failed.';
     throw new Error(String(message));
   }

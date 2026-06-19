@@ -1,5 +1,6 @@
 import React, { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { RefreshCw } from 'lucide-react';
 import { API_ENDPOINTS, API_URL } from '../../config/api';
 import { NavbarProps, AuthMode } from '../../types';
 import { Logo } from '../common/Logo';
@@ -124,7 +125,7 @@ const formatRequestSchedule = (request: ClientRequestSummary | null) => {
   const start = new Date(rawStart);
   if (Number.isNaN(start.getTime())) return 'Scheduled visit';
 
-  return start.toLocaleDateString(undefined, {
+  return start.toLocaleDateString('en-US', {
     month: 'short',
     day: 'numeric',
     hour: 'numeric',
@@ -390,6 +391,7 @@ export const Navbar: React.FC<NavbarProps> = ({
           return !isCancelledRequest(request) && s !== 'done';
         })
       );
+      void showSweetToast({ tone: 'success', message: 'Request updated.' });
     } catch (error: any) {
       const rawMessage = String(error?.message || '');
       setRequestsError(
@@ -1122,7 +1124,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                         <div className="mt-1 flex items-center justify-between gap-2">
                           <span className="truncate text-[11px] font-bold text-slate-500">{requestStatus.label}</span>
                           <span className="shrink-0 text-[10px] font-semibold text-slate-400">
-                            {request.created_at ? new Date(request.created_at).toLocaleDateString([], { month: 'short', day: 'numeric' }) : ''}
+                            {request.created_at ? new Date(request.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : ''}
                           </span>
                         </div>
                       </button>
@@ -1461,9 +1463,11 @@ export const Navbar: React.FC<NavbarProps> = ({
                     <button
                       type="button"
                       onClick={fetchClientRequests}
-                      className="w-full rounded-xl border border-slate-200 bg-white px-5 py-3 text-sm font-black text-slate-900 shadow-sm transition-all hover:-translate-y-0.5 hover:border-bird-blue/30 hover:shadow-lg hover:shadow-bird-blue/10"
+                      disabled={requestsLoading}
+                      className="flex w-full items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-5 py-3 text-sm font-black text-slate-900 shadow-sm transition-all hover:-translate-y-0.5 hover:border-bird-blue/30 hover:shadow-lg hover:shadow-bird-blue/10 active:scale-[0.97] disabled:opacity-60 disabled:hover:translate-y-0"
                     >
-                      Refresh request
+                      <RefreshCw className={`h-4 w-4 ${requestsLoading ? 'animate-spin' : ''}`} />
+                      {requestsLoading ? 'Refreshing...' : 'Refresh request'}
                     </button>
                     {canCancelRequest && (
                       <button
@@ -1749,7 +1753,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                               )}
                               {message.message && <p className="whitespace-pre-wrap text-sm font-semibold leading-6">{message.message}</p>}
                               <p className={`mt-1 text-[10px] font-bold ${mine ? 'text-white/70' : 'text-slate-400'}`}>
-                                {new Date(message.created_at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}
+                                {new Date(message.created_at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
                               </p>
                             </div>
                           </div>

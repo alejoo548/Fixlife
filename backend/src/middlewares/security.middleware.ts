@@ -32,6 +32,21 @@ export const loginLimiter = rateLimit({
   },
 });
 
+// Keyed by the email being attempted, not the caller's IP — rotating IPs (VPN/proxy)
+// does not reset this bucket, so it backs up the per-account DB lockout in
+// auth.controller.ts and the IP-based loginLimiter above.
+export const loginEmailLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req: any) => String(req.body?.email || '').trim().toLowerCase() || 'unknown',
+  message: { error: 'Too many login attempts for this account. Try again in 15 minutes.' },
+  handler: (_req: any, res: any) => {
+    res.status(429).json({ error: 'Too many login attempts for this account. Try again in 15 minutes.' });
+  },
+});
+
 // Dedicated limiters for password reset flow (more sensitive than general auth)
 export const forgotPasswordLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,

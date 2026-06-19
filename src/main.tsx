@@ -5,6 +5,9 @@ import App from './App';
 import { AuthProvider } from './context/AuthContext';
 import { BrowserRouter } from 'react-router-dom';
 import { AppErrorBoundary } from './components/common/AppErrorBoundary';
+import { installChunkRecovery, recoverFromChunkError } from './utils/chunkRecovery';
+
+installChunkRecovery();
 
 if (window.location.hostname === '127.0.0.1' && window.location.port === '3000') {
   window.location.replace(`http://localhost:3000${window.location.pathname}${window.location.search}${window.location.hash}`);
@@ -44,6 +47,10 @@ window.addEventListener('error', (event) => {
 
 window.addEventListener('unhandledrejection', (event) => {
   const reason = event.reason instanceof Error ? event.reason.message : String(event.reason || 'Unknown async error');
+  if (recoverFromChunkError(event.reason)) {
+    event.preventDefault();
+    return;
+  }
   if (reason.includes('Invalid LatLng object')) {
     event.preventDefault();
     console.warn('Ignored invalid map coordinate:', reason);
