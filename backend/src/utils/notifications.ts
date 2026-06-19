@@ -1,8 +1,8 @@
 import { ResultSetHeader, RowDataPacket } from 'mysql2';
 import pool from '../config/db';
-import { pushToUser } from '../services/sseManager';
 import { shouldRunRuntimeSchemaSync } from '../config/schemaSync';
 import { isDatabaseSchemaReady } from '../services/schemaState.service';
+import { emitToUser, emitUserUpdate } from '../services/socketManager';
 
 export type NotificationTone = 'info' | 'success' | 'warning';
 
@@ -87,14 +87,14 @@ export const createUserNotification = async (input: {
   await pool.execute(
     `INSERT INTO user_notifications
       (id_user, event_type, title, message, tone, is_read, read_at, id_request, id_bonus_payout, action_url, dedupe_key, metadata_json)
-     VALUES (?, ?, ?, ?, ?, 0, NULL, ?, ?, ?, ?, ?)
-     ON DUPLICATE KEY UPDATE
-       title = VALUES(title),
-       message = VALUES(message),
-       tone = VALUES(tone),
-       action_url = VALUES(action_url),
-       metadata_json = VALUES(metadata_json),
-       updated_at = CURRENT_TIMESTAMP`,
+    VALUES (?, ?, ?, ?, ?, 0, NULL, ?, ?, ?, ?, ?)
+    ON DUPLICATE KEY UPDATE
+      title = VALUES(title),
+      message = VALUES(message),
+      tone = VALUES(tone),
+      action_url = VALUES(action_url),
+      metadata_json = VALUES(metadata_json),
+      updated_at = CURRENT_TIMESTAMP`,
     [
       input.userId,
       input.eventType,
@@ -109,11 +109,18 @@ export const createUserNotification = async (input: {
     ]
   );
 
-  // Push SSE events so clients react immediately without polling
-  pushToUser(input.userId, 'notification', { event_type: input.eventType });
+  emitToUser(input.userId, 'notification', { event_type: input.eventType });
   if (input.requestId != null) {
-    pushToUser(input.userId, 'request_updated', { id_request: input.requestId });
+    emitToUser(input.userId, 'request_updated', { id_request: input.requestId });
   }
+  emitUserUpdate(input.userId, {
+    event_type: input.eventType,
+    id_request: input.requestId ?? null,
+    title: input.title,
+    message: input.message,
+    tone,
+    metadata: input.metadata ?? null,
+  });
 };
 
 export const notifyAdmins = async (input: {
@@ -161,33 +168,33 @@ export const listUserNotifications = async (
 
   const [rows] = await pool.execute<AppNotificationRow[]>(
     `SELECT
-       id_notification,
-       id_user,
-       event_type,
-       title,
-       message,
-       tone,
-       is_read,
-       read_at,
-       id_request,
-       id_bonus_payout,
-       action_url,
-       metadata_json,
-       created_at,
-       updated_at
-     FROM user_notifications
-     ${where}
-     ORDER BY created_at DESC
-     LIMIT ${limit}`,
+      id_notification,
+      id_user,
+      event_type,
+      title,
+      message,
+      tone,
+      is_read,
+      read_at,
+      id_request,
+      id_bonus_payout,
+      action_url,
+      metadata_json,
+      created_at,
+      updated_at
+    FROM user_notifications
+    ${where}
+    ORDER BY created_at DESC
+    LIMIT ${limit}`,
     [userId]
   );
 
   const [summaryRows] = await pool.execute<RowDataPacket[]>(
     `SELECT
-       COUNT(*) AS total_count,
-       SUM(CASE WHEN is_read = 0 THEN 1 ELSE 0 END) AS unread_count
-     FROM user_notifications
-     WHERE id_user = ?`,
+      COUNT(*) AS total_count,
+      SUM(CASE WHEN is_read = 0 THEN 1 ELSE 0 END) AS unread_count
+    FROM user_notifications
+    WHERE id_user = ?`,
     [userId]
   );
 
@@ -219,11 +226,11 @@ export const markNotificationRead = async (userId: number, idNotification: numbe
 
   const [result] = await pool.execute<ResultSetHeader>(
     `UPDATE user_notifications
-     SET is_read = 1,
-         read_at = COALESCE(read_at, CURRENT_TIMESTAMP),
-         updated_at = CURRENT_TIMESTAMP
-     WHERE id_notification = ?
-       AND id_user = ?`,
+    SET is_read = 1,
+        read_at = COALESCE(read_at, CURRENT_TIMESTAMP),
+        updated_at = CURRENT_TIMESTAMP
+    WHERE id_notification = ?
+      AND id_user = ?`,
     [idNotification, userId]
   );
 
@@ -235,11 +242,11 @@ export const markAllNotificationsRead = async (userId: number) => {
 
   const [result] = await pool.execute<ResultSetHeader>(
     `UPDATE user_notifications
-     SET is_read = 1,
-         read_at = COALESCE(read_at, CURRENT_TIMESTAMP),
-         updated_at = CURRENT_TIMESTAMP
-     WHERE id_user = ?
-       AND is_read = 0`,
+    SET is_read = 1,
+        read_at = COALESCE(read_at, CURRENT_TIMESTAMP),
+        updated_at = CURRENT_TIMESTAMP
+    WHERE id_user = ?
+      AND is_read = 0`,
     [userId]
   );
 

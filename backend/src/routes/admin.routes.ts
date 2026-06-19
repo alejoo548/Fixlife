@@ -12,12 +12,15 @@ import {
   approveWorker,
   rejectWorker,
   getUsersAdmin,
+  getUserDetailAdmin,
   updateUserRole,
   updateUserStatus,
   getDashboardStats,
   exportDashboardStatsPdfAdmin,
   getRequestsHistory,
+  getRequestDetailAdmin,
   getAdminActivity,
+  updateRequestAdmin,
   getHeroSlidesPublic,
   getCommissionRulesAdmin,
   getFinanceSettlementReportAdmin,
@@ -43,6 +46,7 @@ import {
   updateHeroSlides,
   uploadHeroImageAsset,
   uploadHeroSlideImage,
+  searchAdmin,
 } from '../controllers/admin.controller';
 import { verifyToken, requireAdmin } from '../middlewares/auth.middleware';
 import { sensitiveLimiter } from '../middlewares/security.middleware';
@@ -78,6 +82,7 @@ router.get('/worker-tier-history', getWorkerTierHistoryAdmin);
 
 // Users management
 router.get('/users', getUsersAdmin);
+router.get('/users/:id', getUserDetailAdmin);
 router.put('/users/:id/role', sensitiveLimiter, updateUserRole);
 router.put('/users/:id/status', sensitiveLimiter, updateUserStatus);
 
@@ -85,6 +90,8 @@ router.put('/users/:id/status', sensitiveLimiter, updateUserStatus);
 router.get('/stats', getDashboardStats);
 router.get('/stats/export-pdf', exportDashboardStatsPdfAdmin);
 router.get('/requests-history', getRequestsHistory);
+router.get('/requests/:idRequest', getRequestDetailAdmin);
+router.post('/requests/:idRequest/actions', sensitiveLimiter, validate(AdminSchema.requestAction), updateRequestAdmin);
 router.get('/commission-rules', getCommissionRulesAdmin);
 router.put('/commission-rules', sensitiveLimiter, validate(AdminSchema.commissionRules), updateCommissionRulesAdmin);
 router.get('/worker-rewards', getWorkerRewardsAdminOverview);
@@ -103,6 +110,7 @@ router.get('/finance-closures', getFinanceClosureReportAdmin);
 router.get('/system-events', getSystemEventsAdmin);
 router.get('/background-jobs', getBackgroundJobsAdminController);
 router.get('/activity', getAdminActivity);
+router.get('/search', searchAdmin);
 
 // Hero Slides Editor
 router.put('/hero-slides', sensitiveLimiter, validate(AdminSchema.heroSlides), updateHeroSlides);

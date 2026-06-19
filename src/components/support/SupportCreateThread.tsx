@@ -25,22 +25,22 @@ export const SupportCreateThread: React.FC<SupportCreateThreadProps> = ({
   return (
     <div className="h-full overflow-y-auto px-5 py-6">
       <div className="mb-6">
-        <div className="text-xl font-black text-gray-900">Nuevo caso de soporte</div>
+        <div className="text-xl font-black text-gray-900">New support case</div>
         <p className="mt-1 text-sm text-gray-600">
-          Cuéntanos tu problema o duda. Te responderemos lo antes posible.
+          Tell us your problem or question. We'll get back to you as soon as possible.
         </p>
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-5">
         <div>
           <label className="mb-1.5 block text-[10px] font-bold tracking-[0.8px] text-gray-500">
-            ASUNTO
+            SUBJECT
           </label>
           <input
             type="text"
             value={subject}
             onChange={(e) => setSubject(sanitizeSupportTextInput(e.target.value, 120, true))}
-            placeholder="Ej: No puedo ver mis pagos"
+            placeholder="E.g.: I can't see my payments"
             className="w-full rounded-3xl border border-gray-200/70 bg-white px-4 py-3.5 text-[15px] font-medium placeholder:text-gray-400 focus:border-bird-blue focus:outline-none"
             maxLength={80}
             required
@@ -49,18 +49,18 @@ export const SupportCreateThread: React.FC<SupportCreateThreadProps> = ({
 
         <div>
           <label className="mb-1.5 block text-[10px] font-bold tracking-[0.8px] text-gray-500">
-            DESCRIBE TU PROBLEMA
+            DESCRIBE YOUR ISSUE
           </label>
           <textarea
             value={message}
             onChange={(e) => setMessage(sanitizeSupportTextInput(e.target.value, 2000))}
-            placeholder="Cuéntanos qué está pasando..."
+            placeholder="Tell us what's going on..."
             rows={6}
             className="w-full resize-none rounded-3xl border border-gray-200/70 bg-white px-4 py-3.5 text-[15px] font-medium placeholder:text-gray-400 focus:border-bird-blue focus:outline-none"
             required
           />
           <div className={`mt-1 text-right text-[10px] ${hasUnsafeContent ? 'text-red-500' : 'text-gray-400'}`}>
-            {hasUnsafeContent ? 'No se permiten caracteres o patrones maliciosos.' : `${message.length}/2000`}
+            {hasUnsafeContent ? 'Malicious characters or patterns are not allowed.' : `${message.length}/2000`}
           </div>
         </div>
 
@@ -71,14 +71,14 @@ export const SupportCreateThread: React.FC<SupportCreateThreadProps> = ({
             disabled={isSending}
             className="flex-1 rounded-3xl border border-gray-200/70 py-3.5 text-sm font-bold text-gray-700 transition hover:bg-gray-50 disabled:opacity-60"
           >
-            Cancelar
+            Cancel
           </button>
           <button
             type="submit"
             disabled={isSending || hasUnsafeContent || !subject.trim() || !message.trim()}
             className="flex-1 rounded-3xl bg-bird-blue py-3.5 text-sm font-bold text-white shadow-sm transition active:scale-[0.985] hover:bg-bird-darkBlue disabled:opacity-60"
           >
-            {isSending ? 'Abriendo caso...' : 'Abrir caso'}
+            {isSending ? 'Opening case...' : 'Open case'}
           </button>
         </div>
       </form>

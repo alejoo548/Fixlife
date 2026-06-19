@@ -78,6 +78,7 @@ export const API_ENDPOINTS = {
     paymentCheckout: (idRequest: number) => `${API_URL}/api/services/requests/${idRequest}/payment-checkout`,
     confirmPayment: (idRequest: number) => `${API_URL}/api/services/requests/${idRequest}/payment-confirm`,
     confirmCompletion: (idRequest: number) => `${API_URL}/api/services/requests/${idRequest}/confirm-completion`,
+    workflowApproval: (idRequest: number) => `${API_URL}/api/services/requests/${idRequest}/workflow-approval`,
     requestChat: (idRequest: number) => `${API_URL}/api/services/requests/${idRequest}/chat`,
     requestRating: (idRequest: number) => `${API_URL}/api/services/requests/${idRequest}/rating`,
   },
@@ -137,12 +138,36 @@ export const API_ENDPOINTS = {
     rewardsDashboard: `${API_URL}/api/worker/rewards-dashboard`,
     rewardsStatementPdf: `${API_URL}/api/worker/rewards-dashboard/statement.pdf`,
     requests: `${API_URL}/api/worker/requests`,
+    workspace: `${API_URL}/api/worker/workspace`,
     appointments: `${API_URL}/api/worker/appointments`,
     acceptRequest: (idRequest: number) => `${API_URL}/api/worker/requests/${idRequest}/accept`,
     rejectRequest: (idRequest: number) => `${API_URL}/api/worker/requests/${idRequest}/reject`,
     counterOffer: (idRequest: number) => `${API_URL}/api/worker/requests/${idRequest}/counter-offer`,
+    arriveRequest: (idRequest: number) => `${API_URL}/api/worker/requests/${idRequest}/arrive`,
+    startRoute: (idRequest: number) => `${API_URL}/api/worker/requests/${idRequest}/route-start`,
     startRequest: (idRequest: number) => `${API_URL}/api/worker/requests/${idRequest}/start`,
     completeRequest: (idRequest: number) => `${API_URL}/api/worker/requests/${idRequest}/complete`,
     presence: `${API_URL}/api/worker/presence`,
   },
 };
+
+// Shared helpers for Socket.IO clients to reduce duplication and tame reconnection spam
+export const getSocketBaseUrl = (): string => {
+  // Prefer explicit support socket, fallback to the resolved API_URL (which already handles local/prod)
+  const explicit = (import.meta.env.VITE_SUPPORT_SOCKET_URL || '').trim();
+  if (explicit) {
+    return explicit.replace(/\/$/, '');
+  }
+  // API_URL is already stripped of trailing /api in most cases; ensure clean base
+  return API_URL.replace(/\/api\/?$/i, '').replace(/\/$/, '');
+};
+
+export const getDefaultSocketOptions = (token: string) => ({
+  path: '/socket.io',
+  auth: { token },
+  transports: ['websocket', 'polling'] as string[],
+  reconnection: true,
+  reconnectionAttempts: 5,
+  reconnectionDelay: 2000,
+  reconnectionDelayMax: 10000,
+});

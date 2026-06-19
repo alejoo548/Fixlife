@@ -59,6 +59,7 @@ export const useWorkerRequestsMap = ({
   onSelectRequest,
 }: UseWorkerRequestsMapOptions) => {
   const [leafletReady, setLeafletReady] = useState(false);
+  const [mapReady, setMapReady] = useState(false);
   const [routePreview, setRoutePreview] = useState<RoutePreview | null>(null);
   const [routeLoading, setRouteLoading] = useState(false);
   const [routeError, setRouteError] = useState<string | null>(null);
@@ -80,6 +81,7 @@ export const useWorkerRequestsMap = ({
   const lastViewportKeyRef = useRef<string | null>(null);
   const arrivalSoonRef = useRef<Set<number>>(new Set());
   const arrivedRef = useRef<Set<number>>(new Set());
+  const hasCenteredOnWorkerRef = useRef(false);
 
   const selectedRequestCoords = useMemo(() => {
     const lat = toFiniteNumber(selectedRequest?.latitude);
@@ -127,21 +129,38 @@ export const useWorkerRequestsMap = ({
 
   useEffect(() => {
     if (!leafletReady || !mapContainerRef.current || !window.L || mapInstanceRef.current) return;
-    const L = window.L;
-    const map = L.map(mapContainerRef.current, {
-      zoomControl: false,
-      attributionControl: true,
-    }).setView(FALLBACK_CENTER, 12);
-    addResilientTileLayer(L, map);
-    L.control.zoom({ position: 'bottomright' }).addTo(map);
-    mapInstanceRef.current = map;
+
+    let cancelled = false;
+    const initTimer = window.setTimeout(() => {
+      if (cancelled || !mapContainerRef.current || !window.L || mapInstanceRef.current) return;
+      const L = window.L;
+      const map = L.map(mapContainerRef.current, {
+        zoomControl: false,
+        attributionControl: true,
+        preferCanvas: true,
+        maxZoom: 17,
+      }).setView(FALLBACK_CENTER, 12);
+      addResilientTileLayer(L, map);
+      L.control.zoom({ position: 'bottomright' }).addTo(map);
+      mapInstanceRef.current = map;
+      // Flip state so marker/route/request effects re-run now that the map
+      // exists. Without this, any data (coords, requests, route) that was ready
+      // before this async init never gets drawn until an unrelated dep changes.
+      setMapReady(true);
+    }, 50);
+
     return () => {
-      try {
-        map.remove();
-      } catch {
-        // Leaflet may already be detached during hot reload.
+      cancelled = true;
+      window.clearTimeout(initTimer);
+      if (mapInstanceRef.current) {
+        try {
+          mapInstanceRef.current.remove();
+        } catch {
+          // Leaflet may already be detached during hot reload.
+        }
+        mapInstanceRef.current = null;
       }
-      mapInstanceRef.current = null;
+      setMapReady(false);
     };
   }, [leafletReady]);
 
@@ -316,7 +335,7 @@ export const useWorkerRequestsMap = ({
       focusRouteViewport(map, L, remainingPoints, routeActive, routeCameraMode);
       lastViewportKeyRef.current = viewportKey;
     }
-  }, [remainingPoints, routeActive, routeCameraMode, simulatedTraffic, trafficEnabled]);
+  }, [mapReady, remainingPoints, routeActive, routeCameraMode, simulatedTraffic, trafficEnabled]);
 
   useEffect(() => {
     if (!mapInstanceRef.current || !window.L) return;
@@ -348,7 +367,7 @@ export const useWorkerRequestsMap = ({
         .on('click', () => onSelectRequest(request.id_request));
       requestMarkersRef.current.push(marker);
     });
-  }, [onSelectRequest, requests, selectedRequest?.id_request]);
+  }, [mapReady, onSelectRequest, requests, selectedRequest?.id_request]);
 
   useEffect(() => {
     if (!mapInstanceRef.current || !window.L) return;
@@ -374,10 +393,14 @@ export const useWorkerRequestsMap = ({
     }
     if (routeActive && isValidLatLngList(remainingPoints)) {
       focusRouteViewport(map, window.L, remainingPoints, true, routeCameraMode);
-    } else if (!routePreview) {
+    } else if (!routePreview && !hasCenteredOnWorkerRef.current) {
+      // Center on the worker only the first time we get a fix. Re-centering on
+      // every GPS update fights the user panning the map and causes jank on
+      // low-power devices (Raspberry Pi).
       map.setView([workerCoords.lat, workerCoords.lng], 12);
+      hasCenteredOnWorkerRef.current = true;
     }
-  }, [remainingPoints, routeActive, routeCameraMode, routePreview, workerCoords?.lat, workerCoords?.lng]);
+  }, [mapReady, remainingPoints, routeActive, routeCameraMode, routePreview, workerCoords?.lat, workerCoords?.lng]);
 
   useEffect(() => {
     if (!routeActive || !selectedRequest || !routePreview || !isValidCoord(workerCoords)) {

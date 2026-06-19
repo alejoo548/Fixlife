@@ -8,7 +8,6 @@ import workerRoutes from './routes/worker.routes';
 import adminRoutes from './routes/admin.routes';
 import servicesRoutes from './routes/services.routes';
 import notificationsRoutes from './routes/notifications.routes';
-import eventsRoute from './routes/events.route';
 import uploadsRoutes from './routes/uploads.routes';
 import supportRoutes from './routes/support.routes';
 import { initializeSupportSocket } from './services/supportSocket.service';
@@ -19,6 +18,7 @@ import {
   resolvePublicUploadPath,
   isImageFileName,
 } from './utils/assets';
+import { Server as SocketIOServer } from 'socket.io';
 import { runDatabaseMigrations } from './migrations/runMigrations';
 import { startBackgroundJobWorker } from './services/backgroundJobs.service';
 import { initSocketServer } from './services/socketManager';
@@ -39,30 +39,48 @@ const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS ?? '')
   .split(',')
   .map((origin) => origin.trim())
   .filter(Boolean);
+const DEVELOPMENT_ORIGINS = [
+  'http://localhost:3000',
+  'http://127.0.0.1:3000',
+  'http://localhost:5173',
+  'http://127.0.0.1:5173',
+];
 
 if (isProduction && ALLOWED_ORIGINS.length === 0) {
   throw new Error('ALLOWED_ORIGINS must contain at least one trusted frontend origin in production.');
 }
 
-const corsOptions =
-  isProduction
-    ? { origin: ALLOWED_ORIGINS, credentials: true }
-    : {};
+const trustedOrigins = isProduction
+  ? ALLOWED_ORIGINS
+  : [...new Set([...ALLOWED_ORIGINS, ...DEVELOPMENT_ORIGINS])];
+
+const corsOptions = {
+  origin: (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) => {
+    if (!origin) {
+      callback(null, true);
+      return;
+    }
+    callback(null, trustedOrigins.includes(origin));
+  },
+  credentials: true,
+};
 
 const app = express();
 const server = http.createServer(app);
 app.set('trust proxy', 1);
+app.disable('x-powered-by');
 const PORT = process.env.PORT || 8000;
 
 app.use(cors(corsOptions));
 app.use(
   helmet({
     crossOriginResourcePolicy: false,
+    referrerPolicy: { policy: 'no-referrer' },
   })
 );
 app.use(globalLimiter);
 app.use(express.json({ limit: '1mb' }));
-app.use(express.urlencoded({ extended: true, limit: '1mb' }));
+app.use(express.urlencoded({ extended: false, limit: '100kb', parameterLimit: 50 }));
 
 app.use(
   '/uploads/public',
@@ -98,7 +116,6 @@ app.use('/api/worker', workerRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/services', servicesRoutes);
 app.use('/api/notifications', notificationsRoutes);
-app.use('/api/events', eventsRoute);
 app.use('/api/uploads', uploadsRoutes);
 app.use('/api/support', supportRoutes);
 
@@ -122,8 +139,9 @@ app.use((err: any, _req: Request, res: Response, _next: any) => {
     });
   }
 
+  const isProd = process.env.NODE_ENV === 'production';
   return res.status(err.status || 500).json({
-    error: err.message || 'Internal server error',
+    error: isProd ? 'Internal server error' : (err.message || 'Internal server error'),
   });
 });
 
@@ -148,12 +166,19 @@ const startServer = async () => {
     console.log('[db] Database schema is up to date.');
   }
 
-  initializeSupportSocket(server);
-  initSocketServer(server, corsOptions);
+  const io = new SocketIOServer(server, {
+    cors: corsOptions,
+    path: '/socket.io',
+    transports: ['websocket', 'polling'],
+    maxHttpBufferSize: 128 * 1024,
+  });
+
+  initSocketServer(io);
+  initializeSupportSocket(io);
 
   server.listen(Number(PORT), '0.0.0.0', () => {
     console.log(`Fixlife backend listening on http://0.0.0.0:${PORT}`);
-    console.log('[Support] Socket.IO support chat initialized');
+    console.log('[Support] Socket.IO support chat initialized on namespace /support');
   });
 
   startBackgroundJobWorker();

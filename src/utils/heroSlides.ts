@@ -106,8 +106,20 @@ const setHeroSlidesCache = (slides: HeroSlideContent[]) => {
   window.dispatchEvent(new Event(HERO_SLIDES_UPDATED_EVENT));
 };
 
+let lastHeroFetch = 0;
+const HERO_FETCH_THROTTLE = 30000; // 30s to avoid repeated calls in logs/remounts
+
 export const fetchHeroSlides = async (): Promise<HeroSlideContent[]> => {
+  const now = Date.now();
+  const cached = getHeroSlides();
+
+  // Use cache if recently fetched to reduce network spam
+  if (now - lastHeroFetch < HERO_FETCH_THROTTLE && cached.length > 0) {
+    return cached;
+  }
+
   try {
+    lastHeroFetch = now;
     const response = await fetch(`${API_URL}/api/admin/hero-slides`);
     const data = await response.json();
     if (!response.ok) throw new Error(data?.error || 'Could not fetch hero slides.');
@@ -117,7 +129,7 @@ export const fetchHeroSlides = async (): Promise<HeroSlideContent[]> => {
     setHeroSlidesCache(normalizedSlides);
     return normalizedSlides;
   } catch {
-    return getHeroSlides();
+    return cached.length > 0 ? cached : getHeroSlides();
   }
 };
 

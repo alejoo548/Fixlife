@@ -25,6 +25,8 @@ services:
       dockerfile: Dockerfile
     container_name: fixlife_backend
     restart: unless-stopped
+    # bind mount below overrides the image's chown, so the non-root image user can't write; root only here, not in prod compose
+    user: root
     env_file:
       - ./.env
     command: sh -c "npm install && npm run dev"

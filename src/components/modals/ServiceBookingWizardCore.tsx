@@ -201,7 +201,7 @@ const formatRequestVisit = (data: ServiceRequestData) => {
     });
 };
 
-export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOpen, onClose, initialServiceId, initialServiceName, onOpenCheckout }) => {
+export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOpen, onClose, initialServiceId, initialServiceName, onOpenCheckout, openOnHistory }) => {
     const location = useLocation();
     const navigate = useNavigate();
     const [step, setStep] = useState(initialServiceId ? 1 : 0);
@@ -239,6 +239,7 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
     const [pendingRequestAction, setPendingRequestAction] = useState<{ type: 'cancel' | 'complete'; request: MyServiceRequest } | null>(null);
     const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
     const [focusedHistoryRequestId, setFocusedHistoryRequestId] = useState<number | null>(null);
+    useEffect(() => { if (openOnHistory) setIsHistoryModalOpen(true); }, [openOnHistory]);
     const [workerProfileRequest, setWorkerProfileRequest] = useState<MyServiceRequest | null>(null);
     const [workerProfileLoading, setWorkerProfileLoading] = useState(false);
     const [workerProfileData, setWorkerProfileData] = useState<RequestWorkerProfileResponse | null>(null);
@@ -261,6 +262,12 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
     const [workerApprovalBusyId, setWorkerApprovalBusyId] = useState<number | null>(null);
     const [cancelBusyId, setCancelBusyId] = useState<number | null>(null);
     const [completionBusyId, setCompletionBusyId] = useState<number | null>(null);
+    const [workflowBusyId, setWorkflowBusyId] = useState<number | null>(null);
+    const [workflowNow, setWorkflowNow] = useState(Date.now());
+    useEffect(() => {
+        const timer = window.setInterval(() => setWorkflowNow(Date.now()), 1000);
+        return () => window.clearInterval(timer);
+    }, []);
     const [ratingBusyId, setRatingBusyId] = useState<number | null>(null);
     const [ratingForm, setRatingForm] = useState<Record<number, { punctuality: number; quality: number; price_fairness: number; comment: string }>>({});
     const [ratingModalRequest, setRatingModalRequest] = useState<MyServiceRequest | null>(null);
@@ -1525,19 +1532,22 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                 type: 'info' as const,
                 message: hasPendingWorkerApproval(request)
                     ? `${workerName} is waiting for your approval.`
-                    : `${workerName} sent a counter offer for your review.`,
+                    : `${workerName} is approved and can start the route.`,
             };
         }
+        if (status === 'route_in_progress') return { type: 'info' as const, message: `${workerName} is on the way.` };
+        if (status === 'arrived') return { type: 'info' as const, message: `${workerName} arrived. Approve work start when ready.` };
+        if (status === 'start_pending') return { type: 'info' as const, message: `Work start needs both approvals.` };
         if (status === 'payment_pending') {
             return {
                 type: 'info' as const,
-                message: `Secure payment so ${workerName} can head over.`,
+                message: `Work finished. Complete payment to continue.`,
             };
         }
         if (status === 'paid') {
             return {
                 type: 'success' as const,
-                message: `Payment secured. ${workerName} is getting ready to head over.`,
+                message: `Payment completed. Final service approval is required from both.`,
             };
         }
         if (status === 'in_progress') {
@@ -1546,6 +1556,8 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                 message: `${workerName} started working on your service.`,
             };
         }
+        if (status === 'finish_pending') return { type: 'info' as const, message: 'Work finish needs both approvals.' };
+        if (status === 'completion_pending') return { type: 'info' as const, message: 'Final service closure needs both approvals.' };
         if (status === 'awaiting_confirmation') {
             return {
                 type: 'info' as const,
@@ -1923,6 +1935,36 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
             showToast('error', 'Network error confirming completion.');
         } finally {
             setCompletionBusyId(null);
+        }
+    };
+
+    const approveWorkflowAction = async (
+        request: MyServiceRequest,
+        action: 'start_work' | 'finish_work' | 'complete_service'
+    ) => {
+        const token = getToken();
+        if (!token) {
+            showToast('error', 'Login required.');
+            return;
+        }
+        setWorkflowBusyId(request.id_request);
+        try {
+            const res = await fetch(API_ENDPOINTS.services.workflowApproval(request.id_request), {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+                body: JSON.stringify({ action }),
+            });
+            const payload = await res.json();
+            if (!res.ok || !payload?.success) {
+                showToast('error', payload?.error || 'Could not save approval.');
+                return;
+            }
+            showToast(payload.both_approved ? 'success' : 'info', payload.message || 'Approval saved.');
+            await fetchMyRequests(historyStatus, true);
+        } catch {
+            showToast('error', 'Network error saving approval.');
+        } finally {
+            setWorkflowBusyId(null);
         }
     };
 
@@ -3625,7 +3667,19 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                                 const canRate = requestStatus === 'done';
                                                 const canCancel = ['pending', 'payment_pending', 'assigned'].includes(requestStatus);
                                                 const canPayNow = requestStatus === 'payment_pending';
+                                                const canShowPayment = ['payment_pending', 'paid', 'completion_pending', 'done'].includes(requestStatus);
                                                 const canConfirmCompletion = requestStatus === 'awaiting_confirmation';
+                                                const isWorkflowV2 = Number(request.workflow_version || 1) >= 2;
+                                                const startApproved = Boolean(request.approvals?.start_work.client);
+                                                const finishApproved = Boolean(request.approvals?.finish_work.client);
+                                                const completeApproved = Boolean(request.approvals?.complete_service.client);
+                                                const finishUnlockAt = request.work_started_at
+                                                    ? new Date(request.work_started_at).getTime() + 1 * 60_000
+                                                    : Number.POSITIVE_INFINITY;
+                                                const finishRemainingSeconds = Math.max(0, Math.ceil((finishUnlockAt - workflowNow) / 1000));
+                                                const canApproveStart = isWorkflowV2 && ['arrived', 'start_pending'].includes(requestStatus) && !startApproved;
+                                                const canApproveFinish = isWorkflowV2 && ['in_progress', 'finish_pending'].includes(requestStatus) && !finishApproved && finishRemainingSeconds === 0;
+                                                const canApproveFinal = isWorkflowV2 && ['paid', 'completion_pending'].includes(requestStatus) && !completeApproved;
                                                 const paymentStatus = String(request.payment?.status || '').toLowerCase();
                                                 const timelineState = getClientTimelineState(request);
                                                 const isTrackingActive = activeTrackedRequest?.id_request === request.id_request;
@@ -3719,21 +3773,21 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                                             />
                                                         )}
 
-                                                        {(timelineState.workerAccepted || timelineState.paymentSecured || timelineState.onTheWay || timelineState.workInProgress || timelineState.completed) && (
+                                                        {(timelineState.workerAccepted || timelineState.paymentSecured || timelineState.onTheWay || timelineState.arrived || timelineState.workInProgress || timelineState.workFinished || timelineState.completed) && (
                                                             <div className="mt-3 flex flex-wrap gap-2">
                                                                 {timelineState.workerAccepted && (
                                                                     <span className="rounded-full border border-sky-200 bg-sky-50 px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.14em] text-gray-500">
-                                                                        Worker accepted
+                                                                        Pro approved
                                                                     </span>
                                                                 )}
                                                                 {timelineState.paymentSecured && (
                                                                     <span className="rounded-full border border-cyan-200 bg-cyan-50 px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.14em] text-cyan-700">
-                                                                        Payment secured
+                                                                        Paid
                                                                     </span>
                                                                 )}
-                                                                {timelineState.onTheWay && requestStatus === 'paid' && (
+                                                                {timelineState.onTheWay && requestStatus === 'route_in_progress' && (
                                                                     <span className="rounded-full border border-blue-200 bg-blue-50 px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.14em] text-blue-700">
-                                                                        On the way
+                                                                        On route
                                                                     </span>
                                                                 )}
                                                                 {timelineState.arrived && requestStatus !== 'done' && (
@@ -3743,7 +3797,12 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                                                 )}
                                                                 {timelineState.workInProgress && requestStatus !== 'done' && (
                                                                     <span className="rounded-full border border-indigo-200 bg-indigo-50 px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.14em] text-indigo-700">
-                                                                        Work in progress
+                                                                        Working
+                                                                    </span>
+                                                                )}
+                                                                {timelineState.workFinished && requestStatus !== 'done' && (
+                                                                    <span className="rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.14em] text-amber-700">
+                                                                        Work finished
                                                                     </span>
                                                                 )}
                                                                 {timelineState.completed && (
@@ -3767,7 +3826,30 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                                             </div>
                                                         )}
 
-                                                        {(canPayNow || request.payment) && (
+                                                        {isWorkflowV2 && ['arrived', 'start_pending', 'in_progress', 'finish_pending'].includes(requestStatus) && (
+                                                            <div className="mt-4 rounded-2xl border border-blue-200 bg-blue-50 p-4">
+                                                                <p className="text-[10px] font-black uppercase tracking-[0.18em] text-blue-700">Double approval</p>
+                                                                <p className="mt-2 text-sm font-bold text-slate-900">
+                                                                    {['arrived', 'start_pending'].includes(requestStatus)
+                                                                        ? startApproved ? 'Your start approval is saved. Waiting for worker.' : 'Approve starting work when both are ready.'
+                                                                        : finishApproved ? 'Your finish approval is saved. Waiting for worker.' : finishRemainingSeconds > 0
+                                                                            ? `Finish unlocks in ${Math.floor(finishRemainingSeconds / 60)}:${String(finishRemainingSeconds % 60).padStart(2, '0')}`
+                                                                            : 'Approve that work itself has finished.'}
+                                                                </p>
+                                                                {(canApproveStart || canApproveFinish) && (
+                                                                    <button
+                                                                        type="button"
+                                                                        disabled={workflowBusyId === request.id_request}
+                                                                        onClick={() => void approveWorkflowAction(request, canApproveStart ? 'start_work' : 'finish_work')}
+                                                                        className="mt-3 w-full rounded-xl bg-blue-600 px-4 py-3 text-sm font-black text-white disabled:opacity-50"
+                                                                    >
+                                                                        {workflowBusyId === request.id_request ? 'Saving...' : canApproveStart ? 'Approve work start' : 'Approve work finish'}
+                                                                    </button>
+                                                                )}
+                                                            </div>
+                                                        )}
+
+                                                        {canShowPayment && (
                                                             <div className="mt-4 rounded-2xl border border-slate-100 bg-slate-50 p-4">
                                                                 <div className="flex items-start justify-between gap-2">
                                                                     <div>
@@ -3782,9 +3864,9 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                                                             {paymentStatus === 'released'
                                                                                 ? 'Funds released to the worker.'
                                                                                 : paymentStatus === 'paid'
-                                                                                    ? 'Funds secured. The worker can start now.'
+                                                                                    ? 'Payment successful. Final service approval is now available.'
                                                                                     : canPayNow
-                                                                                        ? 'Secure the funds so your worker can begin.'
+                                                                                        ? 'Both parties finished work. Complete payment to continue.'
                                                                                         : 'Checkout is ready for this request.'}
                                                                         </p>
                                                                     </div>
@@ -3807,7 +3889,7 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                                                         disabled={paymentBusyId === request.id_request}
                                                                         className="mt-4 w-full py-3.5 rounded-xl bg-slate-900 text-white text-[13px] font-bold hover:bg-black disabled:opacity-40 transition-colors shadow-md"
                                                                     >
-                                                                        {paymentBusyId === request.id_request ? 'Processing...' : 'Secure Payment via Checkout'}
+                                                                        {paymentBusyId === request.id_request ? 'Processing...' : 'Pay for completed work'}
                                                                     </button>
                                                                 )}
                                                             </div>
@@ -3839,7 +3921,7 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                                                     {requestStatus === 'pending' ? 'Waiting for pro' : 'Live track'}
                                                                 </span>
                                                             </div>
-                                                            <div className="grid grid-cols-3 gap-x-2 gap-y-4 sm:grid-cols-6 relative">
+                                                            <div className="grid grid-cols-4 gap-x-2 gap-y-4 sm:grid-cols-7 relative">
                                                                 {/* Optional connecting line could go here */}
                                                                 {timelineSteps.map((step) => {
                                                                     const done = timelineState[step.key];
@@ -3926,6 +4008,19 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                                                     {completionBusyId === request.id_request ? 'Confirming...' : 'Confirm Completion'}
                                                                 </button>
                                                             )}
+                                                            {canApproveFinal && (
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => void approveWorkflowAction(request, 'complete_service')}
+                                                                    disabled={workflowBusyId === request.id_request}
+                                                                    className="w-full sm:w-auto rounded-xl bg-emerald-600 px-4 py-2.5 text-[13px] font-bold text-white hover:bg-emerald-700 disabled:opacity-50"
+                                                                >
+                                                                    {workflowBusyId === request.id_request ? 'Saving...' : 'Approve final service completion'}
+                                                                </button>
+                                                            )}
+                                                            {isWorkflowV2 && ['paid', 'completion_pending'].includes(requestStatus) && completeApproved && (
+                                                                <p className="text-xs font-bold text-emerald-700">Your final approval is saved. Waiting for worker.</p>
+                                                            )}
                                                         </div>
 
                                                         <div className="mt-4 rounded-2xl border-none bg-slate-50 hover:bg-slate-100 transition-colors p-4">
@@ -3977,7 +4072,7 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                                                                             {msg.message && <p className="leading-relaxed">{msg.message}</p>}
                                                                                             {msg.image_url && (
                                                                                                 <a href={msg.image_url} target="_blank" rel="noreferrer" className="mt-2 block rounded-xl overflow-hidden border border-black/10 shadow-sm">
-                                                                                                    <img src={msg.image_url} alt="Chat attachment" className="max-h-40 w-full object-cover hover:scale-105 transition-transform" />
+                                                                                                    <img src={msg.image_url} alt="Chat attachment" loading="lazy" className="max-h-40 w-full object-cover hover:scale-105 transition-transform" />
                                                                                                 </a>
                                                                                             )}
                                                                                             <p className={`text-[10px] text-right mt-1.5 ${isMe ? 'text-slate-400' : 'text-slate-400'}`}>

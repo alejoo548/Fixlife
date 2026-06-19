@@ -2,6 +2,8 @@ import React from 'react';
 
 export interface ServiceRequestLike {
     status: string;
+    worker_arrived_at?: string | null;
+    client_approved_at?: string | null;
     assigned_worker?: { id_worker_profile?: number; name?: string | null } | null;
     proposed_budget?: number | null;
     counter_status?: 'pending' | 'accepted' | 'declined' | null;
@@ -11,6 +13,7 @@ export const statusBadgeClasses = (statusRaw: string) => {
     const status = String(statusRaw || 'pending').toLowerCase();
     if (status === 'done') return 'bg-emerald-100 text-emerald-700 border-emerald-200';
     if (status === 'awaiting_confirmation') return 'bg-violet-100 text-violet-700 border-violet-200';
+    if (['route_in_progress', 'arrived', 'start_pending', 'finish_pending', 'completion_pending'].includes(status)) return 'bg-blue-100 text-blue-700 border-blue-200';
     if (status === 'assigned') return 'bg-sky-100 text-gray-500 border-sky-200';
     if (status === 'payment_pending') return 'bg-yellow-100 text-yellow-700 border-yellow-200';
     if (status === 'paid') return 'bg-cyan-100 text-cyan-700 border-cyan-200';
@@ -27,6 +30,7 @@ export const hasPendingCounter = (request: ServiceRequestLike) =>
 export const hasPendingWorkerApproval = (request: ServiceRequestLike) =>
     String(request.status || '').toLowerCase() === 'assigned' &&
     !!request.assigned_worker &&
+    !request.client_approved_at &&
     request.proposed_budget == null;
 
 export const statusLabel = (statusRaw: string, request?: ServiceRequestLike) => {
@@ -37,7 +41,12 @@ export const statusLabel = (statusRaw: string, request?: ServiceRequestLike) => 
         return 'Worker Accepted';
     }
     if (status === 'payment_pending') return 'Payment Pending';
-    if (status === 'paid') return 'Payment Secured';
+    if (status === 'route_in_progress') return 'Worker On The Way';
+    if (status === 'arrived') return 'Worker Arrived';
+    if (status === 'start_pending') return 'Start Approval';
+    if (status === 'finish_pending') return 'Finish Approval';
+    if (status === 'paid') return 'Paid';
+    if (status === 'completion_pending') return 'Final Approval';
     if (status === 'awaiting_confirmation') return 'Awaiting Confirmation';
     if (status === 'in_progress') return 'In Progress';
     if (status === 'done') return 'Completed';
@@ -49,11 +58,12 @@ export const getClientTimelineState = (request: ServiceRequestLike) => {
     const status = String(request.status || 'pending').toLowerCase();
     const workerAccepted =
         !!request.assigned_worker &&
-        ['assigned', 'payment_pending', 'paid', 'in_progress', 'awaiting_confirmation', 'done'].includes(status);
-    const paymentSecured = ['paid', 'in_progress', 'awaiting_confirmation', 'done'].includes(status);
-    const onTheWay = ['paid', 'in_progress', 'awaiting_confirmation', 'done'].includes(status);
-    const arrived = ['in_progress', 'awaiting_confirmation', 'done'].includes(status);
-    const workInProgress = ['in_progress', 'awaiting_confirmation', 'done'].includes(status);
+        ['assigned', 'route_in_progress', 'arrived', 'start_pending', 'in_progress', 'finish_pending', 'payment_pending', 'paid', 'completion_pending', 'done'].includes(status);
+    const paymentSecured = ['paid', 'completion_pending', 'done'].includes(status);
+    const onTheWay = ['route_in_progress'].includes(status);
+    const arrived = Boolean(request.worker_arrived_at) || ['arrived', 'start_pending', 'in_progress', 'finish_pending', 'payment_pending', 'paid', 'completion_pending', 'done'].includes(status);
+    const workInProgress = ['in_progress', 'finish_pending'].includes(status);
+    const workFinished = ['payment_pending', 'paid', 'completion_pending', 'done'].includes(status);
     const completed = status === 'done';
 
     return {
@@ -62,22 +72,24 @@ export const getClientTimelineState = (request: ServiceRequestLike) => {
         onTheWay,
         arrived,
         workInProgress,
+        workFinished,
         completed,
     };
 };
 
 export const timelineSteps = [
-    { key: 'workerAccepted', label: 'Worker accepted' },
-    { key: 'paymentSecured', label: 'Payment secured' },
-    { key: 'onTheWay', label: 'On the way' },
+    { key: 'workerAccepted', label: 'Pro approved' },
+    { key: 'onTheWay', label: 'On route' },
     { key: 'arrived', label: 'Arrived' },
-    { key: 'workInProgress', label: 'Work in progress' },
+    { key: 'workInProgress', label: 'Working' },
+    { key: 'workFinished', label: 'Work finished' },
+    { key: 'paymentSecured', label: 'Paid' },
     { key: 'completed', label: 'Completed' },
 ] as const;
 
 export const canUseRequestChat = (request: ServiceRequestLike) => {
     const status = String(request.status || '').toLowerCase();
-    return ['assigned', 'payment_pending', 'paid', 'in_progress', 'awaiting_confirmation', 'done'].includes(status) && !!request.assigned_worker;
+    return ['assigned', 'route_in_progress', 'arrived', 'start_pending', 'in_progress', 'finish_pending', 'payment_pending', 'paid', 'completion_pending', 'done'].includes(status) && !!request.assigned_worker;
 };
 
 export const getTimelineProgress = (request: ServiceRequestLike) => {
@@ -86,15 +98,18 @@ export const getTimelineProgress = (request: ServiceRequestLike) => {
     const counterAccepted = request.counter_status === 'accepted';
 
     if (status === 'done') return 6;
-    if (status === 'awaiting_confirmation') return 5;
-    if (status === 'in_progress') return 5;
-    if (status === 'paid') return 4;
-    if (status === 'payment_pending') return 3;
+    if (status === 'completion_pending') return 5;
+    if (status === 'paid') return 5;
+    if (status === 'payment_pending') return 4;
+    if (status === 'finish_pending') return 3;
+    if (status === 'in_progress') return 3;
+    if (status === 'start_pending' || status === 'arrived') return 2;
+    if (status === 'route_in_progress') return 1;
     if (status === 'cancelled') return 0;
     if (status === 'assigned') {
-        if (hasCounter && !counterAccepted) return 2;
-        if (counterAccepted) return 3;
-        return 1;
+        if (hasCounter && !counterAccepted) return 0;
+        if (counterAccepted) return 0;
+        return 0;
     }
     return 0;
 };

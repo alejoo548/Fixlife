@@ -12,6 +12,7 @@ import { useServiceRequestChat } from '../modals/hooks/useServiceRequestChat';
 import { canUseRequestChat, hasPendingCounter, hasPendingWorkerApproval } from '../modals/serviceRequestHelpers';
 import { showSweetToast } from '../../utils/sweetAlert';
 
+
 const ClientLiveRequestTracker = lazy(() => import('../modals/ClientLiveRequestTracker'));
 
 type ClientRequestStatus =
@@ -19,7 +20,12 @@ type ClientRequestStatus =
   | 'payment_pending'
   | 'paid'
   | 'assigned'
+  | 'route_in_progress'
+  | 'arrived'
+  | 'start_pending'
   | 'in_progress'
+  | 'finish_pending'
+  | 'completion_pending'
   | 'awaiting_confirmation'
   | 'done'
   | 'cancelled'
@@ -45,6 +51,15 @@ interface ClientRequestSummary {
   counter_status?: 'pending' | 'accepted' | 'declined' | null;
   status: ClientRequestStatus;
   created_at?: string;
+  workflow_version?: number;
+  client_approved_at?: string | null;
+  worker_arrived_at?: string | null;
+  work_started_at?: string | null;
+  approvals?: {
+    start_work: { client: boolean; worker: boolean };
+    finish_work: { client: boolean; worker: boolean };
+    complete_service: { client: boolean; worker: boolean };
+  };
   assigned_worker: {
     id_worker_profile: number;
     name: string;
@@ -83,9 +98,14 @@ const requestStatusCopy = (statusRaw: ClientRequestStatus) => {
   if (status === 'done') return { label: 'Completed', hint: 'Saved in your service history.', tone: 'bg-slate-100 text-slate-700 border-slate-200' };
   if (status === 'cancelled') return { label: 'Cancelled', hint: 'This request is closed.', tone: 'bg-red-50 text-red-600 border-red-100' };
   if (status === 'awaiting_confirmation') return { label: 'Confirm finish', hint: 'Your pro marked the work as complete.', tone: 'bg-amber-50 text-amber-700 border-amber-100' };
+  if (status === 'completion_pending') return { label: 'Final approval', hint: 'Payment completed. Both must close service.', tone: 'bg-emerald-50 text-emerald-700 border-emerald-100' };
+  if (status === 'finish_pending') return { label: 'Finish approval', hint: 'Work ends after both approve.', tone: 'bg-violet-50 text-violet-700 border-violet-100' };
   if (status === 'in_progress') return { label: 'In progress', hint: 'Your pro is working on it now.', tone: 'bg-blue-50 text-blue-700 border-blue-100' };
-  if (status === 'paid') return { label: 'Payment secured', hint: 'Your pro can start the trip.', tone: 'bg-emerald-50 text-emerald-700 border-emerald-100' };
-  if (status === 'payment_pending') return { label: 'Payment needed', hint: 'Secure payment to continue.', tone: 'bg-orange-50 text-orange-700 border-orange-100' };
+  if (status === 'start_pending') return { label: 'Approve work start', hint: 'Worker approved. Your approval is required.', tone: 'bg-blue-50 text-blue-700 border-blue-100' };
+  if (status === 'arrived') return { label: 'Worker arrived', hint: 'Both must approve before work starts.', tone: 'bg-violet-50 text-violet-700 border-violet-100' };
+  if (status === 'route_in_progress') return { label: 'Worker on route', hint: 'Follow live route to destination.', tone: 'bg-sky-50 text-sky-700 border-sky-100' };
+  if (status === 'paid') return { label: 'Payment completed', hint: 'Final approval required from both.', tone: 'bg-emerald-50 text-emerald-700 border-emerald-100' };
+  if (status === 'payment_pending') return { label: 'Work finished - pay', hint: 'Both approved work finish. Complete payment.', tone: 'bg-orange-50 text-orange-700 border-orange-100' };
   if (status === 'assigned') return { label: 'Pro assigned', hint: 'Review the assigned professional.', tone: 'bg-sky-50 text-sky-700 border-sky-100' };
   return { label: 'Finding a pro', hint: 'We are matching your request.', tone: 'bg-slate-100 text-slate-700 border-slate-200' };
 };
@@ -125,8 +145,12 @@ const getScheduledStart = (request: ClientRequestSummary | null) => {
 };
 
 const pickPrimaryClientRequest = (requests: ClientRequestSummary[]) => {
-  const activeStatuses = new Set(['pending', 'assigned', 'payment_pending', 'paid', 'in_progress', 'awaiting_confirmation']);
-  return requests.find((request) => activeStatuses.has(String(request.status).toLowerCase())) || requests[0] || null;
+  const activeStatuses = new Set(['pending', 'assigned', 'route_in_progress', 'arrived', 'start_pending', 'in_progress', 'finish_pending', 'payment_pending', 'paid', 'completion_pending', 'awaiting_confirmation']);
+  const active = requests.find((request) => activeStatuses.has(String(request.status).toLowerCase()));
+  if (active) return active;
+  // Never pick a completed/cancelled request as the "in-process" primary
+  const nonClosed = requests.find((request) => !['done', 'cancelled', 'canceled'].includes(String(request.status || '').toLowerCase()));
+  return nonClosed || null;
 };
 
 const sortClientRequests = (requests: ClientRequestSummary[]) =>
@@ -140,13 +164,16 @@ const sortClientRequests = (requests: ClientRequestSummary[]) =>
 const isCancelledRequest = (request: ClientRequestSummary) =>
   ['cancelled', 'canceled'].includes(String(request.status || '').toLowerCase());
 
-const requestProgressLabels = ['Requested', 'Matching', 'Pro assigned', 'Service'];
+const requestProgressLabels = ['Pro approved', 'On route', 'Arrived', 'Working', 'Work finished', 'Paid', 'Completed'];
 
 const getRequestStepIndex = (statusRaw: ClientRequestStatus) => {
   const status = String(statusRaw || '').toLowerCase();
-  if (['paid', 'in_progress', 'awaiting_confirmation', 'done'].includes(status)) return 3;
-  if (['assigned', 'payment_pending'].includes(status)) return 2;
-  if (status === 'pending') return 1;
+  if (status === 'done') return 6;
+  if (['paid', 'completion_pending'].includes(status)) return 5;
+  if (status === 'payment_pending') return 4;
+  if (['in_progress', 'finish_pending', 'awaiting_confirmation'].includes(status)) return 3;
+  if (['arrived', 'start_pending'].includes(status)) return 2;
+  if (status === 'route_in_progress') return 1;
   return 0;
 };
 
@@ -219,7 +246,10 @@ export const Navbar: React.FC<NavbarProps> = ({
   const requestStateInitializedRef = useRef(false);
 
   const visibleClientRequests = useMemo(
-    () => clientRequests.filter((request) => !isCancelledRequest(request)),
+    () => clientRequests.filter((request) => {
+      const s = String(request.status || '').toLowerCase();
+      return !isCancelledRequest(request) && s !== 'done';
+    }),
     [clientRequests]
   );
   const orderedClientRequests = useMemo(() => sortClientRequests(visibleClientRequests), [visibleClientRequests]);
@@ -236,17 +266,27 @@ export const Navbar: React.FC<NavbarProps> = ({
   const primaryRequestStep = getRequestStepIndex(primaryRequest?.status || 'pending');
   const pendingWorkerApproval = primaryRequest ? hasPendingWorkerApproval(primaryRequest) : false;
   const pendingCounter = primaryRequest ? hasPendingCounter(primaryRequest) : false;
+  const primaryStatus = String(primaryRequest?.status || '').toLowerCase();
+  const clientStartApproved = Boolean(primaryRequest?.approvals?.start_work.client);
+  const clientFinishApproved = Boolean(primaryRequest?.approvals?.finish_work.client);
+  const clientCompleteApproved = Boolean(primaryRequest?.approvals?.complete_service.client);
+  const canApproveStart = ['arrived', 'start_pending'].includes(primaryStatus) && !clientStartApproved;
+  const finishUnlockAt = primaryRequest?.work_started_at
+    ? new Date(primaryRequest.work_started_at).getTime() + 1 * 60_000
+    : Number.POSITIVE_INFINITY;
+  const canApproveFinish = ['in_progress', 'finish_pending'].includes(primaryStatus) && !clientFinishApproved && Date.now() >= finishUnlockAt;
+  const canApproveCompletion = ['paid', 'completion_pending'].includes(primaryStatus) && !clientCompleteApproved;
   const scheduledStart = getScheduledStart(primaryRequest);
   const isScheduledFuture =
     !!scheduledStart &&
     scheduledStart.getTime() > Date.now() + 2 * 60 * 60 * 1000 &&
-    String(primaryRequest?.status || '').toLowerCase() === 'paid';
+    ['assigned', 'route_in_progress'].includes(String(primaryRequest?.status || '').toLowerCase());
   const canShowLiveMap = primaryRequest
-    ? ['paid', 'in_progress', 'awaiting_confirmation'].includes(String(primaryRequest.status).toLowerCase()) &&
+    ? ['route_in_progress', 'arrived', 'start_pending', 'in_progress', 'finish_pending', 'payment_pending', 'paid', 'completion_pending', 'done'].includes(String(primaryRequest.status).toLowerCase()) &&
       !isScheduledFuture
     : false;
   const canCancelRequest = primaryRequest
-    ? ['open', 'pending', 'assigned', 'payment_pending'].includes(
+    ? ['open', 'pending', 'assigned'].includes(
         String(primaryRequest.status || '').toLowerCase()
       )
     : false;
@@ -316,6 +356,15 @@ export const Navbar: React.FC<NavbarProps> = ({
     logout();
   };
 
+  const handleMyRequestsHistoryClick = () => {
+    setIsAccountOpen(false);
+    setIsMobileMenuOpen(false);
+    if (!user) { onOpenAuth('signin'); return; }
+    // Note: The full "My Requests & History" experience has been redone as a separate clean component (see MyRequestsModal.tsx).
+    // The old entry still works but is now protected against map crashes.
+    navigate('/app?openHistory=true');
+  };
+
   const fetchClientRequests = useCallback(async () => {
     if (!user || !authToken) return;
 
@@ -335,7 +384,12 @@ export const Navbar: React.FC<NavbarProps> = ({
       }
 
       const requests = Array.isArray(payload?.requests) ? payload.requests : [];
-      setClientRequests(requests.filter((request: ClientRequestSummary) => !isCancelledRequest(request)));
+      setClientRequests(
+        requests.filter((request: ClientRequestSummary) => {
+          const s = String(request.status || '').toLowerCase();
+          return !isCancelledRequest(request) && s !== 'done';
+        })
+      );
     } catch (error: any) {
       const rawMessage = String(error?.message || '');
       setRequestsError(
@@ -424,13 +478,44 @@ export const Navbar: React.FC<NavbarProps> = ({
           ? `Request #${primaryRequest.id_request} was cancelled.`
           : decision === 'accept'
           ? kind === 'counter'
-            ? 'Counter offer accepted. Payment is the next step.'
-            : 'Professional approved. Payment is the next step.'
+            ? 'Counter offer accepted. Worker can start route.'
+            : 'Professional approved. Worker can start route.'
           : 'Declined. Fixlife will continue looking for another professional.'
       );
       await fetchClientRequests();
     } catch (error: any) {
       setRequestActionMessage(String(error?.message || 'Could not save your decision.'));
+    } finally {
+      setRequestActionBusy(false);
+    }
+  };
+
+  const approveWorkflowAction = async (action: 'start_work' | 'finish_work' | 'complete_service') => {
+    if (!primaryRequest || !authToken) return;
+    setRequestActionBusy(true);
+    setRequestActionMessage('');
+    try {
+      const response = await fetch(API_ENDPOINTS.services.workflowApproval(primaryRequest.id_request), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${authToken}` },
+        body: JSON.stringify({ action }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok || !payload?.success) throw new Error(payload?.error || 'Could not save approval.');
+      setRequestActionMessage(payload?.message || 'Approval saved.');
+
+      if (action === 'complete_service') {
+        // Immediately remove from the "in process / active services" views.
+        // Completed requests should only appear in History as "Completed".
+        setClientRequests((current) =>
+          current.filter((request) => request.id_request !== primaryRequest.id_request)
+        );
+        setSelectedRequestId(null);
+      }
+
+      await fetchClientRequests();
+    } catch (error: any) {
+      setRequestActionMessage(String(error?.message || 'Could not save approval.'));
     } finally {
       setRequestActionBusy(false);
     }
@@ -763,6 +848,13 @@ export const Navbar: React.FC<NavbarProps> = ({
                       </button>
 
                       <button
+                        onClick={handleMyRequestsHistoryClick}
+                        className="w-full px-4 py-3 text-sm text-gray-600 hover:bg-bird-blue/5 rounded-lg text-left font-medium"
+                      >
+                        My Requests
+                      </button>
+
+                      <button
                         onClick={handleLogoutClick}
                         className="w-full px-4 py-3 text-sm text-red-500 hover:bg-red-50 rounded-lg text-left font-medium"
                       >
@@ -895,6 +987,12 @@ export const Navbar: React.FC<NavbarProps> = ({
         className="w-full py-4 rounded-xl bg-gray-100 border border-gray-200 text-gray-900 font-bold active:scale-95 transition-transform shadow-sm"
       >
         My Profile
+      </button>
+      <button
+        onClick={handleMyRequestsHistoryClick}
+        className="w-full py-4 rounded-xl bg-gray-100 border border-gray-200 text-gray-900 font-bold active:scale-95 transition-transform shadow-sm"
+      >
+        My Requests
       </button>
       <button
         onClick={handleLogoutClick}
@@ -1120,7 +1218,7 @@ export const Navbar: React.FC<NavbarProps> = ({
 
                       <div className="space-y-5 p-5">
                         <div>
-                          <div className="mb-3 flex items-center justify-between text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">
+                          <div className="mb-3 grid grid-cols-7 items-start gap-1 text-center text-[8px] font-black uppercase leading-tight tracking-tight text-slate-400">
                             {requestProgressLabels.map((label, index) => (
                               <span key={label} className={index <= primaryRequestStep ? 'text-bird-blue' : ''}>
                                 {label}
@@ -1265,7 +1363,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                       <div className="rounded-[1.5rem] border border-sky-200 bg-sky-50 p-5 shadow-sm">
                         <p className="text-[10px] font-black uppercase tracking-[0.18em] text-sky-700">Your approval is needed</p>
                         <p className="mt-2 text-sm font-semibold leading-6 text-slate-700">
-                          Review the professional and portfolio before deciding. The live map starts after approval and payment.
+                          Review professional and portfolio. After approval, worker can start route. Payment happens only after work finishes.
                         </p>
                         <div className="mt-4 grid grid-cols-2 gap-2">
                           <button
@@ -1288,6 +1386,36 @@ export const Navbar: React.FC<NavbarProps> = ({
                       </div>
                     )}
 
+                    {primaryRequest.workflow_version === 2 && ['arrived', 'start_pending'].includes(primaryStatus) && (
+                      <div className="rounded-[1.5rem] border border-blue-200 bg-blue-50 p-5 shadow-sm">
+                        <p className="text-[10px] font-black uppercase tracking-[0.18em] text-blue-700">Start work approval</p>
+                        <h4 className="mt-2 text-xl font-black text-slate-950">Worker arrived</h4>
+                        <p className="mt-2 text-sm font-semibold leading-6 text-slate-600">
+                          {clientStartApproved ? 'Your approval is saved. Waiting for worker approval.' : 'Approve only when worker is present and both are ready to begin.'}
+                        </p>
+                        {canApproveStart && (
+                          <button type="button" disabled={requestActionBusy} onClick={() => void approveWorkflowAction('start_work')} className="mt-4 w-full rounded-xl bg-blue-600 px-5 py-3.5 text-sm font-black text-white disabled:opacity-50">
+                            Approve work start
+                          </button>
+                        )}
+                      </div>
+                    )}
+
+                    {primaryRequest.workflow_version === 2 && ['in_progress', 'finish_pending'].includes(primaryStatus) && (
+                      <div className="rounded-[1.5rem] border border-violet-200 bg-violet-50 p-5 shadow-sm">
+                        <p className="text-[10px] font-black uppercase tracking-[0.18em] text-violet-700">Finish work approval</p>
+                        <h4 className="mt-2 text-xl font-black text-slate-950">Work in progress</h4>
+                        <p className="mt-2 text-sm font-semibold leading-6 text-slate-600">
+                          {clientFinishApproved ? 'Your finish approval is saved. Waiting for worker.' : canApproveFinish ? 'Confirm technical work is finished. Payment unlocks after both approve.' : 'Finish approval unlocks 1 minute after work starts.'}
+                        </p>
+                        {canApproveFinish && (
+                          <button type="button" disabled={requestActionBusy} onClick={() => void approveWorkflowAction('finish_work')} className="mt-4 w-full rounded-xl bg-violet-600 px-5 py-3.5 text-sm font-black text-white disabled:opacity-50">
+                            Approve work finish
+                          </button>
+                        )}
+                      </div>
+                    )}
+
                     {requestActionMessage && (
                       <div className="rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm font-bold text-blue-800">
                         {requestActionMessage}
@@ -1297,9 +1425,9 @@ export const Navbar: React.FC<NavbarProps> = ({
                     {String(primaryRequest.status || '').toLowerCase() === 'payment_pending' && (
                       <div className="rounded-[1.5rem] border border-emerald-200 bg-emerald-50 p-5 shadow-sm">
                         <p className="text-[10px] font-black uppercase tracking-[0.18em] text-emerald-700">Next step</p>
-                        <h4 className="mt-2 text-xl font-black text-slate-950">Secure your service</h4>
+                        <h4 className="mt-2 text-xl font-black text-slate-950">Pay for finished work</h4>
                         <p className="mt-2 text-sm font-semibold leading-6 text-slate-600">
-                          Pay ${Number(primaryRequest.final_budget ?? primaryRequest.budget ?? 0).toFixed(2)} securely to confirm this professional.
+                          Both approved work finish. Pay ${Number(primaryRequest.final_budget ?? primaryRequest.budget ?? 0).toFixed(2)} to continue to final closure.
                         </p>
                         <button
                           type="button"
@@ -1310,8 +1438,23 @@ export const Navbar: React.FC<NavbarProps> = ({
                           }}
                           className="mt-4 w-full rounded-xl bg-emerald-600 px-5 py-3.5 text-sm font-black text-white shadow-lg shadow-emerald-600/20 hover:bg-emerald-700"
                         >
-                          Continue to secure payment
+                          Continue to payment
                         </button>
+                      </div>
+                    )}
+
+                    {primaryRequest.workflow_version === 2 && ['paid', 'completion_pending'].includes(primaryStatus) && (
+                      <div className="rounded-[1.5rem] border border-emerald-200 bg-emerald-50 p-5 shadow-sm">
+                        <p className="text-[10px] font-black uppercase tracking-[0.18em] text-emerald-700">Final service approval</p>
+                        <h4 className="mt-2 text-xl font-black text-slate-950">Payment completed</h4>
+                        <p className="mt-2 text-sm font-semibold leading-6 text-slate-600">
+                          {clientCompleteApproved ? 'Your final approval is saved. Waiting for worker.' : 'Approve final closure. Service completes only after both approve.'}
+                        </p>
+                        {canApproveCompletion && (
+                          <button type="button" disabled={requestActionBusy} onClick={() => void approveWorkflowAction('complete_service')} className="mt-4 w-full rounded-xl bg-emerald-600 px-5 py-3.5 text-sm font-black text-white disabled:opacity-50">
+                            Approve service completion
+                          </button>
+                        )}
                       </div>
                     )}
 
@@ -1361,12 +1504,14 @@ export const Navbar: React.FC<NavbarProps> = ({
                             {isScheduledFuture ? 'Visit confirmed' : 'Professional selected'}
                           </p>
                           <h3 className="mt-2 text-3xl font-black text-slate-950">
-                            {isScheduledFuture ? 'Your map will open near visit time' : 'Review before live tracking'}
+                            {isScheduledFuture ? 'Your map will open near visit time' : pendingWorkerApproval ? 'Review professional' : 'Waiting for route start'}
                           </h3>
                           <p className="mx-auto mt-3 max-w-md text-sm font-semibold leading-7 text-slate-500">
                             {isScheduledFuture
                               ? `${formatRequestSchedule(primaryRequest)} is reserved. Live location stays private until the professional starts the trip.`
-                              : 'Open the professional profile, review completed work and decide on any proposal. The route appears here once payment is secured.'}
+                              : pendingWorkerApproval
+                                ? 'Review professional and approve selection. Worker can then start route.'
+                                : 'Professional is approved. Live route appears as soon as worker starts traveling.'}
                           </p>
                           <div className="mt-6 flex flex-col justify-center gap-2 sm:flex-row">
                             <button
@@ -1722,8 +1867,4 @@ export const Navbar: React.FC<NavbarProps> = ({
     </>
   );
 };
-
-
-
-
 

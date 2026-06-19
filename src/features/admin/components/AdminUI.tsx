@@ -14,7 +14,11 @@ const statusTone = (status: string) => {
   return 'neutral';
 };
 
-export const formatAdminLabel = (value: string) => value.replace(/_/g, ' ').replace(/\b\w/g, (char) => char.toUpperCase());
+export const formatAdminLabel = (value: string) => {
+  const v = String(value || '').toLowerCase();
+  if (v === 'done') return 'Completed';
+  return value.replace(/_/g, ' ').replace(/\b\w/g, (char) => char.toUpperCase());
+};
 export const StatusBadge = ({ status }: { status: string }) => <span className={`admin-badge admin-badge--${statusTone(status)}`}>{formatAdminLabel(status)}</span>;
 
 export const MetricCard = ({ label, value, note, icon, variant = 'primary' }: { label: string; value: ReactNode; note?: string; icon?: ReactNode; variant?: 'primary' | 'success' | 'warning' | 'info' | 'danger' }) => (
@@ -25,6 +29,86 @@ export const MetricCard = ({ label, value, note, icon, variant = 'primary' }: { 
 );
 
 export const FilterBar = ({ children }: { children: ReactNode }) => <AdminCard className="admin-filter-bar">{children}</AdminCard>;
+
+/**
+ * Number input that actually enforces its bounds. A native <input type="number">
+ * only flags out-of-range values; it still lets a user type 70000000 into a
+ * 0-100 field. This sanitizes on each keystroke (digits + one dot, no sign, no
+ * exponent, capped decimals, clamped to max) and clamps to [min,max] on blur.
+ */
+export const AdminNumberInput = ({
+  value,
+  onChange,
+  min = 0,
+  max,
+  decimals = 0,
+  placeholder,
+  disabled,
+  className,
+  id,
+}: {
+  value: string | number;
+  onChange: (value: string) => void;
+  min?: number;
+  max?: number;
+  decimals?: number;
+  placeholder?: string;
+  disabled?: boolean;
+  className?: string;
+  id?: string;
+}) => {
+  const sanitize = (raw: string): string => {
+    if (raw === '') return '';
+    let cleaned = raw.replace(/[^\d.]/g, '');
+    const firstDot = cleaned.indexOf('.');
+    if (firstDot !== -1) {
+      cleaned = cleaned.slice(0, firstDot + 1) + cleaned.slice(firstDot + 1).replace(/\./g, '');
+    }
+    if (decimals <= 0) {
+      cleaned = cleaned.split('.')[0];
+    } else if (cleaned.includes('.')) {
+      const [intPart, decPart = ''] = cleaned.split('.');
+      cleaned = `${intPart}.${decPart.slice(0, decimals)}`;
+    }
+    if (cleaned !== '' && cleaned !== '.') {
+      const num = Number(cleaned);
+      if (Number.isFinite(num) && max != null && num > max) cleaned = String(max);
+    }
+    return cleaned;
+  };
+
+  const handleBlur = (raw: string) => {
+    if (raw === '' || raw === '.') {
+      onChange('');
+      return;
+    }
+    let num = Number(raw);
+    if (!Number.isFinite(num)) {
+      onChange('');
+      return;
+    }
+    if (num < min) num = min;
+    if (max != null && num > max) num = max;
+    onChange(String(decimals > 0 ? Number(num.toFixed(decimals)) : Math.round(num)));
+  };
+
+  return (
+    <input
+      id={id}
+      type="text"
+      inputMode={decimals > 0 ? 'decimal' : 'numeric'}
+      className={className}
+      disabled={disabled}
+      placeholder={placeholder}
+      value={String(value ?? '')}
+      onChange={(event) => onChange(sanitize(event.target.value))}
+      onBlur={(event) => handleBlur(event.target.value)}
+      onKeyDown={(event) => {
+        if (['e', 'E', '+', '-'].includes(event.key)) event.preventDefault();
+      }}
+    />
+  );
+};
 
 export const FormSection = ({ title, description, children }: { title: string; description?: string; children: ReactNode }) => (
   <fieldset className="admin-form-section"><legend>{title}</legend>{description && <p className="admin-muted">{description}</p>}<div className="admin-form-grid">{children}</div></fieldset>

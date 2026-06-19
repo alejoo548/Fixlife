@@ -5,8 +5,9 @@ import pool from '../config/db';
 import { AuthRequest } from '../middlewares/auth.middleware';
 import {getAllBonusPayoutsForAdmin,getWorkerRewardsSettings,markWorkerBonusPayoutAsPaid,syncAllWorkerBonusPayouts,updateWorkerRewardsSettings,} from '../utils/workerRewards';
 import { createUserNotification } from '../utils/notifications';
-import { pushToUser } from '../services/sseManager';
+import { emitToUser } from '../services/socketManager';
 import { emitAdminActivity } from '../services/supportSocket.service';
+import { recordSystemEvent } from '../services/systemEvents.service';
 import { ensureServiceCardsTable, ensureServiceRequestTables } from './services.controller';
 import { ensureUsersActiveColumn, ensureUsersPendingWorkerColumn } from '../utils/users';
 import { buildProtectedAssetUrl, buildPublicAssetUrl, deleteUploadIfExists } from '../utils/assets';
@@ -968,7 +969,7 @@ export const approveWorker = async (req: AuthRequest, res: Response): Promise<vo
 
       const workerName = `${userRows[0]?.name || ''} ${userRows[0]?.lastname || ''}`.trim();
       await connection.commit();
-      pushToUser(userId, 'worker_status', { is_verified: 1 });
+      emitToUser(userId, 'worker_status', { is_verified: 1 });
       await logAdminActivity(
         req,
         'approve',
@@ -977,6 +978,14 @@ export const approveWorker = async (req: AuthRequest, res: Response): Promise<vo
         userId,
         { name: workerName || null, reason }
       );
+      await recordSystemEvent({
+        level: 'info',
+        component: 'admin',
+        eventType: 'worker_approved',
+        message: 'Worker profile approved.',
+        metadata: { targetUserId: userId, actor: req.user?.user_id },
+      }).catch(() => undefined);
+
       res.json({ success: true, message: 'Worker approved successfully.' });
     } catch (error) {
       await connection.rollback();
@@ -1045,7 +1054,7 @@ export const rejectWorker = async (req: AuthRequest, res: Response): Promise<voi
 
       const workerName = `${userRows[0]?.name || ''} ${userRows[0]?.lastname || ''}`.trim();
       await connection.commit();
-      pushToUser(userId, 'worker_status', { is_verified: 2 });
+      emitToUser(userId, 'worker_status', { is_verified: 2 });
       await logAdminActivity(
         req,
         'reject',
@@ -1054,6 +1063,15 @@ export const rejectWorker = async (req: AuthRequest, res: Response): Promise<voi
         userId,
         { name: workerName || null, reason }
       );
+
+      await recordSystemEvent({
+        level: 'warning',
+        component: 'admin',
+        eventType: 'worker_rejected',
+        message: 'Worker profile rejected.',
+        metadata: { targetUserId: userId, actor: req.user?.user_id, reason },
+      }).catch(() => undefined);
+
       res.json({ success: true, message: 'Worker rejected successfully.' });
     } catch (error) {
       await connection.rollback();
@@ -1097,7 +1115,10 @@ export const getUsersAdmin = async (req: AuthRequest, res: Response): Promise<vo
       params.push(like, like, like, like);
     }
 
-    if (roleFilter) {
+    if (roleFilter === 'admin') {
+      // The "Admins" section lists every staff account: admins plus the root.
+      whereParts.push(`u.rol IN ('admin', 'root')`);
+    } else if (roleFilter) {
       whereParts.push(`u.rol = ?`);
       params.push(roleFilter);
     }
@@ -1347,8 +1368,19 @@ export const updateUserRole = async (req: AuthRequest, res: Response): Promise<v
     }
 
     const currentRole = String(rows[0].rol || '').toLowerCase();
+    const actorRole = String(req.user?.rol || '').toLowerCase();
+    const actorId = Number(req.user?.user_id || 0);
+
+    if (actorId === userId) {
+      res.status(403).json({ error: 'You cannot change your own role.' });
+      return;
+    }
     if (currentRole === 'root') {
       res.status(403).json({ error: 'Root user cannot be modified.' });
+      return;
+    }
+    if (currentRole === 'admin' && actorRole !== 'root') {
+      res.status(403).json({ error: 'Only the root administrator can modify other admins.' });
       return;
     }
     if (currentRole === 'worker') {
@@ -1377,6 +1409,14 @@ export const updateUserRole = async (req: AuthRequest, res: Response): Promise<v
       userId,
       { from: currentRole, to: newRole, reason }
     );
+
+    await recordSystemEvent({
+      level: 'warning',
+      component: 'admin',
+      eventType: 'user_role_changed',
+      message: `User role changed to ${newRole}.`,
+      metadata: { targetUserId: userId, from: currentRole, to: newRole, actor: req.user?.user_id },
+    }).catch(() => undefined);
 
     res.json({ success: true, message: 'Role updated successfully.' });
   } catch (error: any) {
@@ -1420,13 +1460,19 @@ export const updateUserStatus = async (req: AuthRequest, res: Response): Promise
     }
 
     const currentRole = String(rows[0].rol || '').toLowerCase();
+    const actorRole = String(req.user?.rol || '').toLowerCase();
+    const actorId = Number(req.user?.user_id || 0);
+
     if (currentRole === 'root') {
       res.status(403).json({ error: 'Root user cannot be modified.' });
       return;
     }
-
-    if (req.user?.user_id === userId && desiredActive === 0) {
-      res.status(400).json({ error: 'You cannot deactivate your own account.' });
+    if (actorId === userId) {
+      res.status(403).json({ error: 'You cannot change your own account status.' });
+      return;
+    }
+    if (currentRole === 'admin' && actorRole !== 'root') {
+      res.status(403).json({ error: 'Only the root administrator can modify other admins.' });
       return;
     }
 
@@ -1446,6 +1492,14 @@ export const updateUserStatus = async (req: AuthRequest, res: Response): Promise
       userId,
       { is_active: desiredActive, reason }
     );
+
+    await recordSystemEvent({
+      level: 'warning',
+      component: 'admin',
+      eventType: 'user_status_changed',
+      message: `User status changed to ${desiredActive === 1 ? 'active' : 'inactive'}.`,
+      metadata: { targetUserId: userId, is_active: desiredActive, actor: req.user?.user_id },
+    }).catch(() => undefined);
 
     res.json({ success: true, message: 'User status updated successfully.' });
   } catch (error: any) {
@@ -2235,7 +2289,7 @@ export const updateRequestAdmin = async (req: AuthRequest, res: Response): Promi
       }
       await Promise.allSettled(notifications.map(async (n) => {
         await createUserNotification({ userId: n.userId, eventType: n.eventType, title: n.title, message: n.message, tone: n.tone, requestId: idRequest, dedupeKey: `admin_${action}_${idRequest}_${n.userId}` });
-        pushToUser(n.userId, 'notification', { eventType: n.eventType, title: n.title, message: n.message });
+        emitToUser(n.userId, 'notification', { eventType: n.eventType, title: n.title, message: n.message });
       }));
     };
     notifyParties().catch(() => undefined);
@@ -3155,7 +3209,7 @@ export const updateWorkerTierAdmin = async (req: AuthRequest, res: Response): Pr
             reason,
           },
         });
-        pushToUser(workerUserId, 'worker_tier_updated', {
+        emitToUser(workerUserId, 'worker_tier_updated', {
           membership_tier: updated.next_tier,
           previous_tier: updated.previous_tier,
         });

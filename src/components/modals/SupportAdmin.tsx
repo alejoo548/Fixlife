@@ -207,45 +207,53 @@ export const SupportAdmin: React.FC<SupportAdminProps> = ({ token }) => {
   useEffect(() => {
     if (!token) { disconnectSupportSocket(); setIsSocketConnected(false); return; }
 
-    connectSupportSocket({
-      token,
-      onNewMessage: (message) => {
-        setMessages((prev) => {
-          if (selectedThreadRef.current?.id !== message.threadId) return prev;
-          if (prev.some((m) => m.id === message.id)) return prev;
-          return [...prev, message];
-        });
-        const shouldRefreshThreads = !threadsRef.current.some((thread) => thread.id === message.threadId);
-        setThreads((prev) => {
-          if (!prev.some((thread) => thread.id === message.threadId)) {
-            return prev;
+    let cancelled = false;
+    const connectTimer = window.setTimeout(() => {
+      if (cancelled) return;
+      connectSupportSocket({
+        token,
+        onNewMessage: (message) => {
+          setMessages((prev) => {
+            if (selectedThreadRef.current?.id !== message.threadId) return prev;
+            if (prev.some((m) => m.id === message.id)) return prev;
+            return [...prev, message];
+          });
+          const shouldRefreshThreads = !threadsRef.current.some((thread) => thread.id === message.threadId);
+          setThreads((prev) => {
+            if (!prev.some((thread) => thread.id === message.threadId)) {
+              return prev;
+            }
+
+            return sortThreadsByLastMessage(prev.map((thread) =>
+              thread.id === message.threadId
+                ? { ...thread, lastMessageAt: message.createdAt }
+                : thread
+            ));
+          });
+          if (shouldRefreshThreads) fetchThreads();
+        },
+        onThreadCreated: ({ thread, message }) => {
+          setThreads((prev) => {
+            const withoutDuplicate = prev.filter((item) => item.id !== thread.id);
+            return sortThreadsByLastMessage([thread, ...withoutDuplicate]);
+          });
+          if (selectedThreadRef.current?.id === thread.id && message) {
+            setMessages((prev) => (prev.some((item) => item.id === message.id) ? prev : [...prev, message]));
           }
+        },
+        onConnect: () => {
+          setIsSocketConnected(true);
+          if (selectedThreadRef.current) joinSupportThread(selectedThreadRef.current.id);
+        },
+        onDisconnect: () => setIsSocketConnected(false),
+      });
+    }, 50);
 
-          return sortThreadsByLastMessage(prev.map((thread) =>
-            thread.id === message.threadId
-              ? { ...thread, lastMessageAt: message.createdAt }
-              : thread
-          ));
-        });
-        if (shouldRefreshThreads) fetchThreads();
-      },
-      onThreadCreated: ({ thread, message }) => {
-        setThreads((prev) => {
-          const withoutDuplicate = prev.filter((item) => item.id !== thread.id);
-          return sortThreadsByLastMessage([thread, ...withoutDuplicate]);
-        });
-        if (selectedThreadRef.current?.id === thread.id && message) {
-          setMessages((prev) => (prev.some((item) => item.id === message.id) ? prev : [...prev, message]));
-        }
-      },
-      onConnect: () => {
-        setIsSocketConnected(true);
-        if (selectedThreadRef.current) joinSupportThread(selectedThreadRef.current.id);
-      },
-      onDisconnect: () => setIsSocketConnected(false),
-    });
-
-    return () => { disconnectSupportSocket(); };
+    return () => {
+      cancelled = true;
+      window.clearTimeout(connectTimer);
+      disconnectSupportSocket();
+    };
   }, [token]);
 
   useEffect(() => {

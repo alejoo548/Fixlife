@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Edit3, Plus, Trash2 } from 'lucide-react';
 import { adminApi } from '../api/adminApi';
-import { AdminCard, EmptyState, FormSection, Skeleton, StatusBadge } from '../components/AdminUI';
+import { AdminCard, AdminNumberInput, EmptyState, FormSection, Skeleton, StatusBadge } from '../components/AdminUI';
 import { DropifyUpload } from '../components/DropifyUpload';
 import { HeroSlidesEditor } from './content/HeroSlidesEditor';
 
@@ -161,7 +161,7 @@ export default function ContentModule() {
             />
             <label className="admin-field"><span>Badge</span><input value={form.badge} maxLength={40} onChange={(event) => setForm({ ...form, badge: event.target.value })} /></label>
             <label className="admin-field"><span>CTA label</span><input value={form.cta_label} maxLength={60} onChange={(event) => setForm({ ...form, cta_label: event.target.value })} /></label>
-            <label className="admin-field"><span>Display order</span><input type="number" min="1" max="5000" value={form.sort_order} onChange={(event) => setForm({ ...form, sort_order: event.target.value })} /></label>
+            <label className="admin-field"><span>Display order</span><AdminNumberInput min={1} max={5000} decimals={0} value={form.sort_order} onChange={(value) => setForm({ ...form, sort_order: value })} /></label>
             <label className="admin-check"><input type="checkbox" checked={form.is_active} onChange={(event) => setForm({ ...form, is_active: event.target.checked })} />Visible on homepage</label>
           </div>
         </details>

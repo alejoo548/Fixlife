@@ -288,6 +288,55 @@
   background: rgba(56, 189, 248, 0.9);
 }
 
+/* Additional high-contrast fixes for worker dashboard (dark mode text visibility) */
+.dashboard-theme-dark [class~="bg-sky-50"],
+.dashboard-theme-dark [class~="bg-sky-50/80"],
+.dashboard-theme-dark [class~="bg-emerald-50"],
+.dashboard-theme-dark [class~="bg-amber-50"],
+.dashboard-theme-dark [class~="bg-amber-100"],
+.dashboard-theme-dark [class~="bg-violet-50"],
+.dashboard-theme-dark [class~="bg-blue-50"] {
+  background-color: rgba(30, 41, 59, 0.92) !important;
+}
+
+.dashboard-theme-dark [class~="text-emerald-700"],
+.dashboard-theme-dark [class~="text-emerald-600"],
+.dashboard-theme-dark [class~="text-amber-700"],
+.dashboard-theme-dark [class~="text-amber-800"],
+.dashboard-theme-dark [class~="text-amber-950"],
+.dashboard-theme-dark [class~="text-violet-700"],
+.dashboard-theme-dark [class~="text-sky-700"],
+.dashboard-theme-dark [class~="text-blue-700"] {
+  color: #e0f2fe !important;
+}
+
+.dashboard-theme-dark [class~="border-emerald-200"],
+.dashboard-theme-dark [class~="border-amber-200"],
+.dashboard-theme-dark [class~="border-violet-200"],
+.dashboard-theme-dark [class~="border-sky-200"] {
+  border-color: rgba(71, 85, 105, 0.65) !important;
+}
+
+.dashboard-theme-dark .bg-emerald-50,
+.dashboard-theme-dark .bg-amber-50,
+.dashboard-theme-dark .bg-sky-50 {
+  background-color: rgba(30, 41, 59, 0.92) !important;
+}
+
+/* Ensure badge style texts stay readable in colored light surfaces under dark */
+.dashboard-theme-dark [class*="bg-"][class*="text-amber-"],
+.dashboard-theme-dark [class*="bg-"][class*="text-emerald-"],
+.dashboard-theme-dark [class*="bg-"][class*="text-sky-"],
+.dashboard-theme-dark [class*="bg-"][class*="text-violet-"] {
+  color: #e0f2fe !important;
+}
+
+.dashboard-theme-dark .text-slate-950,
+.dashboard-theme-dark .text-slate-900,
+.dashboard-theme-dark .text-gray-900 {
+  color: var(--dashboard-text) !important;
+}
+
 .dashboard-theme-dark .recharts-cartesian-grid line {
   stroke: rgba(71, 85, 105, 0.45) !important;
 }
@@ -1457,24 +1506,49 @@ html {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  gap: 18px;
-  padding: 14px 4px;
+  gap: 16px;
+  padding: 13px 12px;
   border-top: 1px solid var(--admin-border);
   text-decoration: none;
   color: var(--admin-text);
   transition: background var(--admin-transition);
-  border-radius: 8px;
+  border-radius: 10px;
+}
+.admin-compact-list > a:first-child,
+.admin-compact-list > div:first-child {
+  border-top: 0;
 }
 .admin-compact-list > a:hover {
   background: var(--admin-surface-muted);
 }
-.admin-compact-list div > div:first-child,
+/* Left block: title + meta. Must target the <a> wrapper rows too, not only
+   div>div, otherwise the column layout never applies and the title and meta
+   collapse onto one line. */
+.admin-compact-list > a > div:first-child,
+.admin-compact-list > div > div:first-child,
 .admin-primary-cell {
   display: flex;
   flex-direction: column;
   gap: 3px;
+  min-width: 0;
+  flex: 1 1 auto;
 }
-.admin-compact-list span,
+.admin-compact-list strong {
+  font-size: 13px;
+  font-weight: 700;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+.admin-compact-list span {
+  font-size: 11px;
+  color: var(--admin-muted);
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .admin-primary-cell span {
   font-size: 11px;
   color: var(--admin-muted);
@@ -1483,15 +1557,19 @@ html {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.admin-compact-list div > div:last-child {
+.admin-compact-list > a > div:last-child,
+.admin-compact-list > div > div:last-child {
   display: flex;
   align-items: flex-end;
-  gap: 6px;
+  gap: 5px;
   flex-direction: column;
+  flex-shrink: 0;
+  text-align: right;
 }
 .admin-compact-list small {
   color: var(--admin-soft);
   font-size: 11px;
+  white-space: nowrap;
 }
 
 /* ── Filter bar ── */

@@ -15,6 +15,44 @@ export const authLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: 'Too many auth attempts. Try again in 15 minutes.' },
+  handler: (_req: any, res: any) => {
+    res.status(429).json({ error: 'Too many auth attempts. Try again in 15 minutes.' });
+  },
+});
+
+// Dedicated stricter limiter just for password-based login (brute force protection)
+export const loginLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many login attempts. Try again in 15 minutes.' },
+  handler: (_req: any, res: any) => {
+    res.status(429).json({ error: 'Too many login attempts. Try again in 15 minutes.' });
+  },
+});
+
+// Dedicated limiters for password reset flow (more sensitive than general auth)
+export const forgotPasswordLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 6,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many password reset requests. Try again in 15 minutes.' },
+  handler: (_req: any, res: any) => {
+    res.status(429).json({ error: 'Too many password reset requests. Try again in 15 minutes.' });
+  },
+});
+
+export const passwordResetLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 8,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many reset attempts. Try again in 15 minutes.' },
+  handler: (_req: any, res: any) => {
+    res.status(429).json({ error: 'Too many reset attempts. Try again in 15 minutes.' });
+  },
 });
 
 export const sensitiveLimiter = rateLimit({
@@ -30,7 +68,7 @@ export const aiChatLimiter = rateLimit({
   max: 15,
   standardHeaders: true,
   legacyHeaders: false,
-  message: { error: 'Demasiadas solicitudes al chat. Espera un momento e intenta de nuevo.' },
+  message: { error: 'Too many chat requests. Please wait a moment and try again.' },
 });
 
 export const requestChatReadLimiter = rateLimit({

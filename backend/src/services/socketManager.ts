@@ -1,9 +1,7 @@
-import http from 'http';
-import jwt from 'jsonwebtoken';
 import { Server, Socket } from 'socket.io';
 import { RowDataPacket } from 'mysql2';
 import pool from '../config/db';
-import { getJwtSecret } from '../config/security';
+import { verifyAccessToken } from '../config/security';
 
 type SocketUser = {
   user_id: number;
@@ -36,15 +34,17 @@ const socketsByUser = new Map<number, Set<string>>();
 const resolveRequestParticipant = async (idRequest: number, userId: number) => {
   const [rows] = await pool.execute<RowDataPacket[]>(
     `SELECT
-       sr.id_request,
-       sr.id_user AS client_user_id,
-       sr.status AS request_status,
-       sr.assigned_worker_profile,
-       wp.id_user AS worker_user_id
-     FROM service_requests sr
-     LEFT JOIN worker_profiles wp ON wp.id_worker_profile = sr.assigned_worker_profile
-     WHERE sr.id_request = ?
-     LIMIT 1`,
+      sr.id_request,
+      sr.id_user AS client_user_id,
+      sr.status AS request_status,
+      sr.assigned_worker_profile,
+      wp.id_user AS worker_user_id,
+      u.is_active AS client_active
+    FROM service_requests sr
+    INNER JOIN users u ON u.id_user = sr.id_user
+    LEFT JOIN worker_profiles wp ON wp.id_worker_profile = sr.assigned_worker_profile
+    WHERE sr.id_request = ? AND u.is_active = 1
+    LIMIT 1`,
     [idRequest]
   );
 
@@ -71,13 +71,8 @@ const resolveRequestParticipant = async (idRequest: number, userId: number) => {
   return null;
 };
 
-export const initSocketServer = (server: http.Server, corsOptions: Record<string, unknown>) => {
-  io = new Server(server, {
-    cors: corsOptions,
-    path: '/socket.io',
-    transports: ['websocket', 'polling'],
-    maxHttpBufferSize: 128 * 1024,
-  });
+export const initSocketServer = (ioInstance: Server) => {
+  io = ioInstance;
 
   io.use(async (socket: AuthedSocket, next) => {
     const rawToken =
@@ -90,7 +85,7 @@ export const initSocketServer = (server: http.Server, corsOptions: Record<string
     }
 
     try {
-      const decoded = jwt.verify(String(rawToken), getJwtSecret()) as SocketUser;
+      const decoded = verifyAccessToken(String(rawToken));
       const userId = Number(decoded?.user_id || 0);
       if (!Number.isSafeInteger(userId) || userId <= 0) {
         next(new Error('Unauthorized'));
@@ -99,9 +94,9 @@ export const initSocketServer = (server: http.Server, corsOptions: Record<string
 
       const [rows] = await pool.execute<RowDataPacket[]>(
         `SELECT id_user, rol, pending_worker
-         FROM users
-         WHERE id_user = ? AND is_active = 1
-         LIMIT 1`,
+        FROM users
+        WHERE id_user = ? AND is_active = 1
+        LIMIT 1`,
         [userId]
       );
       if (rows.length === 0) {
@@ -138,6 +133,7 @@ export const initSocketServer = (server: http.Server, corsOptions: Record<string
     socketsByUser.set(userId, existingSockets);
 
     socket.join(userRoom(userId));
+    if (socket.user?.rol === 'worker') socket.join('all_workers');
     socket.emit('socket:ready', { user_id: userId });
 
     socket.on('disconnect', () => {
@@ -205,8 +201,7 @@ export const emitChatMessage = (payload: {
     messages: payload.messages || [],
   };
 
-  // Delivery uses current participant user rooms. Request rooms are only presence scopes:
-  // a worker who was later replaced must never keep receiving chat payloads.
+
   if (payload.sender_user_id) {
     io.to(userRoom(payload.sender_user_id)).emit('chat:message', eventPayload);
   }
@@ -214,4 +209,32 @@ export const emitChatMessage = (payload: {
   if (payload.recipient_user_id) {
     io.to(userRoom(payload.recipient_user_id)).emit('chat:message', eventPayload);
   }
+};
+
+export const emitUserUpdate = (
+  userId: number,
+  payload: {
+    event_type: string;
+    id_request?: number | null;
+    title?: string;
+    message?: string;
+    tone?: 'info' | 'success' | 'warning';
+    metadata?: Record<string, unknown> | null;
+  }
+) => {
+  if (!io || !Number.isSafeInteger(userId) || userId <= 0) return;
+  io.to(userRoom(userId)).emit('worker:update', {
+    ...payload,
+    emitted_at: new Date().toISOString(),
+  });
+};
+
+export const emitToUser = (userId: number, event: string, data: unknown) => {
+  if (!io || !Number.isSafeInteger(userId) || userId <= 0) return;
+  io.to(userRoom(userId)).emit(event, data);
+};
+
+export const emitToWorkers = (event: string, data: unknown) => {
+  if (!io) return;
+  io.to('all_workers').emit(event, data);
 };

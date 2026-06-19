@@ -80,6 +80,26 @@ export const sanitizeRedirectUrl = (value: unknown, fallback: string) => {
   }
 };
 
+export const getDefaultFrontendUrl = () => {
+  for (const candidate of [
+    process.env.PUBLIC_APP_URL,
+    process.env.FRONTEND_URL,
+    process.env.FRONTEND_ORIGIN,
+  ]) {
+    const raw = String(candidate || '').trim();
+    if (!raw) continue;
+    try {
+      const parsed = new URL(raw);
+      if (['http:', 'https:'].includes(parsed.protocol)) {
+        return parsed.origin;
+      }
+    } catch {
+      // Ignore malformed env values and keep local fallback.
+    }
+  }
+  return 'http://localhost:3000';
+};
+
 const roundMoney = (value: number) => Number(Number(value || 0).toFixed(2));
 
 const amountsMatch = (left: number | null | undefined, right: number | null | undefined) =>

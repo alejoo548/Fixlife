@@ -61,6 +61,9 @@ export const addResilientTileLayer = (L: any, map: any) => {
   const primaryLayer = L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
     maxZoom: 19,
     attribution: '&copy; OpenStreetMap &copy; CARTO',
+    keepBuffer: 1,
+    updateWhenIdle: true,
+    updateWhenZooming: false,
   }).addTo(map);
 
   primaryLayer.on('tileerror', () => {
@@ -73,6 +76,9 @@ export const addResilientTileLayer = (L: any, map: any) => {
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
       maxZoom: 19,
       attribution: '&copy; OpenStreetMap contributors',
+      keepBuffer: 1,
+      updateWhenIdle: true,
+      updateWhenZooming: false,
     }).addTo(map);
   });
 

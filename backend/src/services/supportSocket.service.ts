@@ -1,14 +1,14 @@
-import { Server as HttpServer } from 'http';
-import { Server, Socket } from 'socket.io';
-import jwt from 'jsonwebtoken';
-import { getJwtSecret } from '../config/security';
+import { Server, Namespace, Socket } from 'socket.io';
+import { RowDataPacket } from 'mysql2';
+import pool from '../config/db';
+import { verifyAccessToken } from '../config/security';
 import {
   getMessageById,
   insertMessage,
   mapMessageRow,
   userCanAccessThread,
 } from './support.service';
-import { hasUnsafeSupportText, sanitizeSupportText } from '../schemas/support.schema';
+import { sanitizeMessage } from '../utils/sanitize';
 
 const SUPPORT_ADMIN_ROOM = 'support_admins';
 
@@ -40,31 +40,41 @@ interface AuthenticatedSocket extends Socket {
   };
 }
 
-let io: Server | null = null;
+let nsp: Namespace | null = null;
 
-export function initializeSupportSocket(httpServer: HttpServer) {
-  if (io) return io;
+export function initializeSupportSocket(ioServer: Server) {
+  if (nsp) return nsp;
 
-  io = new Server(httpServer, {
-    cors: {
-      origin: process.env.ALLOWED_ORIGINS?.split(',') || '*',
-      credentials: true,
-    },
-    path: '/socket.io/support', 
-  });
+  nsp = ioServer.of('/support');
 
-  io.use((socket: AuthenticatedSocket, next) => {
-    const token = socket.handshake.auth?.token || socket.handshake.query?.token;
+  nsp.use(async (socket: AuthenticatedSocket, next) => {
+    const token = socket.handshake.auth?.token;
 
     if (!token) {
       return next(new Error('Authentication token required'));
     }
 
     try {
-      const decoded = jwt.verify(token as string, getJwtSecret()) as { user_id: number; rol: string };
+      const decoded = verifyAccessToken(String(token));
+      const userId = Number(decoded?.user_id || 0);
+      if (!Number.isSafeInteger(userId) || userId <= 0) {
+        return next(new Error('Invalid or expired token'));
+      }
+
+      const [rows] = await pool.execute<RowDataPacket[]>(
+        `SELECT id_user, rol
+         FROM users
+         WHERE id_user = ? AND is_active = 1
+         LIMIT 1`,
+        [userId]
+      );
+      if (rows.length === 0) {
+        return next(new Error('Invalid or expired token'));
+      }
+
       socket.user = {
-        user_id: decoded.user_id,
-        rol: decoded.rol,
+        user_id: userId,
+        rol: String(rows[0].rol || ''),
       };
       next();
     } catch (err) {
@@ -72,7 +82,7 @@ export function initializeSupportSocket(httpServer: HttpServer) {
     }
   });
 
-  io.on('connection', (socket: AuthenticatedSocket) => {
+  nsp.on('connection', (socket: AuthenticatedSocket) => {
     console.log(`[SupportSocket] User ${socket.user?.user_id} connected`);
 
     if (socket.user?.rol === 'admin' || socket.user?.rol === 'root') {
@@ -113,14 +123,9 @@ export function initializeSupportSocket(httpServer: HttpServer) {
         return;
       }
 
-      const message = data?.message;
-      const trimmed = sanitizeSupportText(message, 2000);
+      const message = sanitizeMessage(data?.message, 2000);
 
-      if (!trimmed) return;
-      if (String(message ?? '').length > 2000 || hasUnsafeSupportText(message)) {
-        socket.emit('support:error', { message: 'Message contains invalid content' });
-        return;
-      }
+      if (!message) return;
 
       if (isMessageRateLimited(socket.user.user_id)) {
         socket.emit('support:error', { message: 'You are sending messages too quickly. Please slow down.' });
@@ -134,11 +139,11 @@ export function initializeSupportSocket(httpServer: HttpServer) {
           return;
         }
 
-        const senderRole = socket.user.rol === 'admin' || socket.user.rol === 'root' 
-          ? 'admin' 
+        const senderRole = socket.user.rol === 'admin' || socket.user.rol === 'root'
+          ? 'admin'
           : socket.user.rol === 'worker' ? 'worker' : 'client';
 
-        const messageId = await insertMessage(threadId, socket.user.user_id, senderRole, trimmed);
+        const messageId = await insertMessage(threadId, socket.user.user_id, senderRole, message);
         const messageRow = await getMessageById(messageId);
         if (!messageRow) {
           socket.emit('support:error', { message: 'Failed to send message' });
@@ -158,24 +163,24 @@ export function initializeSupportSocket(httpServer: HttpServer) {
     });
   });
 
-  return io;
+  return nsp;
 }
 
-export function getSupportIO(): Server | null {
-  return io;
+export function getSupportIO(): Namespace | null {
+  return nsp;
 }
 
 export function emitNewSupportMessage(threadId: number, payload: any) {
-  if (!io) return;
-  io.to(`support_thread_${threadId}`).to(SUPPORT_ADMIN_ROOM).emit('support:new_message', payload);
+  if (!nsp) return;
+  nsp.to(`support_thread_${threadId}`).to(SUPPORT_ADMIN_ROOM).emit('support:new_message', payload);
 }
 
 export function emitSupportThreadCreated(payload: any) {
-  if (!io) return;
-  io.to(SUPPORT_ADMIN_ROOM).emit('support:thread_created', payload);
+  if (!nsp) return;
+  nsp.to(SUPPORT_ADMIN_ROOM).emit('support:thread_created', payload);
 }
 
 export function emitAdminActivity(payload: any) {
-  if (!io) return;
-  io.to(SUPPORT_ADMIN_ROOM).emit('admin:activity_created', payload);
+  if (!nsp) return;
+  nsp.to(SUPPORT_ADMIN_ROOM).emit('admin:activity_created', payload);
 }

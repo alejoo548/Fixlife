@@ -2,6 +2,7 @@ export interface RequestsViewProps {
   isOnline: boolean | null;
   mobileView: 'list' | 'map';
   token: string | null;
+  isVerified?: boolean;
 }
 
 export interface WorkerRequest {
@@ -19,13 +20,30 @@ export interface WorkerRequest {
   scheduled_time?: string | null;
   scheduled_start_time?: string | null;
   scheduled_end_time?: string | null;
+  worker_arrived_at?: string | null;
+  workflow_version?: number;
+  client_approved_at?: string | null;
+  route_started_at?: string | null;
+  work_started_at?: string | null;
+  work_finished_at?: string | null;
+  completed_at?: string | null;
+  approvals?: {
+    start_work: { client: boolean; worker: boolean };
+    finish_work: { client: boolean; worker: boolean };
+    complete_service: { client: boolean; worker: boolean };
+  };
   request_status:
     | 'open'
     | 'payment_pending'
     | 'paid'
     | 'assigned'
+    | 'route_in_progress'
+    | 'arrived'
+    | 'start_pending'
     | 'in_progress'
+    | 'finish_pending'
     | 'awaiting_confirmation'
+    | 'completion_pending'
     | 'done'
     | 'cancelled';
   worker_status: 'new' | 'accepted' | 'rejected' | 'expired';
@@ -34,6 +52,12 @@ export interface WorkerRequest {
   route_url: string | null;
   proposed_budget?: number | null;
   counter_message?: string | null;
+  images?: Array<{ file_name: string; url: string }>;
+  client?: {
+    id_user: number;
+    name: string;
+    profile_image_url?: string | null;
+  } | null;
 }
 
 export interface ChatMessage {

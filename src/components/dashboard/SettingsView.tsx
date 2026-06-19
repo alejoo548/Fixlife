@@ -536,7 +536,7 @@ export const SettingsView: React.FC = () => {
                 <div className="text-xs font-semibold text-gray-600 mt-3 mb-2">Pending preview</div>
                 <div className="grid grid-cols-3 gap-2">
                   {portfolioPreviews.map((preview, idx) => (
-                    <img key={`${preview}-${idx}`} src={preview} alt="preview" className="w-full h-16 object-cover rounded-lg border border-gray-200" />
+                    <img key={`${preview}-${idx}`} src={preview} alt="preview" loading="lazy" className="w-full h-16 object-cover rounded-lg border border-gray-200" />
                   ))}
                 </div>
                 <button

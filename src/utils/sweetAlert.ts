@@ -24,6 +24,40 @@ export const showSweetAlert = (input: {
     },
   });
 
+export const showSweetConfirm = async (input: {
+  title: string;
+  message: string;
+  tone?: AlertTone;
+  confirmText: string;
+  cancelText?: string;
+  destructive?: boolean;
+}) => {
+  const result = await Swal.fire({
+    icon: input.tone || 'warning',
+    title: input.title,
+    text: input.message,
+    showCancelButton: true,
+    confirmButtonText: input.confirmText,
+    cancelButtonText: input.cancelText || 'Go back',
+    reverseButtons: true,
+    focusCancel: true,
+    buttonsStyling: false,
+    customClass: {
+      popup: 'rounded-[28px] border border-slate-200 px-5 pb-6 pt-7 shadow-2xl',
+      title: 'text-2xl font-black text-slate-950',
+      htmlContainer: 'text-sm font-semibold leading-6 text-slate-600',
+      actions: 'mt-6 flex w-full gap-3 px-3',
+      cancelButton:
+        'flex-1 rounded-2xl border border-slate-200 bg-white px-5 py-3 text-sm font-black text-slate-700 transition hover:bg-slate-50',
+      confirmButton: input.destructive
+        ? 'flex-1 rounded-2xl bg-red-600 px-5 py-3 text-sm font-black text-white shadow-lg transition hover:bg-red-700'
+        : 'flex-1 rounded-2xl bg-slate-950 px-5 py-3 text-sm font-black text-white shadow-lg transition hover:bg-black',
+    },
+  });
+
+  return result.isConfirmed;
+};
+
 export const showSweetToast = (input: {
   title?: string;
   message: string;

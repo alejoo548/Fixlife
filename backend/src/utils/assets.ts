@@ -8,6 +8,9 @@ export const uploadsRoot = path.resolve(process.cwd(), 'uploads');
 export const publicUploadsDir = path.join(uploadsRoot, 'public');
 export const protectedUploadsDir = path.join(uploadsRoot, 'protected');
 const PROTECTED_ASSET_TTL_MS = 10 * 60 * 1000;
+const configuredPublicApiOrigin = String(process.env.PUBLIC_API_ORIGIN || process.env.API_PUBLIC_ORIGIN || '')
+  .trim()
+  .replace(/\/+$/, '');
 
 export const ensureUploadDirectories = () => {
   for (const dir of [uploadsRoot, publicUploadsDir, protectedUploadsDir]) {
@@ -31,7 +34,16 @@ export const isImageFileName = (fileName: string | null | undefined) => {
   return !!cleanName && IMAGE_EXTENSIONS.has(path.extname(cleanName).toLowerCase());
 };
 
-const buildOrigin = (req: Request) => `${req.protocol}://${req.get('host')}`;
+const buildOrigin = (req: Request) => {
+  if (configuredPublicApiOrigin) return configuredPublicApiOrigin;
+
+  const host = String(req.get('host') || '').trim();
+  if (!/^[a-zA-Z0-9.-]+(?::\d{1,5})?$/.test(host)) {
+    return 'http://localhost:8000';
+  }
+
+  return `${req.protocol}://${host}`;
+};
 
 export const buildPublicAssetUrl = (req: Request, fileName: string | null | undefined) => {
   if (!fileName) return null;

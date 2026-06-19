@@ -89,43 +89,43 @@ export const UploadDocumentsView: React.FC<UploadDocumentsViewProps> = ({ token,
   };
 
   return (
-    <div className="w-full h-full flex flex-col items-center justify-center p-4 sm:p-6 bg-white/50 overflow-y-auto">
+    <div className="w-full h-full flex flex-col items-center justify-center p-4 sm:p-6 bg-white/50 dark:bg-slate-950/40 overflow-y-auto">
       <motion.div
         initial={{ opacity: 0, scale: 0.9 }}
         animate={{ opacity: 1, scale: 1 }}
-        className="max-w-2xl w-full bg-white rounded-3xl shadow-xl border border-gray-100 p-6 sm:p-8 my-auto"
+        className="max-w-2xl w-full bg-white dark:bg-slate-900 rounded-3xl shadow-xl border border-gray-100 dark:border-slate-700 p-6 sm:p-8 my-auto"
       >
         <div className="text-center mb-6 sm:mb-8">
-          <div className="w-14 h-14 sm:w-16 sm:h-16 bg-bird-blue/10 rounded-full flex items-center justify-center mx-auto mb-4">
+          <div className="w-14 h-14 sm:w-16 sm:h-16 bg-bird-blue/10 dark:bg-bird-blue/20 rounded-full flex items-center justify-center mx-auto mb-4">
             <UploadCloud className="w-7 h-7 sm:w-8 sm:h-8 text-bird-blue" />
           </div>
-          <h2 className="text-xl sm:text-2xl font-bold text-gray-900 mb-2">Upload Your Documents</h2>
-          <p className="text-sm sm:text-base text-gray-500">
+          <h2 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-slate-100 mb-2">Upload Your Documents</h2>
+          <p className="text-sm sm:text-base text-gray-500 dark:text-slate-400">
             To ensure the safety of our clients, we need to validate your identity and skills before you can start receiving requests.
           </p>
         </div>
 
         {error && (
-          <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-xl flex items-start gap-3">
-            <AlertCircle className="w-5 h-5 text-red-500 shrink-0 mt-0.5" />
-            <p className="text-sm text-red-700 font-medium">{error}</p>
+          <div className="mb-6 p-4 bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900 rounded-xl flex items-start gap-3">
+            <AlertCircle className="w-5 h-5 text-red-500 dark:text-red-400 shrink-0 mt-0.5" />
+            <p className="text-sm text-red-700 dark:text-red-300 font-medium">{error}</p>
           </div>
         )}
 
         <form onSubmit={handleUpload} className="space-y-4 sm:space-y-6">
           {/* DUI Input */}
-          <div className="bg-gray-50 rounded-2xl p-4 sm:p-6 border-2 border-dashed border-gray-200 hover:border-bird-blue/50 transition-colors relative">
+          <div className="bg-gray-50 dark:bg-slate-800 rounded-2xl p-4 sm:p-6 border-2 border-dashed border-gray-200 dark:border-slate-700 hover:border-bird-blue/50 transition-colors relative">
             <label className="flex flex-col items-center justify-center w-full h-full cursor-pointer">
               <div className="flex flex-col items-center justify-center py-4 text-center">
                 {duiFile ? (
                   <CheckCircle className="w-8 h-8 sm:w-10 sm:h-10 text-green-500 mb-2 sm:mb-3" />
                 ) : (
-                  <FileUp className="w-8 h-8 sm:w-10 sm:h-10 text-gray-400 mb-2 sm:mb-3" />
+                  <FileUp className="w-8 h-8 sm:w-10 sm:h-10 text-gray-400 dark:text-slate-500 mb-2 sm:mb-3" />
                 )}
-                <p className="mb-1 sm:mb-2 text-sm text-gray-700 font-semibold">
+                <p className="mb-1 sm:mb-2 text-sm text-gray-700 dark:text-slate-200 font-semibold">
                   <span className="text-bird-blue">Upload your ID or Passport</span> (Required)
                 </p>
-                <p className="text-xs text-gray-500 px-4 text-center">
+                <p className="text-xs text-gray-500 dark:text-slate-400 px-4 text-center">
                   {duiFile ? duiFile.name : 'PNG, JPG or PDF (Max 10MB)'}
                 </p>
               </div>
@@ -139,18 +139,18 @@ export const UploadDocumentsView: React.FC<UploadDocumentsViewProps> = ({ token,
           </div>
 
           {/* Certificate Input */}
-          <div className="bg-gray-50 rounded-2xl p-4 sm:p-6 border-2 border-dashed border-gray-200 hover:border-amber-400/50 transition-colors relative">
+          <div className="bg-gray-50 dark:bg-slate-800 rounded-2xl p-4 sm:p-6 border-2 border-dashed border-gray-200 dark:border-slate-700 hover:border-amber-400/50 transition-colors relative">
             <label className="flex flex-col items-center justify-center w-full h-full cursor-pointer">
               <div className="flex flex-col items-center justify-center py-4 text-center">
                 {certFile ? (
                   <CheckCircle className="w-8 h-8 sm:w-10 sm:h-10 text-green-500 mb-2 sm:mb-3" />
                 ) : (
-                  <FileUp className="w-8 h-8 sm:w-10 sm:h-10 text-gray-400 mb-2 sm:mb-3" />
+                  <FileUp className="w-8 h-8 sm:w-10 sm:h-10 text-gray-400 dark:text-slate-500 mb-2 sm:mb-3" />
                 )}
-                <p className="mb-1 sm:mb-2 text-sm text-gray-700 font-semibold">
+                <p className="mb-1 sm:mb-2 text-sm text-gray-700 dark:text-slate-200 font-semibold">
                   <span className="text-amber-500">Upload your Certifications</span> (Required)
                 </p>
-                <p className="text-xs text-gray-500 px-4 text-center">
+                <p className="text-xs text-gray-500 dark:text-slate-400 px-4 text-center">
                   {certFile ? certFile.name : 'Degrees, diplomas or licenses. PNG, JPG or PDF (Max 10MB).'}
                 </p>
               </div>

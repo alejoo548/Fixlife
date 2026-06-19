@@ -7,19 +7,44 @@ const PRESENCE_PUSH_ACTIVE_ROUTE_MS = 8_000;
 const PRESENCE_MOVE_IDLE_KM = 0.08;
 const PRESENCE_MOVE_ACTIVE_ROUTE_KM = 0.02;
 const PRESENCE_PUSH_BACKGROUND_MS = 60_000;
+const LAST_COORDS_KEY = 'fixlife:worker-last-coords';
+
+const readStoredCoords = (): { lat: number; lng: number } | null => {
+  try {
+    const raw = localStorage.getItem(LAST_COORDS_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as { lat?: unknown; lng?: unknown };
+    const lat = Number(parsed.lat);
+    const lng = Number(parsed.lng);
+    if (Number.isFinite(lat) && Number.isFinite(lng)) return { lat, lng };
+  } catch {}
+  return null;
+};
+
+const writeStoredCoords = (lat: number, lng: number) => {
+  try {
+    localStorage.setItem(LAST_COORDS_KEY, JSON.stringify({ lat, lng }));
+  } catch {}
+};
 
 interface UseWorkerPresenceOptions {
   token: string | null;
   isOnline: boolean | null;
   routeActive: boolean;
+  isVerified?: boolean;
+  onFirstCoordsReady?: () => void;
 }
 
 export const useWorkerPresence = ({
   token,
   isOnline,
   routeActive,
+  isVerified = true,
+  onFirstCoordsReady,
 }: UseWorkerPresenceOptions) => {
-  const [workerCoords, setWorkerCoords] = useState<{ lat: number; lng: number } | null>(null);
+  const [workerCoords, setWorkerCoords] = useState<{ lat: number; lng: number } | null>(
+    () => readStoredCoords()
+  );
   const [presenceBusy, setPresenceBusy] = useState(false);
   const lastPushRef = useRef<{
     isOnline: boolean;
@@ -27,6 +52,17 @@ export const useWorkerPresence = ({
     lng?: number;
     at: number;
   } | null>(null);
+  const coordsFiredRef = useRef(false);
+  const onFirstCoordsReadyRef = useRef(onFirstCoordsReady);
+  onFirstCoordsReadyRef.current = onFirstCoordsReady;
+
+  const persistCoords = (lat: number, lng: number) => {
+    writeStoredCoords(lat, lng);
+    setWorkerCoords((current) => {
+      if (current && haversineKm(current, { lat, lng }) < 0.001) return current;
+      return { lat, lng };
+    });
+  };
 
   const pushPresence = async (
     isOnlineNow: boolean,
@@ -34,7 +70,7 @@ export const useWorkerPresence = ({
     lng?: number,
     force = false
   ) => {
-    if (!token) return;
+    if (!token || !isVerified) return;
     const now = Date.now();
     const lastPush = lastPushRef.current;
     const isBackground =
@@ -74,6 +110,13 @@ export const useWorkerPresence = ({
         },
         body: JSON.stringify({ is_online: isOnlineNow ? 1 : 0, lat, lng }),
       });
+      // First time we push valid coords while going online: trigger a request
+      // refresh so the backfill query in getWorkerRequests can find requests
+      // that arrived before our GPS was stored in the backend.
+      if (isOnlineNow && Number.isFinite(lat) && Number.isFinite(lng) && !coordsFiredRef.current) {
+        coordsFiredRef.current = true;
+        onFirstCoordsReadyRef.current?.();
+      }
     } catch {
       lastPushRef.current = lastPush;
     } finally {
@@ -84,17 +127,32 @@ export const useWorkerPresence = ({
   useEffect(() => {
     if (!token || typeof isOnline !== 'boolean') return;
     if (!isOnline) {
+      coordsFiredRef.current = false;
       void pushPresence(false);
       return;
     }
 
     let watchId: number | null = null;
     if (navigator.geolocation) {
+      // Get a position immediately (uses browser cache up to 60 s).
+      // Ensures workerCoords and backend are updated without waiting for
+      // watchPosition's first callback, which can take 10-12 s on cold GPS.
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          const lat = Number(position.coords.latitude.toFixed(7));
+          const lng = Number(position.coords.longitude.toFixed(7));
+          persistCoords(lat, lng);
+          void pushPresence(true, lat, lng, true);
+        },
+        () => void pushPresence(true, undefined, undefined, true),
+        { enableHighAccuracy: false, timeout: 8000, maximumAge: 60_000 },
+      );
+
       watchId = navigator.geolocation.watchPosition(
         (position) => {
           const lat = Number(position.coords.latitude.toFixed(7));
           const lng = Number(position.coords.longitude.toFixed(7));
-          setWorkerCoords({ lat, lng });
+          persistCoords(lat, lng);
           void pushPresence(true, lat, lng);
         },
         () => void pushPresence(true),

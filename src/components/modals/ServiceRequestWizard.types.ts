@@ -4,6 +4,7 @@ export interface ServiceRequestWizardProps {
     initialServiceId?: number;
     initialServiceName?: string;
     onOpenCheckout?: (requestId: number) => void;
+    openOnHistory?: boolean;
 }
 
 export interface ServiceOption {
@@ -42,6 +43,18 @@ export interface MyServiceRequest {
     scheduled_time?: string | null;
     scheduled_start_time?: string | null;
     scheduled_end_time?: string | null;
+    workflow_version?: number;
+    client_approved_at?: string | null;
+    route_started_at?: string | null;
+    worker_arrived_at?: string | null;
+    work_started_at?: string | null;
+    work_finished_at?: string | null;
+    completed_at?: string | null;
+    approvals?: {
+        start_work: { client: boolean; worker: boolean };
+        finish_work: { client: boolean; worker: boolean };
+        complete_service: { client: boolean; worker: boolean };
+    };
     status: 'pending' | 'payment_pending' | 'paid' | 'assigned' | 'in_progress' | 'awaiting_confirmation' | 'done' | 'cancelled' | string;
     created_at: string;
     assigned_worker: {

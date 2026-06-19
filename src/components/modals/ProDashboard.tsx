@@ -68,8 +68,8 @@ export const ProDashboard: React.FC<ProDashboardProps> = ({ isOpen, onClose, onS
    const [mobileView, setMobileView] = useState<'list' | 'map'>('list');
    const [isSidebarOpen, setIsSidebarOpen] = useState(true);
    const [isPresenceMenuOpen, setIsPresenceMenuOpen] = useState(false);
-   const [isVerified, setIsVerified] = useState(false); // Por defecto falso
-   const [hasUploadedDocs, setHasUploadedDocs] = useState(false); // Por defecto falso
+   const [isVerified, setIsVerified] = useState(false);
+   const [hasUploadedDocs, setHasUploadedDocs] = useState(false);
    const [userName, setUserName] = useState('');
    const [userAvatar, setUserAvatar] = useState<string | null>(null);
    const [token, setToken] = useState<string | null>(null);
@@ -266,43 +266,17 @@ export const ProDashboard: React.FC<ProDashboardProps> = ({ isOpen, onClose, onS
          initial={{ opacity: 0 }}
          animate={{ opacity: 1 }}
          exit={{ opacity: 0 }}
-         className={`dashboard-theme dashboard-shell dashboard-theme--worker fixed inset-0 z-40 min-h-[100dvh] overflow-hidden font-sans ${isDark ? 'dashboard-theme-dark' : 'dashboard-theme-light'} bg-gradient-to-br from-sky-50 via-amber-50 to-orange-50`}
+         className={`dashboard-theme dashboard-shell dashboard-theme--worker fixed inset-0 z-40 min-h-[100dvh] overflow-hidden bg-slate-100 font-sans ${isDark ? 'dashboard-theme-dark' : 'dashboard-theme-light'}`}
          data-dashboard-theme={theme}
          style={{ colorScheme: theme }}
       >
-         {/* Background decorations */}
-         <motion.div
-            animate={{
-               scale: [1, 1.2, 1],
-               opacity: [0.3, 0.5, 0.3],
-            }}
-            transition={{
-               duration: 8,
-               repeat: Infinity,
-               ease: "easeInOut"
-            }}
-            className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_left,_var(--tw-gradient-stops))] from-bird-blue/10 via-transparent to-transparent pointer-events-none"
-         />
-         <motion.div
-            animate={{
-               scale: [1.2, 1, 1.2],
-               opacity: [0.2, 0.4, 0.2],
-            }}
-            transition={{
-               duration: 10,
-               repeat: Infinity,
-               ease: "easeInOut"
-            }}
-            className="absolute top-20 right-20 w-32 h-32 bg-bird-orange/15 rounded-full blur-3xl pointer-events-none"
-         />
-
          <div className="relative z-10 grid h-full min-h-[100dvh] w-full grid-cols-1 overflow-hidden lg:grid-cols-[auto_minmax(0,1fr)]">
          {/* Sidebar */}
          <motion.div
             initial={{ x: -100, opacity: 0 }}
             animate={{ x: 0, opacity: 1 }}
             transition={{ type: "spring", damping: 20 }}
-            className="relative z-30 hidden h-full shrink-0 p-5 lg:block"
+            className="relative z-30 hidden h-full shrink-0 p-4 lg:block"
          >
             <ProSidebar
                activeItem={activeTab}
@@ -321,7 +295,7 @@ export const ProDashboard: React.FC<ProDashboardProps> = ({ isOpen, onClose, onS
                initial={{ y: -20, opacity: 0 }}
                animate={{ y: 0, opacity: 1 }}
                transition={{ delay: 0.2 }}
-               className="h-16 md:h-20 flex items-center justify-between gap-2 px-3 sm:px-4 md:px-8 shrink-0 relative z-[700]"
+               className="relative z-[700] flex h-16 shrink-0 items-center justify-between gap-2 border-b border-slate-200/80 bg-white/95 px-3 shadow-[0_4px_18px_rgba(15,23,42,0.04)] backdrop-blur sm:px-4 md:h-[72px] md:px-6"
             >
                <div className="flex-1 min-w-0 flex items-center gap-3">
                   <motion.div
@@ -339,19 +313,19 @@ export const ProDashboard: React.FC<ProDashboardProps> = ({ isOpen, onClose, onS
                         key={activeTab}
                         initial={{ opacity: 0, x: -20 }}
                         animate={{ opacity: 1, x: 0 }}
-                        className="text-lg md:text-2xl font-bold text-gray-900 capitalize flex items-center gap-2 md:gap-3 truncate"
+                        className="flex items-center gap-2 truncate text-lg font-black capitalize text-slate-950 md:gap-3 md:text-xl"
                      >
-                        <span className="truncate">{activeTab.replace('-', ' ')}</span>
+                        <span className="truncate">{({ requests: 'Requests', appointments: 'Upcoming', schedule: 'Calendar', earnings: 'Earnings', 'completed-work': 'History', settings: 'Profile' } as Record<string, string>)[activeTab] || activeTab.replace('-', ' ')}</span>
                         {activeTab === 'requests' && (
                            <motion.span
                               initial={{ scale: 0 }}
                               animate={{ scale: 1 }}
-                              className="bg-bird-orange text-white text-[10px] md:text-xs px-1.5 md:px-2 py-0.5 rounded-md shrink-0 flex items-center gap-1"
+                              className="flex shrink-0 items-center gap-1 rounded-full bg-emerald-50 px-2 py-1 text-[9px] font-black uppercase tracking-[0.14em] text-emerald-700"
                            >
                               <motion.span
                                  animate={{ scale: [1, 1.3, 1] }}
                                  transition={{ duration: 2, repeat: Infinity }}
-                                 className="w-1.5 h-1.5 rounded-full bg-white"
+                                 className="h-1.5 w-1.5 rounded-full bg-emerald-500"
                               />
                               Live
                            </motion.span>
@@ -361,7 +335,7 @@ export const ProDashboard: React.FC<ProDashboardProps> = ({ isOpen, onClose, onS
                         initial={{ opacity: 0 }}
                         animate={{ opacity: 1 }}
                         transition={{ delay: 0.3 }}
-                        className="text-gray-600 text-xs md:text-sm hidden sm:block truncate"
+                        className="hidden truncate text-xs font-semibold text-slate-500 sm:block"
                      >
                         {userName ? `Welcome back, ${userName}.` : 'Welcome back.'}
                      </motion.p>
@@ -409,11 +383,11 @@ export const ProDashboard: React.FC<ProDashboardProps> = ({ isOpen, onClose, onS
                      <button
                         type="button"
                         onClick={() => setIsPresenceMenuOpen((prev) => !prev)}
-                        className={`relative flex min-w-[164px] items-center gap-3 rounded-2xl border px-3 py-2.5 text-left transition duration-300 ${buttonClass}`}
+                        className={`relative flex min-w-0 items-center gap-2 rounded-xl border px-2.5 py-2 text-left transition duration-300 sm:min-w-[142px] sm:gap-3 sm:px-3 ${buttonClass}`}
                      >
                         <span className={`h-2.5 w-2.5 shrink-0 rounded-full ${isOnline ? 'bg-emerald-400' : 'bg-slate-400'}`} />
                         <div className="min-w-0 flex-1">
-                           <div className={`truncate text-[11px] font-black uppercase tracking-[0.22em] ${isDark ? 'text-white' : 'text-slate-900'}`}>
+                           <div className={`hidden truncate text-[10px] font-black uppercase tracking-[0.16em] sm:block ${isDark ? 'text-white' : 'text-slate-900'}`}>
                               {isOnline ? 'ONLINE' : 'OFFLINE'}
                            </div>
                         </div>
@@ -485,9 +459,12 @@ export const ProDashboard: React.FC<ProDashboardProps> = ({ isOpen, onClose, onS
                         {userName || 'User'}
                      </span>
                      {userAvatar ? (
-                        <img 
-                           src={userAvatar} 
+                        <img
+                           src={userAvatar}
                            alt={userName}
+                           loading="lazy"
+                           decoding="async"
+                           onError={() => setUserAvatar(null)}
                            className="w-8 h-8 md:w-10 md:h-10 rounded-full object-cover border-2 border-white shadow-sm"
                         />
                      ) : (
@@ -505,9 +482,9 @@ export const ProDashboard: React.FC<ProDashboardProps> = ({ isOpen, onClose, onS
                   initial={{ opacity: 0, y: -20 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: 0.3 }}
-                  className="mx-4 md:mx-8 mt-4 mb-2 relative overflow-hidden"
+                  className="relative mx-4 mb-2 mt-4 overflow-hidden md:mx-6"
                >
-                  <div className="bg-gradient-to-r from-amber-400 via-orange-400 to-amber-500 rounded-2xl p-4 md:p-5 shadow-lg border border-amber-300">
+                  <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 shadow-sm md:p-5 dark:border-amber-900/50 dark:bg-slate-800/80">
                      <div className="flex items-start gap-3 md:gap-4">
                         <motion.div
                            animate={{ 
@@ -521,27 +498,27 @@ export const ProDashboard: React.FC<ProDashboardProps> = ({ isOpen, onClose, onS
                            }}
                            className="shrink-0"
                         >
-                           <div className="w-10 h-10 md:w-12 md:h-12 bg-white/90 rounded-full flex items-center justify-center shadow-md">
-                              <svg className="w-6 h-6 md:w-7 md:h-7 text-amber-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                           <div className="w-10 h-10 md:w-12 md:h-12 bg-white/90 dark:bg-slate-700 rounded-full flex items-center justify-center shadow-md">
+                              <svg className="h-6 w-6 text-amber-600 md:h-7 md:w-7 dark:text-amber-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
                               </svg>
                            </div>
                         </motion.div>
                         
                         <div className="flex-1 min-w-0">
-                           <h3 className="text-white font-bold text-base md:text-lg mb-1 flex items-center gap-2">
+                           <h3 className="mb-1 flex items-center gap-2 text-base font-black text-amber-950 dark:text-amber-200 md:text-lg">
                               Account Verification Pending
                               <motion.span
                                  animate={{ opacity: [1, 0.5, 1] }}
                                  transition={{ duration: 2, repeat: Infinity }}
-                                 className="inline-block w-2 h-2 bg-white rounded-full"
+                                 className="inline-block h-2 w-2 rounded-full bg-amber-500"
                               />
                            </h3>
-                           <p className="text-white/95 text-sm md:text-base leading-relaxed">
+                           <p className="text-sm leading-relaxed text-amber-900/80 dark:text-amber-300/80 md:text-base">
                               Your account is currently under review. Our team will verify your profile within 24-48 hours. 
                               You'll receive an email notification once approved and can start accepting requests.
                            </p>
-                           <div className="mt-3 flex items-center gap-2 text-white/90 text-xs md:text-sm">
+                           <div className="mt-3 flex items-center gap-2 text-xs text-amber-800 dark:text-amber-400 md:text-sm">
                               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                               </svg>
@@ -566,7 +543,6 @@ export const ProDashboard: React.FC<ProDashboardProps> = ({ isOpen, onClose, onS
                         token={token} 
                         onSuccess={() => {
                            setHasUploadedDocs(true);
-                           setIsVerified(true);
                            if (token) syncWorkerStatus(token);
                         }} 
                      />
@@ -574,19 +550,19 @@ export const ProDashboard: React.FC<ProDashboardProps> = ({ isOpen, onClose, onS
                ) : (
                   <>
                      {!isVerified && hasUploadedDocs && (
-                        <div className="absolute inset-0 z-[60] bg-white/50 backdrop-blur-[6px] flex flex-col items-center justify-center p-6 text-center">
+                        <div className="absolute inset-0 z-[60] bg-white/60 dark:bg-slate-950/70 backdrop-blur-[6px] flex flex-col items-center justify-center p-6 text-center">
                            <motion.div 
                               initial={{ scale: 0.9, opacity: 0 }}
                               animate={{ scale: 1, opacity: 1 }}
-                              className="bg-white/95 p-8 rounded-3xl shadow-2xl max-w-sm border border-gray-200 pointer-events-auto"
+                              className="bg-white dark:bg-slate-900 p-8 rounded-3xl shadow-2xl max-w-sm border border-gray-200 dark:border-slate-700 pointer-events-auto"
                            >
-                              <div className="w-20 h-20 bg-amber-100 rounded-full flex items-center justify-center mx-auto mb-6 shadow-inner">
-                                 <svg className="w-10 h-10 text-amber-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <div className="w-20 h-20 bg-amber-100 dark:bg-amber-900/40 rounded-full flex items-center justify-center mx-auto mb-6 shadow-inner">
+                                 <svg className="w-10 h-10 text-amber-500 dark:text-amber-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
                                  </svg>
                               </div>
-                              <h3 className="text-2xl font-bold text-gray-900 mb-3">Dashboard Locked</h3>
-                              <p className="text-gray-600 leading-relaxed">
+                              <h3 className="text-2xl font-bold text-gray-900 dark:text-slate-100 mb-3">Dashboard Locked</h3>
+                              <p className="text-gray-600 dark:text-slate-400 leading-relaxed">
                                  Your documents have been submitted and are currently under review. 
                                  You will gain full access to the dashboard once your account is verified.
                               </p>
@@ -604,7 +580,7 @@ export const ProDashboard: React.FC<ProDashboardProps> = ({ isOpen, onClose, onS
                            className="w-full h-full flex"
                         >
                            <Suspense fallback={<DashboardPanelFallback label="Loading requests..." />}>
-                              <RequestsView isOnline={isOnline} mobileView={mobileView} token={token} />
+                              <RequestsView isOnline={isOnline} mobileView={mobileView} token={token} isVerified={isVerified} />
                            </Suspense>
                         </motion.div>
                      )}
@@ -693,14 +669,14 @@ export const ProDashboard: React.FC<ProDashboardProps> = ({ isOpen, onClose, onS
                initial={{ y: 100, opacity: 0 }}
                animate={{ y: 0, opacity: 1 }}
                transition={{ delay: 0.4, type: "spring" }}
-               className="lg:hidden fixed bottom-0 left-0 right-0 h-16 bg-white/95 backdrop-blur-xl border-t border-gray-200 flex items-center justify-around px-4 pb-safe z-50 shadow-[0_-5px_20px_rgba(0,0,0,0.1)]"
+               className="lg:hidden fixed bottom-0 left-0 right-0 h-16 bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl border-t border-gray-200 dark:border-slate-700 flex items-center justify-around px-4 pb-safe z-50 shadow-[0_-5px_20px_rgba(0,0,0,0.1)]"
             >
                {[
                   { id: 'requests', label: 'Requests', icon: 'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2' },
-                  { id: 'appointments', label: 'Agenda', icon: 'M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2zm7 6h-4v4' },
-                  { id: 'schedule', label: 'Schedule', icon: 'M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z' },
+                  { id: 'appointments', label: 'Upcoming', icon: 'M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2zm7 6h-4v4' },
+                  { id: 'schedule', label: 'Calendar', icon: 'M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z' },
                   { id: 'earnings', label: 'Earnings', icon: 'M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z' },
-                  { id: 'completed-work', label: 'Work', icon: 'M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l3.414 3.414a1 1 0 01.293.707V19a2 2 0 01-2 2z' },
+                  { id: 'completed-work', label: 'History', icon: 'M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l3.414 3.414a1 1 0 01.293.707V19a2 2 0 01-2 2z' },
                   { id: 'settings', label: 'Profile', icon: 'M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z' }
                ].map((item) => {
                   const isActive = activeTab === item.id || (item.id === 'settings' && activeTab.includes('settings'));

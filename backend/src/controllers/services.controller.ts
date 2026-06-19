@@ -3,8 +3,7 @@ import { ResultSetHeader, RowDataPacket } from 'mysql2';
 import pool from '../config/db';
 import { AuthRequest } from '../middlewares/auth.middleware';
 import { createUserNotification, notifyAdmins } from '../utils/notifications';
-import { pushToUser } from '../services/sseManager';
-import { emitChatMessage } from '../services/socketManager';
+import { emitChatMessage, emitToUser } from '../services/socketManager';
 import { getWorkerBonusPayouts, getWorkerRewardsSettings, syncWorkerBonusPayouts } from '../utils/workerRewards';
 import { resolveRequestLocation, reverseGeocodeLocation, suggestLocationTexts } from '../services/geocoding.service';
 import { getProximityBounds, getWorkerBoundsFilter } from '../services/nearbyWorkers.service';
@@ -16,6 +15,7 @@ import {
   buildInvoiceNumber,
   capturePaypalOrder,
   createPaypalOrder,
+  getDefaultFrontendUrl,
   getRequestChargeAmount,
   parseRequestedPaymentMethod,
   sanitizePaymentValue,
@@ -38,6 +38,15 @@ import { enqueueBackgroundJob } from '../services/backgroundJobs.service';
 import { storePaypalWebhookEvent, verifyPaypalWebhookSignature } from '../services/paypalWebhook.service';
 import { isDatabaseSchemaReady } from '../services/schemaState.service';
 import { recordSystemEvent } from '../services/systemEvents.service';
+import { sanitizeMessage, sanitizeStrictText } from '../utils/sanitize';
+
+const assertRequestOwnership = async (idRequest: number, userId: number): Promise<boolean> => {
+  const [rows] = await pool.execute<RowDataPacket[]>(
+    `SELECT 1 FROM service_requests WHERE id_request = ? AND id_user = ? LIMIT 1`,
+    [idRequest, userId]
+  );
+  return rows.length > 0;
+};
 
 type ServiceCardRow = RowDataPacket & {
   id_card: number;
@@ -60,7 +69,7 @@ let serviceRequestsTablesChecked = false;
 let savedLocationsTableChecked = false;
 
 const SERVICE_REQUEST_STATUS_ENUM =
-  `ENUM('open', 'pending', 'payment_pending', 'paid', 'assigned', 'in_progress', 'awaiting_confirmation', 'done', 'cancelled')`;
+  `ENUM('open', 'pending', 'assigned', 'route_in_progress', 'arrived', 'start_pending', 'in_progress', 'finish_pending', 'payment_pending', 'paid', 'completion_pending', 'awaiting_confirmation', 'done', 'cancelled')`;
 const SAVED_LOCATION_KIND_ENUM = `ENUM('home', 'work', 'favorite', 'recent')`;
 const SERVICE_CARD_SORT_INDEX = 'ux_service_cards_sort';
 const MIN_SCHEDULED_REQUEST_DURATION_MINUTES = 60;
@@ -71,8 +80,13 @@ const DEFAULT_SCHEDULED_REQUEST_DURATION_MINUTES = Math.max(
 );
 const CHAT_ENABLED_REQUEST_STATUSES = [
   'assigned',
+  'route_in_progress',
+  'arrived',
+  'start_pending',
+  'finish_pending',
   'payment_pending',
   'paid',
+  'completion_pending',
   'in_progress',
   'awaiting_confirmation',
   'done',
@@ -459,6 +473,7 @@ const requeueAssignedRequest = async (
      SET status = 'pending',
          assigned_worker_profile = NULL,
          assigned_at = NULL,
+         worker_arrived_at = NULL,
          updated_at = CURRENT_TIMESTAMP
      WHERE id_request = ?`,
     [input.idRequest]
@@ -764,17 +779,26 @@ export const getNearbyWorkers = async (req: Request, res: Response): Promise<voi
     const idService = Number(req.query.id_service);
     const lat = Number(req.query.lat);
     const lng = Number(req.query.lng);
-    const radiusKmRaw = Number(req.query.radius_km ?? 8);
-    const radiusKm = Number.isFinite(radiusKmRaw) && radiusKmRaw > 0 ? Math.min(radiusKmRaw, 50) : 8;
+    const hasRadius = req.query.radius_km != null && req.query.radius_km !== '';
+    const radiusKmRaw = hasRadius ? Number(req.query.radius_km) : 8;
 
-    if (!idService || Number.isNaN(idService)) {
+    if (!Number.isSafeInteger(idService) || idService <= 0) {
       res.status(400).json({ error: 'id_service is required.' });
       return;
     }
-    if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
-      res.status(400).json({ error: 'lat and lng are required.' });
+    if (!Number.isFinite(lat) || lat < -90 || lat > 90) {
+      res.status(400).json({ error: 'A valid latitude is required.' });
       return;
     }
+    if (!Number.isFinite(lng) || lng < -180 || lng > 180) {
+      res.status(400).json({ error: 'A valid longitude is required.' });
+      return;
+    }
+    if (!Number.isFinite(radiusKmRaw) || radiusKmRaw <= 0) {
+      res.status(400).json({ error: 'A positive search radius is required.' });
+      return;
+    }
+    const radiusKm = Math.min(radiusKmRaw, 50);
 
     const boundsFilter = getWorkerBoundsFilter(getProximityBounds(lat, lng, radiusKm));
 
@@ -866,8 +890,12 @@ export const reverseGeocode = async (req: Request, res: Response): Promise<void>
     const lat = Number(req.query.lat);
     const lng = Number(req.query.lng);
 
-    if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
-      res.status(400).json({ error: 'lat and lng are required.' });
+    if (!Number.isFinite(lat) || lat < -90 || lat > 90) {
+      res.status(400).json({ error: 'A valid latitude is required.' });
+      return;
+    }
+    if (!Number.isFinite(lng) || lng < -180 || lng > 180) {
+      res.status(400).json({ error: 'A valid longitude is required.' });
       return;
     }
 
@@ -1229,6 +1257,13 @@ export const ensureServiceRequestTables = async () => {
       scheduled_time TIME NULL,
       scheduled_start_time DATETIME NULL,
       scheduled_end_time DATETIME NULL,
+      workflow_version TINYINT UNSIGNED NOT NULL DEFAULT 1,
+      client_approved_at DATETIME NULL,
+      route_started_at DATETIME NULL,
+      worker_arrived_at DATETIME NULL,
+      work_started_at DATETIME NULL,
+      work_finished_at DATETIME NULL,
+      completed_at DATETIME NULL,
       status ${SERVICE_REQUEST_STATUS_ENUM} NOT NULL DEFAULT 'pending',
       created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
       updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -1265,11 +1300,18 @@ export const ensureServiceRequestTables = async () => {
          'scheduled_date',
          'scheduled_time',
          'scheduled_start_time',
-         'scheduled_end_time'
+         'scheduled_end_time',
+         'worker_arrived_at',
+         'workflow_version',
+         'client_approved_at',
+         'route_started_at',
+         'work_started_at',
+         'work_finished_at',
+         'completed_at'
        )`
   );
   const requestColsCount = Number(assignedColRows[0]?.total || 0);
-  if (requestColsCount < 10) {
+  if (requestColsCount < 17) {
     const [requestCols] = await pool.execute<RowDataPacket[]>(
       `SELECT COLUMN_NAME
        FROM information_schema.columns
@@ -1285,7 +1327,14 @@ export const ensureServiceRequestTables = async () => {
            'scheduled_date',
            'scheduled_time',
            'scheduled_start_time',
-           'scheduled_end_time'
+           'scheduled_end_time',
+           'worker_arrived_at',
+           'workflow_version',
+           'client_approved_at',
+           'route_started_at',
+           'work_started_at',
+           'work_finished_at',
+           'completed_at'
          )`
     );
     const requestColSet = new Set(requestCols.map((c: any) => String(c.COLUMN_NAME)));
@@ -1319,7 +1368,44 @@ export const ensureServiceRequestTables = async () => {
     if (!requestColSet.has('scheduled_end_time')) {
       await pool.execute(`ALTER TABLE service_requests ADD COLUMN scheduled_end_time DATETIME NULL`);
     }
+    if (!requestColSet.has('worker_arrived_at')) {
+      await pool.execute(`ALTER TABLE service_requests ADD COLUMN worker_arrived_at DATETIME NULL`);
+    }
+    if (!requestColSet.has('workflow_version')) {
+      await pool.execute(`ALTER TABLE service_requests ADD COLUMN workflow_version TINYINT UNSIGNED NOT NULL DEFAULT 1`);
+    }
+    if (!requestColSet.has('client_approved_at')) {
+      await pool.execute(`ALTER TABLE service_requests ADD COLUMN client_approved_at DATETIME NULL`);
+    }
+    if (!requestColSet.has('route_started_at')) {
+      await pool.execute(`ALTER TABLE service_requests ADD COLUMN route_started_at DATETIME NULL`);
+    }
+    if (!requestColSet.has('work_started_at')) {
+      await pool.execute(`ALTER TABLE service_requests ADD COLUMN work_started_at DATETIME NULL`);
+    }
+    if (!requestColSet.has('work_finished_at')) {
+      await pool.execute(`ALTER TABLE service_requests ADD COLUMN work_finished_at DATETIME NULL`);
+    }
+    if (!requestColSet.has('completed_at')) {
+      await pool.execute(`ALTER TABLE service_requests ADD COLUMN completed_at DATETIME NULL`);
+    }
   }
+
+  await pool.execute(`
+    CREATE TABLE IF NOT EXISTS service_request_workflow_approvals (
+      id_approval INT NOT NULL AUTO_INCREMENT,
+      id_request INT NOT NULL,
+      action ENUM('start_work', 'finish_work', 'complete_service') NOT NULL,
+      actor_role ENUM('client', 'worker') NOT NULL,
+      id_user INT NOT NULL,
+      approved_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      PRIMARY KEY (id_approval),
+      UNIQUE KEY ux_request_action_role (id_request, action, actor_role),
+      KEY idx_workflow_approval_user (id_user),
+      CONSTRAINT fk_workflow_approval_request FOREIGN KEY (id_request) REFERENCES service_requests(id_request) ON DELETE CASCADE,
+      CONSTRAINT fk_workflow_approval_user FOREIGN KEY (id_user) REFERENCES users(id_user) ON DELETE CASCADE
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+  `);
 
   const [assignedIdxRows] = await pool.execute<RowDataPacket[]>(
     `SELECT COUNT(*) AS total
@@ -1560,7 +1646,8 @@ export const createServiceRequest = async (req: AuthRequest, res: Response): Pro
     const idService = Number(req.body?.id_service);
     const description = String(req.body?.description || '').trim();
     const locationText = String(req.body?.location || '').trim();
-    const budget = Number(req.body?.budget);
+    const budgetRaw = Number(req.body?.budget);
+    const budget = Number.isFinite(budgetRaw) && budgetRaw > 0 ? Math.min(budgetRaw, 1000) : 0;
     const latitudeRaw = req.body?.lat != null && req.body?.lat !== '' ? Number(req.body?.lat) : null;
     const longitudeRaw = req.body?.lng != null && req.body?.lng !== '' ? Number(req.body?.lng) : null;
     const radiusRaw = Number(req.body?.radius_km ?? 8);
@@ -1580,16 +1667,22 @@ export const createServiceRequest = async (req: AuthRequest, res: Response): Pro
       res.status(400).json({ error: 'id_service is required.' });
       return;
     }
-    if (!description || description.length < 10 || description.length > 1000) {
+    const cleanDescription = sanitizeMessage(description, 1000);
+    const cleanLocation = sanitizeStrictText(locationText, 255);
+    if (!cleanDescription || cleanDescription.length < 10) {
       removeUploadedFiles(files);
       res.status(400).json({ error: 'Description must be between 10 and 1000 characters.' });
       return;
     }
-    if (!locationText || locationText.length > 255) {
+    if (!cleanLocation) {
       removeUploadedFiles(files);
       res.status(400).json({ error: 'Location is required (max 255 chars).' });
       return;
     }
+
+    // Re-assign sanitized values for DB insert
+    const finalDescription = cleanDescription;
+    const finalLocationText = cleanLocation;
 
     const resolvedLocation = await resolveRequestLocation(locationText, latitudeRaw, longitudeRaw);
     if (!resolvedLocation) {
@@ -1607,6 +1700,7 @@ export const createServiceRequest = async (req: AuthRequest, res: Response): Pro
       res.status(400).json({ error: 'Budget must be between 0.01 and 1000.00.' });
       return;
     }
+    const initialBudget = budget; // force initial_budget = budget (no mass assignment)
     if (files.length === 0) {
       res.status(400).json({ error: 'At least one problem image is required.' });
       return;
@@ -1650,17 +1744,18 @@ export const createServiceRequest = async (req: AuthRequest, res: Response): Pro
          scheduled_time,
          scheduled_start_time,
          scheduled_end_time,
+         workflow_version,
          status
        )
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, ?, ?, ?, ?, ?, 'pending')`,
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, ?, ?, ?, ?, ?, 2, 'pending')`,
       [
         idUser,
         idService,
-        description,
-        locationText,
+        finalDescription,
+        finalLocationText,
         latitude,
         longitude,
-        budget,
+        initialBudget,
         budget,
         radiusKm,
         urgencyLevel,
@@ -1694,6 +1789,7 @@ export const createServiceRequest = async (req: AuthRequest, res: Response): Pro
       const [nearRows] = await pool.execute<RowDataPacket[]>(
         `SELECT
            wp.id_worker_profile,
+           wp.id_user AS worker_user_id,
            wp.coverage_km,
            (ST_Distance_Sphere(point(wp.longitude, wp.latitude), point(?, ?)) / 1000) AS distance_km
          FROM worker_profiles wp
@@ -1713,6 +1809,26 @@ export const createServiceRequest = async (req: AuthRequest, res: Response): Pro
       );
 
       await bulkInsertRequestWorkerCandidates(pool, idRequest, nearRows);
+      await Promise.all(
+        nearRows.map((row) =>
+          createUserNotification({
+            userId: Number(row.worker_user_id),
+            eventType: 'request_available',
+            title: 'New request nearby',
+            message: `A new service request is available ${Number(row.distance_km || 0).toFixed(1)} km away.`,
+            tone: 'info',
+            requestId: idRequest,
+            actionUrl: '/pro-dashboard',
+            dedupeKey: `request-${idRequest}-available-worker-${Number(row.id_worker_profile)}`,
+            metadata: {
+              request_status: 'pending',
+              distance_km: Number(row.distance_km || 0),
+              booking_type: schedule.bookingType,
+              scheduled_start_time: schedule.scheduledStartTime,
+            },
+          })
+        )
+      );
     }
 
     await notifyAdmins({
@@ -1767,7 +1883,7 @@ export const getMyServiceRequests = async (req: AuthRequest, res: Response): Pro
     await autoReassignStaleAssignedRequests();
 
     const requestedStatus = String(req.query.status || 'all').toLowerCase();
-    const allowed = new Set(['all', 'pending', 'payment_pending', 'paid', 'assigned', 'in_progress', 'awaiting_confirmation', 'done', 'cancelled']);
+    const allowed = new Set(['all', 'pending', 'assigned', 'route_in_progress', 'arrived', 'start_pending', 'in_progress', 'finish_pending', 'payment_pending', 'paid', 'completion_pending', 'awaiting_confirmation', 'done', 'cancelled']);
     if (!allowed.has(requestedStatus)) {
       res.status(400).json({ error: 'Invalid status filter.' });
       return;
@@ -1803,7 +1919,15 @@ export const getMyServiceRequests = async (req: AuthRequest, res: Response): Pro
          sr.scheduled_time,
          sr.scheduled_start_time,
          sr.scheduled_end_time,
+         sr.workflow_version,
+         sr.client_approved_at,
+         sr.route_started_at,
+         sr.worker_arrived_at,
+         sr.work_started_at,
+         sr.work_finished_at,
+         sr.completed_at,
          sr.status,
+         sr.workflow_version,
          sr.created_at,
          s.name AS service_name,
          s.icon AS service_icon,
@@ -1831,6 +1955,12 @@ export const getMyServiceRequests = async (req: AuthRequest, res: Response): Pro
          srw_assigned.proposed_budget,
          srw_assigned.counter_message,
          srw_assigned.counter_status,
+         MAX(CASE WHEN sra.action = 'start_work' AND sra.actor_role = 'client' THEN sra.approved_at END) AS start_client_approved_at,
+         MAX(CASE WHEN sra.action = 'start_work' AND sra.actor_role = 'worker' THEN sra.approved_at END) AS start_worker_approved_at,
+         MAX(CASE WHEN sra.action = 'finish_work' AND sra.actor_role = 'client' THEN sra.approved_at END) AS finish_client_approved_at,
+         MAX(CASE WHEN sra.action = 'finish_work' AND sra.actor_role = 'worker' THEN sra.approved_at END) AS finish_worker_approved_at,
+         MAX(CASE WHEN sra.action = 'complete_service' AND sra.actor_role = 'client' THEN sra.approved_at END) AS complete_client_approved_at,
+         MAX(CASE WHEN sra.action = 'complete_service' AND sra.actor_role = 'worker' THEN sra.approved_at END) AS complete_worker_approved_at,
          GROUP_CONCAT(DISTINCT sri.image_url ORDER BY sri.id_image ASC SEPARATOR '||') AS image_urls
        FROM service_requests sr
        INNER JOIN services s ON s.id_service = sr.id_service
@@ -1838,14 +1968,17 @@ export const getMyServiceRequests = async (req: AuthRequest, res: Response): Pro
        LEFT JOIN users u2 ON u2.id_user = wp.id_user
        LEFT JOIN service_request_payments srp ON srp.id_request = sr.id_request
        LEFT JOIN service_request_workers srw_assigned
-         ON srw_assigned.id_request = sr.id_request
-        AND srw_assigned.id_worker_profile = sr.assigned_worker_profile
+        ON srw_assigned.id_request = sr.id_request
+       AND srw_assigned.id_worker_profile = sr.assigned_worker_profile
+       LEFT JOIN service_request_workflow_approvals sra ON sra.id_request = sr.id_request
        LEFT JOIN service_request_images sri ON sri.id_request = sr.id_request
        WHERE ${whereParts.join(' AND ')}
        GROUP BY
          sr.id_request, sr.id_service, sr.description, sr.location_text, sr.latitude, sr.longitude,
          sr.initial_budget, sr.budget, sr.final_budget, sr.radius_km, sr.urgency_level, sr.status, sr.created_at, s.name, s.icon, wp.id_worker_profile, wp.latitude, wp.longitude, wp.is_online, wp.bio, u2.name, u2.lastname, u2.phone_number, u2.profile_image,
          sr.booking_type, sr.scheduled_date, sr.scheduled_time, sr.scheduled_start_time, sr.scheduled_end_time,
+         sr.workflow_version, sr.client_approved_at, sr.route_started_at, sr.worker_arrived_at,
+         sr.work_started_at, sr.work_finished_at, sr.completed_at,
         srp.provider, srp.checkout_reference, srp.currency_code, srp.amount, srp.platform_fee, srp.worker_payout, srp.commission_rate, srp.commission_snapshot_json, srp.promo_code, srp.payment_status, srp.paid_at, srp.released_at,
          srw_assigned.proposed_budget, srw_assigned.counter_message, srw_assigned.counter_status
        ORDER BY sr.created_at DESC
@@ -1872,6 +2005,27 @@ export const getMyServiceRequests = async (req: AuthRequest, res: Response): Pro
       scheduled_time: row.scheduled_time || null,
       scheduled_start_time: row.scheduled_start_time || null,
       scheduled_end_time: row.scheduled_end_time || null,
+      workflow_version: Number(row.workflow_version || 1),
+      client_approved_at: row.client_approved_at || null,
+      route_started_at: row.route_started_at || null,
+      worker_arrived_at: row.worker_arrived_at || null,
+      work_started_at: row.work_started_at || null,
+      work_finished_at: row.work_finished_at || null,
+      completed_at: row.completed_at || null,
+      approvals: {
+        start_work: {
+          client: Boolean(row.start_client_approved_at),
+          worker: Boolean(row.start_worker_approved_at),
+        },
+        finish_work: {
+          client: Boolean(row.finish_client_approved_at),
+          worker: Boolean(row.finish_worker_approved_at),
+        },
+        complete_service: {
+          client: Boolean(row.complete_client_approved_at),
+          worker: Boolean(row.complete_worker_approved_at),
+        },
+      },
       status: toPublicRequestStatus(row.status),
       created_at: row.created_at,
       assigned_worker:
@@ -2132,6 +2286,7 @@ export const cancelServiceRequest = async (req: AuthRequest, res: Response): Pro
        SET status = 'cancelled',
            assigned_worker_profile = NULL,
            assigned_at = NULL,
+           worker_arrived_at = NULL,
            updated_at = CURRENT_TIMESTAMP
        WHERE id_request = ?`,
       [idRequest]
@@ -2155,6 +2310,15 @@ export const cancelServiceRequest = async (req: AuthRequest, res: Response): Pro
     );
 
     await connection.commit();
+
+    await recordSystemEvent({
+      level: 'info',
+      component: 'services',
+      eventType: 'request_cancelled',
+      message: 'Service request cancelled by client.',
+      metadata: { requestId: idRequest, userId },
+    }).catch(() => undefined);
+
     res.json({
       success: true,
       message: 'Request cancelled successfully.',
@@ -2231,6 +2395,7 @@ export const autoReassignStaleAssignedRequests = async () => {
          SET status = 'pending',
              assigned_worker_profile = NULL,
              assigned_at = NULL,
+             worker_arrived_at = NULL,
              updated_at = CURRENT_TIMESTAMP
          WHERE id_request = ?`,
         [idRequest]
@@ -2342,6 +2507,13 @@ export const getRequestChat = async (req: AuthRequest, res: Response): Promise<v
 
     const participant = await resolveRequestParticipant(idRequest, userId);
     if (!participant) {
+      await recordSystemEvent({
+        level: 'warning',
+        component: 'services',
+        eventType: 'chat_access_denied',
+        message: 'Chat access denied (ownership failed).',
+        metadata: { requestId: idRequest, userId },
+      }).catch(() => undefined);
       res.status(403).json({ error: 'Access denied for this request chat.' });
       return;
     }
@@ -2351,6 +2523,7 @@ export const getRequestChat = async (req: AuthRequest, res: Response): Promise<v
     }
 
     const afterId = Math.max(0, Number(req.query?.after_id || 0));
+    const limit = afterId > 0 ? 200 : 500;
 
     const [rows] = await pool.execute<RowDataPacket[]>(
       `SELECT id_message, id_request, sender_role, id_user, id_worker_profile, message, image_url, created_at
@@ -2358,8 +2531,8 @@ export const getRequestChat = async (req: AuthRequest, res: Response): Promise<v
        WHERE id_request = ?
          AND (? = 0 OR id_message > ?)
        ORDER BY created_at ASC, id_message ASC
-       LIMIT ?`,
-      [idRequest, afterId, afterId, afterId > 0 ? 200 : 500]
+       LIMIT ${limit}`,
+      [idRequest, afterId, afterId]
     );
 
     const latestMessageId =
@@ -2375,7 +2548,8 @@ export const getRequestChat = async (req: AuthRequest, res: Response): Promise<v
     });
   } catch (error: any) {
     console.error('Error in getRequestChat:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    const isDev = process.env.NODE_ENV !== 'production';
+    res.status(500).json({ error: isDev ? String(error?.message || error) : 'Internal server error' });
   }
 };
 
@@ -2392,7 +2566,7 @@ export const postRequestChatMessage = async (req: AuthRequest, res: Response): P
 
     const idRequest = Number(req.params.idRequest);
     const rawMessage = String(req.body?.message || '').trim();
-    const message = rawMessage || null;
+    const message = rawMessage ? sanitizeMessage(rawMessage) : null;
     if (!idRequest) {
       removeUploadedFiles(files);
       res.status(400).json({ error: 'Invalid request id.' });
@@ -2410,6 +2584,13 @@ export const postRequestChatMessage = async (req: AuthRequest, res: Response): P
 
     const participant = await resolveRequestParticipant(idRequest, userId);
     if (!participant) {
+      await recordSystemEvent({
+        level: 'warning',
+        component: 'services',
+        eventType: 'chat_access_denied',
+        message: 'Chat send access denied (ownership failed).',
+        metadata: { requestId: idRequest, userId },
+      }).catch(() => undefined);
       removeUploadedFiles(files);
       res.status(403).json({ error: 'Access denied for this request chat.' });
       return;
@@ -2505,8 +2686,8 @@ export const postRequestChatMessage = async (req: AuthRequest, res: Response): P
 
     // Push SSE to both sides so they receive the new message without polling
     const chatPayload = { id_request: idRequest, latest_message_id: createdMessages[createdMessages.length - 1]?.id_message ?? primaryMessageId };
-    pushToUser(userId, 'chat_message', chatPayload);
-    if (recipientUserId) pushToUser(recipientUserId, 'chat_message', chatPayload);
+    emitToUser(userId, 'chat_message', chatPayload);
+    if (recipientUserId) emitToUser(recipientUserId, 'chat_message', chatPayload);
     emitChatMessage({
       ...chatPayload,
       messages: createdMessages,
@@ -2619,8 +2800,9 @@ export const createRequestPaymentCheckout = async (req: AuthRequest, res: Respon
     const { amount, platformFee, workerPayout } = commission;
     const commissionSnapshotJson = JSON.stringify(commission.snapshot);
     const checkoutReference = buildCheckoutReference(idRequest);
-    const defaultReturnUrl = `http://localhost:3000/checkout/${idRequest}?paypal=success`;
-    const defaultCancelUrl = `http://localhost:3000/checkout/${idRequest}?paypal=cancel`;
+    const frontendUrl = getDefaultFrontendUrl();
+    const defaultReturnUrl = `${frontendUrl}/checkout/${idRequest}?paypal=success`;
+    const defaultCancelUrl = `${frontendUrl}/checkout/${idRequest}?paypal=cancel`;
     const returnUrl = sanitizeRedirectUrl(returnUrlInput, defaultReturnUrl);
     const cancelUrl = sanitizeRedirectUrl(cancelUrlInput, defaultCancelUrl);
 
@@ -2974,7 +3156,7 @@ export const confirmRequestPayment = async (req: AuthRequest, res: Response): Pr
       userId,
       eventType: 'payment_secured',
       title: 'Payment secured',
-      message: `Funds are secured for request #${idRequest}. Your pro can head over now.`,
+      message: `Payment completed for request #${idRequest}. Final service approval is now available.`,
       tone: 'success',
       requestId: idRequest,
       actionUrl: '/app',
@@ -2986,7 +3168,7 @@ export const confirmRequestPayment = async (req: AuthRequest, res: Response): Pr
       await createUserNotification({
         userId: workerUserId,
         eventType: 'payment_secured',
-        title: 'Client payment secured',
+        title: 'Client payment completed',
         message: `The payment of your recent service was completed successfully for request #${idRequest}.`,
         tone: 'success',
         requestId: idRequest,
@@ -3047,9 +3229,17 @@ export const confirmRequestPayment = async (req: AuthRequest, res: Response): Pr
       });
     }
 
+    await recordSystemEvent({
+      level: 'info',
+      component: 'services',
+      eventType: 'payment_confirmed',
+      message: 'Service request payment confirmed.',
+      metadata: { requestId: idRequest, userId, amount: expectedAmount },
+    }).catch(() => undefined);
+
     res.json({
       success: true,
-      message: 'Payment confirmed. Funds are secured for this request.',
+      message: 'Payment confirmed. Final service approval is now available.',
       id_request: idRequest,
       payment: {
         provider: paymentMethod,
@@ -3329,6 +3519,237 @@ export const confirmServiceCompletion = async (req: AuthRequest, res: Response):
   }
 };
 
+type WorkflowAction = 'start_work' | 'finish_work' | 'complete_service';
+type WorkflowActorRole = 'client' | 'worker';
+
+const WORKFLOW_ACTIONS = new Set<WorkflowAction>(['start_work', 'finish_work', 'complete_service']);
+const MINIMUM_WORK_DURATION_MS = 1 * 60 * 1000;
+
+export const approveServiceWorkflowAction = async (req: AuthRequest, res: Response): Promise<void> => {
+  const connection = await pool.getConnection();
+  try {
+    const userId = Number(req.user?.user_id || 0);
+    const idRequest = Number(req.params.idRequest);
+    const action = String(req.body?.action || '').toLowerCase() as WorkflowAction;
+    if (!userId) {
+      res.status(401).json({ error: 'Unauthorized' });
+      return;
+    }
+    if (!Number.isSafeInteger(idRequest) || idRequest <= 0 || !WORKFLOW_ACTIONS.has(action)) {
+      res.status(400).json({ error: 'Invalid workflow action.' });
+      return;
+    }
+
+    await ensureServiceRequestTables();
+    await ensurePaymentLedgerTables();
+    await connection.beginTransaction();
+
+    const [requestRows] = await connection.execute<RowDataPacket[]>(
+      `SELECT sr.id_request, sr.id_user, sr.status, sr.workflow_version, sr.assigned_worker_profile,
+              sr.worker_arrived_at, sr.work_started_at, sr.work_finished_at,
+              wp.id_user AS worker_user_id
+       FROM service_requests sr
+       LEFT JOIN worker_profiles wp ON wp.id_worker_profile = sr.assigned_worker_profile
+       WHERE sr.id_request = ?
+       LIMIT 1
+       FOR UPDATE`,
+      [idRequest]
+    );
+    if (requestRows.length === 0) {
+      await connection.rollback();
+      res.status(404).json({ error: 'Request not found.' });
+      return;
+    }
+
+    const request = requestRows[0];
+    if (Number(request.workflow_version || 1) < 2) {
+      await connection.rollback();
+      res.status(409).json({ error: 'This request uses the legacy workflow.' });
+      return;
+    }
+
+    let actorRole: WorkflowActorRole | null = null;
+    if (Number(request.id_user || 0) === userId) actorRole = 'client';
+    if (Number(request.worker_user_id || 0) === userId) actorRole = 'worker';
+    if (!actorRole) {
+      await connection.rollback();
+      res.status(403).json({ error: 'Only the assigned client and worker can approve this action.' });
+      return;
+    }
+
+    const status = String(request.status || '').toLowerCase();
+    const [existingApprovalRows] = await connection.execute<RowDataPacket[]>(
+      `SELECT id_approval FROM service_request_workflow_approvals
+       WHERE id_request = ? AND action = ? AND actor_role = ? LIMIT 1`,
+      [idRequest, action, actorRole]
+    );
+    const completedStatuses: Record<WorkflowAction, string[]> = {
+      start_work: ['in_progress', 'finish_pending', 'payment_pending', 'paid', 'completion_pending', 'done'],
+      finish_work: ['payment_pending', 'paid', 'completion_pending', 'done'],
+      complete_service: ['done'],
+    };
+    if (existingApprovalRows.length > 0 && completedStatuses[action].includes(status)) {
+      await connection.rollback();
+      res.json({
+        success: true,
+        id_request: idRequest,
+        action,
+        actor_role: actorRole,
+        request_status: status,
+        already_approved: true,
+        message: 'Your approval was already saved.',
+      });
+      return;
+    }
+    const allowedStatuses: Record<WorkflowAction, string[]> = {
+      start_work: ['arrived', 'start_pending'],
+      finish_work: ['in_progress', 'finish_pending'],
+      complete_service: ['paid', 'completion_pending'],
+    };
+    if (!allowedStatuses[action].includes(status)) {
+      await connection.rollback();
+      res.status(409).json({ error: 'This action is not available in the current service state.' });
+      return;
+    }
+    if (action === 'start_work' && !request.worker_arrived_at) {
+      await connection.rollback();
+      res.status(409).json({ error: 'Verified arrival is required before work can start.' });
+      return;
+    }
+    if (action === 'finish_work') {
+      const startedAt = request.work_started_at ? new Date(request.work_started_at).getTime() : NaN;
+      const unlockAt = startedAt + MINIMUM_WORK_DURATION_MS;
+      if (!Number.isFinite(startedAt) || Date.now() < unlockAt) {
+        await connection.rollback();
+        res.status(409).json({
+          error: 'Finish work unlocks 1 minute after both parties approve the start.',
+          code: 'MINIMUM_WORK_TIME',
+          unlock_at: Number.isFinite(unlockAt) ? new Date(unlockAt).toISOString() : null,
+        });
+        return;
+      }
+    }
+
+    await connection.execute(
+      `INSERT INTO service_request_workflow_approvals (id_request, action, actor_role, id_user)
+       VALUES (?, ?, ?, ?)
+       ON DUPLICATE KEY UPDATE id_user = VALUES(id_user)`,
+      [idRequest, action, actorRole, userId]
+    );
+    const [approvalRows] = await connection.execute<RowDataPacket[]>(
+      `SELECT actor_role FROM service_request_workflow_approvals WHERE id_request = ? AND action = ?`,
+      [idRequest, action]
+    );
+    const approvedRoles = new Set(approvalRows.map((row) => String(row.actor_role)));
+    const bothApproved = approvedRoles.has('client') && approvedRoles.has('worker');
+
+    let nextStatus = status;
+    if (action === 'start_work') {
+      nextStatus = bothApproved ? 'in_progress' : 'start_pending';
+      await connection.execute(
+        `UPDATE service_requests
+         SET status = ?, work_started_at = CASE WHEN ? THEN COALESCE(work_started_at, CURRENT_TIMESTAMP) ELSE work_started_at END,
+             updated_at = CURRENT_TIMESTAMP
+         WHERE id_request = ?`,
+        [nextStatus, bothApproved ? 1 : 0, idRequest]
+      );
+    } else if (action === 'finish_work') {
+      nextStatus = bothApproved ? 'payment_pending' : 'finish_pending';
+      await connection.execute(
+        `UPDATE service_requests
+         SET status = ?, work_finished_at = CASE WHEN ? THEN COALESCE(work_finished_at, CURRENT_TIMESTAMP) ELSE work_finished_at END,
+             updated_at = CURRENT_TIMESTAMP
+         WHERE id_request = ?`,
+        [nextStatus, bothApproved ? 1 : 0, idRequest]
+      );
+    } else {
+      nextStatus = bothApproved ? 'done' : 'completion_pending';
+      await connection.execute(
+        `UPDATE service_requests
+         SET status = ?, completed_at = CASE WHEN ? THEN COALESCE(completed_at, CURRENT_TIMESTAMP) ELSE completed_at END,
+             updated_at = CURRENT_TIMESTAMP
+         WHERE id_request = ?`,
+        [nextStatus, bothApproved ? 1 : 0, idRequest]
+      );
+      if (bothApproved) {
+        await connection.execute(
+          `UPDATE service_request_payments
+           SET payment_status = CASE WHEN payment_status = 'paid' THEN 'released' ELSE payment_status END,
+               released_at = CASE WHEN payment_status = 'paid' THEN CURRENT_TIMESTAMP ELSE released_at END,
+               updated_at = CURRENT_TIMESTAMP
+           WHERE id_request = ?`,
+          [idRequest]
+        );
+        if (request.assigned_worker_profile != null) {
+          const [paymentRows] = await connection.execute<RowDataPacket[]>(
+            `SELECT id_payment, amount, platform_fee, worker_payout, currency_code, payment_status, released_at
+             FROM service_request_payments WHERE id_request = ? LIMIT 1`,
+            [idRequest]
+          );
+          const payment = paymentRows[0];
+          if (payment && String(payment.payment_status) === 'released') {
+            await scheduleWorkerPayoutForReleasedRequest(connection, {
+              idRequest,
+              idPayment: Number(payment.id_payment),
+              idWorkerProfile: Number(request.assigned_worker_profile),
+              grossAmount: Number(payment.amount || 0),
+              platformFee: Number(payment.platform_fee || 0),
+              netAmount: Number(payment.worker_payout || 0),
+              currencyCode: String(payment.currency_code || 'USD'),
+              releasedAt: payment.released_at ? new Date(payment.released_at) : new Date(),
+            });
+          }
+        }
+      }
+    }
+
+    await connection.commit();
+
+    const counterpartUserId = actorRole === 'client' ? Number(request.worker_user_id || 0) : Number(request.id_user || 0);
+    const actionLabels: Record<WorkflowAction, string> = {
+      start_work: 'start the work',
+      finish_work: 'finish the work',
+      complete_service: 'complete the service',
+    };
+    if (counterpartUserId) {
+      await createUserNotification({
+        userId: counterpartUserId,
+        eventType: bothApproved ? `workflow_${action}_approved` : `workflow_${action}_requested`,
+        title: bothApproved ? 'Both approvals received' : 'Approval requested',
+        message: bothApproved
+          ? `Both parties approved ${actionLabels[action]} for request #${idRequest}.`
+          : `${actorRole === 'client' ? 'Client' : 'Worker'} wants to ${actionLabels[action]} for request #${idRequest}.`,
+        tone: bothApproved ? 'success' : 'info',
+        requestId: idRequest,
+        actionUrl: actorRole === 'client' ? '/pro-dashboard' : '/app',
+        dedupeKey: `request-${idRequest}-${action}-${actorRole}-${bothApproved ? 'complete' : 'pending'}`,
+        metadata: { request_status: nextStatus, action, actor_role: actorRole },
+      });
+    }
+    emitToUser(Number(request.id_user || 0), 'request_updated', { id_request: idRequest, request_status: nextStatus });
+    if (request.worker_user_id) {
+      emitToUser(Number(request.worker_user_id), 'request_updated', { id_request: idRequest, request_status: nextStatus });
+    }
+
+    res.json({
+      success: true,
+      id_request: idRequest,
+      action,
+      actor_role: actorRole,
+      both_approved: bothApproved,
+      request_status: nextStatus,
+      approvals: { client: approvedRoles.has('client'), worker: approvedRoles.has('worker') },
+      message: bothApproved ? 'Both approvals received.' : 'Your approval was saved. Waiting for the other party.',
+    });
+  } catch (error) {
+    await connection.rollback();
+    console.error('Error in approveServiceWorkflowAction:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  } finally {
+    connection.release();
+  }
+};
+
 export const submitRequestRating = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const userId = req.user?.user_id;
@@ -3420,6 +3841,7 @@ export const acceptAssignedWorker = async (req: AuthRequest, res: Response): Pro
          sr.id_request,
          sr.id_user,
          sr.status,
+         sr.workflow_version,
          sr.assigned_worker_profile,
          sr.budget,
          sr.final_budget,
@@ -3450,11 +3872,13 @@ export const acceptAssignedWorker = async (req: AuthRequest, res: Response): Pro
     }
 
     const nextBudget = row.final_budget != null ? Number(row.final_budget) : Number(row.budget || 0);
+    const nextStatus = Number(row.workflow_version || 1) >= 2 ? 'assigned' : 'payment_pending';
 
     await connection.execute(
       `UPDATE service_requests
-       SET status = 'payment_pending',
+       SET status = CASE WHEN workflow_version >= 2 THEN 'assigned' ELSE 'payment_pending' END,
            final_budget = ?,
+           client_approved_at = CASE WHEN workflow_version >= 2 THEN CURRENT_TIMESTAMP ELSE client_approved_at END,
            updated_at = CURRENT_TIMESTAMP
        WHERE id_request = ?`,
       [nextBudget, idRequest]
@@ -3468,12 +3892,12 @@ export const acceptAssignedWorker = async (req: AuthRequest, res: Response): Pro
         userId: workerUserId,
         eventType: 'worker_approved',
         title: 'Client approved you',
-        message: `The client approved you for request #${idRequest}. You can now open the route while payment is being secured.`,
+        message: `The client approved you for request #${idRequest}. You can now start the route.`,
         tone: 'success',
         requestId: idRequest,
         actionUrl: '/pro-dashboard',
         dedupeKey: `request-${idRequest}-worker-approved-worker`,
-        metadata: { request_status: 'payment_pending' },
+        metadata: { request_status: 'assigned' },
       });
     }
 
@@ -3481,19 +3905,19 @@ export const acceptAssignedWorker = async (req: AuthRequest, res: Response): Pro
       userId,
       eventType: 'worker_approved',
       title: 'Worker approved',
-      message: `You approved the pro for request #${idRequest}. Secure payment when you are ready.`,
+      message: `You approved the pro for request #${idRequest}. Waiting for route start.`,
       tone: 'success',
       requestId: idRequest,
       actionUrl: '/app',
       dedupeKey: `request-${idRequest}-worker-approved-client`,
-      metadata: { request_status: 'payment_pending' },
+      metadata: { request_status: 'assigned' },
     });
 
     res.json({
       success: true,
-      message: 'Worker approved. Payment is now pending.',
+      message: 'Worker approved. Route can now begin.',
       id_request: idRequest,
-      request_status: 'payment_pending',
+      request_status: nextStatus,
       final_budget: nextBudget,
     });
   } catch (error: any) {
@@ -3531,6 +3955,7 @@ export const declineAssignedWorker = async (req: AuthRequest, res: Response): Pr
          sr.id_user,
          sr.id_service,
          sr.status,
+         sr.workflow_version,
          sr.latitude,
          sr.longitude,
          sr.radius_km,
@@ -3637,6 +4062,7 @@ export const acceptCounterOffer = async (req: AuthRequest, res: Response): Promi
          sr.id_request,
          sr.id_user,
          sr.status,
+         sr.workflow_version,
          sr.assigned_worker_profile,
          srw_assigned.proposed_budget,
          srw_assigned.counter_status
@@ -3664,9 +4090,13 @@ export const acceptCounterOffer = async (req: AuthRequest, res: Response): Promi
     }
 
     const finalBudget = Number(row.proposed_budget);
+    const nextStatus = Number(row.workflow_version || 1) >= 2 ? 'assigned' : 'payment_pending';
     await connection.execute(
       `UPDATE service_requests
-       SET budget = ?, final_budget = ?, status = 'payment_pending', updated_at = CURRENT_TIMESTAMP
+       SET budget = ?, final_budget = ?,
+           status = CASE WHEN workflow_version >= 2 THEN 'assigned' ELSE 'payment_pending' END,
+           client_approved_at = CASE WHEN workflow_version >= 2 THEN CURRENT_TIMESTAMP ELSE client_approved_at END,
+           updated_at = CURRENT_TIMESTAMP
        WHERE id_request = ?`,
       [finalBudget, finalBudget, idRequest]
     );
@@ -3688,12 +4118,12 @@ export const acceptCounterOffer = async (req: AuthRequest, res: Response): Promi
         userId: workerUserId,
         eventType: 'counter_offer_accepted',
         title: 'Counter offer accepted',
-        message: `The client accepted your counter offer for request #${idRequest}. Payment is now pending.`,
+        message: `The client accepted your counter offer for request #${idRequest}. You can now start the route.`,
         tone: 'success',
         requestId: idRequest,
         actionUrl: '/pro-dashboard',
         dedupeKey: `request-${idRequest}-counter-accepted-worker`,
-        metadata: { request_status: 'payment_pending' },
+        metadata: { request_status: 'assigned' },
       });
     }
 
@@ -3701,20 +4131,20 @@ export const acceptCounterOffer = async (req: AuthRequest, res: Response): Promi
       userId,
       eventType: 'counter_offer_accepted',
       title: 'Counter offer accepted',
-      message: `Request #${idRequest} is ready for payment so your pro can start.`,
+      message: `Request #${idRequest} is agreed. Waiting for route start.`,
       tone: 'info',
       requestId: idRequest,
       actionUrl: '/app',
       dedupeKey: `request-${idRequest}-counter-accepted-client`,
-      metadata: { request_status: 'payment_pending' },
+      metadata: { request_status: 'assigned' },
     });
 
     res.json({
       success: true,
-      message: 'Counter offer accepted. Payment is now required.',
+      message: 'Counter offer accepted. Route can now begin.',
       id_request: idRequest,
       final_budget: finalBudget,
-      request_status: 'payment_pending',
+      request_status: nextStatus,
     });
   } catch (error: any) {
     await connection.rollback();
@@ -3793,6 +4223,7 @@ export const declineCounterOffer = async (req: AuthRequest, res: Response): Prom
        SET status = 'pending',
            assigned_worker_profile = NULL,
            assigned_at = NULL,
+           worker_arrived_at = NULL,
            updated_at = CURRENT_TIMESTAMP
        WHERE id_request = ?`,
       [idRequest]
