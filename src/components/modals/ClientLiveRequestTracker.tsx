@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { showSweetToast } from '../../utils/sweetAlert';
+import { addResilientTileLayer } from '../../utils/leafletLoader';
 import {
     buildRouteDistanceProfile,
     focusRouteViewport,
@@ -341,13 +342,9 @@ const ClientLiveRequestTracker: React.FC<ClientLiveRequestTrackerProps> = ({ lea
                 maxZoom: 17,
             }).setView([13.6929, -89.2182], 13);
 
-            L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
-                maxZoom: 17,
-                attribution: '&copy; OpenStreetMap &copy; CARTO',
-                keepBuffer: 1,
-                updateWhenIdle: true,
-                updateWhenZooming: false,
-            }).addTo(map);
+            // CARTO tiles with an OSM fallback if CARTO is unreachable/blocked --
+            // without this the map stayed permanently blank gray on networks that can't reach CARTO.
+            addResilientTileLayer(L, map);
 
             L.control.zoom({ position: 'bottomright' }).addTo(map);
             mapInstanceRef.current = map;

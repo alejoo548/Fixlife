@@ -31,6 +31,34 @@ const SOCKET_JOIN_MAX_ATTEMPTS = 30;
 const MAX_SOCKETS_PER_USER = 8;
 const socketsByUser = new Map<number, Set<string>>();
 
+// Keyed by user_id (not socket.id) so reconnecting mid-window does not reset the join-attempt counter.
+const joinAttemptsByUser = new Map<number, number[]>();
+const joinAttemptsCleanupTimers = new Map<number, NodeJS.Timeout>();
+
+const isJoinRateLimited = (userId: number): boolean => {
+  const now = Date.now();
+  const recent = (joinAttemptsByUser.get(userId) || []).filter(
+    (attemptedAt) => now - attemptedAt < SOCKET_JOIN_WINDOW_MS
+  );
+  if (recent.length >= SOCKET_JOIN_MAX_ATTEMPTS) {
+    joinAttemptsByUser.set(userId, recent);
+    return true;
+  }
+  recent.push(now);
+  joinAttemptsByUser.set(userId, recent);
+  return false;
+};
+
+const scheduleJoinAttemptsCleanup = (userId: number) => {
+  const existingTimer = joinAttemptsCleanupTimers.get(userId);
+  if (existingTimer) clearTimeout(existingTimer);
+  const timer = setTimeout(() => {
+    joinAttemptsByUser.delete(userId);
+    joinAttemptsCleanupTimers.delete(userId);
+  }, SOCKET_JOIN_WINDOW_MS);
+  joinAttemptsCleanupTimers.set(userId, timer);
+};
+
 const resolveRequestParticipant = async (idRequest: number, userId: number) => {
   const [rows] = await pool.execute<RowDataPacket[]>(
     `SELECT
@@ -117,7 +145,6 @@ export const initSocketServer = (ioInstance: Server) => {
 
   io.on('connection', (socket: AuthedSocket) => {
     const userId = Number(socket.user?.user_id || 0);
-    let joinAttempts: number[] = [];
     if (!userId) {
       socket.disconnect(true);
       return;
@@ -138,19 +165,18 @@ export const initSocketServer = (ioInstance: Server) => {
 
     socket.on('disconnect', () => {
       const userSockets = socketsByUser.get(userId);
-      if (!userSockets) return;
-      userSockets.delete(socket.id);
-      if (userSockets.size === 0) socketsByUser.delete(userId);
+      if (userSockets) {
+        userSockets.delete(socket.id);
+        if (userSockets.size === 0) socketsByUser.delete(userId);
+      }
+      scheduleJoinAttemptsCleanup(userId);
     });
 
     socket.on('chat:join', async (payload: { id_request?: number }, ack?: (response: unknown) => void) => {
-      const now = Date.now();
-      joinAttempts = joinAttempts.filter((attemptedAt) => now - attemptedAt < SOCKET_JOIN_WINDOW_MS);
-      if (joinAttempts.length >= SOCKET_JOIN_MAX_ATTEMPTS) {
+      if (isJoinRateLimited(userId)) {
         ack?.({ success: false, error: 'Too many chat join attempts. Try again shortly.' });
         return;
       }
-      joinAttempts.push(now);
 
       const idRequest = Number(payload?.id_request || 0);
       if (!Number.isSafeInteger(idRequest) || idRequest <= 0) {

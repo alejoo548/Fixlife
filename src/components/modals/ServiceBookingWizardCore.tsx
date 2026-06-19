@@ -18,6 +18,7 @@ import { ServiceRequestAssignedWorkerCard } from './ServiceRequestAssignedWorker
 import { ServiceRequestPaymentModal } from './ServiceRequestPaymentModal';
 import { ServiceRequestFixesSuccessModal } from './ServiceRequestFixesSuccessModal';
 import { showSweetAlert, showSweetToast } from '../../utils/sweetAlert';
+import { sanitizeMessageText, sanitizeStrictText } from '../../utils/textSanitize';
 import { useResponsiveSheet } from '../../hooks/useResponsiveSheet';
 import { useServiceRequestChat } from './hooks/useServiceRequestChat';
 import { useActiveTrackedRequest } from './hooks/useActiveTrackedRequest';
@@ -1611,10 +1612,11 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
 
     const handleLocationChange = (value: string) => {
         cancelLocationDetection();
-        setData((prev) => ({ ...prev, location: value }));
+        const sanitizedValue = sanitizeStrictText(value, 255);
+        setData((prev) => ({ ...prev, location: sanitizedValue }));
         setNoNearbyProsNotice('');
         setShowLocationSuggestions(true);
-        const parsedCoords = parseCoordinateInput(value);
+        const parsedCoords = parseCoordinateInput(sanitizedValue);
         if (parsedCoords) {
             setCurrentCoords(parsedCoords);
             setGeoError(null);
@@ -2236,7 +2238,7 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                                     showBudget={false}
                                                     showResults={false}
                                                     showActions={false}
-                                                    onDescriptionChange={(value) => setData({ ...data, description: value })}
+                                                    onDescriptionChange={(value) => setData({ ...data, description: sanitizeMessageText(value, 1000) })}
                                                     onPriceChange={(nextValue) => setData({ ...data, price: sanitizeBudgetInput(nextValue) })}
                                                     onPricePaste={(value) => setData({ ...data, price: sanitizeBudgetInput(value) })}
                                                     onProblemFilesChange={handleProblemFiles}
@@ -3577,7 +3579,10 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                 />
                 <ServiceRequestMapOverlays
                     leafletReady={leafletReady}
-                    activeTrackedRequest={activeTrackedRequest ? { id_request: activeTrackedRequest.id_request } : null}
+                    // This whole component is the "create a new request" modal (service list = step 0,
+                    // 4-step form = step 1). It must always show a clean map, never an unrelated
+                    // already-tracked request's route — that view belongs to MyRequestsModal.
+                    activeTrackedRequest={null}
                     currentCoords={currentCoords}
                     locationLabel={data.location}
                     nearbyWorkersCount={nearbyWorkers.length}
@@ -3585,14 +3590,7 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                     trackerContent={
                         <TrackerErrorBoundary>
                             <Suspense fallback={<InlineTrackerFallback />}>
-                                {activeTrackedRequest ? (
-                                    <ClientLiveRequestTracker
-                                        key={`desktop-${activeTrackedRequest.id_request}`}
-                                        leafletReady={leafletReady}
-                                        request={activeTrackedRequest}
-                                        onClose={!isDesktopSheet ? onClose : undefined}
-                                    />
-                                ) : null}
+                                {null}
                             </Suspense>
                         </TrackerErrorBoundary>
                     }

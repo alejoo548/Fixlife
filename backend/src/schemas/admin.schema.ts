@@ -149,7 +149,7 @@ export const AdminSchema = {
     promo_codes: z
       .array(
         z.object({
-          promo_code: z.string().trim().min(1, 'Promo code is required.').max(40, 'Promo code too long.'),
+          promo_code: strictText(40).refine(v => v.length >= 1, 'Promo code is required.'),
           rate_percent: z
             .coerce
             .number()
@@ -170,17 +170,17 @@ export const AdminSchema = {
         priority_weight: z.coerce.number().int().min(1).max(20),
         featured_profile_boost: z.coerce.number().min(1).max(10),
         max_active_leads: z.coerce.number().int().min(1).max(500),
-        support_level: z.string().trim().min(1).max(30),
-        badge_label: z.string().trim().min(1).max(60),
+        support_level: nameLikeText(30).refine(v => v.length >= 1, 'Support level is required.'),
+        badge_label: nameLikeText(60).refine(v => v.length >= 1, 'Badge label is required.'),
         monthly_fee: z.coerce.number().min(0).max(9999),
-        benefits_summary: z.string().trim().max(255).optional().or(z.literal('')),
+        benefits_summary: messageText(255).optional().or(z.literal('')),
       })
     ).min(4, 'At least four worker tiers must be configured.').max(5),
   }).strict(),
 
   workerTierUpdate: z.object({
     membership_tier: z.enum(['standard', 'verified', 'trusted', 'premium', 'elite']),
-    reason: z.string().trim().min(8).max(255),
+    reason: messageText(255).refine(v => v.length >= 8, 'Reason must contain at least 8 characters.'),
   }).strict(),
 
   financeCaseCreate: z.object({
@@ -189,13 +189,13 @@ export const AdminSchema = {
     id_request: z.coerce.number().int().positive().optional(),
     id_payment: z.coerce.number().int().positive().optional(),
     amount: z.coerce.number().positive().max(100000),
-    currency_code: z.string().trim().max(8).optional().or(z.literal('')),
-    reason: z.string().trim().min(1).max(255),
-    notes: z.string().trim().max(2000).optional().or(z.literal('')),
+    currency_code: nameLikeText(8).optional().or(z.literal('')),
+    reason: messageText(255).refine(v => v.length >= 1, 'Reason is required.'),
+    notes: messageText(2000).optional().or(z.literal('')),
   }),
 
   financeCaseResolve: z.object({
-    resolution_notes: z.string().trim().min(8).max(1500),
+    resolution_notes: messageText(1500).refine(v => v.length >= 8, 'Resolution notes must contain at least 8 characters.'),
     apply_ledger: z.boolean().optional(),
   }).strict(),
 
@@ -204,11 +204,11 @@ export const AdminSchema = {
       .array(
         z.object({
           id: z.number().int().positive().optional(),
-          image: z.string().trim().min(1, 'Image is required.').max(500, 'Image URL too long.'),
-          tag: z.string().trim().min(1, 'Tag is required.').max(50, 'Tag too long.'),
-          title: z.string().trim().min(1, 'Title is required.').max(120, 'Title too long.'),
-          description: z.string().trim().min(1, 'Description is required.').max(255, 'Description too long.'),
-          cta: z.string().trim().min(1, 'CTA is required.').max(80, 'CTA too long.'),
+          image: strictText(500).refine(v => v.length >= 1, 'Image is required.'),
+          tag: nameLikeText(50).refine(v => v.length >= 1, 'Tag is required.'),
+          title: nameLikeText(120).refine(v => v.length >= 1, 'Title is required.'),
+          description: messageText(255).refine(v => v.length >= 1, 'Description is required.'),
+          cta: nameLikeText(80).refine(v => v.length >= 1, 'CTA is required.'),
         }).strict()
       )
       .min(1, 'At least one slide is required.')
