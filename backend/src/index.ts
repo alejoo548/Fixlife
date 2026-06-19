@@ -75,6 +75,7 @@ app.use(cors(corsOptions));
 app.use(
   helmet({
     crossOriginResourcePolicy: false,
+    crossOriginOpenerPolicy: { policy: 'same-origin-allow-popups' },
     referrerPolicy: { policy: 'no-referrer' },
   })
 );

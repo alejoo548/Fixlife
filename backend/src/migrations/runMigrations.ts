@@ -15,7 +15,12 @@ import { ensurePaypalWebhookTables } from '../services/paypalWebhook.service';
 import { ensureSupportTables } from '../services/support.service';
 import { markDatabaseSchemaReady } from '../services/schemaState.service';
 import { ensureNotificationsTable } from '../utils/notifications';
-import { ensureUsersActiveColumn, ensureUsersPendingWorkerColumn, ensureUsersPhoneNumberNullable } from '../utils/users';
+import {
+  ensureUsersActiveColumn,
+  ensureUsersLoginSecurityColumns,
+  ensureUsersPendingWorkerColumn,
+  ensureUsersPhoneNumberNullable,
+} from '../utils/users';
 import { ensureWorkerRewardsTables } from '../utils/workerRewards';
 
 type MigrationDefinition = {
@@ -113,6 +118,13 @@ const MIGRATIONS: MigrationDefinition[] = [
     description: 'Double approval service workflow, timestamps and states',
     run: async () => {
       await ensureServiceRequestTables();
+    },
+  },
+  {
+    id: '20260618_001_users_login_security_columns',
+    description: 'Users login lockout columns (failed_login_attempts, locked_until)',
+    run: async () => {
+      await ensureUsersLoginSecurityColumns();
     },
   },
 ];
