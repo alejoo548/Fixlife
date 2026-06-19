@@ -20,6 +20,11 @@ export default defineConfig(() => {
       allowedHosts: true,
       // Disable HMR websocket in Docker+Windows to avoid intermittent ws resets.
       hmr: false,
+      // Google Sign-In opens a popup that posts the credential back via window.postMessage.
+      // Without this, the popup's COOP response severs window.opener and the message is dropped.
+      headers: {
+        'Cross-Origin-Opener-Policy': 'same-origin-allow-popups',
+      },
       watch: {
         usePolling: true,
         ignored: [
@@ -29,6 +34,17 @@ export default defineConfig(() => {
           '**/dist/**',
           '**/node_modules/**',
         ],
+      },
+    },
+    // Docker dev container runs `vite preview` (CMD in docker/Dockerfile.dev), not the dev server,
+    // so the COOP header must be set here too or the preview server never sends it.
+    preview: {
+      port: 3000,
+      strictPort: true,
+      host: '0.0.0.0',
+      allowedHosts: true,
+      headers: {
+        'Cross-Origin-Opener-Policy': 'same-origin-allow-popups',
       },
     },
     optimizeDeps: {

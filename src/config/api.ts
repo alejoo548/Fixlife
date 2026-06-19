@@ -165,7 +165,11 @@ export const getSocketBaseUrl = (): string => {
 export const getDefaultSocketOptions = (token: string) => ({
   path: '/socket.io',
   auth: { token },
-  transports: ['websocket', 'polling'] as string[],
+  // Start on HTTP long-polling and let engine.io upgrade to websocket once the
+  // handshake succeeds. Going straight to 'websocket' fails hard (no fallback)
+  // behind proxies/Docker port-forwarding that don't pass the Upgrade header,
+  // which is what produced the repeated "WebSocket connection ... failed" spam.
+  transports: ['polling', 'websocket'] as string[],
   reconnection: true,
   reconnectionAttempts: 5,
   reconnectionDelay: 2000,

@@ -19,7 +19,9 @@ const parseThreadId = (raw: unknown): number | null => {
 
 const MESSAGE_RATE_LIMIT = 15;
 const MESSAGE_RATE_WINDOW_MS = 10_000;
+// Keyed by user_id (not socket.id) so reconnecting mid-window does not reset the bucket.
 const messageRateBuckets = new Map<number, number[]>();
+const bucketCleanupTimers = new Map<number, NodeJS.Timeout>();
 
 const isMessageRateLimited = (userId: number): boolean => {
   const now = Date.now();
@@ -31,6 +33,18 @@ const isMessageRateLimited = (userId: number): boolean => {
   recent.push(now);
   messageRateBuckets.set(userId, recent);
   return false;
+};
+
+// Drop a user's bucket only after the rate window has fully elapsed since their
+// last activity, so a quick reconnect can't reset the counter to bypass the limit.
+const scheduleBucketCleanup = (userId: number) => {
+  const existingTimer = bucketCleanupTimers.get(userId);
+  if (existingTimer) clearTimeout(existingTimer);
+  const timer = setTimeout(() => {
+    messageRateBuckets.delete(userId);
+    bucketCleanupTimers.delete(userId);
+  }, MESSAGE_RATE_WINDOW_MS);
+  bucketCleanupTimers.set(userId, timer);
 };
 
 interface AuthenticatedSocket extends Socket {
@@ -158,7 +172,7 @@ export function initializeSupportSocket(ioServer: Server) {
     });
 
     socket.on('disconnect', () => {
-      if (socket.user) messageRateBuckets.delete(socket.user.user_id);
+      if (socket.user) scheduleBucketCleanup(socket.user.user_id);
       console.log(`[SupportSocket] User ${socket.user?.user_id} disconnected`);
     });
   });
