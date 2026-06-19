@@ -11,8 +11,8 @@ services:
         VITE_TOMTOM_TRAFFIC_KEY: ${VITE_TOMTOM_TRAFFIC_KEY:-}
     container_name: fixlife_frontend
     restart: unless-stopped
-    ports:
-      - "127.0.0.1:3000:3000"
+    expose:
+      - "3000"
     depends_on:
       backend:
         condition: service_healthy
@@ -102,10 +102,26 @@ services:
       - PMA_PORT=3306
       - PMA_ARBITRARY=0
     ports:
-      - "8080:80"
+      - "8081:80"
     depends_on:
       mysql:
         condition: service_healthy
+    networks:
+      - fixlife-network
+
+  nginx:
+    image: nginx:alpine
+    container_name: fixlife_nginx
+    restart: unless-stopped
+    ports:
+      - "8080:80"
+    volumes:
+      - ./docker/nginx.reverse-proxy.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      backend:
+        condition: service_healthy
+      frontend:
+        condition: service_started
     networks:
       - fixlife-network
 
