@@ -18,3 +18,7 @@ export const sanitizeNameLike = (value: string, maxLen = 120): string =>
 /** Message text: letters, numbers, whitespace, normal sentence punctuation. Use for descriptions/messages. */
 export const sanitizeMessageText = (value: string, maxLen = 4000): string =>
   value.replace(/[^\p{L}\p{N}\s.,;:!?'"()/_\-@#&%\n]/gu, '').slice(0, maxLen);
+
+/** Letters only: just letters and spaces, no numbers or punctuation. Use for place/location names. */
+export const sanitizeLettersOnly = (value: string, maxLen = 80): string =>
+  value.replace(/[^\p{L}\s]/gu, '').slice(0, maxLen);

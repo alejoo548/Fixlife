@@ -4,7 +4,7 @@ import { X, MapPin, Calendar, User, CheckCircle2 } from 'lucide-react';
 
 import { useServiceRequestHistory } from './hooks/useServiceRequestHistory';
 import { useActiveTrackedRequest } from './hooks/useActiveTrackedRequest';
-import { ClientLiveRequestTracker } from './ClientLiveRequestTracker';
+import ClientLiveRequestTracker from './ClientLiveRequestTracker';
 import { statusBadgeClasses, statusLabel } from './serviceRequestHelpers';
 import { getToken } from '../../utils/session';
 

@@ -45,6 +45,18 @@ export const sanitizeMessage = (value: unknown, maxLen = 4000): string => {
     .slice(0, maxLen);
 };
 
+/**
+ * Letters only (plus spaces) -- no numbers or punctuation.
+ * Use for place/location names where digits/symbols make no sense.
+ */
+export const sanitizeLettersOnly = (value: unknown, maxLen = 80): string => {
+  if (typeof value !== 'string') return '';
+  return value
+    .replace(/[^\p{L}\s]/gu, '')
+    .trim()
+    .slice(0, maxLen);
+};
+
 /** Zod helper for strict text fields */
 export const strictText = (maxLen = 2000) =>
   z.string().transform((v) => sanitizeStrictText(v, maxLen));

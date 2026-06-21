@@ -186,10 +186,14 @@ export function useSupportChat({ token, isOpen }: UseSupportChatOptions) {
           image: input.image,
         });
 
-        setMessagesByThread((prev) => ({
-          ...prev,
-          [activeThreadId]: [...(prev[activeThreadId] || []), newMessage],
-        }));
+        setMessagesByThread((prev) => {
+          const current = prev[activeThreadId] || [];
+          if (current.some((m) => m.id === newMessage.id)) return prev;
+          return {
+            ...prev,
+            [activeThreadId]: [...current, newMessage],
+          };
+        });
       }
 
       setThreads((prev) =>

@@ -38,7 +38,7 @@ import { enqueueBackgroundJob } from '../services/backgroundJobs.service';
 import { storePaypalWebhookEvent, verifyPaypalWebhookSignature } from '../services/paypalWebhook.service';
 import { isDatabaseSchemaReady } from '../services/schemaState.service';
 import { recordSystemEvent } from '../services/systemEvents.service';
-import { sanitizeMessage, sanitizeStrictText } from '../utils/sanitize';
+import { sanitizeLettersOnly, sanitizeMessage, sanitizeStrictText } from '../utils/sanitize';
 
 const assertRequestOwnership = async (idRequest: number, userId: number): Promise<boolean> => {
   const [rows] = await pool.execute<RowDataPacket[]>(
@@ -955,7 +955,7 @@ export const createSavedLocation = async (req: AuthRequest, res: Response): Prom
     await ensureSavedLocationsTable();
 
     const kind = String(req.body?.kind || '').trim().toLowerCase();
-    const title = String(req.body?.title || '').trim();
+    const title = sanitizeLettersOnly(req.body?.title, 80);
     const label = String(req.body?.label || '').trim();
     const latitude = Number(req.body?.lat);
     const longitude = Number(req.body?.lng);
@@ -964,8 +964,8 @@ export const createSavedLocation = async (req: AuthRequest, res: Response): Prom
       res.status(400).json({ error: 'Invalid location kind.' });
       return;
     }
-    if (!title || title.length > 80) {
-      res.status(400).json({ error: 'title is required (max 80 chars).' });
+    if (!title) {
+      res.status(400).json({ error: 'title is required and must contain only letters (max 80 chars).' });
       return;
     }
     if (!label || label.length > 255) {
@@ -1104,15 +1104,15 @@ export const updateSavedLocation = async (req: AuthRequest, res: Response): Prom
     }
 
     const titleRaw = req.body?.title;
-    const title = titleRaw != null ? String(titleRaw).trim() : null;
+    const title = titleRaw != null ? sanitizeLettersOnly(titleRaw, 80) : null;
     const touch = Boolean(req.body?.touch);
 
     const updates: string[] = [];
     const params: any[] = [];
 
     if (title != null) {
-      if (!title || title.length > 80) {
-        res.status(400).json({ error: 'title must be between 1 and 80 chars.' });
+      if (!title) {
+        res.status(400).json({ error: 'title must contain only letters (max 80 chars).' });
         return;
       }
       updates.push('title = ?');

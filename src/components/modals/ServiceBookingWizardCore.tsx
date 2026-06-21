@@ -18,7 +18,7 @@ import { ServiceRequestAssignedWorkerCard } from './ServiceRequestAssignedWorker
 import { ServiceRequestPaymentModal } from './ServiceRequestPaymentModal';
 import { ServiceRequestFixesSuccessModal } from './ServiceRequestFixesSuccessModal';
 import { showSweetAlert, showSweetToast } from '../../utils/sweetAlert';
-import { sanitizeMessageText, sanitizeStrictText } from '../../utils/textSanitize';
+import { sanitizeLettersOnly, sanitizeMessageText, sanitizeStrictText } from '../../utils/textSanitize';
 import { useResponsiveSheet } from '../../hooks/useResponsiveSheet';
 import { useServiceRequestChat } from './hooks/useServiceRequestChat';
 import { useActiveTrackedRequest } from './hooks/useActiveTrackedRequest';
@@ -2301,7 +2301,7 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                             onSaveLocation={() => void handleSaveLocationFromPanel()}
                                             onOpenSavedPlacesModal={() => setShowSavedPlacesModal(true)}
                                             onUseSavedLocation={(location) => useSavedLocation(location as SavedLocation)}
-                                            onSaveLocationTitleChange={setSaveLocationTitle}
+                                            onSaveLocationTitleChange={(value) => setSaveLocationTitle(sanitizeLettersOnly(value))}
                                             onRadiusChange={(value) => {
                                                 setRadiusKm(value);
                                                 setNoNearbyProsNotice('');
