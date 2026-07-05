@@ -64,3 +64,6 @@ merge_resolver*.py
 dist/
 dist-ssr/
 backend/dist/
+
+# Local database backups
+backups/

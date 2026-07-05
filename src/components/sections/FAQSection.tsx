@@ -1,10 +1,12 @@
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { API_ENDPOINTS } from '../../config/api';
 
 interface FAQItem {
+  id_faq?: number;
   question: string;
   answer: string;
-  icon: string;
+  icon?: string | null;
 }
 
 interface FAQSectionProps {
@@ -12,7 +14,10 @@ interface FAQSectionProps {
   onNavigateSection?: (target: 'services' | 'steps') => void;
 }
 
-const faqs: FAQItem[] = [
+const DEFAULT_FAQ_ICON =
+  'M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z';
+
+const defaultFaqs: FAQItem[] = [
   {
     question: "How does Fixlife work?",
     answer: "Simply describe your problem, set your location, and offer a price. Our platform instantly connects you with verified professionals nearby who can accept your request. Once matched, the pro arrives at your location to complete the job.",
@@ -57,6 +62,40 @@ const faqs: FAQItem[] = [
 
 export const FAQSection: React.FC<FAQSectionProps> = ({ onBookService, onNavigateSection }) => {
   const [openIndex, setOpenIndex] = useState<number | null>(0);
+  const [dynamicFaqs, setDynamicFaqs] = useState<FAQItem[]>([]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const loadFaqs = async () => {
+      try {
+        const response = await fetch(API_ENDPOINTS.services.faqItems);
+        const payload = await response.json();
+        const next = Array.isArray(payload?.faqs)
+          ? payload.faqs
+              .map((item: FAQItem) => ({
+                id_faq: Number(item.id_faq || 0) || undefined,
+                question: String(item.question || '').trim(),
+                answer: String(item.answer || '').trim(),
+                icon: String(item.icon || '').trim() || null,
+              }))
+              .filter((item: FAQItem) => item.question.length > 0 && item.answer.length > 0)
+          : [];
+        if (!cancelled) setDynamicFaqs(next);
+      } catch {
+        if (!cancelled) setDynamicFaqs([]);
+      }
+    };
+
+    void loadFaqs();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const faqs = useMemo(
+    () => (dynamicFaqs.length > 0 ? dynamicFaqs : defaultFaqs),
+    [dynamicFaqs]
+  );
 
   const toggleFAQ = (index: number) => {
     setOpenIndex(openIndex === index ? null : index);
@@ -89,7 +128,7 @@ export const FAQSection: React.FC<FAQSectionProps> = ({ onBookService, onNavigat
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
         {faqs.map((faq, index) => (
           <div
-            key={index}
+            key={faq.id_faq || index}
             className="bg-white/80 backdrop-blur-sm border border-gray-200 rounded-2xl overflow-hidden shadow-sm hover:shadow-lg transition-all duration-300"
           >
             <button
@@ -102,7 +141,7 @@ export const FAQSection: React.FC<FAQSectionProps> = ({ onBookService, onNavigat
                   : 'bg-gray-100 text-gray-600 group-hover:bg-gray-200'
               }`}>
                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={faq.icon} />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={faq.icon || DEFAULT_FAQ_ICON} />
                 </svg>
               </div>
 

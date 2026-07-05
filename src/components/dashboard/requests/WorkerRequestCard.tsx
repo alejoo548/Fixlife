@@ -41,6 +41,7 @@ export const WorkerRequestCard: React.FC<WorkerRequestCardProps> = ({
 }) => {
   const scheduled = isScheduledRequest(request);
   const scheduledWindow = formatScheduledWindow(request);
+  const isFastMatch = String(request.selection_mode || '').toLowerCase() === 'auto_assign';
 
   return (
     <div
@@ -78,6 +79,23 @@ export const WorkerRequestCard: React.FC<WorkerRequestCardProps> = ({
       </div>
 
       <p className="mt-3 line-clamp-2 text-sm font-medium leading-5 text-slate-600">{request.description}</p>
+
+      <div className="mt-3 flex flex-wrap items-center gap-2">
+        <span className={`rounded-full border px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.12em] ${
+          scheduled
+            ? 'border-violet-200 bg-violet-50 text-violet-700'
+            : 'border-emerald-200 bg-emerald-50 text-emerald-700'
+        }`}>
+          {scheduled ? 'Scheduled visit' : 'Express visit'}
+        </span>
+        <span className={`rounded-full border px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.12em] ${
+          isFastMatch
+            ? 'border-sky-200 bg-sky-50 text-sky-700'
+            : 'border-amber-200 bg-amber-50 text-amber-700'
+        }`}>
+          {isFastMatch ? 'Fast Match' : 'Review & Choose'}
+        </span>
+      </div>
 
       <div className="mt-3 grid grid-cols-2 gap-2">
         <div className="flex min-w-0 items-center gap-2 rounded-xl bg-slate-50 px-3 py-2">

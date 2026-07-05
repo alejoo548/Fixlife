@@ -37,12 +37,13 @@ export const WorkerRequestTimeline = ({
     steps.findIndex((step) => step.key === visualStatus)
   );
   return (
-    <div className="mt-4">
-      <div className="flex items-start">
+    <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50/80 p-3">
+      <div className="custom-scrollbar overflow-x-auto pb-1">
+        <div className="flex min-w-[520px] items-start">
         {steps.map((step, index) => {
           const completed = index <= currentIndex;
           return (
-            <div key={step.key} className="relative flex min-w-0 flex-1 flex-col items-center">
+            <div key={step.key} className="relative flex min-w-[72px] flex-1 flex-col items-center">
               {index < steps.length - 1 && (
                 <div className={`absolute left-1/2 top-3 h-0.5 w-full ${
                   index < currentIndex ? 'bg-bird-blue' : 'bg-slate-200'
@@ -63,6 +64,7 @@ export const WorkerRequestTimeline = ({
             </div>
           );
         })}
+        </div>
       </div>
     </div>
   );

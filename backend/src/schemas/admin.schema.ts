@@ -95,6 +95,24 @@ export const AdminSchema = {
     is_active: z.boolean().optional(),
   }),
 
+  createFaqItem: z.object({
+    question: messageText(180).refine(v => v.length >= 6, 'Question must contain at least 6 characters.'),
+    answer: messageText(1200).refine(v => v.length >= 12, 'Answer must contain at least 12 characters.'),
+    icon: strictText(500).optional().nullable().or(z.literal('')),
+    audience: z.enum(['clients', 'professionals', 'all']).optional().default('all'),
+    sort_order: z.coerce.number().int().min(1).max(5000).optional(),
+    is_active: z.boolean().optional(),
+  }).strict(),
+
+  updateFaqItem: z.object({
+    question: messageText(180).optional(),
+    answer: messageText(1200).optional(),
+    icon: strictText(500).optional().nullable().or(z.literal('')),
+    audience: z.enum(['clients', 'professionals', 'all']).optional(),
+    sort_order: z.coerce.number().int().min(1).max(5000).optional(),
+    is_active: z.boolean().optional(),
+  }).strict(),
+
   commissionRules: z.object({
     global_rate_percent: z
       .coerce

@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { MapPinned, Navigation, RefreshCw, WifiOff } from 'lucide-react';
+import { BriefcaseBusiness, MapPinned, Navigation, RefreshCw, WifiOff } from 'lucide-react';
 import { API_ENDPOINTS } from '../../config/api';
 import { useChatSocket } from '../../hooks/useChatSocket';
 import { useSSE } from '../../hooks/useSSE';
@@ -11,6 +11,7 @@ import { WorkerRequestCard } from './requests/WorkerRequestCard';
 import { WorkerRequestChatPanel } from './requests/WorkerRequestChatPanel';
 import { WorkerCurrentJobPanel } from './requests/WorkerCurrentJobPanel';
 import { WorkerDaySummary } from './requests/WorkerDaySummary';
+import { ServiceReportModal } from '../shared/ServiceReportModal';
 import type {
   ChatMessage,
   RequestsViewProps,
@@ -19,6 +20,7 @@ import type {
 } from './requests/workerRequestTypes';
 import {
   haversineKm,
+  formatScheduledWindow,
   isScheduledRequest,
   isValidCoord,
   mergeChatMessages,
@@ -38,6 +40,7 @@ type RequestTab = 'new' | 'accepted' | 'rejected';
 
 const notify = {
   success: (message: string) => void showSweetToast({ tone: 'success', message }),
+  info: (message: string) => void showSweetToast({ tone: 'info', message }),
   error: (message: string) =>
     void showSweetToast({ tone: 'error', message, duration: 3200 }),
 };
@@ -47,6 +50,8 @@ export const RequestsView: React.FC<RequestsViewProps> = ({
   mobileView,
   token,
   isVerified = true,
+  focusRequestId = null,
+  openChatRequestId = null,
 }) => {
   const [statusFilter, setStatusFilter] = useState<RequestTab>('new');
   const [requests, setRequests] = useState<WorkerRequest[]>([]);
@@ -70,10 +75,12 @@ export const RequestsView: React.FC<RequestsViewProps> = ({
   const [routePanelExpanded, setRoutePanelExpanded] = useState(false);
   const [counterModalOpen, setCounterModalOpen] = useState(false);
   const [counterTargetId, setCounterTargetId] = useState<number | null>(null);
+  const [reportRequest, setReportRequest] = useState<WorkerRequest | null>(null);
   const [counterAmount, setCounterAmount] = useState('');
   const [counterNote, setCounterNote] = useState('');
   const firstLoadRef = useRef(true);
   const knownNewIdsRef = useRef<Set<number>>(new Set());
+  const lastDeepLinkRef = useRef<string>('');
 
   const isWorkerActive = isOnline === true && isVerified;
   const visibleRequests = isWorkerActive ? requests : [];
@@ -83,6 +90,15 @@ export const RequestsView: React.FC<RequestsViewProps> = ({
       visibleRequests[0] ||
       null,
     [selectedRequestId, visibleRequests]
+  );
+  const currentAssignedRequest = useMemo(
+    () =>
+      visibleRequests.find((request) =>
+        ['assigned', 'route_in_progress', 'arrived', 'start_pending', 'in_progress', 'finish_pending', 'payment_pending', 'paid', 'completion_pending', 'awaiting_confirmation'].includes(
+          String(request.request_status || '').toLowerCase()
+        )
+      ) || null,
+    [visibleRequests]
   );
   const routeActive =
     !!selectedRequest && (
@@ -227,14 +243,19 @@ export const RequestsView: React.FC<RequestsViewProps> = ({
           current && haversineKm(current, nextCoords) < 0.003 ? current : nextCoords
         );
       }
-      setActiveWorkerRequest(
-        payload.worker_profile?.active_request_id
-          ? {
-              id_request: Number(payload.worker_profile.active_request_id),
-              status: String(payload.worker_profile.active_request_status || '').toLowerCase(),
-            }
-          : null
-      );
+      const activeProfileRequest = payload.worker_profile?.active_request_id
+        ? {
+            id_request: Number(payload.worker_profile.active_request_id),
+            status: String(payload.worker_profile.active_request_status || '').toLowerCase(),
+          }
+        : null;
+      setActiveWorkerRequest(activeProfileRequest);
+
+      if (statusFilter === 'new' && activeProfileRequest && next.length === 0) {
+        setStatusFilter('accepted');
+        if (!silent) notify.info('This request is already assigned. Showing it in My jobs.');
+        return;
+      }
 
       let freshCount = 0;
       if (statusFilter === 'new') {
@@ -260,6 +281,18 @@ export const RequestsView: React.FC<RequestsViewProps> = ({
     void fetchRequests();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isWorkerActive, statusFilter, token]);
+
+  useEffect(() => {
+    const targetId = Number(openChatRequestId || focusRequestId || 0);
+    if (!Number.isFinite(targetId) || targetId <= 0) return;
+    const key = `${targetId}:${openChatRequestId ? 'chat' : 'focus'}`;
+    if (lastDeepLinkRef.current === key) return;
+
+    lastDeepLinkRef.current = key;
+    setStatusFilter('accepted');
+    setSelectedRequestId(targetId);
+    if (openChatRequestId) setChatPanelOpen(true);
+  }, [focusRequestId, openChatRequestId]);
 
   // Polling fallback: SSE/socket events are fire-and-forget; if the connection
   // drops or the event arrives before GPS coords are pushed to the backend,
@@ -296,12 +329,19 @@ export const RequestsView: React.FC<RequestsViewProps> = ({
       request_updated: () => void fetchRequests(true),
       chat_message: (data: unknown) => {
         const event = data as { id_request?: number } | null;
-        if (!selectedRequest || !canChat || !chatPanelOpen) return;
+        if (!selectedRequest || !canChat) return;
         if (event?.id_request == null || event.id_request === selectedRequest.id_request) {
           void fetchRequestChat(selectedRequest.id_request, {
             silent: true,
             incremental: true,
           });
+          if (!chatPanelOpen) {
+            void showSweetToast({
+              tone: 'info',
+              message: 'New client message. Open chat to reply.',
+              duration: 2600,
+            });
+          }
         }
       },
     },
@@ -310,7 +350,7 @@ export const RequestsView: React.FC<RequestsViewProps> = ({
   const { connected: chatSocketConnected } = useChatSocket<ChatMessage>({
     token,
     requestId: selectedRequest?.id_request || null,
-    enabled: !!token && !!selectedRequest && canChat && chatPanelOpen,
+    enabled: !!token && !!selectedRequest && canChat,
     onMessage: (payload) => {
       if (!selectedRequest || payload.id_request !== selectedRequest.id_request) return;
       const incoming = Array.isArray(payload.messages) ? payload.messages : [];
@@ -328,6 +368,13 @@ export const RequestsView: React.FC<RequestsViewProps> = ({
           incoming
         ),
       }));
+      if (!chatPanelOpen && incoming.some((message) => message.sender_role === 'client')) {
+        void showSweetToast({
+          tone: 'info',
+          message: 'New client message. Open chat to reply.',
+          duration: 2600,
+        });
+      }
     },
   });
 
@@ -377,13 +424,17 @@ export const RequestsView: React.FC<RequestsViewProps> = ({
       destructive: action === 'reject',
     });
     if (!confirmed) return;
-    await postWorkerAction(
+    const success = await postWorkerAction(
       idRequest,
       action === 'accept'
         ? API_ENDPOINTS.worker.acceptRequest(idRequest)
         : API_ENDPOINTS.worker.rejectRequest(idRequest),
       action === 'accept' ? 'Request accepted.' : 'Request rejected.'
     );
+    if (success && action === 'accept') {
+      setSelectedRequestId(idRequest);
+      setStatusFilter('accepted');
+    }
   };
 
   const handleWorkflowApproval = async (
@@ -634,6 +685,39 @@ export const RequestsView: React.FC<RequestsViewProps> = ({
           connected={workspaceSocketConnected}
         />
         <div className="custom-scrollbar min-h-0 flex-1 space-y-3 overflow-y-auto bg-slate-50/70 p-3 pb-24 lg:pb-4">
+          {statusFilter === 'accepted' && currentAssignedRequest && (
+            <div className="rounded-2xl border border-sky-200 bg-gradient-to-br from-sky-50 to-white p-4 shadow-[0_14px_36px_rgba(14,165,233,0.14)]">
+              <div className="flex items-start gap-3">
+                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-bird-blue text-white shadow-sm">
+                  <BriefcaseBusiness className="h-5 w-5" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="text-[10px] font-black uppercase tracking-[0.18em] text-bird-blue">
+                    Current assigned job
+                  </p>
+                  <h3 className="mt-1 truncate text-base font-black text-slate-950">
+                    {currentAssignedRequest.service_name} #{currentAssignedRequest.id_request}
+                  </h3>
+                  <p className="mt-1 text-xs font-semibold leading-5 text-slate-600">
+                    {isScheduledRequest(currentAssignedRequest)
+                      ? `Scheduled: ${formatScheduledWindow(currentAssignedRequest)}`
+                      : 'Express service assigned. Open it to manage route, chat and approvals.'}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedRequestId(currentAssignedRequest.id_request);
+                  setActiveRouteRequestId(currentAssignedRequest.id_request);
+                }}
+                className="mt-3 flex h-10 w-full items-center justify-center gap-2 rounded-xl bg-slate-950 text-xs font-black text-white transition hover:bg-slate-800"
+              >
+                Open current job
+                <Navigation className="h-4 w-4" />
+              </button>
+            </div>
+          )}
           {loading ? (
             <div className="rounded-2xl border border-slate-200 bg-white px-4 py-10 text-center shadow-sm">
               <RefreshCw className="mx-auto h-5 w-5 animate-spin text-bird-blue" />
@@ -727,6 +811,7 @@ export const RequestsView: React.FC<RequestsViewProps> = ({
             busy={busyId === selectedRequest.id_request}
             onToggleTools={() => setRoutePanelExpanded((open) => !open)}
             onOpenChat={() => setChatPanelOpen(true)}
+            onReport={() => setReportRequest(selectedRequest)}
             onCenterRoute={centerRoute}
             onCameraModeChange={setRouteCameraMode}
             onTrafficToggle={() => setTrafficEnabled((enabled) => !enabled)}
@@ -788,6 +873,13 @@ export const RequestsView: React.FC<RequestsViewProps> = ({
         onNoteChange={setCounterNote}
         onClose={() => setCounterModalOpen(false)}
         onConfirm={confirmCounter}
+      />
+      <ServiceReportModal
+        open={!!reportRequest}
+        idRequest={reportRequest?.id_request || null}
+        reporterRole="worker"
+        counterpartName={reportRequest?.client?.name || 'the client'}
+        onClose={() => setReportRequest(null)}
       />
     </>
   );

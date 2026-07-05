@@ -22,6 +22,7 @@ import {
   ensureUsersPhoneNumberNullable,
 } from '../utils/users';
 import { ensureWorkerRewardsTables } from '../utils/workerRewards';
+import { ensurePublicFaqItemsTable } from '../controllers/admin.controller';
 
 type MigrationDefinition = {
   id: string;
@@ -125,6 +126,41 @@ const MIGRATIONS: MigrationDefinition[] = [
     description: 'Users login lockout columns (failed_login_attempts, locked_until)',
     run: async () => {
       await ensureUsersLoginSecurityColumns();
+    },
+  },
+  {
+    id: '20260622_001_service_request_selection_mode',
+    description: 'Client worker selection mode for service requests',
+    run: async () => {
+      const [rows] = await pool.execute<any[]>(
+        `SELECT COUNT(*) AS total
+         FROM information_schema.columns
+         WHERE table_schema = DATABASE()
+           AND table_name = 'service_requests'
+           AND column_name = 'selection_mode'`
+      );
+
+      if (Number(rows[0]?.total || 0) === 0) {
+        await pool.execute(
+          `ALTER TABLE service_requests
+           ADD COLUMN selection_mode ENUM('auto_assign', 'client_review') NOT NULL DEFAULT 'client_review'
+           AFTER booking_type`
+        );
+      }
+    },
+  },
+  {
+    id: '20260630_001_service_request_reports',
+    description: 'Client and worker incident reports for service requests',
+    run: async () => {
+      await ensureServiceRequestTables();
+    },
+  },
+  {
+    id: '20260701_001_public_faq_items',
+    description: 'Dynamic public FAQ items managed from admin',
+    run: async () => {
+      await ensurePublicFaqItemsTable();
     },
   },
 ];

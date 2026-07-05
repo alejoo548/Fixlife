@@ -913,6 +913,12 @@ export const getWorkerRequests = async (req: AuthRequest, res: Response): Promis
          AND (sr.id_user IS NULL OR sr.id_user <> wp.id_user)
          AND (
            COALESCE(sr.booking_type, 'express') = 'express'
+           OR NOT EXISTS (
+             SELECT 1
+             FROM worker_availabilities wa_any
+             WHERE wa_any.id_worker_profile = wp.id_worker_profile
+               AND wa_any.is_active = 1
+           )
            OR EXISTS (
              SELECT 1
              FROM worker_availabilities wa
@@ -953,6 +959,7 @@ export const getWorkerRequests = async (req: AuthRequest, res: Response): Promis
          sr.budget,
          sr.radius_km,
          sr.booking_type,
+         sr.selection_mode,
          sr.scheduled_date,
          sr.scheduled_time,
          sr.scheduled_start_time,
@@ -992,7 +999,7 @@ export const getWorkerRequests = async (req: AuthRequest, res: Response): Promis
        WHERE ${whereParts.join(' AND ')}
         GROUP BY
           sr.id_request, sr.id_service, sr.description, sr.location_text, sr.latitude, sr.longitude,
-          sr.budget, sr.radius_km, sr.booking_type, sr.scheduled_date, sr.scheduled_time,
+          sr.budget, sr.radius_km, sr.booking_type, sr.selection_mode, sr.scheduled_date, sr.scheduled_time,
           sr.scheduled_start_time, sr.scheduled_end_time, sr.workflow_version, sr.client_approved_at, sr.route_started_at,
           sr.worker_arrived_at, sr.work_started_at, sr.work_finished_at, sr.completed_at, sr.status, sr.created_at, sr.assigned_worker_profile,
           s.name, s.icon, srw.distance_km, srw.status, srw.proposed_budget, srw.counter_message,
@@ -1065,6 +1072,7 @@ export const getWorkerRequests = async (req: AuthRequest, res: Response): Promis
         budget: Number(row.budget || 0),
         radius_km: Number(row.radius_km || 8),
         booking_type: String(row.booking_type || 'express'),
+        selection_mode: String(row.selection_mode || 'client_review'),
         scheduled_date: row.scheduled_date || null,
         scheduled_time: row.scheduled_time || null,
         scheduled_start_time: row.scheduled_start_time || null,
@@ -1432,6 +1440,7 @@ export const acceptWorkerRequest = async (req: AuthRequest, res: Response): Prom
          status,
          assigned_worker_profile,
          booking_type,
+         selection_mode,
          scheduled_start_time,
          scheduled_end_time
        FROM service_requests
@@ -1489,6 +1498,7 @@ export const acceptWorkerRequest = async (req: AuthRequest, res: Response): Prom
        SET status = 'assigned',
            assigned_worker_profile = ?,
            assigned_at = CURRENT_TIMESTAMP,
+           client_approved_at = CASE WHEN selection_mode = 'auto_assign' THEN CURRENT_TIMESTAMP ELSE client_approved_at END,
            worker_arrived_at = NULL,
            final_budget = COALESCE(final_budget, budget),
            updated_at = CURRENT_TIMESTAMP
@@ -1513,37 +1523,45 @@ export const acceptWorkerRequest = async (req: AuthRequest, res: Response): Prom
     await connection.commit();
 
     const requestOwnerId = Number(request.id_user || 0);
+    const isAutoAssignRequest = String(request.selection_mode || '').toLowerCase() === 'auto_assign';
     if (requestOwnerId) {
       await createUserNotification({
         userId: requestOwnerId,
         eventType: 'request_accepted',
-        title: 'Worker ready for your approval',
-        message: `Request #${idRequest} now has a pro assigned. Review the profile and accept or decline this worker.`,
+        title: isAutoAssignRequest ? 'Fast Match found your Pro' : 'Worker ready for your approval',
+        message: isAutoAssignRequest
+          ? `Request #${idRequest} was assigned automatically to a verified Pro.`
+          : `Request #${idRequest} now has a pro assigned. Review the profile and accept or decline this worker.`,
         tone: 'success',
         requestId: idRequest,
         actionUrl: '/app',
         dedupeKey: `request-${idRequest}-accepted-client`,
-        metadata: { request_status: 'assigned', awaiting_client_approval: true },
+        metadata: { request_status: 'assigned', awaiting_client_approval: !isAutoAssignRequest },
       });
     }
 
     await createUserNotification({
       userId,
       eventType: 'request_accepted',
-      title: 'Waiting for client approval',
-      message: `You accepted request #${idRequest}. The client now needs to approve you before the trip can continue.`,
+      title: isAutoAssignRequest ? 'Fast Match pre-approved' : 'Waiting for client approval',
+      message: isAutoAssignRequest
+        ? `You accepted request #${idRequest}. The client chose Fast Match, so you can start the route.`
+        : `You accepted request #${idRequest}. The client now needs to approve you before the trip can continue.`,
       tone: 'success',
       requestId: idRequest,
       actionUrl: '/pro-dashboard',
       dedupeKey: `request-${idRequest}-accepted-worker`,
-      metadata: { request_status: 'assigned', awaiting_client_approval: true },
+      metadata: { request_status: 'assigned', awaiting_client_approval: !isAutoAssignRequest },
     });
 
     res.json({
       success: true,
-      message: 'Request accepted. Waiting for client approval.',
+      message: isAutoAssignRequest
+        ? 'Request accepted. You can start the route.'
+        : 'Request accepted. Waiting for client approval.',
       id_request: idRequest,
       request_status: 'assigned',
+      awaiting_client_approval: !isAutoAssignRequest,
     });
   } catch (error: any) {
     await connection.rollback();
@@ -2781,6 +2799,54 @@ export const deletePortfolioImage = async (req: AuthRequest, res: Response): Pro
     res.json({ success: true, message: 'Portfolio photo deleted.' });
   } catch (error: any) {
     console.error('Error in deletePortfolioImage:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
+export const updatePortfolioImageDescription = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const userId = req.user?.user_id;
+    if (!userId) {
+      res.status(401).json({ error: 'Unauthorized' });
+      return;
+    }
+
+    const idPhoto = Number(req.params.idPhoto);
+    if (!idPhoto) {
+      res.status(400).json({ error: 'Invalid photo id.' });
+      return;
+    }
+
+    const description = sanitizeStrictText(req.body?.description, 500) || null;
+    const [rows] = await pool.execute<RowDataPacket[]>(
+      `SELECT wp.id_photo
+       FROM worker_portfolio wp
+       INNER JOIN worker_profiles p ON p.id_worker_profile = wp.id_worker_profile
+       WHERE wp.id_photo = ? AND p.id_user = ?
+       LIMIT 1`,
+      [idPhoto, userId]
+    );
+
+    if (rows.length === 0) {
+      res.status(404).json({ error: 'Photo not found.' });
+      return;
+    }
+
+    await pool.execute(
+      `UPDATE worker_portfolio SET description = ? WHERE id_photo = ?`,
+      [description, idPhoto]
+    );
+
+    res.json({
+      success: true,
+      message: 'Portfolio photo description updated.',
+      photo: {
+        id_photo: idPhoto,
+        description,
+      },
+    });
+  } catch (error: any) {
+    console.error('Error in updatePortfolioImageDescription:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 };

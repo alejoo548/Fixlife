@@ -9,6 +9,7 @@ import {
   createSavedLocation,
   createServiceRequest,
   createRequestPaymentCheckout,
+  createServiceRequestReport,
   clearSavedLocationsByKind,
   deleteSavedLocation,
   declineCounterOffer,
@@ -71,6 +72,15 @@ router.post('/requests/:idRequest/payment-checkout', verifyToken, sensitiveLimit
 router.post('/requests/:idRequest/payment-confirm', verifyToken, sensitiveLimiter, confirmRequestPayment);
 router.post('/requests/:idRequest/confirm-completion', verifyToken, sensitiveLimiter, confirmServiceCompletion);
 router.post('/requests/:idRequest/workflow-approval', verifyToken, sensitiveLimiter, approveServiceWorkflowAction);
+router.post(
+  '/requests/:idRequest/report',
+  verifyToken,
+  sensitiveLimiter,
+  uploadProtectedImageOnly.array('report_images', 1),
+  validateUploadedFiles,
+  sanitizeImages,
+  createServiceRequestReport
+);
 router.get('/requests/:idRequest/chat', verifyToken, requestChatReadLimiter, getRequestChat);
 router.post(
   '/requests/:idRequest/chat',

@@ -61,6 +61,7 @@ export const API_ENDPOINTS = {
   services: {
     getActive: `${API_URL}/api/services`,
     cards: `${API_URL}/api/services/cards`,
+    faqItems: `${API_URL}/api/admin/faq-items/public`,
     geocode: `${API_URL}/api/services/geocode`,
     geocodeSuggest: `${API_URL}/api/services/geocode/suggest`,
     geocodeReverse: `${API_URL}/api/services/geocode/reverse`,
@@ -79,6 +80,7 @@ export const API_ENDPOINTS = {
     confirmPayment: (idRequest: number) => `${API_URL}/api/services/requests/${idRequest}/payment-confirm`,
     confirmCompletion: (idRequest: number) => `${API_URL}/api/services/requests/${idRequest}/confirm-completion`,
     workflowApproval: (idRequest: number) => `${API_URL}/api/services/requests/${idRequest}/workflow-approval`,
+    reportRequest: (idRequest: number) => `${API_URL}/api/services/requests/${idRequest}/report`,
     requestChat: (idRequest: number) => `${API_URL}/api/services/requests/${idRequest}/chat`,
     requestRating: (idRequest: number) => `${API_URL}/api/services/requests/${idRequest}/rating`,
   },
@@ -90,6 +92,8 @@ export const API_ENDPOINTS = {
   admin: {
     services: `${API_URL}/api/admin/services`,
     serviceCards: `${API_URL}/api/admin/service-cards`,
+    faqItems: `${API_URL}/api/admin/faq-items`,
+    faqItem: (idFaq: number) => `${API_URL}/api/admin/faq-items/${idFaq}`,
     uploadImageAsset: `${API_URL}/api/admin/hero-slides/image-upload`,
     heroSlides: `${API_URL}/api/admin/hero-slides`,
     pendingWorkers: `${API_URL}/api/admin/pending-workers`,

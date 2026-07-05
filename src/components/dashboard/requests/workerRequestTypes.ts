@@ -3,6 +3,8 @@ export interface RequestsViewProps {
   mobileView: 'list' | 'map';
   token: string | null;
   isVerified?: boolean;
+  focusRequestId?: number | null;
+  openChatRequestId?: number | null;
 }
 
 export interface WorkerRequest {
@@ -16,6 +18,7 @@ export interface WorkerRequest {
   longitude: number | null;
   budget: number;
   booking_type?: 'express' | 'scheduled' | string;
+  selection_mode?: 'auto_assign' | 'client_review' | string;
   scheduled_date?: string | null;
   scheduled_time?: string | null;
   scheduled_start_time?: string | null;

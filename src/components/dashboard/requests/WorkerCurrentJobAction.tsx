@@ -111,7 +111,7 @@ export const WorkerCurrentJobAction = ({
   }
 
   return (
-    <div className="sticky bottom-0 mt-4 rounded-2xl border border-slate-200 bg-white/95 p-3 shadow-[0_-10px_30px_rgba(15,23,42,0.08)] backdrop-blur">
+    <div className="rounded-2xl border border-slate-200 bg-white/95 p-3 shadow-[0_14px_32px_rgba(15,23,42,0.08)] backdrop-blur">
       <button
         type="button"
         onClick={action}

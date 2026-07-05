@@ -346,6 +346,12 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({
       if (url.pathname === '/app') {
         url.searchParams.set('request', String(item.id_request));
       }
+      if (url.pathname === '/pro-dashboard') {
+        url.searchParams.set('request', String(item.id_request));
+        if (item.event_type === 'chat_new_message') {
+          url.searchParams.set('chat', '1');
+        }
+      }
       return `${url.pathname}${url.search}${url.hash}`;
     } catch {
       return item.action_url;

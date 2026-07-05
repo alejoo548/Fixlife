@@ -1,4 +1,5 @@
 import React, { useState, useEffect, Suspense, lazy, useRef } from 'react';
+import { useLocation } from 'react-router-dom';
 import { useSSE } from '../../hooks/useSSE';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ProSidebar } from './ProSidebar';
@@ -51,6 +52,7 @@ interface ProDashboardProps {
 }
 
 const WORKER_PRESENCE_STORAGE_KEY = 'fixlife:worker-presence';
+const WORKER_DASHBOARD_BUILD_MARKER = 'worker-dashboard-schedule-planner-v2';
 
 const DashboardPanelFallback: React.FC<{ label?: string }> = ({ label = 'Loading panel...' }) => (
    <div className="w-full h-full min-h-[220px] p-4">
@@ -62,6 +64,7 @@ const DashboardPanelFallback: React.FC<{ label?: string }> = ({ label = 'Loading
 );
 
 export const ProDashboard: React.FC<ProDashboardProps> = ({ isOpen, onClose, onSignOut }) => {
+   const location = useLocation();
    const { theme, isDark, toggleTheme } = useDashboardTheme('worker');
    const [isOnline, setIsOnline] = useState<boolean | null>(null);
    const [activeTab, setActiveTab] = useState('requests');
@@ -73,6 +76,8 @@ export const ProDashboard: React.FC<ProDashboardProps> = ({ isOpen, onClose, onS
    const [userName, setUserName] = useState('');
    const [userAvatar, setUserAvatar] = useState<string | null>(null);
    const [token, setToken] = useState<string | null>(null);
+   const [focusRequestId, setFocusRequestId] = useState<number | null>(null);
+   const [openChatRequestId, setOpenChatRequestId] = useState<number | null>(null);
    const presenceMenuRef = useRef<HTMLDivElement | null>(null);
 
    const getInitials = (name: string) => {
@@ -146,10 +151,23 @@ export const ProDashboard: React.FC<ProDashboardProps> = ({ isOpen, onClose, onS
       updateStoredAuthUser(user, 'worker');
    };
 
+   const pushWorkerPresence = (nextOnline: boolean) => {
+      if (!token) return;
+      void fetch(`${API_URL}/api/worker/presence`, {
+         method: 'PUT',
+         headers: {
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json',
+         },
+         body: JSON.stringify({ is_online: nextOnline ? 1 : 0 }),
+      }).catch((error) => console.error('pushWorkerPresence error:', error));
+   };
+
    const handlePresenceChange = (nextOnline: boolean) => {
       setIsOnline(nextOnline);
       setIsPresenceMenuOpen(false);
       persistWorkerStatus(nextOnline);
+      pushWorkerPresence(nextOnline);
    };
 
    const syncWorkerStatus = async (jwtToken: string) => {
@@ -220,6 +238,23 @@ export const ProDashboard: React.FC<ProDashboardProps> = ({ isOpen, onClose, onS
    }, [isOpen, token]);
 
    useEffect(() => {
+      if (!isOpen || !token || !isVerified) return;
+      handlePresenceChange(true);
+   }, [isOpen, token, isVerified]);
+
+   useEffect(() => {
+      if (!isOpen || typeof window === 'undefined') return;
+      const params = new URLSearchParams(location.search);
+      const requestId = Number(params.get('request') || 0);
+      const shouldOpenChat = params.get('chat') === '1';
+      if (!Number.isFinite(requestId) || requestId <= 0) return;
+
+      setActiveTab('requests');
+      setFocusRequestId(requestId);
+      setOpenChatRequestId(shouldOpenChat ? requestId : null);
+   }, [isOpen, location.search]);
+
+   useEffect(() => {
       if (!isPresenceMenuOpen) return;
 
       const handlePointerDown = (event: MouseEvent) => {
@@ -268,6 +303,7 @@ export const ProDashboard: React.FC<ProDashboardProps> = ({ isOpen, onClose, onS
          exit={{ opacity: 0 }}
          className={`dashboard-theme dashboard-shell dashboard-theme--worker fixed inset-0 z-40 min-h-[100dvh] overflow-hidden bg-slate-100 font-sans ${isDark ? 'dashboard-theme-dark' : 'dashboard-theme-light'}`}
          data-dashboard-theme={theme}
+         data-build-marker={WORKER_DASHBOARD_BUILD_MARKER}
          style={{ colorScheme: theme }}
       >
          <div className="relative z-10 grid h-full min-h-[100dvh] w-full grid-cols-1 overflow-hidden lg:grid-cols-[auto_minmax(0,1fr)]">
@@ -368,12 +404,12 @@ export const ProDashboard: React.FC<ProDashboardProps> = ({ isOpen, onClose, onS
                         const statusOptions = [
                            {
                               value: true,
-                              title: 'ONLINE',
+                              title: 'Available for jobs',
                               dotClass: 'bg-emerald-400',
                            },
                            {
                               value: false,
-                              title: 'OFFLINE',
+                              title: 'Pause requests',
                               dotClass: 'bg-slate-400',
                            },
                         ];
@@ -388,7 +424,7 @@ export const ProDashboard: React.FC<ProDashboardProps> = ({ isOpen, onClose, onS
                         <span className={`h-2.5 w-2.5 shrink-0 rounded-full ${isOnline ? 'bg-emerald-400' : 'bg-slate-400'}`} />
                         <div className="min-w-0 flex-1">
                            <div className={`hidden truncate text-[10px] font-black uppercase tracking-[0.16em] sm:block ${isDark ? 'text-white' : 'text-slate-900'}`}>
-                              {isOnline ? 'ONLINE' : 'OFFLINE'}
+                              {isOnline ? 'AVAILABLE' : 'PAUSED'}
                            </div>
                         </div>
                         <svg
@@ -580,7 +616,14 @@ export const ProDashboard: React.FC<ProDashboardProps> = ({ isOpen, onClose, onS
                            className="w-full h-full flex"
                         >
                            <Suspense fallback={<DashboardPanelFallback label="Loading requests..." />}>
-                              <RequestsView isOnline={isOnline} mobileView={mobileView} token={token} isVerified={isVerified} />
+                              <RequestsView
+                                 isOnline={isOnline}
+                                 mobileView={mobileView}
+                                 token={token}
+                                 isVerified={isVerified}
+                                 focusRequestId={focusRequestId}
+                                 openChatRequestId={openChatRequestId}
+                              />
                            </Suspense>
                         </motion.div>
                      )}

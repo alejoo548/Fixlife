@@ -17,6 +17,7 @@ import { ServiceRequestHistorySection } from './ServiceRequestHistorySection';
 import { ServiceRequestAssignedWorkerCard } from './ServiceRequestAssignedWorkerCard';
 import { ServiceRequestPaymentModal } from './ServiceRequestPaymentModal';
 import { ServiceRequestFixesSuccessModal } from './ServiceRequestFixesSuccessModal';
+import { ServiceReportModal } from '../shared/ServiceReportModal';
 import { showSweetAlert, showSweetToast } from '../../utils/sweetAlert';
 import { sanitizeLettersOnly, sanitizeMessageText, sanitizeStrictText } from '../../utils/textSanitize';
 import { useResponsiveSheet } from '../../hooks/useResponsiveSheet';
@@ -166,6 +167,97 @@ const REQUEST_FLOW_STEPS = [
 
 const MAX_REQUEST_BUDGET = 1000;
 
+const escapeHtml = (value: unknown) =>
+    String(value ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+
+const formatSubmittedRequestSchedule = (request: {
+    booking_type: string;
+    scheduled_start_time: string | null;
+    scheduled_end_time: string | null;
+    scheduled_date: string | null;
+    scheduled_time: string | null;
+}) => {
+    if (String(request.booking_type || '').toLowerCase() !== 'scheduled') return 'Express request';
+
+    return formatScheduledServiceWindow({
+        scheduled_start_time: request.scheduled_start_time,
+        scheduled_end_time: request.scheduled_end_time,
+        scheduled_date: request.scheduled_date,
+        scheduled_time: request.scheduled_time,
+    });
+};
+
+const buildSubmittedRequestSummaryHtml = (request: {
+    id_request: number | null;
+    service_name: string;
+    location: string;
+    budget: number;
+    radius_km: number;
+    booking_type: string;
+    urgency_level: string;
+    scheduled_date: string | null;
+    scheduled_time: string | null;
+    scheduled_start_time: string | null;
+    scheduled_end_time: string | null;
+    image_count: number;
+    status: string;
+    selection_mode: 'auto_assign' | 'client_review';
+    assigned_worker_profile: number | null;
+}) => {
+    const autoAssigned =
+        request.status === 'assigned' &&
+        request.selection_mode === 'auto_assign' &&
+        request.assigned_worker_profile != null;
+    const requestNumber = request.id_request ? `#${request.id_request}` : 'Created';
+    const scheduleLabel = formatSubmittedRequestSchedule(request);
+    const modeLabel = String(request.booking_type || 'express').toLowerCase() === 'scheduled' ? 'Scheduled' : 'Express';
+    const statusLabelText = autoAssigned ? 'Pro assigned' : 'Waiting for Pro';
+
+    return `
+        <div class="mt-2 text-left">
+            <div class="rounded-3xl border border-slate-200 bg-slate-50 p-4">
+                <div class="flex items-start justify-between gap-3">
+                    <div>
+                        <p class="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">Request ${escapeHtml(requestNumber)}</p>
+                        <h3 class="mt-1 text-lg font-black leading-tight text-slate-950">${escapeHtml(request.service_name)}</h3>
+                    </div>
+                    <span class="shrink-0 rounded-full bg-emerald-100 px-3 py-1 text-[10px] font-black uppercase tracking-[0.12em] text-emerald-700">${escapeHtml(statusLabelText)}</span>
+                </div>
+                <div class="mt-4 grid grid-cols-2 gap-2">
+                    <div class="rounded-2xl border border-slate-200 bg-white p-3">
+                        <p class="text-[10px] font-black uppercase tracking-[0.14em] text-slate-400">Type</p>
+                        <p class="mt-1 text-sm font-black text-slate-950">${escapeHtml(modeLabel)}</p>
+                    </div>
+                    <div class="rounded-2xl border border-slate-200 bg-white p-3">
+                        <p class="text-[10px] font-black uppercase tracking-[0.14em] text-slate-400">Budget</p>
+                        <p class="mt-1 text-sm font-black text-slate-950">$${Number(request.budget || 0).toFixed(2)}</p>
+                    </div>
+                    <div class="rounded-2xl border border-slate-200 bg-white p-3">
+                        <p class="text-[10px] font-black uppercase tracking-[0.14em] text-slate-400">Schedule</p>
+                        <p class="mt-1 text-sm font-black text-slate-950">${escapeHtml(scheduleLabel)}</p>
+                    </div>
+                    <div class="rounded-2xl border border-slate-200 bg-white p-3">
+                        <p class="text-[10px] font-black uppercase tracking-[0.14em] text-slate-400">Photos</p>
+                        <p class="mt-1 text-sm font-black text-slate-950">${request.image_count}</p>
+                    </div>
+                </div>
+                <div class="mt-3 rounded-2xl border border-slate-200 bg-white p-3">
+                    <p class="text-[10px] font-black uppercase tracking-[0.14em] text-slate-400">Location</p>
+                    <p class="mt-1 break-words text-sm font-bold leading-5 text-slate-700">${escapeHtml(request.location)}</p>
+                </div>
+                <p class="mt-3 text-center text-xs font-bold leading-5 text-slate-500">
+                    You will return to the main map now. You can reopen this request from notifications or My Requests later.
+                </p>
+            </div>
+        </div>
+    `;
+};
+
 const GENERIC_LOCATION_LABELS = new Set([
     'el salvador',
     'salvador',
@@ -216,6 +308,7 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
         price: '',
         urgency_level: 'standard',
         booking_type: 'express',
+        selection_mode: 'auto_assign',
         scheduled_date: '',
         scheduled_time: '',
         scheduled_duration_minutes: 120,
@@ -273,6 +366,7 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
     const [ratingForm, setRatingForm] = useState<Record<number, { punctuality: number; quality: number; price_fairness: number; comment: string }>>({});
     const [ratingModalRequest, setRatingModalRequest] = useState<MyServiceRequest | null>(null);
     const [fixesSuccessRequest, setFixesSuccessRequest] = useState<MyServiceRequest | null>(null);
+    const [reportRequest, setReportRequest] = useState<MyServiceRequest | null>(null);
     const isDesktopSheet = useResponsiveSheet();
     const lastToastRef = useRef<{ type: 'success' | 'error' | 'info'; message: string; at: number } | null>(null);
     const previousRequestStatusesRef = useRef<Record<number, string>>({});
@@ -345,6 +439,7 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
             ...prev,
             category: initialServiceName || '',
             booking_type: 'express',
+            selection_mode: 'auto_assign',
             scheduled_date: '',
             scheduled_time: '',
             scheduled_duration_minutes: 120,
@@ -1821,15 +1916,24 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
         setGeoError,
         setIsSubmittingRequest,
         setProblemFiles,
-        onRequestCreated: async ({ id_request }) => {
+        onRequestCreated: async (createdRequest) => {
+            const { id_request, status, selection_mode, assigned_worker_profile } = createdRequest;
+            const autoAssigned = status === 'assigned' && selection_mode === 'auto_assign' && assigned_worker_profile != null;
             await showSweetAlert({
-                title: 'Request sent successfully',
-                message: id_request
-                    ? `Request #${id_request} is now visible in My Requests. We will notify you when a professional responds.`
-                    : 'Your request is now visible in My Requests. We will notify you when a professional responds.',
+                title: autoAssigned ? 'Pro matched successfully' : 'Request sent successfully',
+                message: autoAssigned
+                    ? id_request
+                        ? `Request #${id_request} was assigned to a verified Pro.`
+                        : 'Your request was assigned to a verified Pro.'
+                    : id_request
+                        ? `Request #${id_request} was created successfully.`
+                        : 'Your request was created successfully.',
+                html: buildSubmittedRequestSummaryHtml(createdRequest),
                 tone: 'success',
-                confirmText: 'Go to home',
+                confirmText: 'Back to main map',
             });
+            setIsHistoryModalOpen(false);
+            navigate('/app');
             onClose();
         },
         showAlert: (input) => {
@@ -2322,7 +2426,16 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                                     scheduledDate={data.scheduled_date}
                                                     scheduledTime={data.scheduled_time}
                                                     scheduledDurationMinutes={data.scheduled_duration_minutes}
-                                                    onChange={(patch) => setData((prev) => ({ ...prev, ...patch }))}
+                                                    onChange={(patch) => setData((prev) => ({
+                                                        ...prev,
+                                                        ...patch,
+                                                        selection_mode:
+                                                            patch.booking_type === 'scheduled'
+                                                                ? 'client_review'
+                                                                : patch.booking_type === 'express'
+                                                                    ? 'auto_assign'
+                                                                    : prev.selection_mode,
+                                                    }))}
                                                 />
                                             </motion.div>
                                         )}
@@ -2368,6 +2481,87 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                                         <p className="mt-2 text-sm font-black text-slate-900">{problemFiles.length} attached</p>
                                                         <p className="mt-1 text-xs font-semibold text-slate-500">Verified before upload</p>
                                                     </div>
+                                                </div>
+
+                                                <div className="rounded-2xl border border-slate-200 bg-white p-4">
+                                                    <div className="flex flex-wrap items-start justify-between gap-3">
+                                                        <div>
+                                                            <p className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">
+                                                                Hiring preference
+                                                            </p>
+                                                            <h3 className="mt-1 text-lg font-black text-slate-950">
+                                                                {data.booking_type === 'express'
+                                                                    ? 'Express assigns the first available Pro'
+                                                                    : 'How should Fixlife match your Pro?'}
+                                                            </h3>
+                                                        </div>
+                                                        <span className="rounded-full border border-bird-blue/20 bg-sky-50 px-3 py-1 text-[10px] font-black uppercase tracking-[0.14em] text-bird-blue">
+                                                            Protected match
+                                                        </span>
+                                                    </div>
+
+                                                    <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                                                        {[
+                                                            {
+                                                                mode: 'auto_assign' as const,
+                                                                title: 'Fast Match',
+                                                                eyebrow: data.booking_type === 'express' ? 'Recommended for express' : 'Fastest option',
+                                                                body: 'Fixlife assigns the best verified Pro using distance, availability, rating and schedule safety.',
+                                                            },
+                                                            {
+                                                                mode: 'client_review' as const,
+                                                                title: 'Review & Choose',
+                                                                eyebrow: data.booking_type === 'scheduled' ? 'Recommended for scheduled' : 'More control',
+                                                                body: 'Compare Pro profiles, portfolio and experience before approving who can start the route.',
+                                                            },
+                                                        ]
+                                                            .filter((option) => data.booking_type !== 'express' || option.mode === 'auto_assign')
+                                                            .map((option) => {
+                                                            const selected =
+                                                                data.booking_type === 'express'
+                                                                    ? option.mode === 'auto_assign'
+                                                                    : data.selection_mode === option.mode;
+                                                            return (
+                                                                <button
+                                                                    type="button"
+                                                                    key={option.mode}
+                                                                    onClick={() => setData((prev) => ({
+                                                                        ...prev,
+                                                                        selection_mode: data.booking_type === 'express' ? 'auto_assign' : option.mode,
+                                                                    }))}
+                                                                    className={`min-h-[150px] rounded-2xl border p-4 text-left transition-all ${
+                                                                        selected
+                                                                            ? 'border-bird-blue bg-sky-50 shadow-[0_16px_34px_rgba(14,165,233,0.12)]'
+                                                                            : 'border-slate-200 bg-slate-50 hover:border-slate-300 hover:bg-white'
+                                                                    }`}
+                                                                    aria-pressed={selected}
+                                                                >
+                                                                    <div className="flex items-center justify-between gap-3">
+                                                                        <span className={`rounded-full px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.12em] ${
+                                                                            selected ? 'bg-bird-blue text-white' : 'bg-white text-slate-500'
+                                                                        }`}>
+                                                                            {option.eyebrow}
+                                                                        </span>
+                                                                        <span className={`flex h-6 w-6 items-center justify-center rounded-full border text-[11px] font-black ${
+                                                                            selected
+                                                                                ? 'border-bird-blue bg-bird-blue text-white'
+                                                                                : 'border-slate-300 bg-white text-slate-400'
+                                                                        }`}>
+                                                                            {selected ? 'OK' : ''}
+                                                                        </span>
+                                                                    </div>
+                                                                    <p className="mt-4 text-base font-black text-slate-950">{option.title}</p>
+                                                                    <p className="mt-2 text-xs font-semibold leading-5 text-slate-600">{option.body}</p>
+                                                                </button>
+                                                            );
+                                                        })}
+                                                    </div>
+
+                                                    <p className="mt-3 text-xs font-semibold leading-5 text-slate-500">
+                                                        {data.booking_type === 'express'
+                                                            ? 'Express is protected: the first verified, available Pro who accepts is assigned automatically.'
+                                                            : 'Fast Match is still protected: unverified, unavailable or conflicting workers are rejected by the backend.'}
+                                                    </p>
                                                 </div>
 
                                                 <div className="rounded-2xl border border-slate-200 bg-white p-4">
@@ -3668,6 +3862,11 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                                 const canShowPayment = ['payment_pending', 'paid', 'completion_pending', 'done'].includes(requestStatus);
                                                 const canConfirmCompletion = requestStatus === 'awaiting_confirmation';
                                                 const isWorkflowV2 = Number(request.workflow_version || 1) >= 2;
+                                                const isClientReviewRequest = request.selection_mode === 'client_review';
+                                                const isWaitingForWorkerResponses =
+                                                    requestStatus === 'pending' &&
+                                                    isClientReviewRequest &&
+                                                    !request.assigned_worker;
                                                 const startApproved = Boolean(request.approvals?.start_work.client);
                                                 const finishApproved = Boolean(request.approvals?.finish_work.client);
                                                 const completeApproved = Boolean(request.approvals?.complete_service.client);
@@ -3746,6 +3945,24 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                                             {request.description}
                                                         </p>
 
+                                                        {isWaitingForWorkerResponses && (
+                                                            <div className="mb-4 rounded-2xl border border-blue-100 bg-blue-50 p-4">
+                                                                <div className="flex items-start gap-3">
+                                                                    <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl bg-white text-bird-blue shadow-sm">
+                                                                        <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.4} d="M17 8h2a2 2 0 012 2v7a2 2 0 01-2 2h-6l-4 4v-4H5a2 2 0 01-2-2v-7a2 2 0 012-2h2m2-4h6a2 2 0 012 2v5a2 2 0 01-2 2h-3l-3 3v-3H9a2 2 0 01-2-2V6a2 2 0 012-2z" />
+                                                                        </svg>
+                                                                    </span>
+                                                                    <div className="min-w-0">
+                                                                        <p className="text-sm font-black text-slate-900">Waiting for worker responses</p>
+                                                                        <p className="mt-1 text-xs font-semibold leading-5 text-slate-600">
+                                                                            When a verified Pro accepts, their rating, experience and portfolio will appear here for your approval.
+                                                                        </p>
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                        )}
+
                                                         <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-2 text-xs font-semibold text-slate-500 mb-4">
                                                             <div className="flex items-center gap-1.5">
                                                                 <svg className="w-4 h-4 text-slate-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
@@ -3760,15 +3977,60 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                                         </div>
 
                                                         {request.assigned_worker && (
-                                                            <ServiceRequestAssignedWorkerCard
-                                                                worker={request.assigned_worker}
-                                                                pendingWorkerApproval={pendingWorkerApproval}
-                                                                workerApprovalBusy={workerApprovalBusyId === request.id_request}
-                                                                getInitials={getInitials}
-                                                                onViewProfile={() => void openWorkerProfileModal(request)}
-                                                                onDecline={() => handleWorkerApprovalDecision(request, 'decline')}
-                                                                onAccept={() => handleWorkerApprovalDecision(request, 'accept')}
-                                                            />
+                                                            <>
+                                                                <ServiceRequestAssignedWorkerCard
+                                                                    worker={request.assigned_worker}
+                                                                    pendingWorkerApproval={pendingWorkerApproval}
+                                                                    workerApprovalBusy={workerApprovalBusyId === request.id_request}
+                                                                    getInitials={getInitials}
+                                                                    onViewProfile={() => void openWorkerProfileModal(request)}
+                                                                    onDecline={() => handleWorkerApprovalDecision(request, 'decline')}
+                                                                    onAccept={() => handleWorkerApprovalDecision(request, 'accept')}
+                                                                />
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => setReportRequest(request)}
+                                                                    className="mt-3 flex w-full items-center justify-center gap-2 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-black text-red-700 transition hover:bg-red-100"
+                                                                >
+                                                                    <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.4} d="M12 9v4m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+                                                                    </svg>
+                                                                    Report this Pro
+                                                                </button>
+                                                            </>
+                                                        )}
+
+                                                        {!request.assigned_worker && (
+                                                            <div className="mt-3 rounded-2xl border border-amber-200 bg-amber-50 p-4">
+                                                                <div className="flex items-start gap-3">
+                                                                    <span className="mt-0.5 grid h-10 w-10 shrink-0 place-items-center rounded-2xl bg-white text-amber-700 shadow-sm">
+                                                                        <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.4} d="M12 9v4m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+                                                                        </svg>
+                                                                    </span>
+                                                                    <div className="min-w-0 flex-1">
+                                                                        <div className="flex flex-wrap items-center justify-between gap-2">
+                                                                            <p className="text-sm font-black text-amber-950">Need help with this request?</p>
+                                                                            <span className="rounded-full border border-amber-200 bg-white px-3 py-1 text-[10px] font-black uppercase tracking-[0.14em] text-amber-700">
+                                                                                Support
+                                                                            </span>
+                                                                        </div>
+                                                                        <p className="mt-1 text-xs font-semibold leading-5 text-amber-900/80">
+                                                                            If matching is taking too long, the details are wrong, or something feels off, send a request issue to Fixlife support.
+                                                                        </p>
+                                                                        <button
+                                                                            type="button"
+                                                                            onClick={() => setReportRequest(request)}
+                                                                            className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-amber-600 px-4 py-3 text-sm font-black text-white shadow-[0_14px_28px_rgba(217,119,6,0.18)] transition hover:bg-amber-700 sm:w-auto"
+                                                                        >
+                                                                            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.4} d="M12 9v4m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+                                                                            </svg>
+                                                                            Report request issue
+                                                                        </button>
+                                                                    </div>
+                                                                </div>
+                                                            </div>
                                                         )}
 
                                                         {(timelineState.workerAccepted || timelineState.paymentSecured || timelineState.onTheWay || timelineState.arrived || timelineState.workInProgress || timelineState.workFinished || timelineState.completed) && (
@@ -4181,6 +4443,14 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                             </motion.div>,
                             document.body
                         )}
+                    <ServiceReportModal
+                        open={!!reportRequest}
+                        idRequest={reportRequest?.id_request || null}
+                        reporterRole="client"
+                        counterpartName={reportRequest?.assigned_worker?.name || null}
+                        onClose={() => setReportRequest(null)}
+                        onSubmitted={() => fetchMyRequests(historyStatus, true)}
+                    />
 </motion.div>
     );
 };
