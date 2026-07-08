@@ -40,8 +40,6 @@ type PendingProfessional = {
 };
 
 type Decision = { professional: PendingProfessional; action: 'approve' | 'reject' };
-type TierDecision = { professional: Professional; tier: string };
-
 export default function ProsModule() {
   const [professionals, setProfessionals] = useState<Professional[]>([]);
   const [pending, setPending] = useState<PendingProfessional[]>([]);
@@ -52,7 +50,6 @@ export default function ProsModule() {
   const [saving, setSaving] = useState(false);
   const [detail, setDetail] = useState<AdminUserDetail | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
-  const [tierDecision, setTierDecision] = useState<TierDecision | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -100,15 +97,6 @@ export default function ProsModule() {
     } finally {
       setDetailLoading(false);
     }
-  };
-
-  const updateTier = async () => {
-    if (!tierDecision) return;
-    setSaving(true);
-    try {
-      await adminApi.put(adminApi.endpoints.updateWorkerTier(tierDecision.professional.id_user), { membership_tier: tierDecision.tier, reason });
-      setTierDecision(null); setReason(''); await load();
-    } finally { setSaving(false); }
   };
 
   return (
@@ -180,7 +168,6 @@ export default function ProsModule() {
             { key: 'jobs', label: 'Completed', render: (professional) => <strong>{professional.completed_jobs || 0}</strong> },
             { key: 'rating', label: 'Rating', render: (professional) => <span className="admin-rating-inline"><Star size={14} />{professional.rating_average?.toFixed(1) || '—'} ({professional.rating_count || 0})</span> },
             { key: 'status', label: 'Account', render: (professional) => <StatusBadge status={professional.is_active ? 'active' : 'inactive'} /> },
-            { key: 'action', label: 'Tier action', render: (professional) => <select value={professional.membership_tier||'standard'} onClick={(event)=>event.stopPropagation()} onChange={(event)=>{event.stopPropagation();setReason('');setTierDecision({professional,tier:event.target.value})}}>{['standard','verified','trusted','premium','elite'].map((tier)=><option key={tier} value={tier}>{tier}</option>)}</select> },
           ]}
         />
       )}
@@ -197,7 +184,6 @@ export default function ProsModule() {
         busy={saving}
       />
       <UserDetailDrawer detail={detail} loading={detailLoading} open={detailLoading || !!detail} onClose={() => setDetail(null)} />
-      <ConfirmActionDialog open={!!tierDecision} title={`Change tier to ${tierDecision?.tier || ''}`} description={`Updates matching priority and benefits for ${tierDecision?.professional.name || 'professional'}.`} confirmLabel="Change tier" reason={reason} onReasonChange={setReason} onCancel={()=>{setTierDecision(null);setReason('')}} onConfirm={updateTier} busy={saving}/>
     </div>
   );
 }

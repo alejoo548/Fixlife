@@ -12,6 +12,7 @@ type WorkerTierBenefitRow = RowDataPacket & {
   support_level: string;
   badge_label: string;
   monthly_fee: number;
+  min_completed_jobs: number;
   benefits_summary: string | null;
   updated_at: string;
 };
@@ -45,6 +46,7 @@ const DEFAULT_TIER_BENEFITS: Record<WorkerTier, {
   support_level: string;
   badge_label: string;
   monthly_fee: number;
+  min_completed_jobs: number;
   benefits_summary: string;
 }> = {
   standard: {
@@ -54,6 +56,7 @@ const DEFAULT_TIER_BENEFITS: Record<WorkerTier, {
     support_level: 'standard',
     badge_label: 'Standard Pro',
     monthly_fee: 0,
+    min_completed_jobs: 0,
     benefits_summary: 'Entry tier for new or regular workers while they build history on Fixlife.',
   },
   verified: {
@@ -63,6 +66,7 @@ const DEFAULT_TIER_BENEFITS: Record<WorkerTier, {
     support_level: 'priority-email',
     badge_label: 'Verified Pro',
     monthly_fee: 0,
+    min_completed_jobs: 5,
     benefits_summary: 'Earned after Fixlife approves identity documents, profile quality and service information.',
   },
   trusted: {
@@ -72,6 +76,7 @@ const DEFAULT_TIER_BENEFITS: Record<WorkerTier, {
     support_level: 'priority-email',
     badge_label: 'Trusted Pro',
     monthly_fee: 0,
+    min_completed_jobs: 15,
     benefits_summary: 'Earned by strong ratings, completed jobs, low cancellations and time active on Fixlife.',
   },
   elite: {
@@ -81,8 +86,36 @@ const DEFAULT_TIER_BENEFITS: Record<WorkerTier, {
     support_level: 'priority-support',
     badge_label: 'Elite Pro',
     monthly_fee: 0,
+    min_completed_jobs: 40,
     benefits_summary: 'Earned by consistent excellence over time, high ratings and a reliable completion record.',
   },
+};
+
+const WORKER_TIER_RANK: Record<WorkerTier, number> = {
+  standard: 0,
+  verified: 1,
+  trusted: 2,
+  elite: 3,
+};
+
+const resolveHighestEligibleTier = (
+  completedJobs: number,
+  benefits: Array<{
+    tier: WorkerTier;
+    min_completed_jobs: number;
+  }>
+): WorkerTier => {
+  let nextTier: WorkerTier = 'standard';
+
+  for (const tier of WORKER_TIERS) {
+    const config = benefits.find((item) => item.tier === tier);
+    const minCompletedJobs = Math.max(0, Math.floor(Number(config?.min_completed_jobs || 0)));
+    if (completedJobs >= minCompletedJobs && WORKER_TIER_RANK[tier] >= WORKER_TIER_RANK[nextTier]) {
+      nextTier = tier;
+    }
+  }
+
+  return nextTier;
 };
 
 export const ensureWorkerTierTables = async () => {
@@ -98,6 +131,7 @@ export const ensureWorkerTierTables = async () => {
       support_level VARCHAR(30) NOT NULL DEFAULT 'standard',
       badge_label VARCHAR(60) NOT NULL,
       monthly_fee DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+      min_completed_jobs INT NOT NULL DEFAULT 0,
       benefits_summary VARCHAR(255) NULL,
       updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
       PRIMARY KEY (tier)
@@ -135,6 +169,19 @@ export const ensureWorkerTierTables = async () => {
     ALTER TABLE worker_tier_history
     MODIFY COLUMN next_tier ENUM('standard', 'verified', 'trusted', 'premium', 'elite') NOT NULL
   `);
+  const [tierBenefitColumns] = await pool.execute<RowDataPacket[]>(`
+    SELECT column_name
+    FROM information_schema.columns
+    WHERE table_schema = DATABASE()
+      AND table_name = 'worker_tier_benefits'
+      AND column_name = 'min_completed_jobs'
+  `);
+  if (tierBenefitColumns.length === 0) {
+    await pool.execute(`
+      ALTER TABLE worker_tier_benefits
+      ADD COLUMN min_completed_jobs INT NOT NULL DEFAULT 0 AFTER monthly_fee
+    `);
+  }
   await pool.execute(`
     INSERT INTO worker_tier_benefits (
       tier,
@@ -144,6 +191,7 @@ export const ensureWorkerTierTables = async () => {
       support_level,
       badge_label,
       monthly_fee,
+      min_completed_jobs,
       benefits_summary
     )
     SELECT
@@ -154,6 +202,7 @@ export const ensureWorkerTierTables = async () => {
       support_level,
       CASE WHEN badge_label = 'Premium Pro' THEN 'Trusted Pro' ELSE badge_label END,
       0,
+      15,
       COALESCE(benefits_summary, 'Earned by strong ratings, completed jobs, low cancellations and time active on Fixlife.')
     FROM worker_tier_benefits
     WHERE tier = 'premium'
@@ -180,9 +229,10 @@ export const ensureWorkerTierTables = async () => {
          support_level,
          badge_label,
          monthly_fee,
+         min_completed_jobs,
          benefits_summary
        )
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
        ON DUPLICATE KEY UPDATE
          tier = tier`,
       [
@@ -193,6 +243,7 @@ export const ensureWorkerTierTables = async () => {
         seed.support_level,
         seed.badge_label,
         seed.monthly_fee,
+        seed.min_completed_jobs,
         seed.benefits_summary,
       ]
     );
@@ -212,6 +263,7 @@ export const getWorkerTierBenefits = async () => {
        support_level,
        badge_label,
        monthly_fee,
+       min_completed_jobs,
        benefits_summary,
        updated_at
      FROM worker_tier_benefits
@@ -227,6 +279,7 @@ export const getWorkerTierBenefits = async () => {
     support_level: String(row.support_level || 'standard'),
     badge_label: String(row.badge_label || ''),
     monthly_fee: Number(row.monthly_fee || 0),
+    min_completed_jobs: Number(row.min_completed_jobs || 0),
     benefits_summary: row.benefits_summary || null,
     updated_at: row.updated_at,
   }));
@@ -240,6 +293,7 @@ export const updateWorkerTierBenefits = async (input: Array<{
   support_level: string;
   badge_label: string;
   monthly_fee: number;
+  min_completed_jobs: number;
   benefits_summary?: string | null;
 }>) => {
   await ensureWorkerTierTables();
@@ -254,6 +308,7 @@ export const updateWorkerTierBenefits = async (input: Array<{
            support_level = ?,
            badge_label = ?,
            monthly_fee = ?,
+           min_completed_jobs = ?,
            benefits_summary = ?,
            updated_at = CURRENT_TIMESTAMP
        WHERE tier = ?`,
@@ -264,6 +319,7 @@ export const updateWorkerTierBenefits = async (input: Array<{
         String(item.support_level || 'standard').slice(0, 30),
         String(item.badge_label || tier).slice(0, 60),
         Number(Number(item.monthly_fee || 0).toFixed(2)),
+        Math.max(0, Math.floor(Number(item.min_completed_jobs || 0))),
         item.benefits_summary ? String(item.benefits_summary).slice(0, 255) : null,
         tier,
       ]
@@ -354,6 +410,69 @@ export const updateWorkerMembershipTier = async (input: {
     previous_tier: previousTier,
     next_tier: nextTier,
     changed: true,
+  };
+};
+
+export const evaluateAutomaticWorkerTier = async (input: {
+  workerProfileId: number;
+  reason?: string | null;
+}) => {
+  await ensureWorkerTierTables();
+
+  const [workerRows] = await pool.execute<RowDataPacket[]>(
+    `SELECT
+       wp.id_worker_profile,
+       wp.id_user,
+       wp.membership_tier,
+       COUNT(DISTINCT CASE WHEN sr.status = 'done' THEN sr.id_request END) AS completed_jobs
+     FROM worker_profiles wp
+     LEFT JOIN service_requests sr ON sr.assigned_worker_profile = wp.id_worker_profile
+     WHERE wp.id_worker_profile = ?
+     GROUP BY wp.id_worker_profile, wp.id_user, wp.membership_tier
+     LIMIT 1`,
+    [input.workerProfileId]
+  );
+
+  const worker = workerRows[0];
+  if (!worker) return null;
+
+  const currentTier = normalizeWorkerTier(worker.membership_tier);
+  const completedJobs = Number(worker.completed_jobs || 0);
+  const benefits = await getWorkerTierBenefits();
+  const nextTier = resolveHighestEligibleTier(completedJobs, benefits);
+
+  if (WORKER_TIER_RANK[nextTier] <= WORKER_TIER_RANK[currentTier]) {
+    return {
+      changed: false,
+      id_worker_profile: Number(worker.id_worker_profile),
+      user_id: Number(worker.id_user),
+      previous_tier: currentTier,
+      next_tier: currentTier,
+      completed_jobs: completedJobs,
+      benefit: benefits.find((item) => item.tier === currentTier) || null,
+      reason: input.reason?.trim() || null,
+    };
+  }
+
+  const reason =
+    input.reason?.trim()
+      ? input.reason.trim()
+      : `Auto-promoted after reaching ${completedJobs} completed jobs.`;
+
+  const updated = await updateWorkerMembershipTier({
+    userId: Number(worker.id_user),
+    membershipTier: nextTier,
+    changedByUserId: null,
+    reason,
+  });
+
+  return {
+    ...(updated || {}),
+    changed: Boolean(updated?.changed),
+    user_id: Number(worker.id_user),
+    completed_jobs: completedJobs,
+    benefit: benefits.find((item) => item.tier === nextTier) || null,
+    reason,
   };
 };
 

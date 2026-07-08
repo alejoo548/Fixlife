@@ -34,6 +34,7 @@ import {
   recordConfirmedPaymentLedger,
   scheduleWorkerPayoutForReleasedRequest,
 } from '../services/paymentLedger.service';
+import { evaluateAutomaticWorkerTier } from '../services/workerTier.service';
 import { enqueueBackgroundJob } from '../services/backgroundJobs.service';
 import { storePaypalWebhookEvent, verifyPaypalWebhookSignature } from '../services/paypalWebhook.service';
 import { isDatabaseSchemaReady } from '../services/schemaState.service';
@@ -46,6 +47,41 @@ const assertRequestOwnership = async (idRequest: number, userId: number): Promis
     [idRequest, userId]
   );
   return rows.length > 0;
+};
+
+const processAutomaticWorkerTierPromotion = async (workerProfileId: number | null | undefined) => {
+  if (!workerProfileId) return;
+
+  const promotion = await evaluateAutomaticWorkerTier({
+    workerProfileId: Number(workerProfileId),
+  });
+
+  if (!promotion?.changed || !promotion.user_id) return;
+
+  await createUserNotification({
+    userId: Number(promotion.user_id),
+    eventType: 'tier_updated',
+    title: 'Congratulations, you unlocked a new tier!',
+    message: `You are now ${String(promotion.next_tier || 'standard').toUpperCase()} after completing ${Number(promotion.completed_jobs || 0)} jobs.`,
+    tone: 'success',
+    actionUrl: '/pro-dashboard',
+    dedupeKey: `worker-tier-auto-${Number(promotion.user_id)}-${String(promotion.next_tier)}`,
+    metadata: {
+      previous_tier: promotion.previous_tier,
+      next_tier: promotion.next_tier,
+      completed_jobs: Number(promotion.completed_jobs || 0),
+      benefits: promotion.benefit,
+      reason: promotion.reason || null,
+    },
+  });
+
+  emitToUser(Number(promotion.user_id), 'worker_tier_updated', {
+    previous_tier: promotion.previous_tier,
+    membership_tier: promotion.next_tier,
+    completed_jobs: Number(promotion.completed_jobs || 0),
+    benefits: promotion.benefit,
+    reason: promotion.reason || null,
+  });
 };
 
 type ServiceCardRow = RowDataPacket & {
@@ -3491,6 +3527,10 @@ export const confirmServiceCompletion = async (req: AuthRequest, res: Response):
           )
         );
       }
+
+      await processAutomaticWorkerTierPromotion(
+        requestRows[0].assigned_worker_profile != null ? Number(requestRows[0].assigned_worker_profile) : null
+      );
     }
 
 
@@ -3725,6 +3765,11 @@ export const approveServiceWorkflowAction = async (req: AuthRequest, res: Respon
         dedupeKey: `request-${idRequest}-${action}-${actorRole}-${bothApproved ? 'complete' : 'pending'}`,
         metadata: { request_status: nextStatus, action, actor_role: actorRole },
       });
+    }
+    if (action === 'complete_service' && bothApproved) {
+      await processAutomaticWorkerTierPromotion(
+        request.assigned_worker_profile != null ? Number(request.assigned_worker_profile) : null
+      );
     }
     emitToUser(Number(request.id_user || 0), 'request_updated', { id_request: idRequest, request_status: nextStatus });
     if (request.worker_user_id) {

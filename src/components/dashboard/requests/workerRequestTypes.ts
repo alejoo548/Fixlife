@@ -3,6 +3,7 @@ export interface RequestsViewProps {
   mobileView: 'list' | 'map';
   token: string | null;
   isVerified?: boolean;
+  isDark?: boolean;
 }
 
 export interface WorkerRequest {
