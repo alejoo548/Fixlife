@@ -29,6 +29,7 @@ interface WorkerRequestChatPanelProps {
   onTextChange: (value: string) => void;
   onImageChange: (file: File | null) => void;
   onSend: () => void;
+  dockBesideRequestsPanel?: boolean;
 }
 
 export const WorkerRequestChatPanel: React.FC<WorkerRequestChatPanelProps> = ({
@@ -44,11 +45,19 @@ export const WorkerRequestChatPanel: React.FC<WorkerRequestChatPanelProps> = ({
   onTextChange,
   onImageChange,
   onSend,
+  dockBesideRequestsPanel = false,
 }) => {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const imagePreview = useMemo(() => (image ? URL.createObjectURL(image) : null), [image]);
   const canSend = !busy && Boolean(text.trim() || image);
   const visibleMessages = messages.slice(-60);
+  const desktopDockedStyle = dockBesideRequestsPanel
+    ? {
+        left: 'calc(0.75rem + min(460px, calc(100% - 1.5rem)) + 1rem)',
+        right: '1rem',
+        width: 'auto',
+      }
+    : undefined;
 
   useEffect(
     () => () => {
@@ -87,14 +96,17 @@ export const WorkerRequestChatPanel: React.FC<WorkerRequestChatPanelProps> = ({
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             onClick={onClose}
-            className="absolute inset-0 z-[515] bg-slate-950/25 backdrop-blur-[2px] lg:hidden"
+            className="absolute inset-0 z-[545] bg-slate-950/25 backdrop-blur-[2px] lg:hidden"
           />
           <motion.aside
             initial={{ opacity: 0, x: 36, scale: 0.98 }}
             animate={{ opacity: 1, x: 0, scale: 1 }}
             exit={{ opacity: 0, x: 36, scale: 0.98 }}
             transition={{ type: 'spring', damping: 28, stiffness: 260 }}
-            className="absolute inset-0 z-[520] flex min-h-0 flex-col overflow-hidden bg-slate-50 pointer-events-auto sm:inset-x-3 sm:bottom-3 sm:top-3 sm:rounded-[28px] sm:border sm:border-white/80 sm:shadow-[0_28px_80px_rgba(15,23,42,0.24)] lg:inset-y-4 lg:left-auto lg:right-4 lg:w-[410px]"
+            className={`absolute inset-0 z-[550] flex min-h-0 flex-col overflow-hidden bg-slate-50 pointer-events-auto sm:inset-x-3 sm:bottom-3 sm:top-3 sm:rounded-[28px] sm:border sm:border-white/80 sm:shadow-[0_28px_80px_rgba(15,23,42,0.24)] lg:inset-y-4 ${
+              dockBesideRequestsPanel ? 'lg:left-4 lg:right-4' : 'lg:left-auto lg:right-4 lg:w-[410px]'
+            }`}
+            style={desktopDockedStyle}
             aria-label={`Chat with ${request.client?.name || 'client'}`}
           >
             <header className="shrink-0 border-b border-slate-200/80 bg-white px-4 py-3.5">

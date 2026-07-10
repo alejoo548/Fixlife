@@ -5,6 +5,7 @@ export interface RequestsViewProps {
   isVerified?: boolean;
   focusRequestId?: number | null;
   openChatRequestId?: number | null;
+  isDark?: boolean;
 }
 
 export interface WorkerRequest {

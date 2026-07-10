@@ -7,6 +7,9 @@ interface ProSidebarProps {
     onSignOut?: () => void;
     isOpen: boolean;
     setIsOpen: (value: boolean) => void;
+    currentTier?: string | null;
+    tierLabel?: string | null;
+    isDark?: boolean;
 }
 
 const NAV_ITEMS = [
@@ -18,8 +21,12 @@ const NAV_ITEMS = [
     { id: 'settings', label: 'Settings', icon: 'M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065zM15 12a3 3 0 11-6 0 3 3 0 016 0z' },
 ];
 
-export const ProSidebar: React.FC<ProSidebarProps> = ({ activeItem, setActiveItem, onClose, onSignOut, isOpen, setIsOpen }) => {
+export const ProSidebar: React.FC<ProSidebarProps> = ({ activeItem, setActiveItem, onClose, onSignOut, isOpen, setIsOpen, currentTier, tierLabel, isDark = false }) => {
     const toggleSidebar = () => setIsOpen(!isOpen);
+    const normalizedTier = String(currentTier || 'standard').toLowerCase();
+    const visibleTierLabel = tierLabel?.trim()
+        || normalizedTier.split('_').map((part) => part.charAt(0).toUpperCase() + part.slice(1)).join(' ')
+        || 'Standard Pro';
 
     const handleItemClick = (id: string) => {
         setActiveItem(id);
@@ -27,7 +34,7 @@ export const ProSidebar: React.FC<ProSidebarProps> = ({ activeItem, setActiveIte
 
     return (
         <aside
-            className={`h-full rounded-[35px] bg-white border border-gray-200 shadow-2xl transition-all duration-300 ease-[cubic-bezier(0.2,0,0,1)] flex flex-col items-center py-6 overflow-hidden ${isOpen ? 'w-[290px] px-4 items-stretch' : 'w-[84px]'
+            className={`h-[calc(100dvh-2rem)] max-h-[calc(100dvh-2rem)] min-h-0 rounded-[35px] bg-white border border-gray-200 shadow-2xl transition-all duration-300 ease-[cubic-bezier(0.2,0,0,1)] flex flex-col items-center py-6 overflow-y-auto overflow-x-hidden custom-scrollbar ${isOpen ? 'w-[290px] px-4 items-stretch' : 'w-[84px]'
                 }`}
         >
             <div className={`h-16 flex items-center shrink-0 mb-6 transition-all duration-300 ${isOpen ? 'justify-between' : 'justify-center'}`}>
@@ -101,7 +108,26 @@ export const ProSidebar: React.FC<ProSidebarProps> = ({ activeItem, setActiveIte
                 })}
             </nav>
 
-            <div className="mt-auto w-full pt-4 border-t border-gray-200 shrink-0 px-1">
+            <div className={`w-full shrink-0 px-1 pt-3 transition-all duration-300 ${isOpen ? 'opacity-100' : 'opacity-0 hidden'}`}>
+                <div className="rounded-[24px] border border-bird-blue/15 bg-bird-blue/8 px-4 py-3 shadow-[0_10px_22px_rgba(0,144,255,0.06)]">
+                    <p className="text-[10px] font-black uppercase tracking-[0.16em] text-bird-blue/80">Current status</p>
+                    <div className="mt-2 flex items-center justify-between gap-3">
+                        <div className="min-w-0">
+                            <p className={`truncate text-base font-black leading-none ${isDark ? 'text-white' : 'text-slate-900'}`}>{visibleTierLabel}</p>
+                            <p className={`mt-1 truncate text-xs font-semibold capitalize ${isDark ? 'text-slate-300' : 'text-gray-500'}`}>{normalizedTier}</p>
+                        </div>
+                        <span className={`shrink-0 rounded-full border px-3 py-1 text-[10px] font-black uppercase tracking-[0.16em] ${
+                            isDark
+                                ? 'border-bird-blue/30 bg-white/10 text-sky-200'
+                                : 'border-bird-blue/20 bg-white text-bird-blue'
+                        }`}>
+                            Tier
+                        </span>
+                    </div>
+                </div>
+            </div>
+
+            <div className="mt-3 w-full pt-4 border-t border-gray-200 shrink-0 px-1">
                 <button
                     onClick={onSignOut || onClose}
                     title={!isOpen ? 'Sign Out' : undefined}

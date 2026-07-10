@@ -16,6 +16,7 @@ import { WorkerRequestTimeline } from './WorkerRequestTimeline';
 
 interface WorkerCurrentJobPanelProps {
   request: WorkerRequest;
+  layout?: 'overlay' | 'inline';
   scheduled: boolean;
   routeActive: boolean;
   arrived: boolean;
@@ -46,6 +47,7 @@ interface WorkerCurrentJobPanelProps {
 
 export const WorkerCurrentJobPanel = ({
   request,
+  layout = 'overlay',
   scheduled,
   routeActive,
   arrived,
@@ -72,14 +74,28 @@ export const WorkerCurrentJobPanel = ({
   onStart,
   onComplete,
   onFinalize,
-}: WorkerCurrentJobPanelProps) => (
-  <section className="absolute inset-x-3 bottom-4 z-[500] lg:bottom-auto lg:left-auto lg:right-4 lg:top-4 lg:w-[380px]">
-    <div className="flex max-h-[min(82vh,780px)] flex-col overflow-hidden rounded-[28px] border border-white/80 bg-white/95 shadow-[0_28px_70px_rgba(15,23,42,0.16)] backdrop-blur-xl">
-      <div className="custom-scrollbar min-h-0 flex-1 overflow-y-auto p-5 pb-4">
+}: WorkerCurrentJobPanelProps) => {
+  const overlay = layout === 'overlay';
+
+  return (
+    <section
+      className={
+        overlay
+          ? 'absolute inset-x-3 bottom-4 z-[500] lg:bottom-auto lg:left-auto lg:right-4 lg:top-4 lg:w-[380px]'
+          : 'px-3 pt-3'
+      }
+    >
+      <div
+        className={`custom-scrollbar overflow-y-auto rounded-[28px] border border-white/80 p-5 backdrop-blur-xl ${
+          overlay
+            ? 'max-h-[min(76vh,760px)] bg-white/95 shadow-[0_28px_70px_rgba(15,23,42,0.16)]'
+            : 'max-h-none bg-white shadow-[0_14px_36px_rgba(15,23,42,0.08)]'
+        }`}
+      >
         <div className="mb-4 flex items-center justify-between">
           <div className="inline-flex items-center gap-2 rounded-full bg-emerald-50 px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.16em] text-emerald-700">
             <span className="h-2 w-2 rounded-full bg-emerald-500" />
-            Current job
+            {overlay ? 'Current job' : 'Selected job'}
           </div>
           <span className="text-[11px] font-black text-slate-400">#{request.id_request}</span>
         </div>
@@ -252,30 +268,28 @@ export const WorkerCurrentJobPanel = ({
             </button>
           </div>
         )}
-      </div>
 
-      <div className="shrink-0 border-t border-slate-200 bg-white/95 p-4">
-      <WorkerCurrentJobAction
-        status={request.request_status}
-        routeActive={routeActive}
-        arrived={arrived}
-        canTravel={canTravel}
-        routeReady={routeReady}
-        busy={busy}
-        scheduledStartTime={request.scheduled_start_time}
-        onTravel={onTravel}
-        onArrive={onArrive}
-        onStart={onStart}
-        onComplete={onComplete}
-        onFinalize={onFinalize}
-        approvals={request.approvals}
-        workStartedAt={request.work_started_at}
-        clientApproved={Boolean(request.client_approved_at)}
-      />
+        <WorkerCurrentJobAction
+          status={request.request_status}
+          routeActive={routeActive}
+          arrived={arrived}
+          canTravel={canTravel}
+          routeReady={routeReady}
+          busy={busy}
+          scheduledStartTime={request.scheduled_start_time}
+          onTravel={onTravel}
+          onArrive={onArrive}
+          onStart={onStart}
+          onComplete={onComplete}
+          onFinalize={onFinalize}
+          approvals={request.approvals}
+          workStartedAt={request.work_started_at}
+          clientApproved={Boolean(request.client_approved_at)}
+        />
       </div>
-    </div>
-  </section>
-);
+    </section>
+  );
+};
 
 const Detail = ({ label, value }: { label: string; value: string }) => (
   <div className="rounded-xl bg-slate-50 px-3 py-2.5">

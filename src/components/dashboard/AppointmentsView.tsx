@@ -64,7 +64,8 @@ export const AppointmentsView: React.FC = () => {
   const token = getToken('worker');
 
   const fetchAppointments = useCallback(async (silent = false) => {
-    if (!token) {
+    const authToken = getToken('worker');
+    if (!authToken) {
       setLoading(false);
       return;
     }
@@ -81,9 +82,13 @@ export const AppointmentsView: React.FC = () => {
 
     try {
       const res = await fetch(API_ENDPOINTS.worker.appointments, {
-        headers: { Authorization: `Bearer ${token}` },
+        headers: { Authorization: `Bearer ${authToken}` },
       });
       const payload = await res.json();
+      if (res.status === 401) {
+        setError('Worker session could not be validated. Please reopen the dashboard.');
+        return;
+      }
       if (!res.ok || !payload?.success) {
         setError(payload?.error || 'Could not load appointments.');
         return;

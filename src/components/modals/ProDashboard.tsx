@@ -8,6 +8,7 @@ import { AUTH_SESSION_CHANGED_EVENT, getAuthUser, getToken as getSessionToken, i
 import { NotificationCenter } from '../common/NotificationCenter';
 import { DashboardThemeToggle } from '../common/DashboardThemeToggle';
 import { useDashboardTheme } from '../../hooks/useDashboardTheme';
+import { showSweetAlert } from '../../utils/sweetAlert';
 
 const RequestsView = lazy(() =>
    import('../dashboard/RequestsView').then((module) => ({
@@ -53,6 +54,27 @@ interface ProDashboardProps {
 
 const WORKER_PRESENCE_STORAGE_KEY = 'fixlife:worker-presence';
 const WORKER_DASHBOARD_BUILD_MARKER = 'worker-dashboard-schedule-planner-v2';
+const WORKER_TIER_RANK: Record<string, number> = {
+   standard: 0,
+   verified: 1,
+   trusted: 2,
+   elite: 3,
+};
+
+type WorkerTierBenefit = {
+   tier: string;
+   badge_label?: string;
+   benefits_summary?: string | null;
+   max_active_leads?: number;
+   support_level?: string;
+   min_completed_jobs?: number;
+};
+
+type WorkerService = {
+   id_service: number;
+   name: string;
+   icon?: string | null;
+};
 
 const DashboardPanelFallback: React.FC<{ label?: string }> = ({ label = 'Loading panel...' }) => (
    <div className="w-full h-full min-h-[220px] p-4">
@@ -78,13 +100,49 @@ export const ProDashboard: React.FC<ProDashboardProps> = ({ isOpen, onClose, onS
    const [token, setToken] = useState<string | null>(null);
    const [focusRequestId, setFocusRequestId] = useState<number | null>(null);
    const [openChatRequestId, setOpenChatRequestId] = useState<number | null>(null);
+   const [currentTier, setCurrentTier] = useState('standard');
+   const [currentTierLabel, setCurrentTierLabel] = useState('Standard Pro');
+   const [currentService, setCurrentService] = useState<WorkerService | null>(null);
+   const [serviceCount, setServiceCount] = useState(0);
    const presenceMenuRef = useRef<HTMLDivElement | null>(null);
+
+   const formatTierLabel = (tier?: string | null, fallback?: string | null) => {
+      if (fallback && fallback.trim()) return fallback.trim();
+      const normalized = String(tier || 'standard').trim();
+      if (!normalized) return 'Standard Pro';
+      return normalized
+         .split('_')
+         .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+         .join(' ');
+   };
+
+   const showTierUpgradeAlert = (tier: string, benefits?: WorkerTierBenefit | null) => {
+      const title = `Felicidades, subiste a ${formatTierLabel(tier, benefits?.badge_label)}`;
+      const detailParts = [
+         benefits?.benefits_summary ? String(benefits.benefits_summary).trim() : '',
+         benefits?.max_active_leads != null ? `Leads activos: hasta ${Number(benefits.max_active_leads)}.` : '',
+         benefits?.support_level ? `Soporte: ${String(benefits.support_level)}.` : '',
+      ].filter(Boolean);
+
+      void showSweetAlert({
+         title,
+         message: detailParts.join(' '),
+         tone: 'success',
+         confirmText: 'Ver mi nueva categoria',
+      });
+   };
 
    const getInitials = (name: string) => {
       if (!name) return 'U';
       const parts = name.split(' ').filter(p => p.trim() !== '');
       if (parts.length >= 2) return `${parts[0][0]}${parts[1][0]}`.toUpperCase();
       return name.slice(0, 2).toUpperCase();
+   };
+
+   const getServiceIconLabel = (service?: WorkerService | null) => {
+      const normalized = String(service?.icon || '').trim();
+      if (normalized) return normalized;
+      return String(service?.name || 'F').trim().charAt(0).toUpperCase() || 'F';
    };
 
    const handleSignOut = () => {
@@ -179,6 +237,10 @@ export const ProDashboard: React.FC<ProDashboardProps> = ({ isOpen, onClose, onS
 
          const data = await response.json();
          const wp = data?.worker_profile || {};
+         const currentTierBenefits = data?.current_tier_benefits || null;
+         const servicesOffered = Array.isArray(data?.services_offered) ? data.services_offered as WorkerService[] : [];
+         const currentTier = String(wp.membership_tier || 'standard').toLowerCase();
+         const previousTier = String(getAuthUser('worker')?.worker_profile?.membership_tier || '').toLowerCase();
          const verified = normalizeBool(wp.is_verified);
          const onlineFromPayload = resolveWorkerOnline(data);
          const online = onlineFromPayload ?? readStoredPresence() ?? false;
@@ -187,11 +249,26 @@ export const ProDashboard: React.FC<ProDashboardProps> = ({ isOpen, onClose, onS
          setIsVerified(verified);
          setIsOnline(online);
          setHasUploadedDocs(uploaded);
+         setCurrentTier(currentTier);
+         setCurrentTierLabel(formatTierLabel(currentTier, currentTierBenefits?.badge_label));
+         setCurrentService(servicesOffered[0] || null);
+         setServiceCount(servicesOffered.length);
 
          persistWorkerStatus(online, {
             ...wp,
             is_verified: verified,
+            current_tier_benefits: currentTierBenefits,
+            services_offered: servicesOffered,
          });
+
+         if (
+            previousTier &&
+            currentTier &&
+            previousTier !== currentTier &&
+            (WORKER_TIER_RANK[currentTier] ?? -1) > (WORKER_TIER_RANK[previousTier] ?? -1)
+         ) {
+            showTierUpgradeAlert(currentTier, currentTierBenefits);
+         }
       } catch (error) {
          console.error('syncWorkerStatus error:', error);
       }
@@ -217,6 +294,18 @@ export const ProDashboard: React.FC<ProDashboardProps> = ({ isOpen, onClose, onS
          );
          setIsVerified(normalizeBool(user.worker_profile?.is_verified));
          setHasUploadedDocs(!!user.worker_profile?.dui_document || !!user.worker_profile?.cert_document);
+         setCurrentTier(String(user.worker_profile?.membership_tier || 'standard').toLowerCase());
+         setCurrentTierLabel(formatTierLabel(
+            String(user.worker_profile?.membership_tier || 'standard'),
+            typeof user.worker_profile?.current_tier_benefits === 'object' && user.worker_profile?.current_tier_benefits
+               ? String((user.worker_profile.current_tier_benefits as Record<string, unknown>).badge_label || '')
+               : null
+         ));
+         const storedServices = Array.isArray(user.worker_profile?.services_offered)
+            ? user.worker_profile.services_offered as WorkerService[]
+            : [];
+         setCurrentService(storedServices[0] || null);
+         setServiceCount(storedServices.length);
          setUserName(typeof user.name === 'string' ? user.name : '');
          const rawAvatar = typeof user.profile_image_url === 'string' && user.profile_image_url
             ? user.profile_image_url
@@ -270,8 +359,22 @@ export const ProDashboard: React.FC<ProDashboardProps> = ({ isOpen, onClose, onS
    useEffect(() => {
       const syncStoredUser = () => {
          const user = getAuthUser('worker');
+         const storedToken = getSessionToken('worker');
+         setToken(storedToken);
          if (!user) return;
 
+         setCurrentTier(String(user.worker_profile?.membership_tier || 'standard').toLowerCase());
+         setCurrentTierLabel(formatTierLabel(
+            String(user.worker_profile?.membership_tier || 'standard'),
+            typeof user.worker_profile?.current_tier_benefits === 'object' && user.worker_profile?.current_tier_benefits
+               ? String((user.worker_profile.current_tier_benefits as Record<string, unknown>).badge_label || '')
+               : null
+         ));
+         const storedServices = Array.isArray(user.worker_profile?.services_offered)
+            ? user.worker_profile.services_offered as WorkerService[]
+            : [];
+         setCurrentService(storedServices[0] || null);
+         setServiceCount(storedServices.length);
          setUserName(typeof user.name === 'string' ? user.name : '');
          const rawAvatar = typeof user.profile_image_url === 'string' && user.profile_image_url
             ? user.profile_image_url
@@ -290,7 +393,10 @@ export const ProDashboard: React.FC<ProDashboardProps> = ({ isOpen, onClose, onS
 
    useSSE({
       token,
-      events: { worker_status: () => { if (token) syncWorkerStatus(token); } },
+      events: {
+         worker_status: () => { if (token) syncWorkerStatus(token); },
+         worker_tier_updated: () => { if (token) syncWorkerStatus(token); },
+      },
       enabled: isOpen && !!token,
    });
 
@@ -312,7 +418,7 @@ export const ProDashboard: React.FC<ProDashboardProps> = ({ isOpen, onClose, onS
             initial={{ x: -100, opacity: 0 }}
             animate={{ x: 0, opacity: 1 }}
             transition={{ type: "spring", damping: 20 }}
-            className="relative z-30 hidden h-full shrink-0 p-4 lg:block"
+            className="relative z-30 hidden min-h-0 shrink-0 p-4 lg:block"
          >
             <ProSidebar
                activeItem={activeTab}
@@ -321,6 +427,9 @@ export const ProDashboard: React.FC<ProDashboardProps> = ({ isOpen, onClose, onS
                onSignOut={handleSignOut}
                isOpen={isSidebarOpen}
                setIsOpen={setIsSidebarOpen}
+               currentTier={currentTier}
+               tierLabel={currentTierLabel}
+               isDark={isDark}
             />
          </motion.div>
 
@@ -376,6 +485,42 @@ export const ProDashboard: React.FC<ProDashboardProps> = ({ isOpen, onClose, onS
                         {userName ? `Welcome back, ${userName}.` : 'Welcome back.'}
                      </motion.p>
                   </div>
+                  {currentService?.name && (
+                     <motion.div
+                        initial={{ opacity: 0, x: 12 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        transition={{ delay: 0.28 }}
+                        className="hidden min-w-0 lg:flex"
+                     >
+                        <div className={`inline-flex min-w-0 items-center gap-2 rounded-full border px-3 py-2 shadow-[0_12px_24px_rgba(15,23,42,0.06)] ${
+                           isDark
+                              ? 'border-white/12 bg-slate-900/80'
+                              : 'border-white/70 bg-white/88'
+                        }`}>
+                           <span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-sm ${
+                              isDark
+                                 ? 'bg-white/10 text-white'
+                                 : 'bg-bird-blue/10 text-bird-blue'
+                           }`}>
+                              {getServiceIconLabel(currentService)}
+                           </span>
+                           <span className={`max-w-[180px] truncate text-xs font-black ${
+                              isDark ? 'text-white' : 'text-slate-900'
+                           }`}>
+                              {currentService.name}
+                           </span>
+                           {serviceCount > 1 && (
+                              <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-black ${
+                                 isDark
+                                    ? 'bg-white/10 text-slate-200'
+                                    : 'bg-slate-100 text-slate-500'
+                              }`}>
+                                 +{serviceCount - 1}
+                              </span>
+                           )}
+                        </div>
+                     </motion.div>
+                  )}
                </div>
 
                <div className="flex min-w-0 items-center justify-end gap-1.5 sm:gap-2 md:gap-3">
@@ -623,6 +768,7 @@ export const ProDashboard: React.FC<ProDashboardProps> = ({ isOpen, onClose, onS
                                  isVerified={isVerified}
                                  focusRequestId={focusRequestId}
                                  openChatRequestId={openChatRequestId}
+                                 isDark={isDark}
                               />
                            </Suspense>
                         </motion.div>

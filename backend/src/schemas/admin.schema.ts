@@ -191,6 +191,7 @@ export const AdminSchema = {
         support_level: nameLikeText(30).refine(v => v.length >= 1, 'Support level is required.'),
         badge_label: nameLikeText(60).refine(v => v.length >= 1, 'Badge label is required.'),
         monthly_fee: z.coerce.number().min(0).max(9999),
+        min_completed_jobs: z.coerce.number().int().min(0).max(100000),
         benefits_summary: messageText(255).optional().or(z.literal('')),
       })
     ).min(4, 'At least four worker tiers must be configured.').max(5),

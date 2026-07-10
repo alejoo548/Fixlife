@@ -19,6 +19,7 @@ import { emitToUser } from '../services/socketManager';
 import { buildProtectedAssetUrl, buildPublicAssetUrl, deleteUploadIfExists } from '../utils/assets';
 import { shouldRunRuntimeSchemaSync } from '../config/schemaSync';
 import { getWorkerPayouts } from '../services/paymentLedger.service';
+import { getWorkerTierBenefits } from '../services/workerTier.service';
 import {
   queueWorkerPayoutStatementEmail,
 } from '../services/workerPayoutStatement.service';
@@ -257,7 +258,7 @@ export const getWorkerMe = async (req: AuthRequest, res: Response): Promise<void
     const profileId = await ensureWorkerProfile(userId);
     const [profiles] = await pool.execute<RowDataPacket[]>(
       `SELECT id_worker_profile, id_user, bio, banner_image, dui_document, cert_document, is_verified,
-              is_online, latitude, longitude, coverage_km, last_seen_at
+              is_online, latitude, longitude, coverage_km, last_seen_at, membership_tier
        FROM worker_profiles
        WHERE id_worker_profile = ?
        LIMIT 1`,
@@ -271,8 +272,19 @@ export const getWorkerMe = async (req: AuthRequest, res: Response): Promise<void
        ORDER BY uploaded_at DESC`,
       [profileId]
     );
+    const [serviceRows] = await pool.execute<RowDataPacket[]>(
+      `SELECT s.id_service, s.name, s.icon
+       FROM worker_services ws
+       INNER JOIN services s ON s.id_service = ws.id_service
+       WHERE ws.id_worker_profile = ?
+       ORDER BY s.name ASC`,
+      [profileId]
+    );
 
     const workerProfile = profiles[0];
+    const tierBenefits = await getWorkerTierBenefits();
+    const currentTier = String(workerProfile?.membership_tier || 'standard');
+    const currentTierBenefits = tierBenefits.find((item) => item.tier === currentTier) || null;
     res.json({
       success: true,
       user: {
@@ -280,6 +292,12 @@ export const getWorkerMe = async (req: AuthRequest, res: Response): Promise<void
         profile_image_url: buildAssetUrl(req, user.profile_image || null),
       },
       worker_profile: workerProfile,
+      current_tier_benefits: currentTierBenefits,
+      services_offered: serviceRows.map((row) => ({
+        id_service: Number(row.id_service),
+        name: String(row.name || 'Service'),
+        icon: row.icon ? String(row.icon) : null,
+      })),
       portfolio: portfolio.map((item) => ({
         ...item,
         image_full_url: buildAssetUrl(req, item.image_url),
