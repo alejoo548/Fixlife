@@ -6,6 +6,7 @@ export interface RequestsViewProps {
   focusRequestId?: number | null;
   openChatRequestId?: number | null;
   isDark?: boolean;
+  onOpenHistory?: () => void;
 }
 
 export interface WorkerRequest {

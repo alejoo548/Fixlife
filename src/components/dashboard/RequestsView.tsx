@@ -46,6 +46,38 @@ const notify = {
     void showSweetToast({ tone: 'error', message, duration: 3200 }),
 };
 
+const TERMINAL_WORKER_REQUEST_STATUSES = new Set(['done', 'cancelled']);
+const ACTIVE_WORKER_JOB_STATUSES = new Set([
+  'assigned',
+  'route_in_progress',
+  'arrived',
+  'start_pending',
+  'in_progress',
+  'finish_pending',
+  'payment_pending',
+  'paid',
+  'completion_pending',
+  'awaiting_confirmation',
+]);
+
+const getRequestStatus = (request: WorkerRequest) =>
+  String(request.request_status || '').toLowerCase();
+
+const isTerminalWorkerRequest = (request: WorkerRequest) =>
+  TERMINAL_WORKER_REQUEST_STATUSES.has(getRequestStatus(request));
+
+const getVisibleWorkerRequests = (
+  source: WorkerRequest[],
+  isWorkerActive: boolean,
+  statusFilter: RequestTab
+) => {
+  if (!isWorkerActive) return [];
+  if (statusFilter === 'accepted' || statusFilter === 'new') {
+    return source.filter((request) => !isTerminalWorkerRequest(request));
+  }
+  return source;
+};
+
 export const RequestsView: React.FC<RequestsViewProps> = ({
   isOnline,
   mobileView,
@@ -54,6 +86,7 @@ export const RequestsView: React.FC<RequestsViewProps> = ({
   focusRequestId = null,
   openChatRequestId = null,
   isDark = false,
+  onOpenHistory,
 }) => {
   const [statusFilter, setStatusFilter] = useState<RequestTab>('new');
   const [requests, setRequests] = useState<WorkerRequest[]>([]);
@@ -86,7 +119,10 @@ export const RequestsView: React.FC<RequestsViewProps> = ({
   const lastDeepLinkRef = useRef<string>('');
 
   const isWorkerActive = isOnline === true && isVerified;
-  const visibleRequests = isWorkerActive ? requests : [];
+  const visibleRequests = useMemo(
+    () => getVisibleWorkerRequests(requests, isWorkerActive, statusFilter),
+    [isWorkerActive, requests, statusFilter]
+  );
   const selectedRequest = useMemo(
     () =>
       visibleRequests.find((request) => request.id_request === selectedRequestId) ||
@@ -97,9 +133,7 @@ export const RequestsView: React.FC<RequestsViewProps> = ({
   const currentAssignedRequest = useMemo(
     () =>
       visibleRequests.find((request) =>
-        ['assigned', 'route_in_progress', 'arrived', 'start_pending', 'in_progress', 'finish_pending', 'payment_pending', 'paid', 'completion_pending', 'awaiting_confirmation'].includes(
-          String(request.request_status || '').toLowerCase()
-        )
+        ACTIVE_WORKER_JOB_STATUSES.has(getRequestStatus(request))
       ) || null,
     [visibleRequests]
   );
@@ -174,14 +208,10 @@ export const RequestsView: React.FC<RequestsViewProps> = ({
   const canTravel =
     !isScheduledTooEarly &&
     !!selectedRequest &&
-    ['assigned', 'route_in_progress', 'arrived', 'start_pending', 'in_progress', 'finish_pending', 'payment_pending', 'paid', 'completion_pending', 'done'].includes(
-      String(selectedRequest.request_status || '').toLowerCase()
-    );
+    ACTIVE_WORKER_JOB_STATUSES.has(getRequestStatus(selectedRequest));
   const canChat =
     !!selectedRequest &&
-    ['assigned', 'route_in_progress', 'arrived', 'start_pending', 'in_progress', 'finish_pending', 'payment_pending', 'paid', 'completion_pending', 'done'].includes(
-      String(selectedRequest.request_status || '').toLowerCase()
-    ) &&
+    ACTIVE_WORKER_JOB_STATUSES.has(getRequestStatus(selectedRequest)) &&
     String(selectedRequest.worker_status || '').toLowerCase() === 'accepted';
 
   const {
@@ -237,10 +267,11 @@ export const RequestsView: React.FC<RequestsViewProps> = ({
           }))
         : [];
       setRequests(next);
+      const selectableNext = getVisibleWorkerRequests(next, isWorkerActive, statusFilter);
       setSelectedRequestId((current) =>
-        current && next.some((request) => request.id_request === current)
+        current && selectableNext.some((request) => request.id_request === current)
           ? current
-          : next[0]?.id_request || null
+          : selectableNext[0]?.id_request || null
       );
 
       const workerLat = toFiniteNumber(payload.worker_profile?.latitude);
@@ -475,6 +506,7 @@ export const RequestsView: React.FC<RequestsViewProps> = ({
     if (!token) return;
     setBusyId(idRequest);
     let success = false;
+    let nextRequestStatus = '';
     try {
       const response = await fetch(API_ENDPOINTS.services.workflowApproval(idRequest), {
         method: 'POST',
@@ -486,7 +518,12 @@ export const RequestsView: React.FC<RequestsViewProps> = ({
         notify.error(payload?.error || 'Could not save approval.');
         return;
       }
-      notify.success(payload.message || 'Approval saved.');
+      nextRequestStatus = String(payload.request_status || '').toLowerCase();
+      notify.success(
+        action === 'complete_service' && nextRequestStatus === 'done'
+          ? 'Service completed and moved to History.'
+          : payload.message || 'Approval saved.'
+      );
       success = true;
       await Promise.all([fetchRequests(true), refreshWorkspace(true)]);
     } catch {
@@ -506,6 +543,13 @@ export const RequestsView: React.FC<RequestsViewProps> = ({
         window.sessionStorage.setItem('fixlife:worker-arrived', JSON.stringify([...next]));
         return next;
       });
+      if (nextRequestStatus === 'done') {
+        setRequests((current) => current.filter((request) => request.id_request !== idRequest));
+        setSelectedRequestId(null);
+        setChatPanelOpen(false);
+        setRoutePanelExpanded(false);
+        onOpenHistory?.();
+      }
     }
   };
 
@@ -640,10 +684,21 @@ export const RequestsView: React.FC<RequestsViewProps> = ({
     ? Boolean(selectedRequest.worker_arrived_at) ||
       arrivedRequestIds.has(selectedRequest.id_request)
     : false;
-  const showInlineCurrentJob = !!selectedRequest && statusFilter === 'accepted';
+  const showInlineCurrentJob =
+    !!selectedRequest && statusFilter === 'accepted' && !isTerminalWorkerRequest(selectedRequest);
   const requestCountLabel = `${visibleRequests.length} ${visibleRequests.length === 1 ? 'request' : 'requests'}`;
   const tabLabel =
     statusFilter === 'new' ? 'Available' : statusFilter === 'accepted' ? 'My jobs' : 'Passed';
+  const emptyTitle = !isWorkerActive
+    ? 'You are offline'
+    : statusFilter === 'accepted'
+      ? 'No active jobs'
+      : 'Nothing here right now';
+  const emptyMessage = !isWorkerActive
+    ? 'Go online to view nearby requests and manage active jobs.'
+    : statusFilter === 'accepted'
+      ? 'Completed services move to History automatically so this workspace stays focused.'
+      : 'New nearby requests will appear here automatically.';
 
   return (
     <>
@@ -757,13 +812,20 @@ export const RequestsView: React.FC<RequestsViewProps> = ({
                 )}
               </div>
               <h3 className="mt-4 text-base font-black text-slate-900">
-                {isWorkerActive ? 'Nothing here right now' : 'You are offline'}
+                {emptyTitle}
               </h3>
               <p className="mt-2 max-w-[260px] text-sm font-medium leading-6 text-slate-500">
-                {isWorkerActive
-                  ? 'New nearby requests will appear here automatically.'
-                  : 'Go online to view nearby requests and manage active jobs.'}
+                {emptyMessage}
               </p>
+              {isWorkerActive && statusFilter === 'accepted' && onOpenHistory && (
+                <button
+                  type="button"
+                  onClick={onOpenHistory}
+                  className="mt-5 rounded-2xl bg-bird-blue px-5 py-3 text-sm font-black text-white shadow-[0_14px_30px_rgba(14,165,233,0.22)] transition hover:bg-blue-600"
+                >
+                  View History
+                </button>
+              )}
             </div>
           ) : (
             visibleRequests.map((request) => (
@@ -1010,13 +1072,23 @@ export const RequestsView: React.FC<RequestsViewProps> = ({
                         )}
                       </div>
                       <h3 className="mt-4 text-base font-black text-slate-900">
-                        {isWorkerActive ? 'Nothing here right now' : 'You are offline'}
+                        {emptyTitle}
                       </h3>
                       <p className="mt-2 max-w-[260px] text-sm font-medium leading-6 text-slate-500">
-                        {isWorkerActive
-                          ? 'New nearby requests will appear here automatically.'
-                          : 'Go online to view nearby requests and manage active jobs.'}
+                        {emptyMessage}
                       </p>
+                      {isWorkerActive && statusFilter === 'accepted' && onOpenHistory && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setRequestsPanelOpen(false);
+                            onOpenHistory();
+                          }}
+                          className="mt-5 rounded-2xl bg-bird-blue px-5 py-3 text-sm font-black text-white shadow-[0_14px_30px_rgba(14,165,233,0.22)] transition hover:bg-blue-600"
+                        >
+                          View History
+                        </button>
+                      )}
                     </div>
                   ) : (
                     visibleRequests.map((request) => (

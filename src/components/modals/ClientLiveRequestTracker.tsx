@@ -759,27 +759,27 @@ const ClientLiveRequestTracker: React.FC<ClientLiveRequestTrackerProps> = ({ lea
     const distanceLabel = routeLoading ? 'Updating' : `${(metrics?.distanceKm ?? routePreview?.distanceKm ?? 0).toFixed(1)} km`;
 
     return (
-        <div className={`relative h-full min-h-[400px] w-full overflow-hidden bg-slate-100 ${isMapExpanded ? 'fixed inset-4 z-[70] rounded-[2rem] shadow-2xl border border-slate-200/50' : 'rounded-l-[2rem] border-l border-y border-slate-200/50 shadow-[-8px_0_32px_rgba(0,0,0,0.12)]'}`}>
+        <div className={`relative h-full min-h-[600px] w-full overflow-hidden bg-slate-100 ${isMapExpanded ? 'fixed inset-4 z-[70] rounded-[2rem] border border-slate-200/70 shadow-2xl' : 'rounded-[1.5rem]'}`}>
             {/* Map Background */}
             <div ref={mapContainerRef} className="absolute inset-0 z-0" />
             
-            {/* Subtle Gradient Overlays for better readability of floating elements */}
-            <div className="pointer-events-none absolute inset-x-0 top-0 h-40 bg-gradient-to-b from-black/20 to-transparent z-10" />
-            <div className="pointer-events-none absolute inset-x-0 bottom-0 h-64 bg-gradient-to-t from-black/10 to-transparent z-10" />
+            {/* Soft edge overlays keep controls readable without hiding the map. */}
+            <div className="pointer-events-none absolute inset-x-0 top-0 z-10 h-24 bg-gradient-to-b from-white/70 to-transparent" />
+            <div className="pointer-events-none absolute inset-x-0 bottom-0 z-10 h-44 bg-gradient-to-t from-white/80 to-transparent" />
 
             {!leafletReady && (
                 <div className="absolute right-6 top-6 z-20 h-3 w-3 rounded-full bg-blue-500 animate-pulse shadow-[0_0_12px_rgba(59,130,246,0.8)]" />
             )}
 
             {/* Top Floating Header */}
-            <div className="absolute top-4 left-4 right-4 sm:top-6 sm:left-6 sm:right-6 z-20 flex flex-col sm:flex-row sm:items-start justify-between gap-3 pointer-events-none">
+            <div className="absolute left-4 right-4 top-4 z-20 flex flex-col justify-between gap-3 pointer-events-none sm:flex-row sm:items-start">
                 <div className="flex items-center justify-between w-full sm:w-auto gap-3">
                     {onClose && (
                         <motion.button
                             initial={{ y: -20, opacity: 0 }}
                             animate={{ y: 0, opacity: 1 }}
                             onClick={onClose}
-                            className="pointer-events-auto h-10 w-10 sm:h-12 sm:w-12 shrink-0 flex items-center justify-center bg-white/95 backdrop-blur-md rounded-full shadow-lg border border-white/60 text-slate-700 hover:text-slate-900 transition-colors"
+                            className="pointer-events-auto flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-slate-200 bg-white/95 text-slate-700 shadow-[0_10px_28px_rgba(15,23,42,0.14)] backdrop-blur-md transition-colors hover:text-slate-950 sm:h-11 sm:w-11"
                         >
                             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M15 19l-7-7 7-7" />
@@ -791,7 +791,7 @@ const ClientLiveRequestTracker: React.FC<ClientLiveRequestTrackerProps> = ({ lea
                     <motion.div 
                         initial={{ y: -20, opacity: 0 }}
                         animate={{ y: 0, opacity: 1 }}
-                        className="pointer-events-auto flex-1 sm:flex-none flex items-center gap-3 sm:gap-4 bg-white/95 backdrop-blur-md px-4 sm:px-5 py-2.5 sm:py-3.5 rounded-full sm:rounded-[1.25rem] shadow-lg border border-white/60"
+                        className="pointer-events-auto flex flex-1 items-center gap-3 rounded-full border border-slate-200 bg-white/95 px-4 py-2.5 shadow-[0_10px_28px_rgba(15,23,42,0.12)] backdrop-blur-md sm:flex-none"
                     >
                         <div className="relative flex items-center justify-center shrink-0">
                             <div className={`absolute inset-0 rounded-full blur-md opacity-40 ${displayedVisual.toneClass.includes('emerald') || displayedVisual.toneClass.includes('green') ? 'bg-emerald-500' : 'bg-blue-500'}`}></div>
@@ -808,7 +808,7 @@ const ClientLiveRequestTracker: React.FC<ClientLiveRequestTrackerProps> = ({ lea
                 <motion.div 
                     initial={{ y: -20, opacity: 0 }}
                     animate={{ y: 0, opacity: 1 }}
-                    className="pointer-events-auto self-end sm:self-auto bg-white/95 backdrop-blur-md px-3 sm:px-4 py-2 sm:py-3 rounded-xl sm:rounded-2xl shadow-lg border border-white/60 text-right"
+                    className="pointer-events-auto self-end rounded-2xl border border-slate-200 bg-white/95 px-4 py-2.5 text-right shadow-[0_10px_28px_rgba(15,23,42,0.12)] backdrop-blur-md sm:self-auto"
                 >
                     <p className="text-[9px] sm:text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 leading-none mb-1 sm:mb-1.5">Request</p>
                     <p className="text-xs sm:text-sm font-black text-slate-900 leading-none">#{request.id_request}</p>
@@ -816,61 +816,66 @@ const ClientLiveRequestTracker: React.FC<ClientLiveRequestTrackerProps> = ({ lea
             </div>
 
             {/* Bottom Floating Card (Uber Style) */}
-            <div className="absolute bottom-4 left-4 right-4 sm:bottom-6 sm:left-6 sm:right-6 z-20 pointer-events-none flex justify-center">
+            <div className="pointer-events-none absolute bottom-4 left-4 right-4 z-20 flex justify-center sm:bottom-5">
                 <motion.div 
                     initial={{ y: 40, opacity: 0 }}
                     animate={{ y: 0, opacity: 1 }}
-                    className="pointer-events-auto w-full max-w-md bg-white rounded-[2rem] shadow-[0_20px_60px_-15px_rgba(0,0,0,0.3)] p-6 border border-slate-100 relative overflow-hidden"
+                    className="pointer-events-auto relative w-full max-w-2xl overflow-hidden rounded-[1.6rem] border border-slate-200/90 bg-white/96 p-4 shadow-[0_18px_50px_rgba(15,23,42,0.16)] backdrop-blur-xl sm:p-5"
                 >
                     {/* Drag handle decoration */}
-                    <div className="absolute top-3 left-1/2 -translate-x-1/2 w-12 h-1.5 bg-gray-200 rounded-full" />
+                    <div className="absolute left-1/2 top-2.5 h-1 w-12 -translate-x-1/2 rounded-full bg-slate-200" />
                     
                     {/* Main Worker Info & ETA */}
-                    <div className="mt-2 flex items-center justify-between">
-                        <div className="flex items-center gap-4 min-w-0">
-                            <div className="w-14 h-14 shrink-0 rounded-full bg-gradient-to-tr from-blue-600 to-blue-400 p-[2px] shadow-md">
-                                <div className="w-full h-full rounded-full bg-white border-2 border-white flex items-center justify-center overflow-hidden">
-                                    <span className="text-blue-600 font-black text-xl">
+                    <div className="mt-2 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                        <div className="flex min-w-0 items-center gap-3">
+                            <div className="h-12 w-12 shrink-0 rounded-full bg-bird-blue p-[2px] shadow-[0_12px_28px_rgba(0,144,255,0.24)]">
+                                <div className="flex h-full w-full items-center justify-center overflow-hidden rounded-full border-2 border-white bg-white">
+                                    <span className="text-lg font-black text-bird-blue">
                                         {workerName.charAt(0).toUpperCase()}
                                     </span>
                                 </div>
                             </div>
                             <div className="min-w-0">
-                                <h3 className="text-lg font-black text-slate-900 truncate">{workerName}</h3>
-                                <p className="text-sm font-semibold text-slate-500 truncate">{request.service_name}</p>
+                                <h3 className="truncate text-base font-black text-slate-950 sm:text-lg">{workerName}</h3>
+                                <p className="truncate text-sm font-semibold text-slate-500">{request.service_name}</p>
                                 {isScheduledRequest(request) && scheduledWindow && (
-                                    <p className="mt-0.5 text-xs font-bold text-blue-600 truncate">{scheduledWindow}</p>
+                                    <p className="mt-0.5 truncate text-xs font-bold text-bird-blue">{scheduledWindow}</p>
                                 )}
                             </div>
                         </div>
-                        <div className="text-right shrink-0 pl-4 border-l border-slate-100 ml-4">
-                            <div className={`${isScheduledFuture ? 'max-w-[140px] text-sm leading-tight' : 'text-2xl'} font-black text-slate-900 tracking-tight`}>{etaLabel}</div>
-                            <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-0.5">{etaMetaLabel}</div>
+                        <div className="flex shrink-0 items-center justify-between gap-4 rounded-2xl bg-sky-50 px-4 py-3 text-left sm:min-w-[135px] sm:text-right">
+                            <div className="sm:hidden">
+                                <p className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">{etaMetaLabel}</p>
+                            </div>
+                            <div>
+                                <div className={`${isScheduledFuture ? 'max-w-[150px] text-sm leading-tight' : 'text-2xl'} font-black tracking-tight text-slate-950`}>{etaLabel}</div>
+                                <div className="mt-0.5 hidden text-[10px] font-black uppercase tracking-widest text-slate-400 sm:block">{etaMetaLabel}</div>
+                            </div>
                         </div>
                     </div>
 
-                    <div className="mt-5 grid grid-cols-2 gap-3">
-                        <div className="bg-slate-50 rounded-2xl p-3.5 border border-slate-100">
+                    <div className="mt-4 grid grid-cols-2 gap-3">
+                        <div className="rounded-2xl border border-slate-100 bg-slate-50 p-3">
                             <div className="flex items-center gap-2 mb-1">
                                 <svg className="w-4 h-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" /></svg>
                                 <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Distance</p>
                             </div>
-                            <p className="text-sm font-bold text-slate-900">{distanceLabel}</p>
+                            <p className="text-sm font-black text-slate-950">{distanceLabel}</p>
                         </div>
-                        <div className="bg-slate-50 rounded-2xl p-3.5 border border-slate-100">
+                        <div className="rounded-2xl border border-slate-100 bg-slate-50 p-3">
                             <div className="flex items-center gap-2 mb-1">
                                 <svg className="w-4 h-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.243-4.243a8 8 0 1111.314 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
                                 <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Dest.</p>
                             </div>
-                            <p className="text-xs font-bold text-slate-900 truncate">{request.location_text.split(',')[0]}</p>
+                            <p className="truncate text-xs font-black text-slate-950">{request.location_text.split(',')[0]}</p>
                         </div>
                     </div>
 
-                    <div className="mt-5 flex gap-3">
+                    <div className="mt-4 flex gap-3">
                         <button
                             type="button"
                             onClick={() => setCameraMode(prev => prev === 'close' ? 'balanced' : 'close')}
-                            className="flex-1 bg-slate-900 hover:bg-black text-white font-bold text-sm py-3.5 rounded-xl transition-colors shadow-md flex items-center justify-center gap-2"
+                            className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-slate-950 py-3 text-sm font-black text-white shadow-md transition-colors hover:bg-black"
                         >
                             <svg className="w-4 h-4 opacity-70" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
                             {cameraMode === 'close' ? 'View Route' : 'Follow Worker'}

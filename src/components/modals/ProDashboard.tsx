@@ -76,6 +76,13 @@ type WorkerService = {
    icon?: string | null;
 };
 
+type WorkerTierUpdatedEvent = {
+   membership_tier?: string | null;
+   previous_tier?: string | null;
+   completed_jobs?: number | null;
+   benefit?: WorkerTierBenefit | null;
+};
+
 const DashboardPanelFallback: React.FC<{ label?: string }> = ({ label = 'Loading panel...' }) => (
    <div className="w-full h-full min-h-[220px] p-4">
       <div className="inline-flex items-center gap-2 rounded-full border border-white/70 bg-white/82 px-3 py-2 shadow-[0_14px_34px_rgba(15,23,42,0.08)] backdrop-blur-xl">
@@ -105,6 +112,7 @@ export const ProDashboard: React.FC<ProDashboardProps> = ({ isOpen, onClose, onS
    const [currentService, setCurrentService] = useState<WorkerService | null>(null);
    const [serviceCount, setServiceCount] = useState(0);
    const presenceMenuRef = useRef<HTMLDivElement | null>(null);
+   const lastTierAlertRef = useRef<string>('');
 
    const formatTierLabel = (tier?: string | null, fallback?: string | null) => {
       if (fallback && fallback.trim()) return fallback.trim();
@@ -116,20 +124,46 @@ export const ProDashboard: React.FC<ProDashboardProps> = ({ isOpen, onClose, onS
          .join(' ');
    };
 
-   const showTierUpgradeAlert = (tier: string, benefits?: WorkerTierBenefit | null) => {
-      const title = `Felicidades, subiste a ${formatTierLabel(tier, benefits?.badge_label)}`;
+   const showTierUpgradeAlert = (tier: string, benefits?: WorkerTierBenefit | null, completedJobs?: number | null) => {
+      const normalizedTier = String(tier || 'standard').toLowerCase();
+      const isElite = normalizedTier === 'elite';
+      const alertKey = `${normalizedTier}:${completedJobs ?? 'unknown'}`;
+      if (lastTierAlertRef.current === alertKey) return;
+      lastTierAlertRef.current = alertKey;
+      const title = isElite
+         ? 'You reached Elite Pro'
+         : `You moved up to ${formatTierLabel(tier, benefits?.badge_label)}`;
       const detailParts = [
+         completedJobs != null ? `Completed jobs: ${Number(completedJobs)}.` : '',
          benefits?.benefits_summary ? String(benefits.benefits_summary).trim() : '',
-         benefits?.max_active_leads != null ? `Leads activos: hasta ${Number(benefits.max_active_leads)}.` : '',
-         benefits?.support_level ? `Soporte: ${String(benefits.support_level)}.` : '',
+         benefits?.max_active_leads != null ? `Active leads: up to ${Number(benefits.max_active_leads)}.` : '',
+         benefits?.support_level ? `Support level: ${String(benefits.support_level)}.` : '',
       ].filter(Boolean);
 
       void showSweetAlert({
          title,
-         message: detailParts.join(' '),
+         message: detailParts.join(' ') || (isElite
+            ? 'Your performance unlocked the highest Fixlife professional tier.'
+            : 'Your professional benefits were updated automatically.'),
          tone: 'success',
-         confirmText: 'Ver mi nueva categoria',
+         confirmText: isElite ? 'View Elite benefits' : 'View my tier',
       });
+   };
+
+   const handleWorkerTierUpdated = (event?: unknown) => {
+      const payload = (event && typeof event === 'object' ? event : {}) as WorkerTierUpdatedEvent;
+      const nextTier = String(payload.membership_tier || '').toLowerCase();
+      const previousTier = String(payload.previous_tier || currentTier || '').toLowerCase();
+
+      if (
+         nextTier &&
+         nextTier !== previousTier &&
+         (WORKER_TIER_RANK[nextTier] ?? -1) > (WORKER_TIER_RANK[previousTier] ?? -1)
+      ) {
+         showTierUpgradeAlert(nextTier, payload.benefit || null, payload.completed_jobs ?? null);
+      }
+
+      if (token) syncWorkerStatus(token);
    };
 
    const getInitials = (name: string) => {
@@ -395,7 +429,7 @@ export const ProDashboard: React.FC<ProDashboardProps> = ({ isOpen, onClose, onS
       token,
       events: {
          worker_status: () => { if (token) syncWorkerStatus(token); },
-         worker_tier_updated: () => { if (token) syncWorkerStatus(token); },
+         worker_tier_updated: handleWorkerTierUpdated,
       },
       enabled: isOpen && !!token,
    });
@@ -769,6 +803,7 @@ export const ProDashboard: React.FC<ProDashboardProps> = ({ isOpen, onClose, onS
                                  focusRequestId={focusRequestId}
                                  openChatRequestId={openChatRequestId}
                                  isDark={isDark}
+                                 onOpenHistory={() => setActiveTab('completed-work')}
                               />
                            </Suspense>
                         </motion.div>
