@@ -39,6 +39,7 @@ export interface MyServiceRequest {
     final_budget?: number | null;
     radius_km: number;
     booking_type?: 'express' | 'scheduled' | string;
+    selection_mode?: 'auto_assign' | 'client_review' | string;
     scheduled_date?: string | null;
     scheduled_time?: string | null;
     scheduled_start_time?: string | null;
@@ -66,6 +67,12 @@ export interface MyServiceRequest {
         latitude?: number | null;
         longitude?: number | null;
         is_online?: boolean | null;
+        years_of_experience?: number | null;
+        experience_label?: string | null;
+        rating_average?: number | null;
+        rating_count?: number;
+        completed_jobs?: number;
+        portfolio_count?: number;
     } | null;
     proposed_budget?: number | null;
     counter_message?: string | null;

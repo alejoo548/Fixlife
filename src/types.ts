@@ -27,6 +27,7 @@ export interface ServiceRequestData {
   price: string;
   urgency_level: 'standard' | 'urgent' | 'emergency';
   booking_type: 'express' | 'scheduled';
+  selection_mode: 'auto_assign' | 'client_review';
   scheduled_date: string;
   scheduled_time: string;
   scheduled_duration_minutes: number;

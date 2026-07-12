@@ -28,8 +28,24 @@ interface UseServiceRequestSubmitOptions {
   setGeoError: Dispatch<SetStateAction<string | null>>;
   setIsSubmittingRequest: Dispatch<SetStateAction<boolean>>;
   setProblemFiles: Dispatch<SetStateAction<File[]>>;
-  onRequestCreated?: (request: { id_request: number | null }) => void | Promise<void>;
-  showAlert?: (input: { title: string; message: string; tone?: 'warning' | 'error' | 'success' | 'info'; confirmText?: string }) => void;
+  onRequestCreated?: (request: {
+    id_request: number | null;
+    status: string;
+    selection_mode: 'auto_assign' | 'client_review';
+    assigned_worker_profile: number | null;
+    service_name: string;
+    location: string;
+    budget: number;
+    radius_km: number;
+    booking_type: string;
+    urgency_level: string;
+    scheduled_date: string | null;
+    scheduled_time: string | null;
+    scheduled_start_time: string | null;
+    scheduled_end_time: string | null;
+    image_count: number;
+  }) => void | Promise<void>;
+  showAlert?: (input: { title: string; message: string; html?: string; tone?: 'warning' | 'error' | 'success' | 'info'; confirmText?: string }) => void;
   showToast: (type: 'success' | 'error' | 'info', message: string) => void;
 }
 
@@ -99,6 +115,12 @@ export const useServiceRequestSubmit = ({
       showToast('error', 'Estimated visit duration must be between 1 and 7 hours.');
       return;
     }
+    const selectionMode =
+      data.booking_type === 'express'
+        ? 'auto_assign'
+        : data.selection_mode === 'client_review'
+          ? 'client_review'
+          : 'auto_assign';
 
     try {
       setIsSubmittingRequest(true);
@@ -110,6 +132,7 @@ export const useServiceRequestSubmit = ({
       form.append('radius_km', String(radiusKm));
       form.append('urgency_level', String(data.urgency_level || 'standard'));
       form.append('booking_type', data.booking_type || 'express');
+      form.append('selection_mode', selectionMode);
       if (data.booking_type === 'scheduled') {
         const scheduledStart = new Date(`${data.scheduled_date}T${data.scheduled_time}:00`);
         if (Number.isNaN(scheduledStart.getTime())) {
@@ -163,13 +186,33 @@ export const useServiceRequestSubmit = ({
         price: '',
         urgency_level: 'standard',
         booking_type: 'express',
+        selection_mode: 'auto_assign',
         scheduled_date: '',
         scheduled_time: '',
         scheduled_duration_minutes: 120,
         images: [],
       }));
       void fetchMyRequests(historyStatus);
-      await onRequestCreated?.({ id_request: createdRequestId });
+      await onRequestCreated?.({
+        id_request: createdRequestId,
+        status: String(payload.request?.status || 'pending').toLowerCase(),
+        selection_mode: selectionMode,
+        assigned_worker_profile:
+          payload.request?.assigned_worker_profile != null
+            ? Number(payload.request.assigned_worker_profile)
+            : null,
+        service_name: selectedService.name,
+        location: String(payload.request?.location || data.location.trim()),
+        budget: Number(payload.request?.budget ?? budgetValue),
+        radius_km: Number(payload.request?.radius_km ?? radiusKm),
+        booking_type: String(payload.request?.booking_type || data.booking_type || 'express'),
+        urgency_level: String(data.urgency_level || 'standard'),
+        scheduled_date: payload.request?.scheduled_date || data.scheduled_date || null,
+        scheduled_time: payload.request?.scheduled_time || data.scheduled_time || null,
+        scheduled_start_time: payload.request?.scheduled_start_time || null,
+        scheduled_end_time: payload.request?.scheduled_end_time || null,
+        image_count: problemFiles.length,
+      });
     } catch {
       showToast('error', 'Network error creating request.');
     } finally {

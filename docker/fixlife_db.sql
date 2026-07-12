@@ -171,6 +171,7 @@ CREATE TABLE `service_requests` (
   `final_budget` decimal(10,2) DEFAULT NULL,
   `assigned_at` timestamp NULL DEFAULT NULL,
   `booking_type` enum('express','scheduled') COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'express',
+  `selection_mode` enum('auto_assign','client_review') COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'client_review',
   `scheduled_date` date DEFAULT NULL,
   `scheduled_time` time DEFAULT NULL,
   `scheduled_start_time` datetime DEFAULT NULL,

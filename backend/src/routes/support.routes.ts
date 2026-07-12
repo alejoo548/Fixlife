@@ -13,7 +13,7 @@ import {
 import { sensitiveLimiter } from '../middlewares/security.middleware';
 import { validate } from '../middlewares/validate.middleware';
 import { SupportSchemas } from '../schemas/support.schema';
-import { uploadProtectedImageOnly } from '../middlewares/upload.middleware';
+import { uploadProtectedImageOnly, validateUploadedFiles } from '../middlewares/upload.middleware';
 
 const router = Router();
 
@@ -33,6 +33,7 @@ router.post(
     { name: 'support_image', maxCount: 1 },
     { name: 'support_images', maxCount: 1 },
   ]),
+  validateUploadedFiles,
   validate(SupportSchemas.sendMessage),
   sendSupportMessage
 );

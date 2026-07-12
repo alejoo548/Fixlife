@@ -95,6 +95,24 @@ export const AdminSchema = {
     is_active: z.boolean().optional(),
   }),
 
+  createFaqItem: z.object({
+    question: messageText(180).refine(v => v.length >= 6, 'Question must contain at least 6 characters.'),
+    answer: messageText(1200).refine(v => v.length >= 12, 'Answer must contain at least 12 characters.'),
+    icon: strictText(500).optional().nullable().or(z.literal('')),
+    audience: z.enum(['clients', 'professionals', 'all']).optional().default('all'),
+    sort_order: z.coerce.number().int().min(1).max(5000).optional(),
+    is_active: z.boolean().optional(),
+  }).strict(),
+
+  updateFaqItem: z.object({
+    question: messageText(180).optional(),
+    answer: messageText(1200).optional(),
+    icon: strictText(500).optional().nullable().or(z.literal('')),
+    audience: z.enum(['clients', 'professionals', 'all']).optional(),
+    sort_order: z.coerce.number().int().min(1).max(5000).optional(),
+    is_active: z.boolean().optional(),
+  }).strict(),
+
   commissionRules: z.object({
     global_rate_percent: z
       .coerce
@@ -173,6 +191,7 @@ export const AdminSchema = {
         support_level: nameLikeText(30).refine(v => v.length >= 1, 'Support level is required.'),
         badge_label: nameLikeText(60).refine(v => v.length >= 1, 'Badge label is required.'),
         monthly_fee: z.coerce.number().min(0).max(9999),
+        min_completed_jobs: z.coerce.number().int().min(0).max(100000),
         benefits_summary: messageText(255).optional().or(z.literal('')),
       })
     ).min(4, 'At least four worker tiers must be configured.').max(5),

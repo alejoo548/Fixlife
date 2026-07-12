@@ -1,5 +1,6 @@
 import React from 'react';
 import { motion } from 'framer-motion';
+import { BadgeDollarSign, CalendarClock, TrendingUp } from 'lucide-react';
 import { useWorkerRewardsDashboard } from '../../hooks/useWorkerRewardsDashboard';
 import {formatDate,formatMoney,getBonusProgramLabel,getCalendarBatchSummary,getNextPayoutLabel,} from './workerRewardsUi';
 
@@ -130,25 +131,49 @@ export const EarningsView: React.FC = () => {
       <motion.div
         initial={{ opacity: 0, y: 12 }}
         animate={{ opacity: 1, y: 0 }}
-        className="overflow-hidden rounded-[28px] border border-gray-200 bg-white p-5 shadow-sm"
+        className="relative rounded-[28px] border border-slate-200 bg-white p-5 shadow-sm dark:border-white/10 dark:bg-slate-900 md:p-6"
       >
-        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-          <div className="max-w-3xl">
-            <p className="text-xs font-black uppercase tracking-[0.18em] text-bird-blue">Worker payout plan</p>
-            <h2 className="mt-2 text-xl font-black text-slate-900 sm:text-2xl">Know what is paid, scheduled, and still in progress</h2>
-            <p className="mt-2 text-sm font-semibold text-slate-600">
-              This view separates base earnings, bonus payouts, and funds that are still waiting on client release. Bonus tracking starts from January 2026 onward.
-            </p>
-          </div>
-          <div className="grid gap-3 lg:min-w-[380px] lg:grid-cols-2">
-            <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 shadow-sm">
-              <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">Commission bonus unlock</p>
-              <p className="mt-1 text-lg font-black text-slate-900 sm:text-xl">{program.trial_min_completed_jobs} lifetime jobs</p>
+        <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_420px] xl:items-stretch">
+          <div className="flex min-w-0 gap-4">
+            <span className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-sky-50 text-bird-blue dark:bg-sky-400/10">
+              <BadgeDollarSign className="h-6 w-6" />
+            </span>
+            <div className="min-w-0">
+              <p className="text-[11px] font-black uppercase tracking-[0.2em] text-bird-blue">
+                Worker payout plan
+              </p>
+              <h2 className="mt-2 max-w-3xl text-2xl font-black leading-tight text-slate-950 dark:text-white md:text-3xl">
+                Clear payout tracking for base earnings and bonuses
+              </h2>
+              <p className="mt-3 max-w-4xl text-sm font-semibold leading-6 text-slate-600 dark:text-slate-300">
+                See what has already been paid, what is scheduled for the next payout batch, and which bonus rules are still in progress.
+              </p>
             </div>
-            <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 shadow-sm">
-              <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">Monthly bonus target</p>
-              <p className="mt-1 text-lg font-black text-slate-900 sm:text-xl">
-                {program.royalty_min_jobs} jobs + {program.royalty_min_completion_rate}% rate
+          </div>
+
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 dark:border-white/10 dark:bg-slate-800">
+              <div className="flex items-center gap-2 text-sky-500">
+                <TrendingUp className="h-4 w-4" />
+                <p className="text-[10px] font-black uppercase tracking-[0.16em]">Commission unlock</p>
+              </div>
+              <p className="mt-3 text-xl font-black text-slate-950 dark:text-white">
+                {program.trial_min_completed_jobs} jobs
+              </p>
+              <p className="mt-1 text-xs font-semibold leading-5 text-slate-500 dark:text-slate-400">
+                Lifetime completed jobs required.
+              </p>
+            </div>
+            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 dark:border-white/10 dark:bg-slate-800">
+              <div className="flex items-center gap-2 text-emerald-500">
+                <CalendarClock className="h-4 w-4" />
+                <p className="text-[10px] font-black uppercase tracking-[0.16em]">Monthly target</p>
+              </div>
+              <p className="mt-3 text-xl font-black text-slate-950 dark:text-white">
+                {program.royalty_min_jobs} jobs
+              </p>
+              <p className="mt-1 text-xs font-semibold leading-5 text-slate-500 dark:text-slate-400">
+                Plus {program.royalty_min_completion_rate}% completion rate.
               </p>
             </div>
           </div>
@@ -162,13 +187,15 @@ export const EarningsView: React.FC = () => {
             initial={{ opacity: 0, y: 18 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: index * 0.05 }}
-            className="relative overflow-hidden rounded-2xl border border-gray-200 bg-white p-4 shadow-sm md:rounded-3xl md:p-6"
+            className="relative min-h-[170px] overflow-hidden rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-slate-900 md:rounded-3xl md:p-6"
           >
             <div className={`absolute right-0 top-0 h-28 w-28 rounded-full ${card.glow} blur-2xl`} />
             <div className={`absolute inset-x-0 top-0 h-1 ${card.accent}`} />
-            <p className="text-xs font-black uppercase tracking-[0.18em] text-slate-400">{card.title}</p>
-            <p className="mt-3 text-2xl font-black text-slate-900 sm:text-3xl">{card.value}</p>
-            <p className="mt-2 text-sm text-slate-500">{card.detail}</p>
+            <div className="relative">
+              <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">{card.title}</p>
+              <p className="mt-4 text-3xl font-black text-slate-950 dark:text-white sm:text-4xl">{card.value}</p>
+              <p className="mt-3 text-sm font-semibold leading-6 text-slate-500 dark:text-slate-400">{card.detail}</p>
+            </div>
           </motion.div>
         ))}
       </div>

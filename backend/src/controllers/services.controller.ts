@@ -36,6 +36,7 @@ import {
   recordConfirmedPaymentLedger,
   scheduleWorkerPayoutForReleasedRequest,
 } from '../services/paymentLedger.service';
+import { evaluateAutomaticWorkerTier } from '../services/workerTier.service';
 import { enqueueBackgroundJob } from '../services/backgroundJobs.service';
 import { storePaypalWebhookEvent, verifyPaypalWebhookSignature } from '../services/paypalWebhook.service';
 import { storeRawVirtualWalletWebhookEvent } from '../services/virtualWalletWebhook.service';
@@ -49,6 +50,41 @@ const assertRequestOwnership = async (idRequest: number, userId: number): Promis
     [idRequest, userId]
   );
   return rows.length > 0;
+};
+
+const processAutomaticWorkerTierPromotion = async (workerProfileId: number | null | undefined) => {
+  if (!workerProfileId) return;
+
+  const promotion = await evaluateAutomaticWorkerTier({
+    workerProfileId: Number(workerProfileId),
+  });
+
+  if (!promotion?.changed || !promotion.user_id) return;
+
+  await createUserNotification({
+    userId: Number(promotion.user_id),
+    eventType: 'tier_updated',
+    title: 'Congratulations, you unlocked a new tier!',
+    message: `You are now ${String(promotion.next_tier || 'standard').toUpperCase()} after completing ${Number(promotion.completed_jobs || 0)} jobs.`,
+    tone: 'success',
+    actionUrl: '/pro-dashboard',
+    dedupeKey: `worker-tier-auto-${Number(promotion.user_id)}-${String(promotion.next_tier)}`,
+    metadata: {
+      previous_tier: promotion.previous_tier,
+      next_tier: promotion.next_tier,
+      completed_jobs: Number(promotion.completed_jobs || 0),
+      benefits: promotion.benefit,
+      reason: promotion.reason || null,
+    },
+  });
+
+  emitToUser(Number(promotion.user_id), 'worker_tier_updated', {
+    previous_tier: promotion.previous_tier,
+    membership_tier: promotion.next_tier,
+    completed_jobs: Number(promotion.completed_jobs || 0),
+    benefits: promotion.benefit,
+    reason: promotion.reason || null,
+  });
 };
 
 type ServiceCardRow = RowDataPacket & {
@@ -81,6 +117,10 @@ const DEFAULT_SCHEDULED_REQUEST_DURATION_MINUTES = Math.max(
   MIN_SCHEDULED_REQUEST_DURATION_MINUTES,
   Math.min(Number(process.env.SCHEDULED_REQUEST_DURATION_MINUTES || 120), MAX_SCHEDULED_REQUEST_DURATION_MINUTES)
 );
+const SCHEDULE_BUFFER_TIME_MINUTES = Math.max(
+  0,
+  Math.min(Number(process.env.BUFFER_TIME_MINUTES || 60), 240)
+);
 const CHAT_ENABLED_REQUEST_STATUSES = [
   'assigned',
   'route_in_progress',
@@ -94,10 +134,56 @@ const CHAT_ENABLED_REQUEST_STATUSES = [
   'awaiting_confirmation',
   'done',
 ];
+const REPORTABLE_REQUEST_STATUSES = [
+  'open',
+  'pending',
+  'assigned',
+  'route_in_progress',
+  'arrived',
+  'start_pending',
+  'in_progress',
+  'finish_pending',
+  'payment_pending',
+  'paid',
+  'completion_pending',
+  'awaiting_confirmation',
+  'done',
+  'cancelled',
+];
+const REPORT_REASONS = new Set([
+  'no_show',
+  'late',
+  'not_responding',
+  'unsafe',
+  'unprofessional',
+  'wrong_person',
+  'wrong_details',
+  'matching_issue',
+  'payment_issue',
+  'quality_issue',
+  'damage',
+  'scope_changed',
+  'client_not_available',
+  'other',
+]);
 
 const normalizeBookingType = (value: unknown): 'express' | 'scheduled' => {
   return String(value || '').trim().toLowerCase() === 'scheduled' ? 'scheduled' : 'express';
 };
+
+const normalizeSelectionMode = (
+  value: unknown,
+  bookingType: 'express' | 'scheduled'
+): 'auto_assign' | 'client_review' => {
+  if (bookingType === 'express') return 'auto_assign';
+
+  const normalized = String(value || '').trim().toLowerCase();
+  if (normalized === 'auto_assign') return 'auto_assign';
+  if (normalized === 'client_review') return 'client_review';
+  return 'client_review';
+};
+
+const toSqlDateTime = (date: Date) => date.toISOString().slice(0, 19).replace('T', ' ');
 
 const parseScheduledDurationMinutes = (value: unknown) => {
   const raw = Number(value ?? DEFAULT_SCHEDULED_REQUEST_DURATION_MINUTES);
@@ -1256,6 +1342,7 @@ export const ensureServiceRequestTables = async () => {
       assigned_worker_profile INT NULL,
       assigned_at TIMESTAMP NULL,
       booking_type ENUM('express', 'scheduled') NOT NULL DEFAULT 'express',
+      selection_mode ENUM('auto_assign', 'client_review') NOT NULL DEFAULT 'client_review',
       scheduled_date DATE NULL,
       scheduled_time TIME NULL,
       scheduled_start_time DATETIME NULL,
@@ -1300,6 +1387,7 @@ export const ensureServiceRequestTables = async () => {
          'assigned_at',
          'urgency_level',
          'booking_type',
+         'selection_mode',
          'scheduled_date',
          'scheduled_time',
          'scheduled_start_time',
@@ -1314,7 +1402,7 @@ export const ensureServiceRequestTables = async () => {
        )`
   );
   const requestColsCount = Number(assignedColRows[0]?.total || 0);
-  if (requestColsCount < 17) {
+  if (requestColsCount < 18) {
     const [requestCols] = await pool.execute<RowDataPacket[]>(
       `SELECT COLUMN_NAME
        FROM information_schema.columns
@@ -1327,6 +1415,7 @@ export const ensureServiceRequestTables = async () => {
            'assigned_at',
            'urgency_level',
            'booking_type',
+           'selection_mode',
            'scheduled_date',
            'scheduled_time',
            'scheduled_start_time',
@@ -1358,6 +1447,9 @@ export const ensureServiceRequestTables = async () => {
     }
     if (!requestColSet.has('booking_type')) {
       await pool.execute(`ALTER TABLE service_requests ADD COLUMN booking_type ENUM('express', 'scheduled') NOT NULL DEFAULT 'express'`);
+    }
+    if (!requestColSet.has('selection_mode')) {
+      await pool.execute(`ALTER TABLE service_requests ADD COLUMN selection_mode ENUM('auto_assign', 'client_review') NOT NULL DEFAULT 'client_review'`);
     }
     if (!requestColSet.has('scheduled_date')) {
       await pool.execute(`ALTER TABLE service_requests ADD COLUMN scheduled_date DATE NULL`);
@@ -1534,6 +1626,31 @@ export const ensureServiceRequestTables = async () => {
   `);
 
   await pool.execute(`
+    CREATE TABLE IF NOT EXISTS service_request_reports (
+      id_report INT NOT NULL AUTO_INCREMENT,
+      id_request INT NOT NULL,
+      reporter_user_id INT NOT NULL,
+      reporter_role ENUM('client','worker') NOT NULL,
+      reported_user_id INT NULL,
+      reported_role ENUM('client','worker') NOT NULL,
+      reason VARCHAR(40) NOT NULL,
+      description VARCHAR(1000) NOT NULL,
+      evidence_image_url VARCHAR(255) NULL,
+      status ENUM('open','reviewing','resolved','dismissed') NOT NULL DEFAULT 'open',
+      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      resolved_at TIMESTAMP NULL,
+      PRIMARY KEY (id_report),
+      KEY idx_sr_reports_request (id_request, created_at),
+      KEY idx_sr_reports_status (status, created_at),
+      KEY idx_sr_reports_reporter (reporter_user_id, created_at),
+      KEY idx_sr_reports_reported (reported_user_id, created_at),
+      CONSTRAINT fk_sr_report_request FOREIGN KEY (id_request) REFERENCES service_requests(id_request) ON DELETE CASCADE,
+      CONSTRAINT fk_sr_report_reporter FOREIGN KEY (reporter_user_id) REFERENCES users(id_user) ON DELETE CASCADE,
+      CONSTRAINT fk_sr_report_reported FOREIGN KEY (reported_user_id) REFERENCES users(id_user) ON DELETE SET NULL
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+  `);
+
+  await pool.execute(`
     CREATE TABLE IF NOT EXISTS service_request_payments (
       id_payment INT NOT NULL AUTO_INCREMENT,
       id_request INT NOT NULL,
@@ -1632,6 +1749,164 @@ const bulkInsertRequestWorkerCandidates = async (
   );
 };
 
+const autoAssignBestWorker = async (idRequest: number) => {
+  const connection = await pool.getConnection();
+  try {
+    await connection.beginTransaction();
+
+    const [requestRows] = await connection.execute<RowDataPacket[]>(
+      `SELECT id_request, booking_type, selection_mode, status, assigned_worker_profile
+       FROM service_requests
+       WHERE id_request = ?
+       LIMIT 1
+       FOR UPDATE`,
+      [idRequest]
+    );
+
+    if (requestRows.length === 0) {
+      await connection.rollback();
+      return null;
+    }
+
+    const request = requestRows[0];
+    if (
+      String(request.selection_mode || 'client_review') !== 'auto_assign' ||
+      String(request.status || '').toLowerCase() !== 'pending' ||
+      request.assigned_worker_profile != null
+    ) {
+      await connection.rollback();
+      return null;
+    }
+
+    const conflictStatuses = [
+      'assigned',
+      'route_in_progress',
+      'arrived',
+      'start_pending',
+      'in_progress',
+      'finish_pending',
+      'payment_pending',
+      'paid',
+      'completion_pending',
+      'awaiting_confirmation',
+    ];
+
+    const [candidateRows] = await connection.execute<RowDataPacket[]>(
+      `SELECT
+         srw.id_worker_profile,
+         srw.distance_km,
+         wp.id_user AS worker_user_id,
+         wp.is_online,
+         COALESCE(rating_stats.rating_average, 0) AS rating_average,
+         COALESCE(done_stats.completed_jobs, 0) AS completed_jobs
+       FROM service_request_workers srw
+       INNER JOIN service_requests sr ON sr.id_request = srw.id_request
+       INNER JOIN worker_profiles wp ON wp.id_worker_profile = srw.id_worker_profile
+       INNER JOIN users u ON u.id_user = wp.id_user
+       INNER JOIN worker_services ws
+         ON ws.id_worker_profile = wp.id_worker_profile
+        AND ws.id_service = sr.id_service
+       LEFT JOIN (
+         SELECT id_worker_profile, AVG((punctuality + quality + price_fairness) / 3) AS rating_average
+         FROM service_request_ratings
+         GROUP BY id_worker_profile
+       ) rating_stats ON rating_stats.id_worker_profile = wp.id_worker_profile
+       LEFT JOIN (
+         SELECT assigned_worker_profile AS id_worker_profile, COUNT(*) AS completed_jobs
+         FROM service_requests
+         WHERE status = 'done' AND assigned_worker_profile IS NOT NULL
+         GROUP BY assigned_worker_profile
+       ) done_stats ON done_stats.id_worker_profile = wp.id_worker_profile
+       WHERE srw.id_request = ?
+         AND srw.status = 'new'
+         AND u.rol = 'worker'
+         AND u.is_active = 1
+         AND wp.is_verified = 1
+         AND (sr.booking_type = 'scheduled' OR wp.is_online = 1)
+         AND NOT EXISTS (
+           SELECT 1
+           FROM service_requests active_sr
+           WHERE active_sr.assigned_worker_profile = wp.id_worker_profile
+             AND active_sr.id_request <> sr.id_request
+             AND (
+               (COALESCE(active_sr.booking_type, 'express') = 'express'
+                 AND active_sr.status IN (${conflictStatuses.map(() => '?').join(', ')}))
+               OR (active_sr.booking_type = 'scheduled'
+                 AND sr.booking_type = 'scheduled'
+                 AND active_sr.status IN (${conflictStatuses.map(() => '?').join(', ')})
+                 AND active_sr.scheduled_start_time IS NOT NULL
+                 AND active_sr.scheduled_end_time IS NOT NULL
+                 AND sr.scheduled_start_time IS NOT NULL
+                 AND sr.scheduled_end_time IS NOT NULL
+                 AND active_sr.scheduled_start_time < DATE_ADD(sr.scheduled_end_time, INTERVAL ? MINUTE)
+                 AND active_sr.scheduled_end_time > DATE_SUB(sr.scheduled_start_time, INTERVAL ? MINUTE))
+             )
+         )
+       ORDER BY
+         COALESCE(rating_stats.rating_average, 0) DESC,
+         COALESCE(done_stats.completed_jobs, 0) DESC,
+         srw.distance_km ASC,
+         srw.notified_at ASC
+       LIMIT 1
+       FOR UPDATE`,
+      [
+        idRequest,
+        ...conflictStatuses,
+        ...conflictStatuses,
+        SCHEDULE_BUFFER_TIME_MINUTES,
+        SCHEDULE_BUFFER_TIME_MINUTES,
+      ]
+    );
+
+    if (candidateRows.length === 0) {
+      await connection.rollback();
+      return null;
+    }
+
+    const candidate = candidateRows[0];
+    const workerProfileId = Number(candidate.id_worker_profile);
+    await connection.execute(
+      `UPDATE service_requests
+       SET status = 'assigned',
+           assigned_worker_profile = ?,
+           assigned_at = CURRENT_TIMESTAMP,
+           client_approved_at = CURRENT_TIMESTAMP,
+           worker_arrived_at = NULL,
+           final_budget = COALESCE(final_budget, budget),
+           updated_at = CURRENT_TIMESTAMP
+       WHERE id_request = ? AND status = 'pending' AND assigned_worker_profile IS NULL`,
+      [workerProfileId, idRequest]
+    );
+
+    await connection.execute(
+      `UPDATE service_request_workers
+       SET status = 'accepted', updated_at = CURRENT_TIMESTAMP
+       WHERE id_request = ? AND id_worker_profile = ?`,
+      [idRequest, workerProfileId]
+    );
+
+    await connection.execute(
+      `UPDATE service_request_workers
+       SET status = 'expired', updated_at = CURRENT_TIMESTAMP
+       WHERE id_request = ? AND id_worker_profile <> ? AND status = 'new'`,
+      [idRequest, workerProfileId]
+    );
+
+    await connection.commit();
+
+    return {
+      id_worker_profile: workerProfileId,
+      worker_user_id: Number(candidate.worker_user_id),
+      distance_km: candidate.distance_km != null ? Number(candidate.distance_km) : null,
+    };
+  } catch (error) {
+    await connection.rollback();
+    throw error;
+  } finally {
+    connection.release();
+  }
+};
+
 export const createServiceRequest = async (req: AuthRequest, res: Response): Promise<void> => {
   const files = ((req.files as Express.Multer.File[]) || []).slice(0, 5);
 
@@ -1664,6 +1939,7 @@ export const createServiceRequest = async (req: AuthRequest, res: Response): Pro
       res.status(400).json({ error: error?.message || 'Invalid scheduled visit time.' });
       return;
     }
+    const selectionMode = normalizeSelectionMode(req.body?.selection_mode, schedule.bookingType);
 
     if (!idService || Number.isNaN(idService)) {
       removeUploadedFiles(files);
@@ -1743,6 +2019,7 @@ export const createServiceRequest = async (req: AuthRequest, res: Response): Pro
          radius_km,
          urgency_level,
          booking_type,
+         selection_mode,
          scheduled_date,
          scheduled_time,
          scheduled_start_time,
@@ -1750,7 +2027,7 @@ export const createServiceRequest = async (req: AuthRequest, res: Response): Pro
          workflow_version,
          status
        )
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, ?, ?, ?, ?, ?, 2, 'pending')`,
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, ?, ?, ?, ?, ?, ?, 2, 'pending')`,
       [
         idUser,
         idService,
@@ -1763,6 +2040,7 @@ export const createServiceRequest = async (req: AuthRequest, res: Response): Pro
         radiusKm,
         urgencyLevel,
         schedule.bookingType,
+        selectionMode,
         schedule.scheduledDate,
         schedule.scheduledTime,
         schedule.scheduledStartTime,
@@ -1774,23 +2052,35 @@ export const createServiceRequest = async (req: AuthRequest, res: Response): Pro
 
     await bulkInsertServiceRequestImages(idRequest, files);
 
+    let autoAssignedWorker: Awaited<ReturnType<typeof autoAssignBestWorker>> = null;
     if (latitude != null && longitude != null) {
       const boundsFilter = getWorkerBoundsFilter(getProximityBounds(latitude, longitude, radiusKm));
       const availability = getScheduledAvailabilityLookup(schedule);
       const availabilityJoin = availability
-        ? `INNER JOIN worker_availabilities wa
+        ? `LEFT JOIN worker_availabilities wa
              ON wa.id_worker_profile = wp.id_worker_profile
             AND wa.is_active = 1
             AND wa.day_of_week = ?
             AND wa.start_time <= ?
             AND wa.end_time >= ?`
         : '';
+      const availabilityWhere = availability
+        ? `AND (
+             wa.id_availability IS NOT NULL
+             OR NOT EXISTS (
+               SELECT 1
+               FROM worker_availabilities wa_any
+               WHERE wa_any.id_worker_profile = wp.id_worker_profile
+                 AND wa_any.is_active = 1
+             )
+           )`
+        : '';
       const availabilityParams = availability
         ? [availability.dayOfWeek, availability.startTime, availability.endTime]
         : [];
 
       const [nearRows] = await pool.execute<RowDataPacket[]>(
-        `SELECT
+        `SELECT DISTINCT
            wp.id_worker_profile,
            wp.id_user AS worker_user_id,
            wp.coverage_km,
@@ -1805,6 +2095,7 @@ export const createServiceRequest = async (req: AuthRequest, res: Response): Pro
            AND wp.latitude IS NOT NULL
            AND wp.longitude IS NOT NULL
            ${boundsFilter.sql}
+           ${availabilityWhere}
          HAVING distance_km <= ? AND distance_km <= wp.coverage_km
          ORDER BY distance_km ASC
          LIMIT 50`,
@@ -1812,26 +2103,70 @@ export const createServiceRequest = async (req: AuthRequest, res: Response): Pro
       );
 
       await bulkInsertRequestWorkerCandidates(pool, idRequest, nearRows);
-      await Promise.all(
-        nearRows.map((row) =>
-          createUserNotification({
-            userId: Number(row.worker_user_id),
-            eventType: 'request_available',
-            title: 'New request nearby',
-            message: `A new service request is available ${Number(row.distance_km || 0).toFixed(1)} km away.`,
-            tone: 'info',
-            requestId: idRequest,
-            actionUrl: '/pro-dashboard',
-            dedupeKey: `request-${idRequest}-available-worker-${Number(row.id_worker_profile)}`,
-            metadata: {
-              request_status: 'pending',
-              distance_km: Number(row.distance_km || 0),
-              booking_type: schedule.bookingType,
-              scheduled_start_time: schedule.scheduledStartTime,
-            },
-          })
-        )
-      );
+      if (selectionMode === 'auto_assign') {
+        autoAssignedWorker = await autoAssignBestWorker(idRequest);
+      }
+
+      if (autoAssignedWorker) {
+        await createUserNotification({
+          userId: Number(autoAssignedWorker.worker_user_id),
+          eventType: 'request_auto_assigned',
+          title: 'Fast Match assigned you',
+          message: `You were automatically matched to request #${idRequest}. The client pre-approved this match.`,
+          tone: 'success',
+          requestId: idRequest,
+          actionUrl: '/pro-dashboard',
+          dedupeKey: `request-${idRequest}-auto-assigned-worker`,
+          metadata: {
+            request_status: 'assigned',
+            selection_mode: selectionMode,
+            booking_type: schedule.bookingType,
+            distance_km: autoAssignedWorker.distance_km,
+          },
+        });
+      } else {
+        await Promise.all(
+          nearRows.map((row) =>
+            createUserNotification({
+              userId: Number(row.worker_user_id),
+              eventType: 'request_available',
+              title: 'New request nearby',
+              message: `A new service request is available ${Number(row.distance_km || 0).toFixed(1)} km away.`,
+              tone: 'info',
+              requestId: idRequest,
+              actionUrl: '/pro-dashboard',
+              dedupeKey: `request-${idRequest}-available-worker-${Number(row.id_worker_profile)}`,
+              metadata: {
+                request_status: 'pending',
+                distance_km: Number(row.distance_km || 0),
+                booking_type: schedule.bookingType,
+                selection_mode: selectionMode,
+                scheduled_start_time: schedule.scheduledStartTime,
+              },
+            })
+          )
+        );
+      }
+    }
+
+    if (autoAssignedWorker) {
+      await createUserNotification({
+        userId: idUser,
+        eventType: 'request_auto_assigned',
+        title: 'Fast Match found your Pro',
+        message: `Request #${idRequest} was assigned automatically to a verified Pro.`,
+        tone: 'success',
+        requestId: idRequest,
+        actionUrl: '/app',
+        dedupeKey: `request-${idRequest}-auto-assigned-client`,
+        metadata: {
+          request_status: 'assigned',
+          selection_mode: selectionMode,
+          booking_type: schedule.bookingType,
+        },
+      });
+      emitToUser(idUser, 'request_updated', { id_request: idRequest, request_status: 'assigned' });
+      emitToUser(Number(autoAssignedWorker.worker_user_id), 'request_updated', { id_request: idRequest, request_status: 'assigned' });
     }
 
     await notifyAdmins({
@@ -1855,11 +2190,13 @@ export const createServiceRequest = async (req: AuthRequest, res: Response): Pro
         budget,
         location: locationText,
         booking_type: schedule.bookingType,
+        selection_mode: selectionMode,
         scheduled_date: schedule.scheduledDate,
         scheduled_time: schedule.scheduledTime,
         scheduled_start_time: schedule.scheduledStartTime,
         scheduled_end_time: schedule.scheduledEndTime,
-        status: 'pending',
+        status: autoAssignedWorker ? 'assigned' : 'pending',
+        assigned_worker_profile: autoAssignedWorker?.id_worker_profile || null,
         images: files.map((f) => ({
           file_name: f.filename,
           url: buildProtectedAssetUrl(req, f.filename),
@@ -1918,6 +2255,7 @@ export const getMyServiceRequests = async (req: AuthRequest, res: Response): Pro
          sr.radius_km,
          sr.urgency_level,
          sr.booking_type,
+         sr.selection_mode,
          sr.scheduled_date,
          sr.scheduled_time,
          sr.scheduled_start_time,
@@ -1943,6 +2281,11 @@ export const getMyServiceRequests = async (req: AuthRequest, res: Response): Pro
          u2.lastname AS worker_lastname,
          u2.phone_number AS worker_phone_number,
          u2.profile_image AS worker_profile_image,
+         u2.created_at AS worker_created_at,
+         worker_rating_stats.rating_average AS worker_rating_average,
+         worker_rating_stats.rating_count AS worker_rating_count,
+         worker_done_stats.completed_jobs AS worker_completed_jobs,
+         worker_portfolio_stats.portfolio_count AS worker_portfolio_count,
          srp.provider AS payment_provider,
          srp.checkout_reference,
          srp.currency_code AS payment_currency_code,
@@ -1975,6 +2318,25 @@ export const getMyServiceRequests = async (req: AuthRequest, res: Response): Pro
        INNER JOIN services s ON s.id_service = sr.id_service
        LEFT JOIN worker_profiles wp ON wp.id_worker_profile = sr.assigned_worker_profile
        LEFT JOIN users u2 ON u2.id_user = wp.id_user
+       LEFT JOIN (
+         SELECT
+           id_worker_profile,
+           AVG((punctuality + quality + price_fairness) / 3) AS rating_average,
+           COUNT(DISTINCT id_rating) AS rating_count
+         FROM service_request_ratings
+         GROUP BY id_worker_profile
+       ) worker_rating_stats ON worker_rating_stats.id_worker_profile = wp.id_worker_profile
+       LEFT JOIN (
+         SELECT assigned_worker_profile AS id_worker_profile, COUNT(*) AS completed_jobs
+         FROM service_requests
+         WHERE status = 'done' AND assigned_worker_profile IS NOT NULL
+         GROUP BY assigned_worker_profile
+       ) worker_done_stats ON worker_done_stats.id_worker_profile = wp.id_worker_profile
+       LEFT JOIN (
+         SELECT id_worker_profile, COUNT(*) AS portfolio_count
+         FROM worker_portfolio
+         GROUP BY id_worker_profile
+       ) worker_portfolio_stats ON worker_portfolio_stats.id_worker_profile = wp.id_worker_profile
        LEFT JOIN service_request_payments srp ON srp.id_request = sr.id_request
        LEFT JOIN service_request_workers srw_assigned
         ON srw_assigned.id_request = sr.id_request
@@ -1986,7 +2348,8 @@ export const getMyServiceRequests = async (req: AuthRequest, res: Response): Pro
        GROUP BY
          sr.id_request, sr.id_service, sr.description, sr.location_text, sr.latitude, sr.longitude,
          sr.initial_budget, sr.budget, sr.final_budget, sr.radius_km, sr.urgency_level, sr.status, sr.created_at, s.name, s.icon, wp.id_worker_profile, wp.latitude, wp.longitude, wp.is_online, wp.bio, u2.name, u2.lastname, u2.phone_number, u2.profile_image,
-         sr.booking_type, sr.scheduled_date, sr.scheduled_time, sr.scheduled_start_time, sr.scheduled_end_time,
+         u2.created_at, worker_rating_stats.rating_average, worker_rating_stats.rating_count, worker_done_stats.completed_jobs, worker_portfolio_stats.portfolio_count,
+         sr.booking_type, sr.selection_mode, sr.scheduled_date, sr.scheduled_time, sr.scheduled_start_time, sr.scheduled_end_time,
          sr.workflow_version, sr.client_approved_at, sr.route_started_at, sr.worker_arrived_at,
          sr.work_started_at, sr.work_finished_at, sr.completed_at,
         srp.provider, srp.checkout_reference, srp.currency_code, srp.amount, srp.platform_fee, srp.worker_payout, srp.commission_rate, srp.commission_snapshot_json, srp.promo_code, srp.payment_status, srp.paid_at, srp.released_at,
@@ -2012,6 +2375,7 @@ export const getMyServiceRequests = async (req: AuthRequest, res: Response): Pro
       radius_km: Number(row.radius_km || 8),
       urgency_level: normalizeUrgencyLevel(row.urgency_level),
       booking_type: normalizeBookingType(row.booking_type),
+      selection_mode: normalizeSelectionMode(row.selection_mode, normalizeBookingType(row.booking_type)),
       scheduled_date: row.scheduled_date || null,
       scheduled_time: row.scheduled_time || null,
       scheduled_start_time: row.scheduled_start_time || null,
@@ -2041,7 +2405,19 @@ export const getMyServiceRequests = async (req: AuthRequest, res: Response): Pro
       created_at: row.created_at,
       assigned_worker:
         row.assigned_worker_profile != null
-          ? {
+          ? (() => {
+              const workerCreatedAt = row.worker_created_at ? new Date(row.worker_created_at) : null;
+              const workerYearsMs = workerCreatedAt ? Date.now() - workerCreatedAt.getTime() : null;
+              const workerYears = workerYearsMs != null && workerYearsMs > 0
+                ? Math.floor(workerYearsMs / (1000 * 60 * 60 * 24 * 365.25))
+                : null;
+              const experienceLabel =
+                workerYears == null
+                  ? 'Experience not available'
+                  : workerYears < 1
+                    ? 'Less than 1 year'
+                    : `${workerYears}+ year${workerYears === 1 ? '' : 's'}`;
+              return {
               id_worker_profile: Number(row.assigned_worker_profile),
               name: `${row.worker_name || ''} ${row.worker_lastname || ''}`.trim(),
               phone_number: row.worker_phone_number || null,
@@ -2050,7 +2426,14 @@ export const getMyServiceRequests = async (req: AuthRequest, res: Response): Pro
               longitude: row.worker_longitude != null ? Number(row.worker_longitude) : null,
               is_online: row.worker_is_online != null ? Boolean(Number(row.worker_is_online)) : null,
               profile_image_url: buildAssetUrl(req, row.worker_profile_image || null),
-            }
+              years_of_experience: workerYears != null && workerYears >= 1 ? workerYears : null,
+              experience_label: experienceLabel,
+              rating_average: row.worker_rating_average != null ? Number(row.worker_rating_average) : null,
+              rating_count: row.worker_rating_count != null ? Number(row.worker_rating_count) : 0,
+              completed_jobs: row.worker_completed_jobs != null ? Number(row.worker_completed_jobs) : 0,
+              portfolio_count: row.worker_portfolio_count != null ? Number(row.worker_portfolio_count) : 0,
+            };
+            })()
           : null,
       proposed_budget: row.proposed_budget != null ? Number(row.proposed_budget) : null,
       counter_message: row.counter_message || null,
@@ -2512,6 +2895,131 @@ const mapRequestChatRow = (req: Request, row: any) => ({
   image_url: buildProtectedAssetUrl(req, row.image_url || null),
   created_at: row.created_at,
 });
+
+export const createServiceRequestReport = async (req: AuthRequest, res: Response): Promise<void> => {
+  const files = ((req.files as Express.Multer.File[]) || []).slice(0, 1);
+  try {
+    const userId = req.user?.user_id;
+    if (!userId) {
+      removeUploadedFiles(files);
+      res.status(401).json({ error: 'Unauthorized' });
+      return;
+    }
+    await ensureServiceRequestTables();
+
+    const idRequest = Number(req.params.idRequest);
+    if (!idRequest || Number.isNaN(idRequest)) {
+      removeUploadedFiles(files);
+      res.status(400).json({ error: 'Invalid request id.' });
+      return;
+    }
+
+    const participant = await resolveRequestParticipant(idRequest, userId);
+    if (!participant) {
+      removeUploadedFiles(files);
+      await recordSystemEvent({
+        level: 'warning',
+        component: 'services',
+        eventType: 'report_access_denied',
+        message: 'Report access denied (participant check failed).',
+        metadata: { requestId: idRequest, userId },
+      }).catch(() => undefined);
+      res.status(403).json({ error: 'Access denied for this request.' });
+      return;
+    }
+    if (!REPORTABLE_REQUEST_STATUSES.includes(participant.requestStatus)) {
+      removeUploadedFiles(files);
+      res.status(409).json({ error: 'Reports are not available for this request state.' });
+      return;
+    }
+
+    const reason = sanitizeStrictText(req.body?.reason, 40).toLowerCase();
+    const description = sanitizeMessage(req.body?.description, 1000);
+    if (!REPORT_REASONS.has(reason)) {
+      removeUploadedFiles(files);
+      res.status(400).json({ error: 'Select a valid report reason.' });
+      return;
+    }
+    if (description.trim().length < 12) {
+      removeUploadedFiles(files);
+      res.status(400).json({ error: 'Please describe what happened with at least 12 characters.' });
+      return;
+    }
+
+    const reporterRole = participant.role;
+    const reportedRole = reporterRole === 'client' ? 'worker' : 'client';
+    const reportedUserId = reporterRole === 'client' ? participant.workerUserId : participant.clientUserId;
+    if (!reportedUserId && reporterRole !== 'client') {
+      removeUploadedFiles(files);
+      res.status(409).json({ error: 'No assigned counterpart is available for this report.' });
+      return;
+    }
+    const hasAssignedCounterpart = Boolean(reportedUserId);
+
+    const evidenceFile = files[0]?.filename || null;
+    const [insertResult] = await pool.execute<ResultSetHeader>(
+      `INSERT INTO service_request_reports
+       (id_request, reporter_user_id, reporter_role, reported_user_id, reported_role, reason, description, evidence_image_url)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        idRequest,
+        userId,
+        reporterRole,
+        reportedUserId,
+        reportedRole,
+        reason,
+        description,
+        evidenceFile,
+      ]
+    );
+
+    await notifyAdmins({
+      eventType: 'service_request_reported',
+      title: 'New service report',
+      message: hasAssignedCounterpart
+        ? `${reporterRole === 'client' ? 'A client' : 'A worker'} reported request #${idRequest}.`
+        : `A client reported a matching issue on request #${idRequest} before a Pro was assigned.`,
+      tone: 'warning',
+      actionUrl: `/admin/requests/${idRequest}`,
+      dedupeKey: `request-${idRequest}-report-${Number(insertResult.insertId)}`,
+      metadata: {
+        id_report: Number(insertResult.insertId),
+        id_request: idRequest,
+        reporter_user_id: userId,
+        reporter_role: reporterRole,
+        reported_user_id: reportedUserId,
+        reported_role: reportedRole,
+        reason,
+        request_status: participant.requestStatus,
+        has_assigned_counterpart: hasAssignedCounterpart,
+        has_evidence: Boolean(evidenceFile),
+      },
+    });
+
+    await createUserNotification({
+      userId,
+      eventType: 'service_report_submitted',
+      title: 'Report submitted',
+      message: `Fixlife support received your report for request #${idRequest}.`,
+      tone: 'info',
+      requestId: idRequest,
+      actionUrl: reporterRole === 'worker' ? '/pro-dashboard' : '/app',
+      dedupeKey: `request-${idRequest}-report-confirm-${Number(insertResult.insertId)}`,
+      metadata: { id_report: Number(insertResult.insertId), reason },
+    });
+
+    res.json({
+      success: true,
+      id_report: Number(insertResult.insertId),
+      message: 'Report submitted. Fixlife support will review it.',
+      evidence_url: buildProtectedAssetUrl(req, evidenceFile),
+    });
+  } catch (error: any) {
+    removeUploadedFiles(files);
+    console.error('Error in createServiceRequestReport:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
 
 export const getRequestChat = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
@@ -4069,6 +4577,10 @@ export const confirmServiceCompletion = async (req: AuthRequest, res: Response):
           )
         );
       }
+
+      await processAutomaticWorkerTierPromotion(
+        requestRows[0].assigned_worker_profile != null ? Number(requestRows[0].assigned_worker_profile) : null
+      );
     }
 
 
@@ -4309,6 +4821,11 @@ export const approveServiceWorkflowAction = async (req: AuthRequest, res: Respon
         dedupeKey: `request-${idRequest}-${action}-${actorRole}-${bothApproved ? 'complete' : 'pending'}`,
         metadata: { request_status: nextStatus, action, actor_role: actorRole },
       });
+    }
+    if (action === 'complete_service' && bothApproved) {
+      await processAutomaticWorkerTierPromotion(
+        request.assigned_worker_profile != null ? Number(request.assigned_worker_profile) : null
+      );
     }
     emitToUser(Number(request.id_user || 0), 'request_updated', { id_request: idRequest, request_status: nextStatus });
     if (request.worker_user_id) {

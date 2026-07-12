@@ -28,11 +28,18 @@ const IMAGE_MIME_TYPES = new Set([
 ]);
 
 const IMAGE_EXTENSIONS = new Set(['.jpg', '.jpeg', '.png', '.webp', '.avif']);
+const PDF_EXTENSIONS = new Set(['.pdf']);
 const FORMAT_EXTENSIONS: Record<string, string> = {
   jpeg: '.jpg',
   png: '.png',
   webp: '.webp',
   avif: '.avif',
+};
+const FORMAT_ALLOWED_EXTENSIONS: Record<string, Set<string>> = {
+  jpeg: new Set(['.jpg', '.jpeg']),
+  png: new Set(['.png']),
+  webp: new Set(['.webp']),
+  avif: new Set(['.avif']),
 };
 const FORMAT_MIME_TYPES: Record<string, Set<string>> = {
   jpeg: new Set(['image/jpeg']),
@@ -65,11 +72,16 @@ const hasValidImageFormat = (file: Express.Multer.File): boolean => {
   return IMAGE_MIME_TYPES.has(file.mimetype) && IMAGE_EXTENSIONS.has(extension);
 };
 
+const hasValidPdfFormat = (file: Express.Multer.File): boolean => {
+  const extension = path.extname(file.originalname).toLowerCase();
+  return file.mimetype === 'application/pdf' && PDF_EXTENSIONS.has(extension);
+};
+
 const docsAndImageFilter = (req: any, file: Express.Multer.File, cb: multer.FileFilterCallback) => {
-  if (file.mimetype === 'application/pdf' || hasValidImageFormat(file)) {
+  if (hasValidPdfFormat(file) || hasValidImageFormat(file)) {
     cb(null, true);
   } else {
-    cb(new Error('Unsupported format. Upload a valid image or a PDF.'));
+    cb(new Error('Unsupported format. Upload a valid JPG, PNG, WEBP, AVIF image or PDF file.'));
   }
 };
 
@@ -104,6 +116,45 @@ const isAvif = (buffer: Buffer) => {
   if (buffer.length < 16 || buffer.toString('ascii', 4, 8) !== 'ftyp') return false;
   const brand = buffer.toString('ascii', 8, 12);
   return brand === 'avif' || brand === 'avis';
+};
+
+const isPdf = (buffer: Buffer) =>
+  buffer.length >= 5 && buffer.toString('ascii', 0, 5) === '%PDF-';
+
+const hasTrailingJpegData = (buffer: Buffer) => {
+  if (!isJpeg(buffer)) return false;
+  const eoi = buffer.lastIndexOf(Buffer.from([0xff, 0xd9]));
+  return eoi < 0 || buffer.slice(eoi + 2).some((byte) => byte !== 0);
+};
+
+const hasTrailingPngData = (buffer: Buffer) => {
+  if (!isPng(buffer)) return false;
+  const iend = Buffer.from([0x00, 0x00, 0x00, 0x00, 0x49, 0x45, 0x4e, 0x44]);
+  const iendIndex = buffer.lastIndexOf(iend);
+  if (iendIndex < 0) return true;
+  const endOffset = iendIndex + 12;
+  return endOffset !== buffer.length;
+};
+
+const hasTrailingWebpData = (buffer: Buffer) => {
+  if (!isWebp(buffer) || buffer.length < 12) return false;
+  const riffSize = buffer.readUInt32LE(4);
+  const expectedSize = riffSize + 8 + (riffSize % 2);
+  return expectedSize !== buffer.length;
+};
+
+const hasTrailingAvifData = (buffer: Buffer) => {
+  if (!isAvif(buffer) || buffer.length < 4) return false;
+  const declaredSize = buffer.readUInt32BE(0);
+  return declaredSize > 0 && declaredSize !== buffer.length;
+};
+
+const hasTrailingPayload = (buffer: Buffer, format: string) => {
+  if (format === 'jpeg') return hasTrailingJpegData(buffer);
+  if (format === 'png') return hasTrailingPngData(buffer);
+  if (format === 'webp') return hasTrailingWebpData(buffer);
+  if (format === 'avif') return hasTrailingAvifData(buffer);
+  return true;
 };
 
 const readExifOrientation = (buffer: Buffer): number | null => {
@@ -297,9 +348,18 @@ export const validateUploadedFiles = async (req: Request, res: Response, next: N
 
   try {
     for (const file of files) {
-      if (file.mimetype === 'application/pdf') continue;
-
       const header = await fs.readFile(file.path);
+      const originalExtension = path.extname(file.originalname).toLowerCase();
+
+      if (file.mimetype === 'application/pdf') {
+        if (!PDF_EXTENSIONS.has(originalExtension) || !isPdf(header)) {
+          await cleanupUploadedFiles(files);
+          res.status(400).json({ error: 'Invalid PDF file. Upload a real .pdf document.' });
+          return;
+        }
+        continue;
+      }
+
       const format = detectImageFormat(header);
       const orientation = readExifOrientation(header);
 
@@ -312,6 +372,18 @@ export const validateUploadedFiles = async (req: Request, res: Response, next: N
       if (!FORMAT_MIME_TYPES[format]?.has(file.mimetype)) {
         await cleanupUploadedFiles(files);
         res.status(400).json({ error: 'Image content does not match the declared file type.' });
+        return;
+      }
+
+      if (!FORMAT_ALLOWED_EXTENSIONS[format]?.has(originalExtension)) {
+        await cleanupUploadedFiles(files);
+        res.status(400).json({ error: 'Image extension does not match the uploaded image content.' });
+        return;
+      }
+
+      if (hasTrailingPayload(header, format)) {
+        await cleanupUploadedFiles(files);
+        res.status(400).json({ error: 'Image contains unexpected trailing data.' });
         return;
       }
 

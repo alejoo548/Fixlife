@@ -61,6 +61,31 @@ const sanitizeOptionalText = (value: unknown, maxLen: number): string | null => 
   return sanitized.length > 0 ? sanitized : null;
 };
 
+const FILLER_TEXT_PATTERN =
+  /\b(lorem|ipsum|dolor|sit\s+amet|consectetur|adipiscing|asdf|qwerty|test\s*test|dummy|placeholder|sample)\b/i;
+
+const validateMeaningfulFaqText = (value: string, fieldName: string, minWords: number) => {
+  const normalized = value.trim().toLowerCase();
+  if (FILLER_TEXT_PATTERN.test(normalized)) {
+    throw new Error(`${fieldName} cannot contain placeholder or lorem ipsum text.`);
+  }
+
+  const words = normalized.match(/[\p{L}\p{N}]+/gu) || [];
+  if (words.length < minWords) {
+    throw new Error(`${fieldName} must contain at least ${minWords} meaningful words.`);
+  }
+
+  const uniqueWords = new Set(words.filter((word) => word.length > 2));
+  if (words.length >= 6 && uniqueWords.size < 3) {
+    throw new Error(`${fieldName} looks repetitive. Write a clear real ${fieldName.toLowerCase()}.`);
+  }
+
+  const compact = normalized.replace(/\s+/g, '');
+  if (compact.length >= 12 && /(.)\1{7,}/u.test(compact)) {
+    throw new Error(`${fieldName} contains too many repeated characters.`);
+  }
+};
+
 const sanitizeImageUrl = (value: unknown): string | null => {
   const url = sanitizeOptionalText(value, 255);
   if (!url) return null;
@@ -70,6 +95,37 @@ const sanitizeImageUrl = (value: unknown): string | null => {
   }
   return url;
 };
+
+export const ensurePublicFaqItemsTable = async () => {
+  await pool.execute(`
+    CREATE TABLE IF NOT EXISTS public_faq_items (
+      id_faq INT NOT NULL AUTO_INCREMENT,
+      question VARCHAR(180) NOT NULL,
+      answer TEXT NOT NULL,
+      icon VARCHAR(500) NULL,
+      audience ENUM('clients', 'professionals', 'all') NOT NULL DEFAULT 'all',
+      sort_order INT NOT NULL DEFAULT 1,
+      is_active TINYINT(1) NOT NULL DEFAULT 1,
+      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      PRIMARY KEY (id_faq),
+      KEY idx_public_faq_items_active (is_active, audience, sort_order),
+      KEY idx_public_faq_items_sort (sort_order, id_faq)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+  `);
+};
+
+const serializeFaqItem = (row: RowDataPacket) => ({
+  id_faq: Number(row.id_faq),
+  question: String(row.question || ''),
+  answer: String(row.answer || ''),
+  icon: row.icon ? String(row.icon) : null,
+  audience: String(row.audience || 'all'),
+  sort_order: Number(row.sort_order || 1),
+  is_active: Boolean(row.is_active),
+  created_at: row.created_at || null,
+  updated_at: row.updated_at || null,
+});
 
 const assertAllowedFields = (payload: any, allowed: string[]) => {
   if (!payload || typeof payload !== 'object') return;
@@ -864,6 +920,184 @@ export const deleteServiceCard = async (req: AuthRequest, res: Response): Promis
   } catch (error: any) {
     console.error('Error in deleteServiceCard:', error);
     res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
+export const getPublicFaqItems = async (_req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    await ensurePublicFaqItemsTable();
+    const [rows] = await pool.execute<RowDataPacket[]>(
+      `SELECT id_faq, question, answer, icon, audience, sort_order, is_active, created_at, updated_at
+       FROM public_faq_items
+       WHERE is_active = 1
+       ORDER BY sort_order ASC, id_faq ASC`
+    );
+    res.json({ success: true, faqs: rows.map(serializeFaqItem) });
+  } catch (error) {
+    console.error('Error in getPublicFaqItems:', error);
+    res.status(500).json({ error: 'Could not load FAQ items.' });
+  }
+};
+
+export const getFaqItemsAdmin = async (_req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    await ensurePublicFaqItemsTable();
+    const [rows] = await pool.execute<RowDataPacket[]>(
+      `SELECT id_faq, question, answer, icon, audience, sort_order, is_active, created_at, updated_at
+       FROM public_faq_items
+       ORDER BY sort_order ASC, id_faq ASC`
+    );
+    res.json({ success: true, faqs: rows.map(serializeFaqItem) });
+  } catch (error) {
+    console.error('Error in getFaqItemsAdmin:', error);
+    res.status(500).json({ error: 'Could not load FAQ items.' });
+  }
+};
+
+export const createFaqItemAdmin = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    await ensurePublicFaqItemsTable();
+    const question = sanitizeText(req.body?.question, 180);
+    const answer = sanitizeText(req.body?.answer, 1200);
+    const icon = sanitizeOptionalText(req.body?.icon, 500);
+    const audience = ['clients', 'professionals', 'all'].includes(String(req.body?.audience || 'all'))
+      ? String(req.body?.audience || 'all')
+      : 'all';
+    const isActive = parseBooleanFlag(req.body?.is_active ?? true, 'is_active') ?? 1;
+    let sortOrder = req.body?.sort_order != null
+      ? parsePositiveInt(req.body.sort_order, 'sort_order', 5000)
+      : null;
+
+    if (question.length < 6 || answer.length < 12) {
+      res.status(400).json({ error: 'Question and answer are required.' });
+      return;
+    }
+    validateMeaningfulFaqText(question, 'Question', 3);
+    validateMeaningfulFaqText(answer, 'Answer', 8);
+
+    if (!sortOrder) {
+      const [maxRows] = await pool.execute<RowDataPacket[]>(
+        `SELECT COALESCE(MAX(sort_order), 0) AS maxSort FROM public_faq_items`
+      );
+      sortOrder = Number(maxRows[0]?.maxSort || 0) + 1;
+    }
+
+    const [result] = await pool.execute<ResultSetHeader>(
+      `INSERT INTO public_faq_items (question, answer, icon, audience, sort_order, is_active)
+       VALUES (?, ?, ?, ?, ?, ?)`,
+      [question, answer, icon, audience, sortOrder, isActive]
+    );
+
+    await recordSystemEvent({
+      component: 'admin_content',
+      eventType: 'admin_faq_created',
+      message: `FAQ item #${result.insertId} created.`,
+      metadata: { actor_user_id: req.user?.user_id, id_faq: result.insertId, question, audience },
+    });
+
+    res.status(201).json({ success: true, id_faq: result.insertId });
+  } catch (error: any) {
+    console.error('Error in createFaqItemAdmin:', error);
+    res.status(400).json({ error: error?.message || 'Could not create FAQ item.' });
+  }
+};
+
+export const updateFaqItemAdmin = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    await ensurePublicFaqItemsTable();
+    const idFaq = parsePositiveInt(req.params.idFaq, 'idFaq');
+    assertAllowedFields(req.body, ['question', 'answer', 'icon', 'audience', 'sort_order', 'is_active']);
+
+    const updates: string[] = [];
+    const params: any[] = [];
+
+    if (req.body.question !== undefined) {
+      const question = sanitizeText(req.body.question, 180);
+      if (question.length < 6) throw new Error('Question must contain at least 6 characters.');
+      validateMeaningfulFaqText(question, 'Question', 3);
+      updates.push('question = ?');
+      params.push(question);
+    }
+    if (req.body.answer !== undefined) {
+      const answer = sanitizeText(req.body.answer, 1200);
+      if (answer.length < 12) throw new Error('Answer must contain at least 12 characters.');
+      validateMeaningfulFaqText(answer, 'Answer', 8);
+      updates.push('answer = ?');
+      params.push(answer);
+    }
+    if (req.body.icon !== undefined) {
+      updates.push('icon = ?');
+      params.push(sanitizeOptionalText(req.body.icon, 500));
+    }
+    if (req.body.audience !== undefined) {
+      const audience = String(req.body.audience || 'all');
+      if (!['clients', 'professionals', 'all'].includes(audience)) throw new Error('Invalid audience value.');
+      updates.push('audience = ?');
+      params.push(audience);
+    }
+    if (req.body.sort_order !== undefined) {
+      updates.push('sort_order = ?');
+      params.push(parsePositiveInt(req.body.sort_order, 'sort_order', 5000));
+    }
+    if (req.body.is_active !== undefined) {
+      updates.push('is_active = ?');
+      params.push(parseBooleanFlag(req.body.is_active, 'is_active'));
+    }
+
+    if (updates.length === 0) {
+      res.status(400).json({ error: 'No changes provided.' });
+      return;
+    }
+
+    params.push(idFaq);
+    const [result] = await pool.execute<ResultSetHeader>(
+      `UPDATE public_faq_items SET ${updates.join(', ')} WHERE id_faq = ?`,
+      params
+    );
+
+    if (result.affectedRows === 0) {
+      res.status(404).json({ error: 'FAQ item not found.' });
+      return;
+    }
+
+    await recordSystemEvent({
+      component: 'admin_content',
+      eventType: 'admin_faq_updated',
+      message: `FAQ item #${idFaq} updated.`,
+      metadata: { actor_user_id: req.user?.user_id, id_faq: idFaq, fields: updates.map((item) => item.split(' ')[0]) },
+    });
+
+    res.json({ success: true });
+  } catch (error: any) {
+    console.error('Error in updateFaqItemAdmin:', error);
+    res.status(400).json({ error: error?.message || 'Could not update FAQ item.' });
+  }
+};
+
+export const deleteFaqItemAdmin = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    await ensurePublicFaqItemsTable();
+    const idFaq = parsePositiveInt(req.params.idFaq, 'idFaq');
+    const [result] = await pool.execute<ResultSetHeader>(
+      `DELETE FROM public_faq_items WHERE id_faq = ?`,
+      [idFaq]
+    );
+    if (result.affectedRows === 0) {
+      res.status(404).json({ error: 'FAQ item not found.' });
+      return;
+    }
+
+    await recordSystemEvent({
+      component: 'admin_content',
+      eventType: 'admin_faq_deleted',
+      message: `FAQ item #${idFaq} deleted.`,
+      metadata: { actor_user_id: req.user?.user_id, id_faq: idFaq },
+    });
+
+    res.json({ success: true });
+  } catch (error: any) {
+    console.error('Error in deleteFaqItemAdmin:', error);
+    res.status(400).json({ error: error?.message || 'Could not delete FAQ item.' });
   }
 };
 

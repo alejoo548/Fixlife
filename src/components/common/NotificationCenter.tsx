@@ -48,6 +48,7 @@ const jobEventTypes = new Set([
   'request_accepted',
   'counter_offer_received',
   'counter_offer_sent',
+  'tier_updated',
   'worker_arriving',
   'job_started',
   'job_completed_pending_confirmation',
@@ -68,6 +69,7 @@ const eventLabelMap: Record<string, string> = {
   counter_offer_sent: 'Counter sent',
   counter_offer_accepted: 'Counter accepted',
   payment_secured: 'Payment',
+  tier_updated: 'Tier upgrade',
   worker_arriving: 'Arriving',
   job_started: 'In progress',
   job_completed_pending_confirmation: 'Pending confirm',
@@ -87,6 +89,7 @@ const eventAccentClasses: Record<string, string> = {
   counter_offer_sent: 'from-amber-400 to-orange-400 text-white',
   counter_offer_accepted: 'from-emerald-500 to-green-400 text-white',
   payment_secured: 'from-emerald-500 to-teal-400 text-white',
+  tier_updated: 'from-amber-400 to-orange-500 text-white',
   worker_arriving: 'from-blue-500 to-indigo-500 text-white',
   job_started: 'from-violet-500 to-indigo-500 text-white',
   job_completed_pending_confirmation: 'from-fuchsia-500 to-pink-500 text-white',
@@ -344,6 +347,12 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({
       const url = new URL(item.action_url, window.location.origin);
       if (url.pathname === '/app') {
         url.searchParams.set('request', String(item.id_request));
+      }
+      if (url.pathname === '/pro-dashboard') {
+        url.searchParams.set('request', String(item.id_request));
+        if (item.event_type === 'chat_new_message') {
+          url.searchParams.set('chat', '1');
+        }
       }
       return `${url.pathname}${url.search}${url.hash}`;
     } catch {

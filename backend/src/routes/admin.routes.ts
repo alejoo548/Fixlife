@@ -8,6 +8,11 @@ import {
   createServiceCard,
   updateServiceCard,
   deleteServiceCard,
+  getPublicFaqItems,
+  getFaqItemsAdmin,
+  createFaqItemAdmin,
+  updateFaqItemAdmin,
+  deleteFaqItemAdmin,
   getPendingWorkers,
   approveWorker,
   rejectWorker,
@@ -58,6 +63,7 @@ const router = Router();
 
 // All admin routes require token + admin role (except public hero slides)
 router.get('/hero-slides', getHeroSlidesPublic);
+router.get('/faq-items/public', getPublicFaqItems);
 
 router.use(verifyToken, requireAdmin);
 
@@ -70,6 +76,10 @@ router.get('/service-cards', getServiceCardsAdmin);
 router.post('/service-cards', sensitiveLimiter, validate(AdminSchema.createServiceCard), createServiceCard);
 router.put('/service-cards/:idCard', sensitiveLimiter, validate(AdminSchema.updateServiceCard), updateServiceCard);
 router.delete('/service-cards/:idCard', sensitiveLimiter, deleteServiceCard);
+router.get('/faq-items', getFaqItemsAdmin);
+router.post('/faq-items', sensitiveLimiter, validate(AdminSchema.createFaqItem), createFaqItemAdmin);
+router.put('/faq-items/:idFaq', sensitiveLimiter, validate(AdminSchema.updateFaqItem), updateFaqItemAdmin);
+router.delete('/faq-items/:idFaq', sensitiveLimiter, deleteFaqItemAdmin);
 
 // Worker approval
 router.get('/pending-workers', getPendingWorkers);

@@ -18,6 +18,7 @@ import {
   removeWorkerProfileImage,
   startWorkerRequest,
   startWorkerRoute,
+  updatePortfolioImageDescription,
   updateWorkerSettings,
   updateWorkerAvailability,
   uploadDocuments,
@@ -63,6 +64,7 @@ router.post('/email-change/verify', sensitiveLimiter, validate(WorkerSchema.toke
 router.post('/profile-image', sensitiveLimiter, uploadImageOnly.single('profile_image'), validateUploadedFiles, sanitizeImages, uploadProfileImage);
 router.delete('/profile-image', sensitiveLimiter, removeWorkerProfileImage);
 router.post('/portfolio', sensitiveLimiter, uploadImageOnly.array('portfolio_images', 10), validateUploadedFiles, sanitizeImages, uploadPortfolioImages);
+router.put('/portfolio/:idPhoto', sensitiveLimiter, updatePortfolioImageDescription);
 router.delete('/portfolio/:idPhoto', sensitiveLimiter, deletePortfolioImage);
 
 router.post(

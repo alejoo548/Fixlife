@@ -6,13 +6,15 @@ type AlertTone = 'warning' | 'error' | 'success' | 'info';
 export const showSweetAlert = (input: {
   title: string;
   message: string;
+  html?: string;
   tone?: AlertTone;
   confirmText?: string;
 }) =>
   Swal.fire({
     icon: input.tone || 'info',
     title: input.title,
-    text: input.message,
+    text: input.html ? undefined : input.message,
+    html: input.html,
     confirmButtonText: input.confirmText || 'Got it',
     buttonsStyling: false,
     customClass: {

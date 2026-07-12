@@ -5,6 +5,13 @@ interface AssignedWorker {
     phone_number?: string | null;
     bio?: string;
     profile_image_url?: string | null;
+    is_online?: boolean | null;
+    years_of_experience?: number | null;
+    experience_label?: string | null;
+    rating_average?: number | null;
+    rating_count?: number;
+    completed_jobs?: number;
+    portfolio_count?: number;
 }
 
 interface ServiceRequestAssignedWorkerCardProps {
@@ -26,6 +33,18 @@ export function ServiceRequestAssignedWorkerCard({
     onDecline,
     onAccept,
 }: ServiceRequestAssignedWorkerCardProps) {
+    const ratingLabel = worker.rating_average != null
+        ? `${Number(worker.rating_average).toFixed(1)} rating`
+        : 'New pro';
+    const reviewLabel = `${Number(worker.rating_count || 0)} review${Number(worker.rating_count || 0) === 1 ? '' : 's'}`;
+    const jobsLabel = `${Number(worker.completed_jobs || 0)} job${Number(worker.completed_jobs || 0) === 1 ? '' : 's'}`;
+    const portfolioLabel = `${Number(worker.portfolio_count || 0)} portfolio photo${Number(worker.portfolio_count || 0) === 1 ? '' : 's'}`;
+    const experienceLabel = worker.experience_label || (
+        worker.years_of_experience != null
+            ? `${worker.years_of_experience}+ year${worker.years_of_experience === 1 ? '' : 's'}`
+            : 'Experience not available'
+    );
+
     return (
         <div className="mt-4 rounded-2xl border border-slate-100 bg-slate-50 p-4">
             <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
@@ -42,16 +61,26 @@ export function ServiceRequestAssignedWorkerCard({
                         </div>
                     )}
                     <div className="min-w-0 flex-1">
-                        <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">Assigned pro</p>
-                        <p className="mt-0.5 truncate text-base font-black text-slate-900">{worker.name}</p>
-                        <div className="flex items-center gap-1.5 mt-1">
-                            <svg className="w-3.5 h-3.5 text-emerald-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
-                            </svg>
-                            <p className="truncate text-[11px] font-bold text-slate-600">
-                                {worker.phone_number || 'Visible in profile'}
+                        <div className="flex flex-wrap items-center gap-2">
+                            <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">
+                                Worker response
                             </p>
+                            <span className={`rounded-full px-2 py-0.5 text-[9px] font-black uppercase tracking-[0.12em] ${
+                                pendingWorkerApproval
+                                    ? 'bg-blue-100 text-blue-700'
+                                    : 'bg-emerald-100 text-emerald-700'
+                            }`}>
+                                {pendingWorkerApproval ? 'Needs review' : 'Approved'}
+                            </span>
+                            {worker.is_online && (
+                                <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[9px] font-black uppercase tracking-[0.12em] text-emerald-700">
+                                    <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                                    Online
+                                </span>
+                            )}
                         </div>
+                        <p className="mt-0.5 truncate text-base font-black text-slate-900">{worker.name}</p>
+                        <p className="mt-1 text-[11px] font-bold text-slate-500">{experienceLabel}</p>
                     </div>
                 </div>
                 <button
@@ -59,8 +88,23 @@ export function ServiceRequestAssignedWorkerCard({
                     onClick={onViewProfile}
                     className="w-full sm:w-auto shrink-0 rounded-xl border-2 border-slate-200 bg-white px-3 py-2.5 sm:py-2 text-[11px] font-black text-slate-900 shadow-sm transition hover:border-slate-900 hover:bg-slate-900 hover:text-white text-center"
                 >
-                    View profile
+                    View profile & portfolio
                 </button>
+            </div>
+
+            <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
+                {[
+                    { label: 'Rating', value: ratingLabel, detail: reviewLabel },
+                    { label: 'Completed', value: jobsLabel, detail: 'on Fixlife' },
+                    { label: 'Experience', value: experienceLabel, detail: 'declared level' },
+                    { label: 'Portfolio', value: portfolioLabel, detail: 'tap profile' },
+                ].map((item) => (
+                    <div key={item.label} className="rounded-xl border border-slate-100 bg-white px-3 py-2">
+                        <p className="text-[9px] font-black uppercase tracking-[0.14em] text-slate-400">{item.label}</p>
+                        <p className="mt-1 truncate text-xs font-black text-slate-900">{item.value}</p>
+                        <p className="mt-0.5 truncate text-[10px] font-semibold text-slate-500">{item.detail}</p>
+                    </div>
+                ))}
             </div>
 
             {worker.bio && (

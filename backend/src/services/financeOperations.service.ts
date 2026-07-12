@@ -111,7 +111,6 @@ export const createFinanceCase = async (input: {
       input.createdByUserId ?? null,
     ]
   );
-
   return result.insertId;
 };
 
@@ -129,7 +128,6 @@ const toLedgerAmount = (input: {
   }
   return absoluteAmount;
 };
-
 export const resolveFinanceCase = async (input: {
   idCase: number;
   resolvedByUserId?: number | null;

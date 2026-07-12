@@ -1211,7 +1211,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                   </div>
                 </div>
               ) : (
-                <div className="grid gap-5 lg:grid-cols-[380px_minmax(0,1fr)]">
+                <div className={`grid gap-5 ${primaryRequest.assigned_worker && canShowLiveMap ? 'lg:grid-cols-[330px_minmax(0,1fr)] xl:grid-cols-[350px_minmax(0,1fr)]' : 'lg:grid-cols-[380px_minmax(0,1fr)]'}`}>
                   <aside className="space-y-4">
                     <div className="overflow-hidden rounded-[1.5rem] border border-slate-100 bg-white shadow-sm">
                       <div className="bg-gradient-to-br from-slate-950 to-slate-800 p-5 text-white">
@@ -1485,11 +1485,11 @@ export const Navbar: React.FC<NavbarProps> = ({
                     )}
                   </aside>
 
-                  <div className="min-h-[520px] overflow-hidden rounded-[1.5rem] border border-slate-100 bg-white shadow-sm">
+                  <div className="min-h-[600px] overflow-hidden rounded-[1.5rem] border border-slate-100 bg-white shadow-sm lg:min-h-[640px]">
                     {primaryRequest.assigned_worker && canShowLiveMap ? (
                       <Suspense
                         fallback={
-                          <div className="grid h-full min-h-[520px] place-items-center bg-slate-100">
+                          <div className="grid h-full min-h-[600px] place-items-center bg-slate-100 lg:min-h-[640px]">
                             <p className="text-sm font-bold text-slate-500">Preparing live view...</p>
                           </div>
                         }
@@ -1545,30 +1545,97 @@ export const Navbar: React.FC<NavbarProps> = ({
                         </div>
                       </div>
                     ) : (
-                      <div className="relative grid h-full min-h-[520px] place-items-center overflow-hidden bg-slate-950 p-8 text-center text-white">
-                        <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_20%,rgba(0,144,255,0.42),transparent_30%),radial-gradient(circle_at_80%_70%,rgba(255,199,0,0.22),transparent_28%)]" />
-                        <div className="absolute inset-x-12 top-16 h-px bg-white/10" />
-                        <div className="relative max-w-lg">
-                          <div className="mx-auto mb-8 grid h-28 w-28 place-items-center rounded-full bg-white/10 ring-1 ring-white/15">
-                            <div className="grid h-20 w-20 place-items-center rounded-full bg-bird-blue shadow-[0_0_40px_rgba(0,144,255,0.55)]">
-                              <svg className="h-9 w-9" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.2} d="M21 21l-4.35-4.35m1.6-5.4a7 7 0 11-14 0 7 7 0 0114 0z" />
-                              </svg>
+                      <div className="relative min-h-[520px] overflow-hidden bg-slate-50 px-5 py-6 sm:px-7 sm:py-8">
+                        <div className="absolute inset-0 bg-[radial-gradient(circle_at_18%_18%,rgba(0,144,255,0.12),transparent_28%),radial-gradient(circle_at_88%_12%,rgba(255,199,0,0.14),transparent_22%)]" />
+                        <div className="relative mx-auto flex min-h-[460px] max-w-5xl flex-col gap-5">
+                          <div className="rounded-[28px] border border-slate-200/80 bg-white p-5 shadow-[0_20px_55px_rgba(15,23,42,0.08)] sm:p-7">
+                            <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
+                              <div className="flex min-w-0 items-start gap-4 sm:gap-5">
+                                <div className="relative grid h-20 w-20 shrink-0 place-items-center rounded-[24px] bg-sky-50 text-bird-blue ring-1 ring-sky-100 sm:h-24 sm:w-24">
+                                  <span className="absolute inset-2 animate-pulse rounded-[20px] bg-bird-blue/10" />
+                                  <svg className="relative h-10 w-10 sm:h-12 sm:w-12" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.2} d="M21 21l-4.35-4.35m1.6-5.4a7 7 0 11-14 0 7 7 0 0114 0z" />
+                                  </svg>
+                                </div>
+                                <div className="min-w-0">
+                                  <div className="flex flex-wrap items-center gap-2">
+                                    <span className="inline-flex items-center gap-2 rounded-full bg-sky-50 px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.16em] text-bird-blue">
+                                      <span className="h-2 w-2 rounded-full bg-bird-blue" />
+                                      Matching in progress
+                                    </span>
+                                    <span className="rounded-full bg-amber-50 px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.14em] text-amber-700">
+                                      Request #{primaryRequest.id_request}
+                                    </span>
+                                  </div>
+                                  <h3 className="mt-4 text-3xl font-black leading-[1.05] text-slate-950 sm:text-4xl">
+                                    Finding the right pro
+                                  </h3>
+                                  <p className="mt-3 max-w-2xl text-sm font-semibold leading-6 text-slate-600">
+                                    We are checking verified professionals near your address. You can leave this screen open; it updates automatically as soon as someone accepts.
+                                  </p>
+                                </div>
+                              </div>
+                              <div className="rounded-2xl border border-sky-100 bg-sky-50/80 px-4 py-3 text-left lg:w-[260px]">
+                                <p className="text-[10px] font-black uppercase tracking-[0.16em] text-bird-blue">Next step</p>
+                                <p className="mt-1 text-sm font-black text-slate-950">Live route opens after matching</p>
+                              </div>
                             </div>
                           </div>
-                          <p className="mb-3 text-xs font-black uppercase tracking-[0.22em] text-bird-yellow">Matching in progress</p>
-                          <h3 className="text-4xl font-black leading-tight">Finding the right pro</h3>
-                          <p className="mx-auto mt-4 max-w-md text-sm font-semibold leading-7 text-white/75">
-                            We are looking for a verified professional near your address. As soon as one accepts, this turns into your live route view.
-                          </p>
 
-                          <div className="mt-8 grid grid-cols-3 gap-3 text-left">
-                            {['Request sent', 'Pros nearby', 'Live route next'].map((label, index) => (
-                              <div key={label} className="rounded-2xl border border-white/10 bg-white/10 p-3">
-                                <div className={`mb-3 h-2 w-2 rounded-full ${index <= 1 ? 'bg-bird-yellow' : 'bg-white/35'}`} />
-                                <p className="text-xs font-black leading-5 text-white">{label}</p>
+                          <div className="grid gap-4 lg:grid-cols-[1fr_0.9fr]">
+                            <section className="rounded-[28px] border border-slate-200/80 bg-white p-5 shadow-[0_16px_45px_rgba(15,23,42,0.07)] sm:p-6">
+                              <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">Progress</p>
+                              <div className="mt-5 grid gap-3 sm:grid-cols-3">
+                                {[
+                                  ['Request sent', 'Your request is active.', true],
+                                  ['Pros nearby', 'Checking verified pros.', true],
+                                  ['Route next', 'Starts after approval.', false],
+                                ].map(([label, helper, active]) => (
+                                  <div
+                                    key={String(label)}
+                                    className={`rounded-2xl border p-4 ${
+                                      active
+                                        ? 'border-sky-100 bg-sky-50'
+                                        : 'border-slate-200 bg-slate-50'
+                                    }`}
+                                  >
+                                    <div className={`mb-3 h-2.5 w-2.5 rounded-full ${active ? 'bg-bird-blue' : 'bg-slate-300'}`} />
+                                    <p className="text-sm font-black text-slate-950">{label}</p>
+                                    <p className="mt-1 text-xs font-semibold leading-5 text-slate-500">{helper}</p>
+                                  </div>
+                                ))}
                               </div>
-                            ))}
+                              <div className="mt-5 rounded-2xl border border-amber-100 bg-amber-50/80 p-4">
+                                <p className="text-sm font-black text-amber-800">Still searching</p>
+                                <p className="mt-1 text-xs font-semibold leading-5 text-amber-900/70">
+                                  If nobody accepts immediately, Fixlife keeps your request active and continues checking nearby verified professionals.
+                                </p>
+                              </div>
+                            </section>
+
+                            <aside className="rounded-[28px] border border-slate-200/80 bg-white p-5 shadow-[0_16px_45px_rgba(15,23,42,0.07)] sm:p-6">
+                              <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">Request summary</p>
+                              <div className="mt-5 space-y-3">
+                                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                                  <p className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">Service</p>
+                                  <p className="mt-1 text-base font-black leading-6 text-slate-950">{primaryRequest.service_name}</p>
+                                </div>
+                                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                                  <p className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">Location</p>
+                                  <p className="mt-1 text-sm font-bold leading-6 text-slate-700">{primaryRequest.location_text || 'Location confirmed'}</p>
+                                </div>
+                                <div className="grid grid-cols-2 gap-3">
+                                  <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                                    <p className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">Visit</p>
+                                    <p className="mt-1 text-sm font-black text-slate-950">{formatRequestSchedule(primaryRequest)}</p>
+                                  </div>
+                                  <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                                    <p className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">Budget</p>
+                                    <p className="mt-1 text-sm font-black text-slate-950">${Number(primaryRequest.budget || 0).toFixed(2)}</p>
+                                  </div>
+                                </div>
+                              </div>
+                            </aside>
                           </div>
                         </div>
                       </div>
