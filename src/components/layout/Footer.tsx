@@ -1,4 +1,5 @@
 import React from 'react';
+import { useNavigate } from 'react-router-dom';
 import { TextHoverEffect } from '../common/TextHoverEffect';
 
 interface FooterProps {
@@ -16,6 +17,7 @@ export const Footer: React.FC<FooterProps> = ({
   onGoHome,
   onNavigateSection,
 }) => {
+  const navigate = useNavigate();
   const platformLinks = [
     { label: 'Explore Services', target: 'services' },
     { label: 'How it Works', target: 'steps' },
@@ -26,19 +28,20 @@ export const Footer: React.FC<FooterProps> = ({
 
   const companyLinks = [
     { label: 'Reviews', target: 'testimonials' },
+    { label: 'Leave a Review', onClick: () => navigate('/leave-review') },
     { label: 'Become a Pro', onClick: onOpenPro },
   ];
 
   return (
-    <footer className="relative bg-gradient-to-b from-transparent via-orange-50/30 to-gray-50 pt-16 pb-10 border-t border-gray-200">
+    <footer className="relative bg-slate-900 pt-16 pb-10 border-t border-slate-800">
       <div className="absolute inset-0 overflow-hidden pointer-events-none z-0">
         <div className="absolute bottom-0 left-[10%] w-[500px] h-[500px] bg-bird-blue/10 rounded-full blur-[100px]" />
-        <div className="absolute top-20 right-[10%] w-[400px] h-[400px] bg-bird-yellow/10 rounded-full blur-[100px]" />
-        <div className="absolute bottom-[15%] right-[5%] w-[300px] h-[300px] bg-bird-orange/10 rounded-full blur-[80px]" />
+        <div className="absolute top-20 right-[10%] w-[400px] h-[400px] bg-bird-yellow/5 rounded-full blur-[100px]" />
+        <div className="absolute bottom-[15%] right-[5%] w-[300px] h-[300px] bg-bird-blue/8 rounded-full blur-[80px]" />
       </div>
 
       <div className="max-w-[1400px] mx-auto px-4 md:px-8 relative z-10">
-        <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-12 gap-8 lg:gap-8 mb-16 text-gray-900">
+        <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-12 gap-8 lg:gap-8 mb-16">
           <div className="col-span-2 lg:col-span-6 flex flex-col items-start gap-6 mb-8 lg:mb-0">
             <button
               type="button"
@@ -51,15 +54,15 @@ export const Footer: React.FC<FooterProps> = ({
                   alt="Fixlife Mascot"
                   className="w-16 h-16 object-contain drop-shadow-lg group-hover:scale-110 transition-transform duration-300"
                 />
-                <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-green-500 rounded-full border-2 border-white shadow-lg" />
+                <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-emerald-500 rounded-full border-2 border-slate-900 shadow-lg" />
               </div>
               <div>
-                <span className="font-bold text-2xl tracking-tight text-gray-900 block">Fixlife</span>
+                <span className="font-bold text-2xl tracking-tight text-white block">Fixlife</span>
                 <span className="text-xs text-bird-blue font-semibold">Your Home Hero</span>
               </div>
             </button>
 
-            <p className="text-gray-600 text-sm leading-relaxed max-w-sm">
+            <p className="text-slate-400 text-sm leading-relaxed max-w-sm">
               The leading platform connecting local talent with real needs. Safety, trust, and speed in every service.
             </p>
 
@@ -72,7 +75,7 @@ export const Footer: React.FC<FooterProps> = ({
               ].map((social) => (
                 <div
                   key={social.name}
-                  className="w-10 h-10 rounded-xl bg-white border border-gray-200 flex items-center justify-center text-gray-500"
+                  className="w-10 h-10 rounded-xl bg-slate-800 border border-slate-700 flex items-center justify-center text-slate-400 hover:bg-bird-blue hover:border-bird-blue hover:text-white transition-all cursor-pointer"
                   aria-hidden="true"
                 >
                   <span className="sr-only">{social.name}</span>
@@ -85,7 +88,7 @@ export const Footer: React.FC<FooterProps> = ({
           </div>
 
           <div className="col-span-1 lg:col-span-3">
-            <h4 className="text-gray-900 font-bold text-base mb-5 flex items-center gap-2">
+            <h4 className="text-white font-bold text-base mb-5 flex items-center gap-2">
               <div className="w-1 h-5 bg-bird-blue rounded-full" />
               Platform
             </h4>
@@ -95,7 +98,7 @@ export const Footer: React.FC<FooterProps> = ({
                   <button
                     type="button"
                     onClick={() => onNavigateSection?.(item.target)}
-                    className="text-gray-600 hover:text-bird-blue hover:translate-x-1 transition-all text-sm font-medium inline-flex items-center gap-2 group"
+                    className="text-slate-400 hover:text-white hover:translate-x-1 transition-all text-sm font-medium inline-flex items-center gap-2 group"
                   >
                     <svg className="w-4 h-4 opacity-0 group-hover:opacity-100 transition-opacity" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
@@ -108,7 +111,7 @@ export const Footer: React.FC<FooterProps> = ({
           </div>
 
           <div className="col-span-1 lg:col-span-3">
-            <h4 className="text-gray-900 font-bold text-base mb-5 flex items-center gap-2">
+            <h4 className="text-white font-bold text-base mb-5 flex items-center gap-2">
               <div className="w-1 h-5 bg-bird-yellow rounded-full" />
               Company
             </h4>
@@ -118,7 +121,7 @@ export const Footer: React.FC<FooterProps> = ({
                   <button
                     type="button"
                     onClick={() => (item.onClick ? item.onClick() : onNavigateSection?.(item.target as string))}
-                    className="text-gray-600 hover:text-bird-blue hover:translate-x-1 transition-all text-sm font-medium inline-flex items-center gap-2 group"
+                    className="text-slate-400 hover:text-white hover:translate-x-1 transition-all text-sm font-medium inline-flex items-center gap-2 group"
                   >
                     <svg className="w-4 h-4 opacity-0 group-hover:opacity-100 transition-opacity" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
@@ -136,8 +139,8 @@ export const Footer: React.FC<FooterProps> = ({
           <TextHoverEffect text="Fixlife" />
         </div>
 
-        <div className="pt-8 border-t border-gray-200 flex flex-col md:flex-row items-center justify-between gap-4 text-xs text-gray-500 text-center md:text-left">
-          <div className="flex items-center gap-2 text-gray-400">
+        <div className="pt-8 border-t border-slate-800 flex flex-col md:flex-row items-center justify-between gap-4 text-xs text-slate-500 text-center md:text-left">
+          <div className="flex items-center gap-2 text-slate-500">
             <p>(c) 2024 Fixlife Inc. All rights reserved.</p>
             <span className="hidden md:inline">|</span>
             <p className="hidden md:inline">Built for your home.</p>
@@ -146,7 +149,7 @@ export const Footer: React.FC<FooterProps> = ({
             <button
               type="button"
               onClick={onOpenAdmin}
-              className="text-gray-400 hover:text-bird-blue transition-colors font-bold text-xs"
+              className="text-slate-500 hover:text-bird-blue transition-colors font-bold text-xs"
             >
               <span className="flex items-center gap-1">
                 <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -155,11 +158,11 @@ export const Footer: React.FC<FooterProps> = ({
                 Admin Area
               </span>
             </button>
-            <span className="text-gray-300 hidden md:inline">|</span>
+            <span className="text-slate-700 hidden md:inline">|</span>
             <button
               type="button"
               onClick={() => onNavigateSection?.('faq')}
-              className="hover:text-bird-blue transition-colors font-medium"
+              className="text-slate-500 hover:text-white transition-colors font-medium"
             >
               Help Center
             </button>

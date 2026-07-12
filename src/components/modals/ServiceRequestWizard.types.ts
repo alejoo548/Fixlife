@@ -94,6 +94,15 @@ export interface MyServiceRequest {
         released_at: string | null;
     } | null;
     images: { file_name: string; url: string }[];
+    has_rating?: boolean;
+    rating?: {
+        id_rating: number;
+        punctuality: number;
+        quality: number;
+        price_fairness: number;
+        comment: string | null;
+        created_at: string | null;
+    } | null;
 }
 
 export interface WorkerPortfolioPhoto {

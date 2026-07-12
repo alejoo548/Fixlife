@@ -59,6 +59,7 @@ export const SupportAdmin: React.FC<SupportAdminProps> = ({ token }) => {
   const [isLoading, setIsLoading] = useState(false);
   const [isSending, setIsSending] = useState(false);
   const [statusFilter, setStatusFilter] = useState<'all' | 'open' | 'waiting_for_user' | 'resolved' | 'closed'>('all');
+  const [roleFilter, setRoleFilter] = useState<'all' | 'client' | 'worker'>('all');
   const [isSocketConnected, setIsSocketConnected] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [replyImage, setReplyImage] = useState<File | null>(null);
@@ -262,7 +263,17 @@ export const SupportAdmin: React.FC<SupportAdminProps> = ({ token }) => {
     }
   }, [messages]);
 
-  const filteredThreads = statusFilter === 'all' ? threads : threads.filter((t) => t.status === statusFilter);
+  const filteredThreads = threads.filter((t) => {
+    if (statusFilter !== 'all' && t.status !== statusFilter) return false;
+    if (roleFilter !== 'all') {
+      const role = String(t.userRole || 'client').toLowerCase();
+      if (roleFilter === 'worker' && role !== 'worker') return false;
+      if (roleFilter === 'client' && role === 'worker') return false;
+    }
+    return true;
+  });
+  const clientCount = threads.filter((t) => String(t.userRole || 'client').toLowerCase() !== 'worker').length;
+  const workerCount = threads.filter((t) => String(t.userRole || '').toLowerCase() === 'worker').length;
 
   const d = isDark;
   const border = d ? 'border-gray-700' : 'border-gray-200';
@@ -285,7 +296,9 @@ export const SupportAdmin: React.FC<SupportAdminProps> = ({ token }) => {
         {/* Sidebar header */}
         <div className={`px-4 py-3 flex items-center justify-between border-b ${border}`}>
           <div className="flex items-center gap-2">
-            <span className={`font-bold ${textPrimary} text-base`}>Support</span>
+            <span className={`font-bold ${textPrimary} text-base`}>
+              Support {roleFilter === 'worker' ? '· Pros' : roleFilter === 'client' ? '· Clients' : ''}
+            </span>
             <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${
               isSocketConnected ? 'bg-emerald-500/15 text-emerald-500' : 'bg-red-500/15 text-red-500'
             }`}>
@@ -299,6 +312,28 @@ export const SupportAdmin: React.FC<SupportAdminProps> = ({ token }) => {
           >
             <RefreshCw size={15} className={isLoading ? 'animate-spin' : ''} />
           </button>
+        </div>
+
+        {/* Role tabs */}
+        <div className={`px-3 pt-2 pb-1 border-b ${border} flex gap-1`}>
+          {([
+            { key: 'all', label: 'All', count: threads.length },
+            { key: 'client', label: 'Clients', count: clientCount },
+            { key: 'worker', label: 'Pros', count: workerCount },
+          ] as const).map((tab) => (
+            <button
+              key={tab.key}
+              type="button"
+              onClick={() => setRoleFilter(tab.key)}
+              className={`flex-1 rounded-lg px-2 py-1.5 text-[11px] font-bold uppercase tracking-wide transition ${
+                roleFilter === tab.key
+                  ? d ? 'bg-bird-blue text-white' : 'bg-bird-blue text-white'
+                  : d ? 'text-gray-400 hover:bg-gray-800' : 'text-gray-500 hover:bg-gray-100'
+              }`}
+            >
+              {tab.label} <span className="ml-1 opacity-70">{tab.count}</span>
+            </button>
+          ))}
         </div>
 
         {/* Filter */}
@@ -343,15 +378,26 @@ export const SupportAdmin: React.FC<SupportAdminProps> = ({ token }) => {
                   <Avatar name={thread.userName} />
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center justify-between gap-1 mb-0.5">
-                      <span className={`font-semibold text-sm ${textPrimary} truncate`}>
-                        {thread.userName}
-                      </span>
+                      <div className="flex min-w-0 items-center gap-1.5">
+                        <span className={`font-semibold text-sm ${textPrimary} truncate`}>
+                          {thread.userName}
+                        </span>
+                        {String(thread.userRole || '').toLowerCase() === 'worker' ? (
+                          <span className="shrink-0 rounded-full bg-violet-500/15 px-1.5 py-0.5 text-[9px] font-black uppercase tracking-wide text-violet-500">
+                            Pro
+                          </span>
+                        ) : (
+                          <span className="shrink-0 rounded-full bg-sky-500/15 px-1.5 py-0.5 text-[9px] font-black uppercase tracking-wide text-sky-500">
+                            Client
+                          </span>
+                        )}
+                      </div>
                       <span className={`text-[9px] px-1.5 py-0.5 rounded-full font-medium flex-shrink-0 ${STATUS_COLORS[thread.status] ?? 'bg-gray-100 text-gray-500'}`}>
                         {STATUS_LABELS[thread.status] ?? thread.status}
                       </span>
                     </div>
                     <div className={`text-xs ${textSub} truncate leading-snug`}>
-                      {thread.subject}
+                      {String(thread.userRole || '').toLowerCase() === 'worker' ? 'Request · ' : ''}{thread.subject}
                     </div>
                     {thread.priority === 'high' && (
                       <span className={`text-[9px] mt-1 inline-block px-1.5 py-0.5 rounded-full text-red-500 font-medium ${d ? 'bg-red-900/30' : 'bg-red-100'}`}>
@@ -391,11 +437,17 @@ export const SupportAdmin: React.FC<SupportAdminProps> = ({ token }) => {
                 </button>
                 <Avatar name={selectedThread.userName} size="sm" />
                 <div>
-                  <div className={`font-semibold text-sm ${textPrimary} leading-tight`}>
-                    {selectedThread.userName}
-                    <span className={`ml-1.5 text-xs font-normal ${textMuted}`}>
-                      ({selectedThread.userRole})
-                    </span>
+                  <div className={`font-semibold text-sm ${textPrimary} leading-tight flex items-center gap-2`}>
+                    <span className="truncate">{selectedThread.userName}</span>
+                    {String(selectedThread.userRole || '').toLowerCase() === 'worker' ? (
+                      <span className="rounded-full bg-violet-500/15 px-2 py-0.5 text-[10px] font-black uppercase tracking-wide text-violet-500">
+                        Pro request
+                      </span>
+                    ) : (
+                      <span className="rounded-full bg-sky-500/15 px-2 py-0.5 text-[10px] font-black uppercase tracking-wide text-sky-500">
+                        Client message
+                      </span>
+                    )}
                   </div>
                   <div className={`text-xs ${textMuted} leading-tight truncate max-w-[300px]`}>
                     {selectedThread.subject}

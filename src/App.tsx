@@ -16,11 +16,13 @@ import { Button } from './components/common/Button';
 import { ThreeDCard } from './components/common/ThreeDCard';
 import ForgotPassword from './pages/ForgotPassword';
 import UserProfile from './pages/UserProfile';
-import { getRememberedProtectedRoute, clearRememberedProtectedRoute, hasRole, isAuthenticated, logoutAuthSession, getToken } from './utils/session';
+import { getRememberedProtectedRoute, clearRememberedProtectedRoute, consumeLogoutNotice, hasRole, isAuthenticated, logoutAndReload, getToken, getActiveAuthToken } from './utils/session';
 import { SupportChatWidget } from './components/support/SupportChatWidget';
+import { showSweetToast } from './utils/sweetAlert';
 import { API_ENDPOINTS } from './config/api';
 import { isExternalStockImage, normalizeImageUrl } from './utils/imageUrls';
 import { ProtectedRoute } from './routes/ProtectedRoute';
+import UserAmbientBackground from './components/common/UserAmbientBackground';
 
 const ServiceRequestWizard = lazy(() =>
   import('./components/modals/ServiceRequestWizard').then((module) => ({
@@ -39,18 +41,17 @@ const AdminApp = lazy(() =>
 );
 const PaymentCheckoutPage = lazy(() => import('./pages/PaymentCheckoutPage'));
 const ResetPassword = lazy(() => import('./pages/ResetPassword'));
+const LeaveReview = lazy(() => import('./pages/LeaveReview'));
+const MyServicesHistory = lazy(() => import('./pages/MyServicesHistory'));
 
 const navItems: NavItemType[] = [
   { name: "Services" },
   { name: "Professionals" },
   {
-    name: "Categories",
-    items: ["Plumbing", "Electrical", "Cleaning", "Landscaping", "Mechanics"]
-  },
-  {
     name: "Help",
     items: ["Support", "How it works"]
-  }
+  },
+  { name: "Reviews" }
 ];
 
 interface HomeServiceCard {
@@ -248,6 +249,12 @@ const App: React.FC = () => {
   const isLandingRoute = location.pathname === '/';
 
   useEffect(() => {
+    if (consumeLogoutNotice()) {
+      void showSweetToast({ tone: 'success', message: 'Logged out successfully.' });
+    }
+  }, []);
+
+  useEffect(() => {
     const fetchServiceCards = async () => {
       try {
         const res = await fetch(API_ENDPOINTS.services.cards);
@@ -357,9 +364,7 @@ const App: React.FC = () => {
   };
 
   const handleWorkerSignOut = () => {
-    logoutAuthSession('worker');
-    navigate('/', { replace: true });
-    window.scrollTo(0, 0);
+    logoutAndReload('worker');
   };
 
   const handleBackToRequests = () => {
@@ -462,7 +467,8 @@ const App: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-sky-50 via-amber-50 to-orange-50 text-gray-900 selection:bg-bird-blue selection:text-white overflow-x-hidden font-sans flex flex-col relative transition-colors duration-500">
+    <div className="min-h-screen bg-white text-gray-900 selection:bg-bird-blue selection:text-white overflow-x-hidden font-sans flex flex-col relative transition-colors duration-500 dark:bg-slate-950 dark:text-slate-100">
+      <UserAmbientBackground />
       <AuthModal
         isOpen={isAuthOpen}
         onClose={() => {
@@ -534,6 +540,25 @@ const App: React.FC = () => {
           )}
         />
         <Route
+          path="/mis-servicios"
+          element={(
+            <ProtectedRoute>
+              <Navbar
+                navItems={navItems}
+                onOpenAuth={handleOpenAuth}
+                onStartBooking={handleStartBooking}
+                onOpenProfile={handleOpenProfile}
+                onGoHome={handleBackToLanding}
+                onNavigateSection={handleNavigateSection}
+                onSelectCategory={handleSelectCategory}
+              />
+              <Suspense fallback={<AppRouteFallback title="Loading your services..." subtitle="Fetching your service history." />}>
+                <MyServicesHistory onGoHome={handleBackToLanding} />
+              </Suspense>
+            </ProtectedRoute>
+          )}
+        />
+        <Route
           path="/profile"
           element={(
             <ProtectedRoute>
@@ -563,6 +588,14 @@ const App: React.FC = () => {
           element={(
             <Suspense fallback={<AppRouteFallback title="Loading recovery..." subtitle="Opening password reset." />}>
               <ResetPassword />
+            </Suspense>
+          )}
+        />
+        <Route
+          path="/leave-review"
+          element={(
+            <Suspense fallback={<AppRouteFallback title="Loading review form..." subtitle="Getting the form ready." />}>
+              <LeaveReview onOpenAuth={handleOpenAuth} />
             </Suspense>
           )}
         />
@@ -830,14 +863,14 @@ const App: React.FC = () => {
       </Routes>
 
       {}
-      {!hasRole('admin', 'admin') && (
-        <SupportChatWidget token={getToken()} />
-      )}
+      {(() => {
+        const { token, scope } = getActiveAuthToken();
+        if (!token || scope === 'admin') return null;
+        return <SupportChatWidget token={token} scope={scope || undefined} />;
+      })()}
 
     </div>
   );
 };
 
 export default App;
-
-

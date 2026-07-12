@@ -4,7 +4,7 @@ import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { Activity, Banknote, ChevronLeft, ChevronRight, FileText, Gauge, Headphones, Image, LogOut, Menu, Search, Settings, ShieldCheck, ShieldAlert, Users, Wrench, X } from 'lucide-react';
 import { DashboardThemeToggle } from '../../../components/common/DashboardThemeToggle';
 import { useDashboardTheme } from '../../../hooks/useDashboardTheme';
-import { getAuthUser, logoutAuthSession } from '../../../utils/session';
+import { getAuthUser, logoutAndReload } from '../../../utils/session';
 import { getToken } from '../../../utils/session';
 import { NotificationCenter } from '../../../components/common/NotificationCenter';
 import { adminApi } from '../api/adminApi';
@@ -54,7 +54,7 @@ export const AdminShell = ({ onClose }: { onClose: () => void }) => {
   const user = getAuthUser('admin');
   const section = location.pathname.split('/')[2] || 'overview';
   const [title, subtitle] = titles[section] || titles.overview;
-  const signOut = () => { logoutAuthSession('admin'); onClose(); };
+  const signOut = () => { logoutAndReload('admin'); };
 
   useEffect(() => {
     const query = search.trim();

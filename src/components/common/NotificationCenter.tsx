@@ -23,7 +23,7 @@ interface NotificationItem {
 interface NotificationCenterProps {
   token: string | null;
   isActive?: boolean;
-  variant?: 'landing' | 'panel' | 'admin';
+  variant?: 'landing' | 'panel' | 'admin' | 'plain';
   className?: string;
   theme?: 'light' | 'dark';
 }
@@ -146,7 +146,6 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({
   className = '',
   theme = 'light',
 }) => {
-  const isAdmin = variant === 'admin';
   const navigate = useNavigate();
   const [isOpen, setIsOpen] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -368,7 +367,7 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({
       animate={{ opacity: 1, y: 0, scale: 1 }}
       exit={{ opacity: 0, y: -8, scale: 0.98 }}
       transition={{ duration: 0.2, ease: 'easeOut' }}
-      className={`notification-dropdown ${isAdmin ? `admin-notification-dropdown admin-notification-dropdown--${theme}` : ''} w-[360px] max-w-[calc(100vw-2rem)] overflow-hidden rounded-[28px] border border-white/70 bg-white/96 shadow-[0_24px_60px_rgba(15,23,42,0.16)] backdrop-blur-xl ${
+      className={`notification-dropdown admin-notification-dropdown ${theme === 'dark' ? `admin-notification-dropdown--${theme}` : ''} w-[360px] max-w-[calc(100vw-2rem)] overflow-hidden rounded-[28px] border border-white/70 bg-white/96 shadow-[0_24px_60px_rgba(15,23,42,0.16)] backdrop-blur-xl ${
         variant === 'panel'
           ? 'fixed z-[9999]'
           : 'absolute right-0 top-14 z-[160]'
@@ -560,12 +559,12 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({
         ref={buttonRef}
         type="button"
         onClick={() => setIsOpen((prev) => !prev)}
-        className={`relative flex h-11 w-11 items-center justify-center rounded-2xl border transition duration-300 ${
-          variant === 'admin'
-            ? 'admin-notification-button'
+        className={`relative flex h-11 w-11 items-center justify-center rounded-2xl transition duration-300 ${
+          variant === 'plain'
+            ? 'border-transparent bg-transparent text-gray-700 hover:text-bird-blue'
             : variant === 'panel'
-            ? 'border-white/60 bg-white/90 text-slate-700 shadow-[0_16px_30px_rgba(15,23,42,0.08)] hover:-translate-y-0.5 hover:border-bird-blue/30 hover:text-bird-blue hover:shadow-[0_18px_32px_rgba(0,144,255,0.18)]'
-            : 'border-gray-200 bg-white text-slate-700 shadow-sm hover:-translate-y-0.5 hover:border-bird-blue/20 hover:text-bird-blue hover:shadow-[0_12px_24px_rgba(0,144,255,0.14)]'
+            ? 'admin-notification-button border border-white/60 bg-white/90 text-slate-700 shadow-[0_16px_30px_rgba(15,23,42,0.08)] hover:-translate-y-0.5 hover:border-bird-blue/30 hover:text-bird-blue hover:shadow-[0_18px_32px_rgba(0,144,255,0.18)]'
+            : 'admin-notification-button border border-gray-200 bg-white text-slate-700 shadow-sm hover:-translate-y-0.5 hover:border-bird-blue/20 hover:text-bird-blue hover:shadow-[0_12px_24px_rgba(0,144,255,0.14)]'
         }`}
         aria-label="Open notifications"
       >

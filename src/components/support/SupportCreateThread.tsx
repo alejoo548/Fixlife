@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { hasUnsafeSupportText, sanitizeSupportTextInput } from '../../utils/supportSecurity';
+import { useProfanityGuard } from '../../hooks/useProfanityGuard';
 
 interface SupportCreateThreadProps {
   onSubmit: (subject: string, message: string) => void;
@@ -15,6 +16,8 @@ export const SupportCreateThread: React.FC<SupportCreateThreadProps> = ({
   const [subject, setSubject] = useState('');
   const [message, setMessage] = useState('');
   const hasUnsafeContent = hasUnsafeSupportText(subject) || hasUnsafeSupportText(message);
+  const subjectGuard = useProfanityGuard();
+  const messageGuard = useProfanityGuard();
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -39,7 +42,7 @@ export const SupportCreateThread: React.FC<SupportCreateThreadProps> = ({
           <input
             type="text"
             value={subject}
-            onChange={(e) => setSubject(sanitizeSupportTextInput(e.target.value, 120, true))}
+            onChange={(e) => setSubject(subjectGuard.guardValue(sanitizeSupportTextInput(e.target.value, 120, true)))}
             placeholder="E.g.: I can't see my payments"
             className="w-full rounded-3xl border border-gray-200/70 bg-white px-4 py-3.5 text-[15px] font-medium placeholder:text-gray-400 focus:border-bird-blue focus:outline-none"
             maxLength={80}
@@ -53,14 +56,16 @@ export const SupportCreateThread: React.FC<SupportCreateThreadProps> = ({
           </label>
           <textarea
             value={message}
-            onChange={(e) => setMessage(sanitizeSupportTextInput(e.target.value, 2000))}
+            onChange={(e) => setMessage(messageGuard.guardValue(sanitizeSupportTextInput(e.target.value, 2000)))}
             placeholder="Tell us what's going on..."
             rows={6}
             className="w-full resize-none rounded-3xl border border-gray-200/70 bg-white px-4 py-3.5 text-[15px] font-medium placeholder:text-gray-400 focus:border-bird-blue focus:outline-none"
             required
           />
-          <div className={`mt-1 text-right text-[10px] ${hasUnsafeContent ? 'text-red-500' : 'text-gray-400'}`}>
-            {hasUnsafeContent ? 'Malicious characters or patterns are not allowed.' : `${message.length}/2000`}
+          <div className={`mt-1 text-right text-[10px] ${hasUnsafeContent || messageGuard.warning ? 'text-red-500' : 'text-gray-400'}`}>
+            {hasUnsafeContent
+              ? 'Malicious characters or patterns are not allowed.'
+              : messageGuard.warning || `${message.length}/2000`}
           </div>
         </div>
 

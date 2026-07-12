@@ -4,6 +4,7 @@ import { showSweetToast } from '../../utils/sweetAlert';
 import { motion, AnimatePresence } from 'framer-motion';
 import WorkerForgotPassword from '../../pages/WorkerForgotPassword';
 import { getAuthUser, getToken, setAuthSession, updateStoredAuthUser } from '../../utils/session';
+import PasswordInput from '../common/PasswordInput';
 
 interface ServiceOption {
   id_service: number;
@@ -434,10 +435,10 @@ export const WorkerAuthModal: React.FC<WorkerAuthModalProps> = ({ isOpen, onClos
 
                     <div className="grid grid-cols-2 gap-2.5">
                       <div className="bg-gray-50 rounded-lg p-1 border border-gray-200 focus-within:border-bird-orange/50 transition-colors">
-                        <input required value={formData.password} onChange={e => setFormData({...formData, password: e.target.value})} type="password" maxLength={128} placeholder="Password" className="w-full bg-transparent px-3 py-2 text-sm text-gray-900 outline-none placeholder-gray-500" />
+                        <PasswordInput required value={formData.password} onChange={e => setFormData({...formData, password: e.target.value})}  maxLength={128} placeholder="Password" className="w-full bg-transparent px-3 py-2 text-sm text-gray-900 outline-none placeholder-gray-500" />
                       </div>
                       <div className="bg-gray-50 rounded-lg p-1 border border-gray-200 focus-within:border-bird-orange/50 transition-colors">
-                        <input required value={formData.confirmPassword} onChange={e => setFormData({...formData, confirmPassword: e.target.value})} type="password" maxLength={128} placeholder="Confirm Password" className="w-full bg-transparent px-3 py-2 text-sm text-gray-900 outline-none placeholder-gray-500" />
+                        <PasswordInput required value={formData.confirmPassword} onChange={e => setFormData({...formData, confirmPassword: e.target.value})}  maxLength={128} placeholder="Confirm Password" className="w-full bg-transparent px-3 py-2 text-sm text-gray-900 outline-none placeholder-gray-500" />
                       </div>
                     </div>
 
@@ -645,7 +646,7 @@ export const WorkerAuthModal: React.FC<WorkerAuthModalProps> = ({ isOpen, onClos
               <input required value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} type="email" maxLength={100} placeholder="Email Address" className="w-full bg-transparent px-3 py-3 text-sm text-gray-900 outline-none placeholder-gray-500" />
             </div>
             <div className="bg-gray-50 rounded-lg p-1 border border-gray-200 focus-within:border-bird-orange/50 transition-colors">
-              <input required value={formData.password} onChange={e => setFormData({...formData, password: e.target.value})} type="password" maxLength={128} placeholder="Password" className="w-full bg-transparent px-3 py-3 text-sm text-gray-900 outline-none placeholder-gray-500" />
+              <PasswordInput required value={formData.password} onChange={e => setFormData({...formData, password: e.target.value})}  maxLength={128} placeholder="Password" className="w-full bg-transparent px-3 py-3 text-sm text-gray-900 outline-none placeholder-gray-500" />
             </div>
             
             <button
@@ -736,10 +737,10 @@ export const WorkerAuthModal: React.FC<WorkerAuthModalProps> = ({ isOpen, onClos
                     </div>
                     <div className="grid grid-cols-1 gap-3">
                       <div className="bg-white rounded-xl px-4 py-3 border border-gray-200 focus-within:border-bird-orange/50 transition-colors shadow-sm">
-                        <input required value={formData.password} onChange={e => setFormData({...formData, password: e.target.value})} type="password" maxLength={128} placeholder="Password" className="w-full bg-transparent text-sm text-gray-900 outline-none placeholder-gray-500" />
+                        <PasswordInput required value={formData.password} onChange={e => setFormData({...formData, password: e.target.value})}  maxLength={128} placeholder="Password" className="w-full bg-transparent text-sm text-gray-900 outline-none placeholder-gray-500" />
                       </div>
                       <div className="bg-white rounded-xl px-4 py-3 border border-gray-200 focus-within:border-bird-orange/50 transition-colors shadow-sm animate-fade-in-up">
-                        <input required value={formData.confirmPassword} onChange={e => setFormData({...formData, confirmPassword: e.target.value})} type="password" maxLength={128} placeholder="Confirm Password" className="w-full bg-transparent text-sm text-gray-900 outline-none placeholder-gray-500" />
+                        <PasswordInput required value={formData.confirmPassword} onChange={e => setFormData({...formData, confirmPassword: e.target.value})}  maxLength={128} placeholder="Confirm Password" className="w-full bg-transparent text-sm text-gray-900 outline-none placeholder-gray-500" />
                       </div>
                     </div>
                     <button disabled={loading} type="submit" className="mt-4 w-full py-4 rounded-xl font-bold text-sm tracking-wide shadow-lg active:scale-[0.98] transition-all duration-300 bg-gradient-to-r from-bird-yellow to-bird-gold text-gray-900 shadow-bird-yellow/20 disabled:opacity-50 disabled:cursor-not-allowed">
@@ -932,7 +933,7 @@ export const WorkerAuthModal: React.FC<WorkerAuthModalProps> = ({ isOpen, onClos
                       <input required value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} type="email" maxLength={100} placeholder="Email Address" className="w-full bg-transparent text-sm text-gray-900 outline-none placeholder-gray-500" />
                     </div>
                     <div className="bg-white rounded-xl px-4 py-3 border border-gray-200 focus-within:border-bird-orange/50 transition-colors shadow-sm">
-                      <input required value={formData.password} onChange={e => setFormData({...formData, password: e.target.value})} type="password" maxLength={128} placeholder="Password" className="w-full bg-transparent text-sm text-gray-900 outline-none placeholder-gray-500" />
+                      <PasswordInput required value={formData.password} onChange={e => setFormData({...formData, password: e.target.value})}  maxLength={128} placeholder="Password" className="w-full bg-transparent text-sm text-gray-900 outline-none placeholder-gray-500" />
                     </div>
                     <div className="flex justify-end mt-1">
                       <button

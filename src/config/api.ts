@@ -77,10 +77,15 @@ export const API_ENDPOINTS = {
     declineCounter: (idRequest: number) => `${API_URL}/api/services/requests/${idRequest}/counter/decline`,
     paymentCheckout: (idRequest: number) => `${API_URL}/api/services/requests/${idRequest}/payment-checkout`,
     confirmPayment: (idRequest: number) => `${API_URL}/api/services/requests/${idRequest}/payment-confirm`,
+    cashConfirm: (idRequest: number) => `${API_URL}/api/services/requests/${idRequest}/cash-confirm`,
     confirmCompletion: (idRequest: number) => `${API_URL}/api/services/requests/${idRequest}/confirm-completion`,
     workflowApproval: (idRequest: number) => `${API_URL}/api/services/requests/${idRequest}/workflow-approval`,
     requestChat: (idRequest: number) => `${API_URL}/api/services/requests/${idRequest}/chat`,
     requestRating: (idRequest: number) => `${API_URL}/api/services/requests/${idRequest}/rating`,
+  },
+  reviews: {
+    public: `${API_URL}/api/reviews/public`,
+    submit: `${API_URL}/api/reviews`,
   },
   notifications: {
     list: `${API_URL}/api/notifications`,

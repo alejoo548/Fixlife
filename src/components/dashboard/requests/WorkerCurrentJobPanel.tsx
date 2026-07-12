@@ -40,6 +40,7 @@ interface WorkerCurrentJobPanelProps {
   onStart: () => void;
   onComplete: () => void;
   onFinalize: () => void;
+  onConfirmCash: () => void;
 }
 
 export const WorkerCurrentJobPanel = ({
@@ -69,6 +70,7 @@ export const WorkerCurrentJobPanel = ({
   onStart,
   onComplete,
   onFinalize,
+  onConfirmCash,
 }: WorkerCurrentJobPanelProps) => (
   <section className="absolute inset-x-3 bottom-4 z-[500] lg:bottom-auto lg:left-auto lg:right-4 lg:top-4 lg:w-[380px]">
     <div className="custom-scrollbar max-h-[min(76vh,760px)] overflow-y-auto rounded-[28px] border border-white/80 bg-white/95 p-5 shadow-[0_28px_70px_rgba(15,23,42,0.16)] backdrop-blur-xl">
@@ -248,11 +250,13 @@ export const WorkerCurrentJobPanel = ({
         routeReady={routeReady}
         busy={busy}
         scheduledStartTime={request.scheduled_start_time}
+        paymentMethod={request.payment_method}
         onTravel={onTravel}
         onArrive={onArrive}
         onStart={onStart}
         onComplete={onComplete}
         onFinalize={onFinalize}
+        onConfirmCash={onConfirmCash}
         approvals={request.approvals}
         workStartedAt={request.work_started_at}
         clientApproved={Boolean(request.client_approved_at)}

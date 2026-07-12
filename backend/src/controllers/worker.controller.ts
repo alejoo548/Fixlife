@@ -983,12 +983,14 @@ export const getWorkerRequests = async (req: AuthRequest, res: Response): Promis
          u.name AS client_name,
          u.lastname AS client_lastname,
          u.profile_image AS client_profile_image,
+         srp.provider AS payment_method,
          GROUP_CONCAT(DISTINCT sri.image_url ORDER BY sri.id_image ASC SEPARATOR '||') AS image_urls
        FROM service_request_workers srw
        INNER JOIN service_requests sr ON sr.id_request = srw.id_request
        INNER JOIN services s ON s.id_service = sr.id_service
        LEFT JOIN users u ON u.id_user = sr.id_user
        LEFT JOIN service_request_images sri ON sri.id_request = sr.id_request
+       LEFT JOIN service_request_payments srp ON srp.id_request = sr.id_request
        WHERE ${whereParts.join(' AND ')}
         GROUP BY
           sr.id_request, sr.id_service, sr.description, sr.location_text, sr.latitude, sr.longitude,
@@ -996,7 +998,7 @@ export const getWorkerRequests = async (req: AuthRequest, res: Response): Promis
           sr.scheduled_start_time, sr.scheduled_end_time, sr.workflow_version, sr.client_approved_at, sr.route_started_at,
           sr.worker_arrived_at, sr.work_started_at, sr.work_finished_at, sr.completed_at, sr.status, sr.created_at, sr.assigned_worker_profile,
           s.name, s.icon, srw.distance_km, srw.status, srw.proposed_budget, srw.counter_message,
-          u.id_user, u.name, u.lastname, u.profile_image
+          u.id_user, u.name, u.lastname, u.profile_image, srp.provider
        ORDER BY
          CASE WHEN srw.status = 'new' THEN 0 ELSE 1 END,
          sr.created_at DESC
@@ -1082,6 +1084,7 @@ export const getWorkerRequests = async (req: AuthRequest, res: Response): Promis
           complete_service: { client: Boolean(row.complete_client_approved), worker: Boolean(row.complete_worker_approved) },
         },
         request_status: toPublicRequestStatus(row.request_status),
+        payment_method: row.payment_method || null,
         worker_status: row.worker_status,
         proposed_budget: row.proposed_budget != null ? Number(row.proposed_budget) : null,
         counter_message: row.counter_message || null,

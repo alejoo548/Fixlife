@@ -6,8 +6,10 @@ import { AuthProvider } from './context/AuthContext';
 import { BrowserRouter } from 'react-router-dom';
 import { AppErrorBoundary } from './components/common/AppErrorBoundary';
 import { installChunkRecovery, recoverFromChunkError } from './utils/chunkRecovery';
+import { applyUserThemeFromStorage } from './hooks/useUserTheme';
 
 installChunkRecovery();
+applyUserThemeFromStorage();
 
 if (window.location.hostname === '127.0.0.1' && window.location.port === '3000') {
   window.location.replace(`http://localhost:3000${window.location.pathname}${window.location.search}${window.location.hash}`);

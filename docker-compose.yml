@@ -9,10 +9,12 @@ services:
         VITE_GOOGLE_CLIENT_ID: ${VITE_GOOGLE_CLIENT_ID:-}
         VITE_RECAPTCHA_SITE_KEY: ${VITE_RECAPTCHA_SITE_KEY:-}
         VITE_TOMTOM_TRAFFIC_KEY: ${VITE_TOMTOM_TRAFFIC_KEY:-}
+        VITE_VIRTUAL_WALLET_CLIENT_ID: ${VITE_VIRTUAL_WALLET_CLIENT_ID:-}
+        VITE_VIRTUAL_WALLET_SCRIPT_URL: ${VITE_VIRTUAL_WALLET_SCRIPT_URL:-}
     container_name: fixlife_frontend
     restart: unless-stopped
-    expose:
-      - "3000"
+    ports:
+      - "3000:3000"
     depends_on:
       backend:
         condition: service_healthy
@@ -55,6 +57,8 @@ services:
       - PAYPAL_CLIENT_ID=${PAYPAL_CLIENT_ID:-}
       - PAYPAL_CLIENT_SECRET=${PAYPAL_CLIENT_SECRET:-}
       - PAYPAL_WEBHOOK_ID=${PAYPAL_WEBHOOK_ID:-}
+      - VIRTUAL_WALLET_CLIENT_ID=${VIRTUAL_WALLET_CLIENT_ID:-}
+      - VIRTUAL_WALLET_SECRET_KEY=${VIRTUAL_WALLET_SECRET_KEY:-}
       - PLATFORM_FEE_RATE=${PLATFORM_FEE_RATE:-0.12}
       - FRONTEND_ORIGIN=${FRONTEND_ORIGIN:-http://127.0.0.1:3000}
       - FRONTEND_URL=${FRONTEND_URL:-http://127.0.0.1:3000}

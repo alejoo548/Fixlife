@@ -4,6 +4,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { showSweetToast } from '../utils/sweetAlert';
 import { API_ENDPOINTS } from '../config/api';
 import { getAuthUser, getToken } from '../utils/session';
+import { loadVirtualWalletWidget } from '../utils/virtualWalletLoader';
 
 interface PaymentCheckoutPageProps {
     requestId: number | null;
@@ -56,7 +57,11 @@ interface MyServiceRequest {
 }
 
 type CheckoutStage = 'form' | 'success' | 'error';
-type CheckoutPaymentMethod = 'paypal' | 'wompi';
+type CheckoutPaymentMethod = 'paypal' | 'wompi' | 'cash' | 'virtual_wallet';
+
+const VIRTUAL_WALLET_AMOUNT_ELEMENT_ID = 'vw_monto';
+const VIRTUAL_WALLET_DESC_ELEMENT_ID = 'DescCarrito';
+const VIRTUAL_WALLET_CONTAINER_ID = 'vw-widget-container';
 
 const notyf = {
   success: (message: string) => void showSweetToast({ tone: 'success', message }),
@@ -216,6 +221,7 @@ const PaymentCheckoutPage: React.FC<PaymentCheckoutPageProps> = ({ requestId, on
     const [checkoutStage, setCheckoutStage] = useState<CheckoutStage>('form');
     const [checkoutMessage, setCheckoutMessage] = useState('');
     const [successCountdown, setSuccessCountdown] = useState(4);
+    const [virtualWalletWidgetLoaded, setVirtualWalletWidgetLoaded] = useState(false);
     const paypalReturnHandledRef = useRef(false);
 
     const amount = useMemo(() => getChargeAmount(request), [request]);
@@ -441,6 +447,7 @@ const PaymentCheckoutPage: React.FC<PaymentCheckoutPageProps> = ({ requestId, on
     }, [loading, requestId, request, isAlreadyPaid, location.search, navigate]);
 
     const handleSecurePayment = async (selectedMethod: CheckoutPaymentMethod = paymentMethod) => {
+        if (isPaying) return;
         const token = getToken();
         if (!token || !request) {
             notyf.error('Login required.');
@@ -453,6 +460,139 @@ const PaymentCheckoutPage: React.FC<PaymentCheckoutPageProps> = ({ requestId, on
                 message: 'Wompi will be available soon. Please use PayPal for now.',
                 background: '#1d4ed8',
             });
+            return;
+        }
+        if (selectedMethod === 'cash') {
+            if (isAlreadyPaid) {
+                notyf.open({
+                    type: 'info',
+                    message: 'This request already has a secured payment.',
+                    background: '#1d4ed8',
+                });
+                return;
+            }
+
+            setIsPaying(true);
+            try {
+                const checkoutRes = await fetch(API_ENDPOINTS.services.paymentCheckout(request.id_request), {
+                    method: 'POST',
+                    headers: {
+                        Authorization: `Bearer ${token}`,
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ payment_method: 'cash' }),
+                });
+                const checkoutPayload = await checkoutRes.json();
+                if (!checkoutRes.ok || !checkoutPayload?.success) {
+                    const message = checkoutPayload?.error || 'Could not select cash payment.';
+                    notyf.error(message);
+                    moveToErrorStage(message);
+                    return;
+                }
+
+                setRequest((prev) =>
+                    prev
+                        ? {
+                              ...prev,
+                              status: 'paid',
+                              payment: {
+                                  provider: 'cash',
+                                  checkout_reference: checkoutPayload?.checkout?.checkout_reference || null,
+                                  currency_code: displayCurrency,
+                                  amount: Number(checkoutPayload?.checkout?.amount ?? amount),
+                                  platform_fee: Number(checkoutPayload?.checkout?.platform_fee ?? platformFee),
+                                  worker_payout: Number(checkoutPayload?.checkout?.worker_payout ?? workerPayout),
+                                  commission_rate: Number(checkoutPayload?.checkout?.commission_rate ?? commissionRate),
+                                  promo_code: checkoutPayload?.checkout?.promo_code ?? prev.payment?.promo_code ?? null,
+                                  commission_snapshot: checkoutPayload?.checkout?.commission_snapshot ?? prev.payment?.commission_snapshot ?? null,
+                                  status: 'paid',
+                                  paid_at: new Date().toISOString(),
+                              },
+                          }
+                        : prev
+                );
+
+                setCheckoutStage('success');
+                setCheckoutMessage('Cash payment reserved. Your invoice was sent to your email. Pay the professional directly once the job is finished.');
+                notyf.success('Cash payment reserved. Booking secured.');
+            } catch {
+                notyf.error('Network error selecting cash payment.');
+                moveToErrorStage('The connection dropped while selecting cash payment. Please retry.');
+            } finally {
+                setIsPaying(false);
+            }
+            return;
+        }
+        if (selectedMethod === 'virtual_wallet') {
+            if (isAlreadyPaid) {
+                notyf.open({
+                    type: 'info',
+                    message: 'This request already has a secured payment.',
+                    background: '#1d4ed8',
+                });
+                return;
+            }
+
+            const scriptUrl = readString(import.meta.env.VITE_VIRTUAL_WALLET_SCRIPT_URL);
+            const clientId = readString(import.meta.env.VITE_VIRTUAL_WALLET_CLIENT_ID);
+            if (!scriptUrl || !clientId) {
+                moveToErrorStage('Virtual Wallet is not configured yet.');
+                return;
+            }
+
+            setIsPaying(true);
+            try {
+                const checkoutRes = await fetch(API_ENDPOINTS.services.paymentCheckout(request.id_request), {
+                    method: 'POST',
+                    headers: {
+                        Authorization: `Bearer ${token}`,
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ payment_method: 'virtual_wallet' }),
+                });
+                const checkoutPayload = await checkoutRes.json();
+                if (!checkoutRes.ok || !checkoutPayload?.success) {
+                    const message = checkoutPayload?.error || 'Could not initialize Virtual Wallet checkout.';
+                    notyf.error(message);
+                    moveToErrorStage(message);
+                    return;
+                }
+
+                setRequest((prev) =>
+                    prev
+                        ? {
+                              ...prev,
+                              payment: {
+                                  provider: 'virtual_wallet',
+                                  checkout_reference: checkoutPayload?.checkout?.checkout_reference || null,
+                                  currency_code: displayCurrency,
+                                  amount: Number(checkoutPayload?.checkout?.amount ?? amount),
+                                  platform_fee: Number(checkoutPayload?.checkout?.platform_fee ?? platformFee),
+                                  worker_payout: Number(checkoutPayload?.checkout?.worker_payout ?? workerPayout),
+                                  commission_rate: Number(checkoutPayload?.checkout?.commission_rate ?? commissionRate),
+                                  promo_code: checkoutPayload?.checkout?.promo_code ?? prev.payment?.promo_code ?? null,
+                                  commission_snapshot: checkoutPayload?.checkout?.commission_snapshot ?? prev.payment?.commission_snapshot ?? null,
+                                  status: 'pending',
+                                  paid_at: null,
+                              },
+                          }
+                        : prev
+                );
+
+                await loadVirtualWalletWidget({
+                    scriptUrl,
+                    clientId,
+                    amountElementId: VIRTUAL_WALLET_AMOUNT_ELEMENT_ID,
+                    descElementId: VIRTUAL_WALLET_DESC_ELEMENT_ID,
+                    containerId: VIRTUAL_WALLET_CONTAINER_ID,
+                });
+                setVirtualWalletWidgetLoaded(true);
+            } catch {
+                notyf.error('Could not load the Virtual Wallet widget.');
+                moveToErrorStage('The connection dropped while loading Virtual Wallet. Please retry.');
+            } finally {
+                setIsPaying(false);
+            }
             return;
         }
         if (isAlreadyPaid) {
@@ -511,6 +651,68 @@ const PaymentCheckoutPage: React.FC<PaymentCheckoutPageProps> = ({ requestId, on
         } catch {
             notyf.error('Network error processing payment.');
             moveToErrorStage('The connection dropped while we were processing the payment. You can retry safely.');
+        } finally {
+            setIsPaying(false);
+        }
+    };
+
+    // Virtual Wallet has no documented server-to-server capture call, so the
+    // client reports completion once the widget has been interacted with —
+    // same trust level already accepted for cash. The webhook (logged only,
+    // for now — see plan "Fase 0") is used for reconciliation, not as a gate.
+    const handleConfirmVirtualWalletPayment = async () => {
+        const token = getToken();
+        if (!token || !request) {
+            notyf.error('Login required.');
+            return;
+        }
+
+        setIsPaying(true);
+        try {
+            const payRes = await fetch(API_ENDPOINTS.services.confirmPayment(request.id_request), {
+                method: 'POST',
+                headers: {
+                    Authorization: `Bearer ${token}`,
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ payment_method: 'virtual_wallet' }),
+            });
+            const payPayload = await payRes.json();
+            if (!payRes.ok || !payPayload?.success) {
+                const message = payPayload?.error || 'Could not confirm the Virtual Wallet payment.';
+                notyf.error(message);
+                moveToErrorStage(message);
+                return;
+            }
+
+            setRequest((prev) =>
+                prev
+                    ? {
+                          ...prev,
+                          status: 'paid',
+                          payment: {
+                              provider: payPayload?.payment?.provider || 'virtual_wallet',
+                              checkout_reference: payPayload?.payment?.checkout_reference || prev.payment?.checkout_reference || null,
+                              currency_code: payPayload?.payment?.currency_code || prev.payment?.currency_code || displayCurrency,
+                              amount: Number(payPayload?.payment?.amount || amount),
+                              platform_fee: Number(payPayload?.payment?.platform_fee ?? prev.payment?.platform_fee ?? platformFee),
+                              worker_payout: Number(payPayload?.payment?.worker_payout ?? prev.payment?.worker_payout ?? workerPayout),
+                              commission_rate: Number(payPayload?.payment?.commission_rate ?? prev.payment?.commission_rate ?? commissionRate),
+                              promo_code: payPayload?.payment?.promo_code ?? prev.payment?.promo_code ?? null,
+                              commission_snapshot: payPayload?.payment?.commission_snapshot ?? prev.payment?.commission_snapshot ?? null,
+                              status: 'paid',
+                              paid_at: new Date().toISOString(),
+                          },
+                      }
+                    : prev
+            );
+
+            setCheckoutStage('success');
+            setCheckoutMessage('Virtual Wallet payment confirmed. Final service approval is now available.');
+            notyf.success('Virtual Wallet payment confirmed.');
+        } catch {
+            notyf.error('Network error confirming the Virtual Wallet payment.');
+            moveToErrorStage('The connection dropped while confirming the Virtual Wallet payment. Please retry.');
         } finally {
             setIsPaying(false);
         }
@@ -619,7 +821,7 @@ const PaymentCheckoutPage: React.FC<PaymentCheckoutPageProps> = ({ requestId, on
     );
 
     return (
-        <div className="min-h-screen bg-slate-50 px-4 py-8 sm:px-6 lg:px-10 flex items-center justify-center">
+        <div className="min-h-screen bg-transparent px-4 py-8 sm:px-6 lg:px-10 flex items-center justify-center">
             <div className="w-full max-w-lg">
                 <button
                     type="button"
@@ -652,7 +854,7 @@ const PaymentCheckoutPage: React.FC<PaymentCheckoutPageProps> = ({ requestId, on
                     <motion.div
                         initial={{ opacity: 0, y: 10 }}
                         animate={{ opacity: 1, y: 0 }}
-                        className="rounded-[32px] bg-white shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-slate-100 overflow-hidden"
+                        className="rounded-[32px] bg-white shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-slate-100 overflow-hidden dark:bg-slate-900/80 dark:border-white/10 dark:shadow-black/40"
                     >
                         <div className="p-8 pb-6 border-b border-slate-100">
                             <p className="text-[11px] font-black uppercase tracking-[0.24em] text-slate-400 text-center">Secure Payment</p>
@@ -677,8 +879,8 @@ const PaymentCheckoutPage: React.FC<PaymentCheckoutPageProps> = ({ requestId, on
 
                         <div className="p-8 bg-slate-50/50">
                             <p className="text-[12px] font-bold text-slate-500 mb-4 text-center">Choose your payment method</p>
-                            
-                            <div className="space-y-3">
+
+                            <div className="space-y-2.5">
                                 <button
                                     type="button"
                                     onClick={() => {
@@ -686,29 +888,146 @@ const PaymentCheckoutPage: React.FC<PaymentCheckoutPageProps> = ({ requestId, on
                                         void handleSecurePayment('paypal');
                                     }}
                                     disabled={isPaying || isAlreadyPaid}
-                                    className="w-full relative group flex items-center justify-center gap-3 rounded-2xl bg-[#FFC439] px-6 py-4 transition hover:bg-[#F4BB33] disabled:opacity-50 disabled:cursor-not-allowed"
+                                    aria-pressed={paymentMethod === 'paypal'}
+                                    className={`w-full flex items-center gap-4 rounded-2xl border px-5 py-4 text-left transition disabled:cursor-not-allowed disabled:opacity-50 ${
+                                        paymentMethod === 'paypal' && isPaying
+                                            ? 'border-blue-400 bg-blue-50/70 ring-1 ring-blue-400/20'
+                                            : 'border-slate-200 bg-white hover:border-slate-300'
+                                    }`}
                                 >
-                                    {isPaying && paymentMethod === 'paypal' ? (
-                                        <div className="h-5 w-5 rounded-full border-2 border-slate-800/20 border-t-slate-800 animate-spin" />
-                                    ) : (
-                                        <svg viewBox="0 0 124 33" className="h-6" fill="none" xmlns="http://www.w3.org/2000/svg">
-                                            <path d="M46.211 32.748c-5.748 0-8.815-2.617-9.351-7.85l-1.32-12.87c-.126-1.229.83-2.28 2.068-2.28h5.365c1.11 0 2.05.815 2.19 1.916l.89 7.027c.22 1.745 1.71 3.064 3.47 3.064h2.793c2.906 0 4.398-1.571 4.887-4.482l1.32-7.855c.16-1.047-1.12-2.116-2.58-2.116h-4.321c-1.238 0-2.095-1.051-1.96-2.28l.261-2.298c.135-1.23 1.258-2.28 2.496-2.28h11.96c5.748 0 8.816 2.618 9.352 7.854.34 3.32-.47 6.471-2.215 8.922-2.482 3.486-6.865 5.528-11.832 5.528H46.211z" fill="#003087"/>
-                                            <path d="M85.731 32.748c-5.748 0-8.816-2.617-9.352-7.85l-1.319-12.87c-.126-1.229.83-2.28 2.068-2.28h5.365c1.11 0 2.05.815 2.19 1.916l.89 7.027c.22 1.745 1.71 3.064 3.47 3.064h2.793c2.906 0 4.398-1.571 4.887-4.482l1.32-7.855c.16-1.047-1.12-2.116-2.58-2.116h-4.322c-1.238 0-2.095-1.051-1.96-2.28l.262-2.298c.135-1.23 1.258-2.28 2.496-2.28h11.96c5.748 0 8.816 2.618 9.352 7.854.34 3.32-.471 6.471-2.215 8.922-2.482 3.486-6.865 5.528-11.832 5.528H85.731z" fill="#009CDE"/>
-                                            <path d="M22.06 1.836c.219-1.047 1.119-1.836 2.188-1.836h14.072c4.01 0 7.234 1.122 9.07 3.197 1.91 2.146 2.5 5.58 1.62 9.467-.93 4.29-3.23 7.404-6.42 8.953-2.73 1.34-6.32 1.855-10.74 1.855H28.43c-1.07 0-1.97.79-2.19 1.836l-1.92 9.176c-.16 1.046-1.07 1.835-2.14 1.835H15.93c-1.39 0-2.43-1.27-2.18-2.646L22.06 1.836z" fill="#003087"/>
-                                            <path d="M12.98 1.836c.219-1.047 1.12-1.836 2.19-1.836H29.24c4.01 0 7.235 1.122 9.071 3.197 1.91 2.146 2.5 5.58 1.62 9.467-1.36 6.284-5.914 10.808-13.87 10.808H21.5c-1.07 0-1.97.79-2.19 1.836l-1.92 9.176c-.16 1.046-1.07 1.835-2.14 1.835H8.99c-1.39 0-2.43-1.27-2.18-2.646L12.98 1.836z" fill="#009CDE"/>
-                                        </svg>
-                                    )}
+                                    <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[#FFC439]">
+                                        {isPaying && paymentMethod === 'paypal' ? (
+                                            <div className="h-4 w-4 rounded-full border-2 border-slate-800/30 border-t-slate-800 animate-spin" />
+                                        ) : (
+                                            <svg viewBox="0 0 124 33" className="h-4 w-7" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                                <path d="M46.211 32.748c-5.748 0-8.815-2.617-9.351-7.85l-1.32-12.87c-.126-1.229.83-2.28 2.068-2.28h5.365c1.11 0 2.05.815 2.19 1.916l.89 7.027c.22 1.745 1.71 3.064 3.47 3.064h2.793c2.906 0 4.398-1.571 4.887-4.482l1.32-7.855c.16-1.047-1.12-2.116-2.58-2.116h-4.321c-1.238 0-2.095-1.051-1.96-2.28l.261-2.298c.135-1.23 1.258-2.28 2.496-2.28h11.96c5.748 0 8.816 2.618 9.352 7.854.34 3.32-.47 6.471-2.215 8.922-2.482 3.486-6.865 5.528-11.832 5.528H46.211z" fill="#003087"/>
+                                                <path d="M85.731 32.748c-5.748 0-8.816-2.617-9.352-7.85l-1.319-12.87c-.126-1.229.83-2.28 2.068-2.28h5.365c1.11 0 2.05.815 2.19 1.916l.89 7.027c.22 1.745 1.71 3.064 3.47 3.064h2.793c2.906 0 4.398-1.571 4.887-4.482l1.32-7.855c.16-1.047-1.12-2.116-2.58-2.116h-4.322c-1.238 0-2.095-1.051-1.96-2.28l.262-2.298c.135-1.23 1.258-2.28 2.496-2.28h11.96c5.748 0 8.816 2.618 9.352 7.854.34 3.32-.471 6.471-2.215 8.922-2.482 3.486-6.865 5.528-11.832 5.528H85.731z" fill="#009CDE"/>
+                                                <path d="M22.06 1.836c.219-1.047 1.119-1.836 2.188-1.836h14.072c4.01 0 7.234 1.122 9.07 3.197 1.91 2.146 2.5 5.58 1.62 9.467-.93 4.29-3.23 7.404-6.42 8.953-2.73 1.34-6.32 1.855-10.74 1.855H28.43c-1.07 0-1.97.79-2.19 1.836l-1.92 9.176c-.16 1.046-1.07 1.835-2.14 1.835H15.93c-1.39 0-2.43-1.27-2.18-2.646L22.06 1.836z" fill="#003087"/>
+                                                <path d="M12.98 1.836c.219-1.047 1.12-1.836 2.19-1.836H29.24c4.01 0 7.235 1.122 9.071 3.197 1.91 2.146 2.5 5.58 1.62 9.467-1.36 6.284-5.914 10.808-13.87 10.808H21.5c-1.07 0-1.97.79-2.19 1.836l-1.92 9.176c-.16 1.046-1.07 1.835-2.14 1.835H8.99c-1.39 0-2.43-1.27-2.18-2.646L12.98 1.836z" fill="#009CDE"/>
+                                            </svg>
+                                        )}
+                                    </span>
+                                    <span className="min-w-0 flex-1">
+                                        <span className="block text-sm font-black text-slate-900">PayPal</span>
+                                        <span className="mt-0.5 block text-xs font-semibold text-slate-500">Redirects to PayPal's secure checkout.</span>
+                                    </span>
+                                    <span className="shrink-0 rounded-full bg-emerald-100 px-2.5 py-1 text-[10px] font-black uppercase tracking-wide text-emerald-700">
+                                        Active
+                                    </span>
                                 </button>
 
                                 <button
                                     type="button"
-                                    onClick={() => setPaymentMethod('wompi')}
-                                    disabled={isPaying || isAlreadyPaid || paymentMethod === 'wompi'}
-                                    className="w-full relative group flex items-center justify-center gap-2 rounded-2xl bg-[#000000] px-6 py-4 transition hover:bg-[#111111] disabled:opacity-30 disabled:cursor-not-allowed"
+                                    onClick={() => {
+                                        setPaymentMethod('wompi');
+                                        void handleSecurePayment('wompi');
+                                    }}
+                                    disabled={isPaying || isAlreadyPaid}
+                                    className="w-full flex items-center gap-4 rounded-2xl border border-slate-200 bg-white px-5 py-4 text-left transition hover:border-slate-300 disabled:cursor-not-allowed disabled:opacity-50"
                                 >
-                                    <span className="text-lg font-black text-white tracking-tight">wompi.</span>
+                                    <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-black">
+                                        <span className="text-xs font-black text-white tracking-tight">wompi.</span>
+                                    </span>
+                                    <span className="min-w-0 flex-1">
+                                        <span className="block text-sm font-black text-slate-900">Wompi</span>
+                                        <span className="mt-0.5 block text-xs font-semibold text-slate-500">Coming soon.</span>
+                                    </span>
+                                    <span className="shrink-0 rounded-full bg-amber-100 px-2.5 py-1 text-[10px] font-black uppercase tracking-wide text-amber-700">
+                                        Soon
+                                    </span>
+                                </button>
+
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        setPaymentMethod('cash');
+                                        void handleSecurePayment('cash');
+                                    }}
+                                    disabled={isPaying || isAlreadyPaid}
+                                    aria-pressed={paymentMethod === 'cash'}
+                                    className={`w-full flex items-center gap-4 rounded-2xl border px-5 py-4 text-left transition disabled:cursor-not-allowed disabled:opacity-50 ${
+                                        paymentMethod === 'cash' && isPaying
+                                            ? 'border-emerald-400 bg-emerald-50/70 ring-1 ring-emerald-400/20'
+                                            : 'border-slate-200 bg-white hover:border-slate-300'
+                                    }`}
+                                >
+                                    <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-emerald-600 text-white">
+                                        {isPaying && paymentMethod === 'cash' ? (
+                                            <div className="h-4 w-4 rounded-full border-2 border-white/30 border-t-white animate-spin" />
+                                        ) : (
+                                            <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth={2}>
+                                                <rect x="2" y="6" width="20" height="12" rx="2" />
+                                                <circle cx="12" cy="12" r="2.5" />
+                                            </svg>
+                                        )}
+                                    </span>
+                                    <span className="min-w-0 flex-1">
+                                        <span className="block text-sm font-black text-slate-900">Cash on completion</span>
+                                        <span className="mt-0.5 block text-xs font-semibold text-slate-500">Pay the pro directly once the job is done.</span>
+                                    </span>
+                                    <span className="shrink-0 rounded-full bg-emerald-100 px-2.5 py-1 text-[10px] font-black uppercase tracking-wide text-emerald-700">
+                                        Active
+                                    </span>
+                                </button>
+
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        setPaymentMethod('virtual_wallet');
+                                        void handleSecurePayment('virtual_wallet');
+                                    }}
+                                    disabled={isPaying || isAlreadyPaid || virtualWalletWidgetLoaded}
+                                    aria-pressed={paymentMethod === 'virtual_wallet'}
+                                    className={`w-full flex items-center gap-4 rounded-2xl border px-5 py-4 text-left transition disabled:cursor-not-allowed disabled:opacity-50 ${
+                                        paymentMethod === 'virtual_wallet' && (isPaying || virtualWalletWidgetLoaded)
+                                            ? 'border-violet-400 bg-violet-50/70 ring-1 ring-violet-400/20'
+                                            : 'border-slate-200 bg-white hover:border-slate-300'
+                                    }`}
+                                >
+                                    <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-violet-600 text-white">
+                                        {isPaying && paymentMethod === 'virtual_wallet' && !virtualWalletWidgetLoaded ? (
+                                            <div className="h-4 w-4 rounded-full border-2 border-white/30 border-t-white animate-spin" />
+                                        ) : (
+                                            <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth={2}>
+                                                <path strokeLinecap="round" strokeLinejoin="round" d="M21 12a2 2 0 00-2-2h-1.5a1.5 1.5 0 000 3H19a2 2 0 002-2zM3 7v10a2 2 0 002 2h14a2 2 0 002-2v-6a2 2 0 00-2-2H5a2 2 0 01-2-2zm0 0a2 2 0 012-2h12" />
+                                            </svg>
+                                        )}
+                                    </span>
+                                    <span className="min-w-0 flex-1">
+                                        <span className="block text-sm font-black text-slate-900">Virtual Wallet</span>
+                                        <span className="mt-0.5 block text-xs font-semibold text-slate-500">Pay with your linked virtual wallet.</span>
+                                    </span>
+                                    <span className="shrink-0 rounded-full bg-emerald-100 px-2.5 py-1 text-[10px] font-black uppercase tracking-wide text-emerald-700">
+                                        Active
+                                    </span>
                                 </button>
                             </div>
+
+                            {/* Hidden anchors the Virtual Wallet widget scans the DOM for (data-amount-id/data-desc-id). */}
+                            <span id={VIRTUAL_WALLET_AMOUNT_ELEMENT_ID} style={{ position: 'absolute', left: '-9999px' }}>
+                                {amount.toFixed(2)}
+                            </span>
+                            <span id={VIRTUAL_WALLET_DESC_ELEMENT_ID} style={{ position: 'absolute', left: '-9999px' }}>
+                                {request?.service_name} — {request?.payment?.checkout_reference || ''}
+                            </span>
+
+                            {paymentMethod === 'virtual_wallet' && virtualWalletWidgetLoaded && !isAlreadyPaid && (
+                                <div className="mt-5 rounded-[24px] border border-violet-200 bg-violet-50 p-5">
+                                    <p className="text-sm font-black text-violet-800">Complete your payment below</p>
+                                    <p className="mt-1 text-xs text-violet-600">
+                                        The Virtual Wallet widget renders its own payment button in this box.
+                                    </p>
+                                    <div id={VIRTUAL_WALLET_CONTAINER_ID} className="mt-4 min-h-[48px]" />
+                                    <button
+                                        type="button"
+                                        onClick={() => void handleConfirmVirtualWalletPayment()}
+                                        disabled={isPaying}
+                                        className="mt-4 w-full rounded-2xl bg-violet-600 px-4 py-3 text-sm font-black text-white shadow-sm hover:bg-violet-700 disabled:opacity-50"
+                                    >
+                                        {isPaying ? 'Confirming...' : 'I already paid with Virtual Wallet'}
+                                    </button>
+                                </div>
+                            )}
 
                             {isAlreadyPaid && (
                                 <p className="mt-4 text-center text-sm font-bold text-emerald-600">

@@ -8,6 +8,7 @@ interface ServiceRequestPanelShellProps {
     guidedBookingAlign?: 'center' | 'left';
     hasActiveTrackedRequest: boolean;
     onClose: () => void;
+    onBack?: () => void;
     notificationCenter: React.ReactNode;
     children: React.ReactNode;
 }
@@ -19,6 +20,7 @@ export function ServiceRequestPanelShell({
     guidedBookingAlign = 'center',
     hasActiveTrackedRequest,
     onClose,
+    onBack,
     notificationCenter,
     children,
 }: ServiceRequestPanelShellProps) {
@@ -49,7 +51,7 @@ export function ServiceRequestPanelShell({
                     whileHover={{ scale: 1.05 }}
                     whileTap={{ scale: 0.95 }}
                     className="flex items-center gap-2 group"
-                    onClick={onClose}
+                    onClick={onBack ?? onClose}
                 >
                     <div className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center text-gray-600 group-hover:bg-bird-blue group-hover:text-white transition-all">
                         <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">

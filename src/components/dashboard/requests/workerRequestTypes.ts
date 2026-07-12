@@ -47,6 +47,7 @@ export interface WorkerRequest {
     | 'done'
     | 'cancelled';
   worker_status: 'new' | 'accepted' | 'rejected' | 'expired';
+  payment_method?: 'card' | 'paypal' | 'cash' | string | null;
   distance_km: number | null;
   created_at: string;
   route_url: string | null;

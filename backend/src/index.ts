@@ -10,8 +10,11 @@ import servicesRoutes from './routes/services.routes';
 import notificationsRoutes from './routes/notifications.routes';
 import uploadsRoutes from './routes/uploads.routes';
 import supportRoutes from './routes/support.routes';
+import reviewsRoutes from './routes/reviews.routes';
 import { initializeSupportSocket } from './services/supportSocket.service';
+import { initReviewsTable } from './controllers/reviews.controller';
 import { globalLimiter } from './middlewares/security.middleware';
+import { profanityGuard } from './middlewares/profanity.middleware';
 import { isUsingGeneratedDevelopmentJwtSecret } from './config/security';
 import {
   publicUploadsDir,
@@ -44,6 +47,8 @@ const DEVELOPMENT_ORIGINS = [
   'http://127.0.0.1:3000',
   'http://localhost:5173',
   'http://127.0.0.1:5173',
+  'http://192.168.3.27:3000',
+  'http://192.168.1.143:3000',
 ];
 
 if (isProduction && ALLOWED_ORIGINS.length === 0) {
@@ -82,6 +87,7 @@ app.use(
 app.use(globalLimiter);
 app.use(express.json({ limit: '1mb' }));
 app.use(express.urlencoded({ extended: false, limit: '100kb', parameterLimit: 50 }));
+app.use(profanityGuard);
 
 app.use(
   '/uploads/public',
@@ -119,6 +125,7 @@ app.use('/api/services', servicesRoutes);
 app.use('/api/notifications', notificationsRoutes);
 app.use('/api/uploads', uploadsRoutes);
 app.use('/api/support', supportRoutes);
+app.use('/api/reviews', reviewsRoutes);
 
 app.get('/api/health', (_req: Request, res: Response) => {
   res.json({
@@ -156,6 +163,8 @@ const startServer = async () => {
   if (!['auto', 'manual'].includes(migrationsMode)) {
     throw new Error('DB_MIGRATIONS_MODE must be either "auto" or "manual".');
   }
+
+  await initReviewsTable();
 
   const migrationResult = await runDatabaseMigrations({
     applyPending: migrationsMode === 'auto',

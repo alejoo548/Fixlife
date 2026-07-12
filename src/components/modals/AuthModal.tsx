@@ -7,6 +7,7 @@ import { useAuth } from '../../context/AuthContext';
 import { setAuthSession } from '../../utils/session';
 import ForgotPassword from '../../pages/ForgotPassword';
 import ReCAPTCHA from 'react-google-recaptcha';
+import PasswordInput from '../common/PasswordInput';
 
 declare global {
   interface Window {
@@ -421,10 +422,10 @@ if (!emailRegex.test(formData.email)) {
 
               <div className="grid grid-cols-2 gap-2.5">
                 <div className="bg-gray-50 rounded-lg p-1 border border-gray-200 focus-within:border-bird-blue/50 transition-colors">
-                  <input type="password" name="password" value={formData.password} onChange={handleChange} placeholder="Password" className="w-full bg-transparent px-3 py-2 text-sm text-gray-900 outline-none placeholder-gray-500" />
+                  <PasswordInput  name="password" value={formData.password} onChange={handleChange} placeholder="Password" className="w-full bg-transparent px-3 py-2 text-sm text-gray-900 outline-none placeholder-gray-500" />
                 </div>
                 <div className="bg-gray-50 rounded-lg p-1 border border-gray-200 focus-within:border-bird-blue/50 transition-colors">
-                  <input type="password" name="confirmPassword" value={formData.confirmPassword} onChange={handleChange} placeholder="Confirm" className="w-full bg-transparent px-3 py-2 text-sm text-gray-900 outline-none placeholder-gray-500" />
+                  <PasswordInput  name="confirmPassword" value={formData.confirmPassword} onChange={handleChange} placeholder="Confirm" className="w-full bg-transparent px-3 py-2 text-sm text-gray-900 outline-none placeholder-gray-500" />
                 </div>
               </div>
 
@@ -472,7 +473,7 @@ if (!emailRegex.test(formData.email)) {
                 <input type="email" name="email" value={formData.email} onChange={handleChange} placeholder="Email" className="w-full bg-transparent px-3 py-2 text-sm text-gray-900 outline-none placeholder-gray-500" />
               </div>
               <div className="bg-gray-50 rounded-lg p-1 border border-gray-200 focus-within:border-bird-blue/50 transition-colors">
-                <input type="password" name="password" value={formData.password} onChange={handleChange} placeholder="Password" className="w-full bg-transparent px-3 py-2 text-sm text-gray-900 outline-none placeholder-gray-500" />
+                <PasswordInput  name="password" value={formData.password} onChange={handleChange} placeholder="Password" className="w-full bg-transparent px-3 py-2 text-sm text-gray-900 outline-none placeholder-gray-500" />
               </div>
               <button type="button" onClick={() => setView('forgot')} className="text-xs text-gray-500 hover:text-bird-blue transition-colors self-end my-1"> Forgot your password? </button>
               <button className="w-full py-3.5 rounded-full bg-bird-blue text-white font-bold text-sm tracking-wide shadow-lg shadow-bird-blue/20 hover:bg-bird-darkBlue hover:scale-[1.02] transition-all duration-300">
@@ -547,11 +548,11 @@ if (!emailRegex.test(formData.email)) {
 
                 <div className="grid grid-cols-1 gap-3">
                   <div className="bg-gray-50 rounded-xl px-4 py-3 border border-gray-200 focus-within:border-bird-blue/50 transition-colors">
-                    <input type="password" name="password" value={formData.password} onChange={handleChange} placeholder="Password" className="w-full bg-transparent text-sm text-gray-900 outline-none placeholder-gray-500" />
+                    <PasswordInput  name="password" value={formData.password} onChange={handleChange} placeholder="Password" className="w-full bg-transparent text-sm text-gray-900 outline-none placeholder-gray-500" />
                   </div>
                   {isSignup && (
                     <div className="bg-gray-50 rounded-xl px-4 py-3 border border-gray-200 focus-within:border-bird-blue/50 transition-colors animate-fade-in-up">
-                      <input type="password" name="confirmPassword" value={formData.confirmPassword} onChange={handleChange} placeholder="Confirm Password" className="w-full bg-transparent text-sm text-gray-900 outline-none placeholder-gray-500" />
+                      <PasswordInput  name="confirmPassword" value={formData.confirmPassword} onChange={handleChange} placeholder="Confirm Password" className="w-full bg-transparent text-sm text-gray-900 outline-none placeholder-gray-500" />
                     </div>
                   )}
                 </div>

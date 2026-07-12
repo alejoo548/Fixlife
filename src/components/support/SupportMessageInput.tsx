@@ -1,6 +1,7 @@
 import React, { useRef, useState } from 'react';
 import { Send, Paperclip, X } from 'lucide-react';
 import { hasUnsafeSupportText, sanitizeSupportTextInput } from '../../utils/supportSecurity';
+import { useProfanityGuard } from '../../hooks/useProfanityGuard';
 
 interface SupportMessageInputProps {
   onSend: (message: string, image?: File | null) => void;
@@ -16,6 +17,7 @@ export const SupportMessageInput: React.FC<SupportMessageInputProps> = ({
   const [imageError, setImageError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const hasUnsafeContent = hasUnsafeSupportText(message);
+  const { warning: profanityWarning, guardValue } = useProfanityGuard();
 
   const ALLOWED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
   const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
@@ -96,7 +98,7 @@ export const SupportMessageInput: React.FC<SupportMessageInputProps> = ({
 
         <input
           value={message}
-          onChange={(e) => setMessage(sanitizeSupportTextInput(e.target.value, 2000))}
+          onChange={(e) => setMessage(guardValue(sanitizeSupportTextInput(e.target.value, 2000)))}
           onKeyDown={handleKeyDown}
           placeholder="Type your message..."
           maxLength={2000}
@@ -113,12 +115,14 @@ export const SupportMessageInput: React.FC<SupportMessageInputProps> = ({
         </button>
       </div>
 
-      <div className={`mt-2 text-center text-[10px] ${imageError || hasUnsafeContent ? 'text-red-500' : 'text-gray-400'}`}>
+      <div className={`mt-2 text-center text-[10px] ${imageError || hasUnsafeContent || profanityWarning ? 'text-red-500' : 'text-gray-400'}`}>
         {imageError
           ? imageError
           : hasUnsafeContent
             ? 'Malicious characters or patterns are not allowed.'
-            : 'Support available 8am to 8pm'}
+            : profanityWarning
+              ? profanityWarning
+              : 'Support available 8am to 8pm'}
       </div>
     </div>
   );

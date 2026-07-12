@@ -19,6 +19,7 @@ import { ServiceRequestPaymentModal } from './ServiceRequestPaymentModal';
 import { ServiceRequestFixesSuccessModal } from './ServiceRequestFixesSuccessModal';
 import { showSweetAlert, showSweetToast } from '../../utils/sweetAlert';
 import { sanitizeLettersOnly, sanitizeMessageText, sanitizeStrictText } from '../../utils/textSanitize';
+import { useProfanityGuard } from '../../hooks/useProfanityGuard';
 import { useResponsiveSheet } from '../../hooks/useResponsiveSheet';
 import { useServiceRequestChat } from './hooks/useServiceRequestChat';
 import { useActiveTrackedRequest } from './hooks/useActiveTrackedRequest';
@@ -37,6 +38,7 @@ import {
     hasPendingWorkerApproval,
     canUseRequestChat,
     counterBadge,
+    isCashReservedRequest,
 } from './serviceRequestHelpers';
 import type {
     LocationSuggestion,
@@ -205,6 +207,7 @@ const formatRequestVisit = (data: ServiceRequestData) => {
 export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOpen, onClose, initialServiceId, initialServiceName, onOpenCheckout, openOnHistory }) => {
     const location = useLocation();
     const navigate = useNavigate();
+    const { guardValue: guardDescriptionValue } = useProfanityGuard();
     const [step, setStep] = useState(initialServiceId ? 1 : 0);
     const [requestFlowStep, setRequestFlowStep] = useState(0);
     const [services, setServices] = useState<ServiceOption[]>([]);
@@ -283,9 +286,11 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
         confirmPaymentThroughModal,
         handleSecurePayment,
         paymentBusyId,
+        paymentError,
         paymentForm,
         paymentMethod,
         paymentModalRequest,
+        setPaymentError,
         setPaymentForm,
         setPaymentMethod,
         setPaymentModalRequest,
@@ -1963,6 +1968,9 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
             }
             showToast(payload.both_approved ? 'success' : 'info', payload.message || 'Approval saved.');
             await fetchMyRequests(historyStatus, true);
+            if (action === 'complete_service' && !request.has_rating) {
+                setRatingModalRequest(request);
+            }
         } catch {
             showToast('error', 'Network error saving approval.');
         } finally {
@@ -2135,6 +2143,7 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                 guidedBookingAlign={step === 1 && requestFlowStep === 1 ? 'left' : 'center'}
                 hasActiveTrackedRequest={!!activeTrackedRequest}
                 onClose={onClose}
+                onBack={step === 1 ? () => setStep(0) : onClose}
                 notificationCenter={<NotificationCenter token={getToken()} variant="panel" />}
             >
                 <AnimatePresence mode="wait">
@@ -2238,7 +2247,7 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                                     showBudget={false}
                                                     showResults={false}
                                                     showActions={false}
-                                                    onDescriptionChange={(value) => setData({ ...data, description: sanitizeMessageText(value, 1000) })}
+                                                    onDescriptionChange={(value) => setData({ ...data, description: guardDescriptionValue(sanitizeMessageText(value, 1000)) })}
                                                     onPriceChange={(nextValue) => setData({ ...data, price: sanitizeBudgetInput(nextValue) })}
                                                     onPricePaste={(value) => setData({ ...data, price: sanitizeBudgetInput(value) })}
                                                     onProblemFilesChange={handleProblemFiles}
@@ -3516,8 +3525,12 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                 paymentMethod={paymentMethod}
                                 paymentForm={paymentForm}
                                 paymentBusyId={paymentBusyId}
+                                paymentError={paymentError}
                                 onClose={() => setPaymentModalRequest(null)}
-                                onSelectMethod={setPaymentMethod}
+                                onSelectMethod={(method) => {
+                                    setPaymentError(null);
+                                    setPaymentMethod(method);
+                                }}
                                 onPaymentFormChange={(patch) => setPaymentForm((prev) => ({ ...prev, ...patch }))}
                                 onConfirmPayment={() => void confirmPaymentThroughModal()}
                             />
@@ -3664,7 +3677,8 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                                 const canUseChat = canUseRequestChat(request);
                                                 const canRate = requestStatus === 'done';
                                                 const canCancel = ['pending', 'payment_pending', 'assigned'].includes(requestStatus);
-                                                const canPayNow = requestStatus === 'payment_pending';
+                                                const isCashReserved = isCashReservedRequest(request);
+                                                const canPayNow = requestStatus === 'payment_pending' && !isCashReserved;
                                                 const canShowPayment = ['payment_pending', 'paid', 'completion_pending', 'done'].includes(requestStatus);
                                                 const canConfirmCompletion = requestStatus === 'awaiting_confirmation';
                                                 const isWorkflowV2 = Number(request.workflow_version || 1) >= 2;
@@ -3720,7 +3734,7 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                                                 </div>
                                                             </div>
                                                             <div className="flex flex-col items-end gap-1.5 shrink-0">
-                                                                <span className={`text-[10px] font-black uppercase tracking-[0.1em] px-2.5 py-1 rounded-full border ${statusBadgeClasses(request.status)}`}>
+                                                                <span className={`text-[10px] font-black uppercase tracking-[0.1em] px-2.5 py-1 rounded-full border ${statusBadgeClasses(request.status, request)}`}>
                                                                     {statusLabel(request.status, request)}
                                                                 </span>
                                                                 {counterBadge(request)}
@@ -3863,9 +3877,11 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                                                                 ? 'Funds released to the worker.'
                                                                                 : paymentStatus === 'paid'
                                                                                     ? 'Payment successful. Final service approval is now available.'
-                                                                                    : canPayNow
-                                                                                        ? 'Both parties finished work. Complete payment to continue.'
-                                                                                        : 'Checkout is ready for this request.'}
+                                                                                    : isCashReserved
+                                                                                        ? 'Cash payment reserved. Pay the professional directly when the job is done — they will confirm collection from their dashboard.'
+                                                                                        : canPayNow
+                                                                                            ? 'Both parties finished work. Complete payment to continue.'
+                                                                                            : 'Checkout is ready for this request.'}
                                                                         </p>
                                                                     </div>
                                                                     {request.payment && (
@@ -3874,9 +3890,11 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                                                                 ? 'bg-emerald-100 text-emerald-700 border-emerald-200'
                                                                                 : paymentStatus === 'paid'
                                                                                     ? 'bg-blue-100 text-blue-700 border-blue-200'
-                                                                                    : 'bg-white text-slate-700 border-slate-200'
+                                                                                    : isCashReserved
+                                                                                        ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                                                                                        : 'bg-white text-slate-700 border-slate-200'
                                                                         }`}>
-                                                                            {paymentStatus || 'pending'}
+                                                                            {isCashReserved ? 'cash reserved' : paymentStatus || 'pending'}
                                                                         </span>
                                                                     )}
                                                                 </div>

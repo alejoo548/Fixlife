@@ -5,6 +5,7 @@ import {
   resetPassword
 } from "../services/authService";
 import { showSweetToast } from '../utils/sweetAlert';
+import PasswordInput from '../components/common/PasswordInput';
 
 interface WorkerForgotPasswordProps {
   onBack?: () => void;
@@ -159,8 +160,7 @@ const WorkerForgotPassword: React.FC<WorkerForgotPasswordProps> = ({ onBack }) =
       {step === 3 && (
         <form onSubmit={handleResetPassword} className="flex flex-col gap-4">
 
-          <input
-            type="password"
+          <PasswordInput
             placeholder="New password"
             value={password}
             onChange={(e)=>setPassword(e.target.value)}
@@ -168,8 +168,7 @@ const WorkerForgotPassword: React.FC<WorkerForgotPasswordProps> = ({ onBack }) =
             className="w-full px-4 py-3 border border-gray-300 rounded-xl outline-none focus:border-bird-orange"
           />
 
-          <input
-            type="password"
+          <PasswordInput
             placeholder="Confirm password"
             value={confirmPassword}
             onChange={(e)=>setConfirmPassword(e.target.value)}

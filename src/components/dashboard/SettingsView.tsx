@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { showSweetToast } from '../../utils/sweetAlert';
 import { API_URL } from '../../config/api';
-import { getAuthUser, getToken as getSessionToken, logoutAuthSession, updateStoredAuthUser } from '../../utils/session';
+import { getAuthUser, getToken as getSessionToken, logoutAndReload, updateStoredAuthUser } from '../../utils/session';
 import { WorkerAvailabilitySection } from './WorkerAvailabilitySection';
 
 type PortfolioItem = {
@@ -358,8 +358,7 @@ export const SettingsView: React.FC = () => {
   };
 
   const handleSignOut = () => {
-    logoutAuthSession('worker');
-    navigate('/', { replace: true });
+    logoutAndReload('worker');
   };
 
   const displayProfileImage = profileImagePreview || profileImage;

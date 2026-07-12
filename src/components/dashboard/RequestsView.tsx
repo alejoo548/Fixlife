@@ -439,6 +439,35 @@ export const RequestsView: React.FC<RequestsViewProps> = ({
     }
   };
 
+  const handleConfirmCash = async (idRequest: number) => {
+    const confirmed = await showSweetConfirm({
+      title: 'Confirm cash collected?',
+      message: 'Only confirm after receiving the full cash payment from the client. The platform commission will be deducted from your next scheduled payout.',
+      tone: 'warning',
+      confirmText: 'I collected the cash',
+    });
+    if (!confirmed) return;
+    if (!token) return;
+    setBusyId(idRequest);
+    try {
+      const response = await fetch(API_ENDPOINTS.services.cashConfirm(idRequest), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      });
+      const payload = await response.json();
+      if (!response.ok || !payload?.success) {
+        notify.error(payload?.error || 'Could not confirm cash payment.');
+        return;
+      }
+      notify.success(payload.message || 'Cash payment confirmed.');
+      await Promise.all([fetchRequests(true), refreshWorkspace(true)]);
+    } catch {
+      notify.error('Network error confirming cash payment.');
+    } finally {
+      setBusyId(null);
+    }
+  };
+
   const markArrived = async (idRequest: number) => {
     const confirmed = await showSweetConfirm({
       title: 'Confirm your arrival',
@@ -735,6 +764,7 @@ export const RequestsView: React.FC<RequestsViewProps> = ({
             onStart={() => void handleWorkflowApproval(selectedRequest.id_request, 'start_work')}
             onComplete={() => void handleWorkflowApproval(selectedRequest.id_request, 'finish_work')}
             onFinalize={() => void handleWorkflowApproval(selectedRequest.id_request, 'complete_service')}
+            onConfirmCash={() => void handleConfirmCash(selectedRequest.id_request)}
           />
         )}
 

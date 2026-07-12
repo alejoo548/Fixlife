@@ -2,6 +2,7 @@ export type AuthRole = 'worker' | 'admin';
 export type AuthSessionScope = 'client' | 'worker' | 'admin';
 export const AUTH_SESSION_CHANGED_EVENT = 'fixlife-auth-changed';
 const LAST_PROTECTED_ROUTE_KEY = 'fixlife:last-protected-route';
+const LOGOUT_NOTICE_KEY = 'fixlife:logout-success';
 
 export type AuthUser = {
   id_user?: number;
@@ -62,6 +63,20 @@ export const getToken = (scope: AuthSessionScope = 'client'): string | null => {
   const keys = getStorageKeys(scope);
   const token = localStorage.getItem(keys.token) || localStorage.getItem(keys.legacyToken);
   return token && token.trim() ? token : null;
+};
+
+export const getActiveAuthToken = (): { token: string | null; scope: AuthSessionScope | null } => {
+  if (typeof window === 'undefined') return { token: null, scope: null };
+  const path = window.location.pathname || '';
+  const ordered: AuthSessionScope[] =
+    path.startsWith('/pro-dashboard') || path.startsWith('/pro') ? ['worker', 'client', 'admin']
+    : path.startsWith('/admin-dashboard') ? ['admin', 'client', 'worker']
+    : ['client', 'worker', 'admin'];
+  for (const scope of ordered) {
+    const token = getToken(scope);
+    if (token) return { token, scope };
+  }
+  return { token: null, scope: null };
 };
 
 export const isAuthenticated = (scope: AuthSessionScope = 'client'): boolean => {
@@ -125,6 +140,24 @@ export const clearAuthSession = (scope: AuthSessionScope = 'client'): void => {
 
 export const logoutAuthSession = (scope: AuthSessionScope = 'client'): void => {
   clearAuthSession(scope);
+};
+
+export const logoutAndReload = (scope: AuthSessionScope = 'client'): void => {
+  if (typeof window === 'undefined') return;
+  const scopes: AuthSessionScope[] = [
+    scope,
+    ...(['client', 'worker', 'admin'] as AuthSessionScope[]).filter((item) => item !== scope),
+  ];
+  scopes.forEach((item) => clearAuthSession(item));
+  sessionStorage.setItem(LOGOUT_NOTICE_KEY, '1');
+  window.location.replace('/');
+};
+
+export const consumeLogoutNotice = (): boolean => {
+  if (typeof window === 'undefined') return false;
+  const shouldNotify = sessionStorage.getItem(LOGOUT_NOTICE_KEY) === '1';
+  sessionStorage.removeItem(LOGOUT_NOTICE_KEY);
+  return shouldNotify;
 };
 
 type ProtectedRouteMap = Partial<Record<AuthSessionScope, string>>;

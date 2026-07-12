@@ -7,15 +7,23 @@ export interface ServiceRequestLike {
     assigned_worker?: { id_worker_profile?: number; name?: string | null } | null;
     proposed_budget?: number | null;
     counter_status?: 'pending' | 'accepted' | 'declined' | null;
+    payment?: { provider?: string | null; status?: string | null } | null;
 }
 
-export const statusBadgeClasses = (statusRaw: string) => {
+export const isCashReservedRequest = (request?: ServiceRequestLike) =>
+    Boolean(
+        request &&
+            String(request.payment?.provider || '').toLowerCase() === 'cash' &&
+            !['released'].includes(String(request.payment?.status || '').toLowerCase())
+    );
+
+export const statusBadgeClasses = (statusRaw: string, request?: ServiceRequestLike) => {
     const status = String(statusRaw || 'pending').toLowerCase();
     if (status === 'done') return 'bg-emerald-100 text-emerald-700 border-emerald-200';
     if (status === 'awaiting_confirmation') return 'bg-violet-100 text-violet-700 border-violet-200';
     if (['route_in_progress', 'arrived', 'start_pending', 'finish_pending', 'completion_pending'].includes(status)) return 'bg-blue-100 text-blue-700 border-blue-200';
     if (status === 'assigned') return 'bg-sky-100 text-gray-500 border-sky-200';
-    if (status === 'payment_pending') return 'bg-yellow-100 text-yellow-700 border-yellow-200';
+    if (status === 'payment_pending') return isCashReservedRequest(request) ? 'bg-emerald-100 text-emerald-700 border-emerald-200' : 'bg-yellow-100 text-yellow-700 border-yellow-200';
     if (status === 'paid') return 'bg-cyan-100 text-cyan-700 border-cyan-200';
     if (status === 'in_progress') return 'bg-indigo-100 text-indigo-700 border-indigo-200';
     if (status === 'cancelled') return 'bg-red-100 text-red-700 border-red-200';
@@ -40,7 +48,7 @@ export const statusLabel = (statusRaw: string, request?: ServiceRequestLike) => 
         if (request && hasPendingCounter(request)) return 'Counter Pending';
         return 'Worker Accepted';
     }
-    if (status === 'payment_pending') return 'Payment Pending';
+    if (status === 'payment_pending') return isCashReservedRequest(request) ? 'Cash Reserved' : 'Payment Pending';
     if (status === 'route_in_progress') return 'Worker On The Way';
     if (status === 'arrived') return 'Worker Arrived';
     if (status === 'start_pending') return 'Start Approval';
