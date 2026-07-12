@@ -1061,6 +1061,7 @@ export const RequestsView: React.FC<RequestsViewProps> = ({
                       busy={busyId === selectedRequest.id_request}
                       onToggleTools={() => setRoutePanelExpanded((open) => !open)}
                       onOpenChat={() => setChatPanelOpen(true)}
+                      onReport={() => setReportRequest(selectedRequest)}
                       onCenterRoute={centerRoute}
                       onCameraModeChange={setRouteCameraMode}
                       onTrafficToggle={() => setTrafficEnabled((enabled) => !enabled)}
@@ -1069,6 +1070,7 @@ export const RequestsView: React.FC<RequestsViewProps> = ({
                       onStart={() => void handleWorkflowApproval(selectedRequest.id_request, 'start_work')}
                       onComplete={() => void handleWorkflowApproval(selectedRequest.id_request, 'finish_work')}
                       onFinalize={() => void handleWorkflowApproval(selectedRequest.id_request, 'complete_service')}
+                      onConfirmCash={() => void handleConfirmCash(selectedRequest.id_request)}
                     />
                   )}
                   {showInlineCurrentJob && (

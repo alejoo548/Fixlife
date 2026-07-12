@@ -58,7 +58,7 @@ const validateMeaningfulText = (value: string, label: string, minWords: number) 
     return `${label} cannot contain placeholder or lorem ipsum text.`;
   }
 
-  const words = normalized.match(/[\p{L}\p{N}]+/gu) || [];
+  const words: string[] = normalized.match(/[\p{L}\p{N}]+/gu) || [];
   if (words.length < minWords) {
     return `${label} must contain at least ${minWords} meaningful words.`;
   }
