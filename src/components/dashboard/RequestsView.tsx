@@ -968,14 +968,14 @@ export const RequestsView: React.FC<RequestsViewProps> = ({
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
                 onClick={() => setRequestsPanelOpen(false)}
-                className="absolute inset-0 z-[530] bg-slate-950/58 backdrop-blur-[4px]"
+                className="absolute inset-0 z-[530] bg-slate-950/58 backdrop-blur-[4px] lg:hidden"
               />
               <motion.aside
                 initial={mobileView === 'list' ? { x: 0, opacity: 1 } : { x: -32, opacity: 0 }}
                 animate={{ x: 0, opacity: 1 }}
                 exit={{ x: -32, opacity: 0 }}
                 transition={{ type: 'spring', damping: 26, stiffness: 220 }}
-                className="absolute inset-y-3 left-3 z-[540] flex w-[calc(100%-1.5rem)] max-w-[460px] flex-col overflow-hidden rounded-[30px] border border-slate-200 bg-white shadow-[0_34px_100px_rgba(15,23,42,0.38)]"
+                className="absolute inset-y-3 left-3 z-[540] flex w-[calc(100%-1.5rem)] max-w-[460px] flex-col overflow-hidden rounded-[30px] border border-slate-200 bg-white shadow-[0_34px_100px_rgba(15,23,42,0.38)] lg:w-[420px] xl:w-[440px]"
               >
                 <div className="border-b border-slate-200/80 bg-white px-5 pb-4 pt-5">
                   <div className="flex items-start justify-between gap-4">
