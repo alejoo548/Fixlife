@@ -736,7 +736,7 @@ export const RequestsView: React.FC<RequestsViewProps> = ({
         animate={{ y: 0 }}
         transition={{ type: 'spring', damping: 25, stiffness: 200 }}
         className={`relative z-[510] flex h-full min-h-0 w-full flex-col overflow-hidden bg-white/96 shadow-2xl backdrop-blur-xl lg:absolute lg:inset-y-4 lg:left-4 lg:h-auto lg:w-[420px] lg:rounded-[28px] lg:border lg:border-white/80 xl:w-[440px] ${
-          mobileView === 'map' ? 'hidden lg:flex' : 'flex'
+          mobileView === 'map' ? 'hidden' : 'flex lg:hidden'
         }`}
       >
         <div className="border-b border-slate-200/80 bg-white/95 px-4 pb-4 pt-5">
