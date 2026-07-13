@@ -24,7 +24,7 @@ const LeaveReview: React.FC<LeaveReviewProps> = ({ onOpenAuth }) => {
   const navigate = useNavigate();
 
   return (
-    <div className="min-h-screen bg-slate-50 flex flex-col">
+    <div className="min-h-screen bg-slate-50 dark:bg-slate-900 flex flex-col">
       <Navbar
         navItems={navItems}
         onOpenAuth={(mode) => onOpenAuth?.(mode)}
@@ -45,11 +45,11 @@ const LeaveReview: React.FC<LeaveReviewProps> = ({ onOpenAuth }) => {
           <p className="text-xs font-semibold tracking-[0.2em] uppercase text-bird-blue mb-3">
             Share Your Experience
           </p>
-          <h1 className="text-3xl md:text-4xl font-black text-slate-900 leading-tight mb-3">
+          <h1 className="text-3xl md:text-4xl font-black text-slate-900 dark:text-slate-100 leading-tight mb-3">
             How was your experience<br />
-            <span className="text-slate-400 font-light">with Fixlife?</span>
+            <span className="text-slate-400 dark:text-slate-500 font-light">with Fixlife?</span>
           </h1>
-          <p className="text-slate-500 text-base max-w-xl">
+          <p className="text-slate-500 dark:text-slate-400 text-base max-w-xl">
             Your honest review helps others find great professionals and helps our community grow. Reviews may appear in our testimonials carousel.
           </p>
         </motion.div>

@@ -195,28 +195,28 @@ export const TestimonialsCarousel: React.FC = () => {
       label: 'Verified reviews',
       detail: 'From real clients and pros',
       accent: 'from-sky-500/20 to-cyan-400/10',
-      valueClass: 'text-sky-600',
+      valueClass: 'text-sky-600 dark:text-sky-400',
     },
     {
       value: reviewStats.average_rating.toFixed(1),
       label: 'Average rating',
       detail: 'Platform-wide trust signal',
       accent: 'from-amber-400/20 to-orange-400/10',
-      valueClass: 'text-amber-500',
+      valueClass: 'text-amber-500 dark:text-amber-400',
     },
     {
       value: `${formatCompact(reviewStats.completed_jobs)}+`,
       label: 'Jobs completed',
       detail: 'Successful services delivered',
       accent: 'from-emerald-500/20 to-teal-400/10',
-      valueClass: 'text-emerald-600',
+      valueClass: 'text-emerald-600 dark:text-emerald-400',
     },
     {
       value: `${Math.min(100, Math.max(0, reviewStats.satisfaction_rate))}%`,
       label: '5-star satisfaction',
       detail: 'Share of top-rated reviews',
       accent: 'from-fuchsia-500/20 to-violet-400/10',
-      valueClass: 'text-fuchsia-600',
+      valueClass: 'text-fuchsia-600 dark:text-fuchsia-400',
     },
   ]), [reviewStats]);
 
@@ -228,7 +228,7 @@ export const TestimonialsCarousel: React.FC = () => {
         <p className="mb-2 text-xs font-semibold uppercase tracking-[0.2em] text-bird-blue">
           Client Reviews
         </p>
-        <h3 className="text-2xl font-black text-slate-900 md:text-3xl">
+        <h3 className="text-2xl font-black text-slate-900 md:text-3xl dark:text-slate-100">
           What customers say
         </h3>
       </div>
@@ -348,9 +348,9 @@ export const TestimonialsCarousel: React.FC = () => {
         {stats.map((stat) => (
           <div
             key={stat.label}
-            className="rounded-2xl border border-slate-200 bg-white px-4 py-4 shadow-sm"
+            className="rounded-2xl border border-slate-200 bg-white px-4 py-4 shadow-sm dark:border-white/10 dark:bg-slate-900/70"
           >
-            <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-slate-400">{stat.label}</p>
+            <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-slate-400 dark:text-slate-500">{stat.label}</p>
             <p className={`mt-2 text-2xl font-black ${stat.valueClass}`}>{stat.value}</p>
           </div>
         ))}

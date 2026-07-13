@@ -154,21 +154,21 @@ export const ReviewSubmitSection: React.FC<ReviewSubmitSectionProps> = ({ onLogi
       <motion.div
         initial={{ opacity: 0, scale: 0.96 }}
         animate={{ opacity: 1, scale: 1 }}
-        className="max-w-lg mx-auto bg-white border border-slate-100 rounded-3xl p-12 shadow-sm flex flex-col items-center text-center gap-6"
+        className="max-w-lg mx-auto bg-white dark:bg-slate-900/70 border border-slate-100 dark:border-white/5 rounded-3xl p-12 shadow-sm flex flex-col items-center text-center gap-6"
       >
         <motion.div
           initial={{ scale: 0 }}
           animate={{ scale: 1 }}
           transition={{ type: 'spring', stiffness: 220, delay: 0.1 }}
-          className="w-24 h-24 rounded-full bg-emerald-50 border-4 border-emerald-100 flex items-center justify-center"
+          className="w-24 h-24 rounded-full bg-emerald-50 dark:bg-emerald-900/40 border-4 border-emerald-100 dark:border-emerald-900/50 flex items-center justify-center"
         >
           <svg className="w-12 h-12 text-emerald-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
           </svg>
         </motion.div>
         <div>
-          <h3 className="text-2xl font-black text-slate-900 mb-2">Review published!</h3>
-          <p className="text-slate-500 text-sm leading-relaxed max-w-xs mx-auto">
+          <h3 className="text-2xl font-black text-slate-900 dark:text-slate-100 mb-2">Review published!</h3>
+          <p className="text-slate-500 dark:text-slate-400 text-sm leading-relaxed max-w-xs mx-auto">
             Thank you for sharing your experience. Your review may appear in our testimonials carousel.
           </p>
         </div>
@@ -197,7 +197,7 @@ export const ReviewSubmitSection: React.FC<ReviewSubmitSectionProps> = ({ onLogi
               </svg>
             </div>
             <h4 className="text-xl font-bold mb-2">Your voice matters</h4>
-            <p className="text-slate-400 text-sm leading-relaxed mb-6">
+            <p className="text-slate-400 dark:text-slate-500 text-sm leading-relaxed mb-6">
               Real reviews from real customers power our community. Help others make better decisions and help professionals grow.
             </p>
             <div className="flex flex-col gap-3">
@@ -221,15 +221,15 @@ export const ReviewSubmitSection: React.FC<ReviewSubmitSectionProps> = ({ onLogi
 
         {/* Not logged in CTA */}
         {!isLoggedIn && (
-          <div className="bg-amber-50 border border-amber-100 rounded-2xl p-5 flex items-start gap-4">
-            <div className="w-10 h-10 rounded-xl bg-amber-100 flex items-center justify-center shrink-0">
-              <svg className="w-5 h-5 text-amber-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+          <div className="bg-amber-50 dark:bg-amber-900/40 border border-amber-100 dark:border-amber-900/50 rounded-2xl p-5 flex items-start gap-4">
+            <div className="w-10 h-10 rounded-xl bg-amber-100 dark:bg-amber-900/50 flex items-center justify-center shrink-0">
+              <svg className="w-5 h-5 text-amber-600 dark:text-amber-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
               </svg>
             </div>
             <div>
-              <p className="font-semibold text-amber-900 text-sm mb-1">Sign in to leave a review</p>
-              <p className="text-amber-700 text-xs leading-relaxed">You need an account to submit reviews.</p>
+              <p className="font-semibold text-amber-900 dark:text-amber-200 text-sm mb-1">Sign in to leave a review</p>
+              <p className="text-amber-700 dark:text-amber-400 text-xs leading-relaxed">You need an account to submit reviews.</p>
               <button
                 type="button"
                 onClick={onLoginRequired}
@@ -246,11 +246,11 @@ export const ReviewSubmitSection: React.FC<ReviewSubmitSectionProps> = ({ onLogi
       <form
         onSubmit={handleSubmit}
         noValidate
-        className="bg-white border border-slate-100 rounded-3xl p-8 shadow-sm flex flex-col gap-7"
+        className="bg-white dark:bg-slate-900/70 border border-slate-100 dark:border-white/5 rounded-3xl p-8 shadow-sm flex flex-col gap-7"
       >
         {/* Star rating */}
         <div>
-          <label className="block text-sm font-semibold text-slate-800 mb-3">
+          <label className="block text-sm font-semibold text-slate-800 dark:text-slate-100 mb-3">
             Overall Rating <span className="text-red-500">*</span>
           </label>
           <StarRating value={rating} onChange={(v) => {
@@ -267,11 +267,11 @@ export const ReviewSubmitSection: React.FC<ReviewSubmitSectionProps> = ({ onLogi
 
         {/* Service category (workers only) — assigned automatically server-side from their registered services */}
         {isWorkerSession && (
-          <div className="rounded-xl bg-slate-50 border border-slate-200 px-4 py-3 flex items-start gap-3">
+          <div className="rounded-xl bg-slate-50 dark:bg-white/[0.04] border border-slate-200 dark:border-white/10 px-4 py-3 flex items-start gap-3">
             <svg className="w-4 h-4 text-bird-blue shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M11.25 11.25l.041-.02a.75.75 0 011.063.852l-.708 2.836a.75.75 0 001.063.853l.041-.021M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9-3.75h.008v.008H12V8.25z" />
             </svg>
-            <p className="text-xs text-slate-500 leading-relaxed">
+            <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
               Your service category is set automatically from your registered services — no need to type it in.
             </p>
           </div>
@@ -280,10 +280,10 @@ export const ReviewSubmitSection: React.FC<ReviewSubmitSectionProps> = ({ onLogi
         {/* Review text */}
         <div>
           <div className="flex items-center justify-between mb-2">
-            <label className="text-sm font-semibold text-slate-800">
+            <label className="text-sm font-semibold text-slate-800 dark:text-slate-100">
               Your Review <span className="text-red-500">*</span>
             </label>
-            <span className={`text-xs font-medium tabular-nums ${text.length > MAX * 0.9 ? 'text-red-400' : 'text-slate-400'}`}>
+            <span className={`text-xs font-medium tabular-nums ${text.length > MAX * 0.9 ? 'text-red-400' : 'text-slate-400 dark:text-slate-500'}`}>
               {text.length}/{MAX}
             </span>
           </div>
@@ -293,8 +293,8 @@ export const ReviewSubmitSection: React.FC<ReviewSubmitSectionProps> = ({ onLogi
             onChange={handleTextChange}
             placeholder="Share your experience with Fixlife — what went well, what you appreciated, and how we helped you…"
             rows={5}
-            className={`w-full rounded-xl border px-4 py-3 text-sm text-slate-900 outline-none transition-all focus:ring-2 focus:ring-bird-blue/25 focus:border-bird-blue resize-none ${
-              errors.text ? 'border-red-300 bg-red-50 focus:ring-red-200' : 'border-slate-200 bg-slate-50 hover:border-slate-300'
+            className={`w-full rounded-xl border px-4 py-3 text-sm text-slate-900 dark:text-slate-100 outline-none transition-all focus:ring-2 focus:ring-bird-blue/25 focus:border-bird-blue resize-none ${
+              errors.text ? 'border-red-300 bg-red-50 dark:bg-red-900/40 focus:ring-red-200' : 'border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-white/[0.04] hover:border-slate-300'
             }`}
           />
           {errors.text || profanityWarning ? (
@@ -303,7 +303,7 @@ export const ReviewSubmitSection: React.FC<ReviewSubmitSectionProps> = ({ onLogi
               {errors.text || profanityWarning}
             </motion.p>
           ) : (
-            <p className="mt-1.5 text-xs text-slate-400">
+            <p className="mt-1.5 text-xs text-slate-400 dark:text-slate-500">
               Minimum {MIN} characters. Characters like &lt; &gt; {'{'} {'}'} [ ] | are not allowed.
             </p>
           )}
@@ -316,7 +316,7 @@ export const ReviewSubmitSection: React.FC<ReviewSubmitSectionProps> = ({ onLogi
               initial={{ opacity: 0, y: -4 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0 }}
-              className="rounded-xl bg-red-50 border border-red-100 px-4 py-3 text-sm text-red-600 font-medium flex items-start gap-2"
+              className="rounded-xl bg-red-50 dark:bg-red-900/40 border border-red-100 dark:border-red-900/50 px-4 py-3 text-sm text-red-600 dark:text-red-400 font-medium flex items-start gap-2"
             >
               <svg className="w-4 h-4 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" /></svg>
               {apiError}
@@ -330,7 +330,7 @@ export const ReviewSubmitSection: React.FC<ReviewSubmitSectionProps> = ({ onLogi
           disabled={submitting}
           whileHover={!submitting ? { scale: 1.01 } : {}}
           whileTap={!submitting ? { scale: 0.99 } : {}}
-          className="w-full py-4 rounded-xl bg-slate-900 text-white font-bold text-sm hover:bg-bird-blue transition-colors duration-200 disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+          className="w-full py-4 rounded-xl bg-slate-900 dark:bg-white text-white dark:text-slate-900 font-bold text-sm hover:bg-bird-blue dark:hover:bg-bird-blue dark:hover:text-white transition-colors duration-200 disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-2"
         >
           {submitting ? (
             <>

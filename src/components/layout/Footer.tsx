@@ -33,7 +33,7 @@ export const Footer: React.FC<FooterProps> = ({
   ];
 
   return (
-    <footer className="relative bg-slate-900 pt-16 pb-10 border-t border-slate-800">
+    <footer className="relative bg-slate-900 pt-16 pb-10 border-t border-slate-800 dark:bg-slate-950 dark:border-white/10">
       <div className="absolute inset-0 overflow-hidden pointer-events-none z-0">
         <div className="absolute bottom-0 left-[10%] w-[500px] h-[500px] bg-bird-blue/10 rounded-full blur-[100px]" />
         <div className="absolute top-20 right-[10%] w-[400px] h-[400px] bg-bird-yellow/5 rounded-full blur-[100px]" />
@@ -62,7 +62,7 @@ export const Footer: React.FC<FooterProps> = ({
               </div>
             </button>
 
-            <p className="text-slate-400 text-sm leading-relaxed max-w-sm">
+            <p className="text-slate-400 text-sm leading-relaxed max-w-sm dark:text-slate-500">
               The leading platform connecting local talent with real needs. Safety, trust, and speed in every service.
             </p>
 
@@ -75,7 +75,7 @@ export const Footer: React.FC<FooterProps> = ({
               ].map((social) => (
                 <div
                   key={social.name}
-                  className="w-10 h-10 rounded-xl bg-slate-800 border border-slate-700 flex items-center justify-center text-slate-400 hover:bg-bird-blue hover:border-bird-blue hover:text-white transition-all cursor-pointer"
+                  className="w-10 h-10 rounded-xl bg-slate-800 border border-slate-700 flex items-center justify-center text-slate-400 hover:bg-bird-blue hover:border-bird-blue hover:text-white transition-all cursor-pointer dark:bg-white/[0.06] dark:border-white/10 dark:text-slate-500"
                   aria-hidden="true"
                 >
                   <span className="sr-only">{social.name}</span>
@@ -98,7 +98,7 @@ export const Footer: React.FC<FooterProps> = ({
                   <button
                     type="button"
                     onClick={() => onNavigateSection?.(item.target)}
-                    className="text-slate-400 hover:text-white hover:translate-x-1 transition-all text-sm font-medium inline-flex items-center gap-2 group"
+                    className="text-slate-400 hover:text-white hover:translate-x-1 transition-all text-sm font-medium inline-flex items-center gap-2 group dark:text-slate-500"
                   >
                     <svg className="w-4 h-4 opacity-0 group-hover:opacity-100 transition-opacity" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
@@ -121,7 +121,7 @@ export const Footer: React.FC<FooterProps> = ({
                   <button
                     type="button"
                     onClick={() => (item.onClick ? item.onClick() : onNavigateSection?.(item.target as string))}
-                    className="text-slate-400 hover:text-white hover:translate-x-1 transition-all text-sm font-medium inline-flex items-center gap-2 group"
+                    className="text-slate-400 hover:text-white hover:translate-x-1 transition-all text-sm font-medium inline-flex items-center gap-2 group dark:text-slate-500"
                   >
                     <svg className="w-4 h-4 opacity-0 group-hover:opacity-100 transition-opacity" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
@@ -139,7 +139,7 @@ export const Footer: React.FC<FooterProps> = ({
           <TextHoverEffect text="Fixlife" />
         </div>
 
-        <div className="pt-8 border-t border-slate-800 flex flex-col md:flex-row items-center justify-between gap-4 text-xs text-slate-500 text-center md:text-left">
+        <div className="pt-8 border-t border-slate-800 flex flex-col md:flex-row items-center justify-between gap-4 text-xs text-slate-500 text-center md:text-left dark:border-white/10">
           <div className="flex items-center gap-2 text-slate-500">
             <p>(c) 2024 Fixlife Inc. All rights reserved.</p>
             <span className="hidden md:inline">|</span>
@@ -158,7 +158,7 @@ export const Footer: React.FC<FooterProps> = ({
                 Admin Area
               </span>
             </button>
-            <span className="text-slate-700 hidden md:inline">|</span>
+            <span className="text-slate-700 hidden md:inline dark:text-slate-600">|</span>
             <button
               type="button"
               onClick={() => onNavigateSection?.('faq')}

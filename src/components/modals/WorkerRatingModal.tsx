@@ -55,7 +55,7 @@ const StarRow: React.FC<{
                         onMouseLeave={() => setHover(null)}
                         onClick={() => onChange(star)}
                         className={`relative flex h-11 w-11 items-center justify-center rounded-xl transition duration-150 disabled:cursor-not-allowed ${
-                            active ? 'bg-amber-100 text-amber-500' : 'bg-slate-100 text-slate-300 hover:text-slate-400'
+                            active ? 'bg-amber-100 dark:bg-amber-900/40 text-amber-500 dark:text-amber-400' : 'bg-slate-100 dark:bg-white/[0.06] text-slate-300 dark:text-slate-500 hover:text-slate-400 dark:hover:text-slate-400'
                         }`}
                     >
                         <Star className={`h-5 w-5 ${active ? 'fill-amber-400 stroke-amber-500' : ''}`} />
@@ -163,24 +163,24 @@ export const WorkerRatingModal: React.FC<Props> = ({ request, onClose, onSubmitt
                     exit={{ opacity: 0, scale: 0.96, y: 16 }}
                     transition={{ type: 'spring', damping: 24, stiffness: 220 }}
                     onClick={(e) => e.stopPropagation()}
-                    className="my-auto w-full max-w-lg overflow-hidden rounded-[28px] border border-slate-200 bg-white shadow-2xl"
+                    className="my-auto w-full max-w-lg overflow-hidden rounded-[28px] border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900/70 shadow-2xl"
                 >
                     {success ? (
                         <div className="relative overflow-hidden p-8 text-center sm:p-10">
-                            <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-emerald-100 text-emerald-600">
+                            <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-emerald-100 dark:bg-emerald-900/40 text-emerald-600 dark:text-emerald-400">
                                 <CheckCircle2 className="h-8 w-8" />
                             </div>
                             <p className="mt-5 text-[11px] font-black uppercase tracking-[0.24em] text-emerald-500">
                                 Review submitted
                             </p>
-                            <h2 className="mt-2 text-2xl font-black text-slate-900">Thanks for the feedback</h2>
-                            <p className="mt-2 text-sm text-slate-500">
+                            <h2 className="mt-2 text-2xl font-black text-slate-900 dark:text-slate-100">Thanks for the feedback</h2>
+                            <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
                                 Your review helps {workerName} and every future client on Fixlife.
                             </p>
                             <button
                                 type="button"
                                 onClick={onClose}
-                                className="mt-6 w-full rounded-2xl bg-slate-900 px-4 py-3 text-sm font-black uppercase tracking-[0.14em] text-white hover:bg-slate-800"
+                                className="mt-6 w-full rounded-2xl bg-slate-900 dark:bg-white px-4 py-3 text-sm font-black uppercase tracking-[0.14em] text-white dark:text-slate-900 hover:bg-slate-800 dark:hover:bg-slate-200"
                             >
                                 Done
                             </button>
@@ -218,11 +218,11 @@ export const WorkerRatingModal: React.FC<Props> = ({ request, onClose, onSubmitt
                                     {METRICS.map(({ key, label, hint }) => (
                                         <div
                                             key={key}
-                                            className="flex flex-col gap-2 rounded-2xl border border-slate-100 bg-slate-50/50 p-4 sm:flex-row sm:items-center sm:justify-between"
+                                            className="flex flex-col gap-2 rounded-2xl border border-slate-100 dark:border-white/5 bg-slate-50/50 dark:bg-white/[0.04] p-4 sm:flex-row sm:items-center sm:justify-between"
                                         >
                                             <div className="min-w-0">
-                                                <p className="text-sm font-black text-slate-900">{label}</p>
-                                                <p className="mt-0.5 text-xs text-slate-500">{hint}</p>
+                                                <p className="text-sm font-black text-slate-900 dark:text-slate-100">{label}</p>
+                                                <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">{hint}</p>
                                             </div>
                                             <StarRow
                                                 value={ratings[key]}
@@ -233,7 +233,7 @@ export const WorkerRatingModal: React.FC<Props> = ({ request, onClose, onSubmitt
                                     ))}
                                 </div>
 
-                                <label className="mt-5 block text-xs font-black uppercase tracking-[0.14em] text-slate-500">
+                                <label className="mt-5 block text-xs font-black uppercase tracking-[0.14em] text-slate-500 dark:text-slate-400">
                                     Optional comment
                                     <textarea
                                         value={comment}
@@ -242,30 +242,30 @@ export const WorkerRatingModal: React.FC<Props> = ({ request, onClose, onSubmitt
                                         rows={3}
                                         maxLength={255}
                                         placeholder="Share anything future clients should know..."
-                                        className="mt-2 w-full resize-none rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-medium text-slate-900 outline-none focus:border-slate-400 focus:ring-4 focus:ring-slate-100"
+                                        className="mt-2 w-full resize-none rounded-2xl border border-slate-200 dark:border-white/10 bg-white dark:bg-white/[0.04] px-4 py-3 text-sm font-medium text-slate-900 dark:text-slate-100 outline-none focus:border-slate-400 focus:ring-4 focus:ring-slate-100 dark:focus:ring-white/10"
                                     />
-                                    <span className={`mt-1 block text-right text-[10px] font-bold ${commentTooLong ? 'text-rose-500' : 'text-slate-400'}`}>
+                                    <span className={`mt-1 block text-right text-[10px] font-bold ${commentTooLong ? 'text-rose-500' : 'text-slate-400 dark:text-slate-500'}`}>
                                         {commentTrimmed.length}/255
                                     </span>
                                 </label>
 
-                                <div className="mt-5 flex items-center justify-between rounded-2xl border border-slate-100 bg-slate-50/60 px-4 py-3">
+                                <div className="mt-5 flex items-center justify-between rounded-2xl border border-slate-100 dark:border-white/5 bg-slate-50/60 dark:bg-white/[0.04] px-4 py-3">
                                     <div>
-                                        <p className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-400">Overall</p>
-                                        <p className="mt-1 text-lg font-black text-slate-900">{overallAverage.toFixed(1)} / 5</p>
+                                        <p className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-400 dark:text-slate-500">Overall</p>
+                                        <p className="mt-1 text-lg font-black text-slate-900 dark:text-slate-100">{overallAverage.toFixed(1)} / 5</p>
                                     </div>
                                     <div className="flex items-center gap-1">
                                         {[1, 2, 3, 4, 5].map((star) => (
                                             <Star
                                                 key={star}
-                                                className={`h-4 w-4 ${star <= Math.round(overallAverage) ? 'fill-amber-400 stroke-amber-500' : 'text-slate-300'}`}
+                                                className={`h-4 w-4 ${star <= Math.round(overallAverage) ? 'fill-amber-400 stroke-amber-500' : 'text-slate-300 dark:text-slate-600'}`}
                                             />
                                         ))}
                                     </div>
                                 </div>
 
                                 {error ? (
-                                    <div className="mt-4 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-semibold text-rose-700">
+                                    <div className="mt-4 rounded-2xl border border-rose-200 dark:border-rose-900/50 bg-rose-50 dark:bg-rose-900/40 px-4 py-3 text-sm font-semibold text-rose-700 dark:text-rose-300">
                                         {error}
                                     </div>
                                 ) : null}
@@ -275,7 +275,7 @@ export const WorkerRatingModal: React.FC<Props> = ({ request, onClose, onSubmitt
                                         type="button"
                                         onClick={onClose}
                                         disabled={busy}
-                                        className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-black uppercase tracking-[0.14em] text-slate-500 hover:border-slate-300 hover:text-slate-800 disabled:opacity-50"
+                                        className="rounded-2xl border border-slate-200 dark:border-white/10 bg-white dark:bg-white/[0.04] px-4 py-3 text-sm font-black uppercase tracking-[0.14em] text-slate-500 dark:text-slate-400 hover:border-slate-300 hover:text-slate-800 dark:hover:text-slate-100 disabled:opacity-50"
                                     >
                                         Maybe later
                                     </button>
@@ -283,7 +283,7 @@ export const WorkerRatingModal: React.FC<Props> = ({ request, onClose, onSubmitt
                                         type="button"
                                         onClick={() => void handleSubmit()}
                                         disabled={busy || commentTooLong}
-                                        className="inline-flex items-center justify-center gap-2 rounded-2xl bg-slate-900 px-6 py-3 text-sm font-black uppercase tracking-[0.14em] text-white shadow-sm transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
+                                        className="inline-flex items-center justify-center gap-2 rounded-2xl bg-slate-900 dark:bg-white px-6 py-3 text-sm font-black uppercase tracking-[0.14em] text-white dark:text-slate-900 shadow-sm transition hover:bg-slate-800 dark:hover:bg-slate-200 disabled:cursor-not-allowed disabled:opacity-60"
                                     >
                                         {busy && <Loader2 className="h-4 w-4 animate-spin" />}
                                         {busy ? 'Submitting' : 'Submit review'}

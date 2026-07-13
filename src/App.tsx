@@ -633,7 +633,7 @@ const App: React.FC = () => {
                 initial={{ opacity: 0, x: 50 }}
                 animate={{ opacity: 1, x: 0 }}
                 transition={{ duration: 0.6, delay: 0.2 }}
-                className="lg:col-span-4 flex flex-col justify-center p-6 md:p-10 rounded-3xl bg-white/80 backdrop-blur-xl border border-gray-200/50 shadow-2xl relative overflow-hidden group hover:border-bird-blue/30 transition-all duration-500"
+                className="lg:col-span-4 flex flex-col justify-center p-6 md:p-10 rounded-3xl bg-white/80 backdrop-blur-xl border border-gray-200/50 shadow-2xl relative overflow-hidden group hover:border-bird-blue/30 transition-all duration-500 dark:bg-slate-900/70 dark:border-white/10"
               >
                 <motion.div
                   animate={{
@@ -654,21 +654,21 @@ const App: React.FC = () => {
                       initial={{ opacity: 0, scale: 0.8 }}
                       animate={{ opacity: 1, scale: 1 }}
                       transition={{ delay: 0.4, type: "spring" }}
-                      className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-green-50 border border-green-200 w-fit mb-8 shadow-sm"
+                      className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-green-50 border border-green-200 w-fit mb-8 shadow-sm dark:bg-emerald-900/40 dark:border-emerald-900/50"
                     >
                       <motion.span
                         animate={{ scale: [1, 1.3, 1] }}
                         transition={{ duration: 2, repeat: Infinity }}
                         className="w-2 h-2 rounded-full bg-green-500"
                       />
-                      <span className="text-xs font-bold text-green-700 tracking-wider uppercase">Verified local pros</span>
+                      <span className="text-xs font-bold text-green-700 tracking-wider uppercase dark:text-emerald-400">Verified local pros</span>
                     </motion.div>
 
                     <motion.h1
                       initial={{ opacity: 0, y: 20 }}
                       animate={{ opacity: 1, y: 0 }}
                       transition={{ delay: 0.5, duration: 0.6 }}
-                      className="text-3xl md:text-4xl xl:text-5xl font-black mb-4 md:mb-6 leading-tight tracking-tight text-gray-900"
+                      className="text-3xl md:text-4xl xl:text-5xl font-black mb-4 md:mb-6 leading-tight tracking-tight text-gray-900 dark:text-slate-100"
                     >
                       Book trusted home help <br />
                       <motion.span
@@ -691,9 +691,9 @@ const App: React.FC = () => {
                       initial={{ opacity: 0, y: 20 }}
                       animate={{ opacity: 1, y: 0 }}
                       transition={{ delay: 0.6, duration: 0.6 }}
-                      className="text-gray-600 text-base md:text-lg leading-relaxed mb-6 md:mb-8 max-w-md font-medium"
+                      className="text-gray-600 text-base md:text-lg leading-relaxed mb-6 md:mb-8 max-w-md font-medium dark:text-slate-400"
                     >
-                      Describe the problem, review nearby professionals, and chat before accepting a quote. <span className="text-gray-900 font-bold">Cleaner booking, less guesswork.</span>
+                      Describe the problem, review nearby professionals, and chat before accepting a quote. <span className="text-gray-900 font-bold dark:text-slate-100">Cleaner booking, less guesswork.</span>
                     </motion.p>
                   </div>
 
@@ -726,7 +726,7 @@ const App: React.FC = () => {
                       See how it works
                     </Button>
 
-                    <p className="pt-2 text-sm leading-relaxed text-gray-500">
+                    <p className="pt-2 text-sm leading-relaxed text-gray-500 dark:text-slate-400">
                       Share the problem, add photos, and we help you connect with nearby pros.
                     </p>
                   </motion.div>
@@ -739,11 +739,11 @@ const App: React.FC = () => {
               <ScrollReveal>
                 <div className="flex items-center justify-between mb-10 px-2">
                   <div>
-                    <h3 className="text-3xl md:text-4xl font-black text-gray-900 flex items-center gap-4">
+                    <h3 className="text-3xl md:text-4xl font-black text-gray-900 flex items-center gap-4 dark:text-slate-100">
                       <span className="w-1.5 h-8 rounded-full bg-bird-blue shadow-[0_0_15px_rgba(0,144,255,0.4)] origin-bottom" />
                       Professional Services
                     </h3>
-                    <p className="text-gray-600 mt-2 ml-6 text-sm font-medium">
+                    <p className="text-gray-600 mt-2 ml-6 text-sm font-medium dark:text-slate-400">
                       Expert solutions for every home need
                     </p>
                   </div>
@@ -768,10 +768,10 @@ const App: React.FC = () => {
                     <ThreeDCard className="h-full">
                     <div
                       onClick={() => handleStartBooking({ id: item.id_service, name: item.service_name })}
-                      className="group h-full cursor-pointer bg-white/80 border border-gray-200/50 rounded-3xl overflow-hidden hover:border-bird-blue/50 transition-all duration-500 hover:shadow-2xl hover:shadow-bird-blue/10 flex flex-col backdrop-blur-sm"
+                      className="group h-full cursor-pointer bg-white/80 border border-gray-200/50 rounded-3xl overflow-hidden hover:border-bird-blue/50 transition-all duration-500 hover:shadow-2xl hover:shadow-bird-blue/10 flex flex-col backdrop-blur-sm dark:bg-slate-900/70 dark:border-white/10"
                     >
                       <div className="relative h-48 overflow-hidden">
-                        <div className="absolute inset-0 bg-gradient-to-t from-white via-white/50 to-transparent z-10" />
+                        <div className="absolute inset-0 bg-gradient-to-t from-white via-white/50 to-transparent z-10 dark:from-slate-900 dark:via-slate-900/50" />
                         <motion.img
                           whileHover={{ scale: 1.15 }}
                           transition={{ duration: 0.6 }}
@@ -793,15 +793,15 @@ const App: React.FC = () => {
                             e.stopPropagation();
                             handleStartBooking({ id: item.id_service, name: item.service_name });
                           }}
-                          className="absolute top-4 right-4 z-20 w-12 h-12 bg-white/95 backdrop-blur-md rounded-xl border border-gray-200 flex items-center justify-center shadow-lg group-hover:bg-bird-blue group-hover:border-bird-blue group-hover:text-white transition-all duration-300 text-gray-700"
+                          className="absolute top-4 right-4 z-20 w-12 h-12 bg-white/95 backdrop-blur-md rounded-xl border border-gray-200 flex items-center justify-center shadow-lg group-hover:bg-bird-blue group-hover:border-bird-blue group-hover:text-white transition-all duration-300 text-gray-700 dark:bg-slate-900/80 dark:border-white/10 dark:text-slate-300"
                         >
                           <span className="text-xl">{item.service_icon && item.service_icon.length <= 2 ? item.service_icon : 'FX'}</span>
                         </motion.div>
                       </div>
                       <div className="p-6 flex-1 flex flex-col relative z-20">
                         <div className="flex-1">
-                          <h4 className="text-xl font-bold text-gray-900 group-hover:text-bird-blue transition-colors mb-2">{item.headline}</h4>
-                          <p className="text-gray-600 text-sm leading-relaxed mb-4 line-clamp-3 font-medium">{item.summary}</p>
+                          <h4 className="text-xl font-bold text-gray-900 group-hover:text-bird-blue transition-colors mb-2 dark:text-slate-100">{item.headline}</h4>
+                          <p className="text-gray-600 text-sm leading-relaxed mb-4 line-clamp-3 font-medium dark:text-slate-400">{item.summary}</p>
                         </div>
                         <motion.div
                           initial={{ x: 0 }}

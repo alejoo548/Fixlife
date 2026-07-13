@@ -108,12 +108,12 @@ const statusLabel = (status: string) => {
 
 const statusTone = (status: string) => {
     const s = String(status || '').toLowerCase();
-    if (s === 'done') return 'bg-emerald-50 text-emerald-700 border-emerald-200';
-    if (s === 'cancelled') return 'bg-rose-50 text-rose-700 border-rose-200';
-    if (s === 'paid') return 'bg-cyan-50 text-cyan-700 border-cyan-200';
-    if (s === 'payment_pending') return 'bg-amber-50 text-amber-700 border-amber-200';
-    if (s === 'in_progress' || s === 'route_in_progress' || s === 'arrived') return 'bg-blue-50 text-blue-700 border-blue-200';
-    return 'bg-slate-100 text-slate-600 border-slate-200';
+    if (s === 'done') return 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-900/40 dark:text-emerald-300 dark:border-emerald-900/50';
+    if (s === 'cancelled') return 'bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-900/40 dark:text-rose-300 dark:border-rose-900/50';
+    if (s === 'paid') return 'bg-cyan-50 text-cyan-700 border-cyan-200 dark:bg-cyan-900/40 dark:text-cyan-300 dark:border-cyan-900/50';
+    if (s === 'payment_pending') return 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-900/40 dark:text-amber-300 dark:border-amber-900/50';
+    if (s === 'in_progress' || s === 'route_in_progress' || s === 'arrived') return 'bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-900/40 dark:text-blue-300 dark:border-blue-900/50';
+    return 'bg-slate-100 text-slate-600 border-slate-200 dark:bg-white/[0.06] dark:text-slate-400 dark:border-white/10';
 };
 
 const money = (value: number, currency = 'USD') =>
@@ -427,7 +427,7 @@ const RequestCard: React.FC<{
             <div className="p-6 sm:p-7">
                 <div className="flex items-start justify-between gap-4">
                     <div className="min-w-0 flex-1">
-                        <div className="flex flex-wrap items-center gap-2 text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">
+                        <div className="flex flex-wrap items-center gap-2 text-[10px] font-black uppercase tracking-[0.18em] text-slate-400 dark:text-slate-500">
                             <span>Request #{request.id_request}</span>
                             <span aria-hidden>·</span>
                             <span>{formatDate(request.created_at)}</span>
@@ -489,7 +489,7 @@ const RequestCard: React.FC<{
                             <button
                                 type="button"
                                 onClick={onReview}
-                                className="inline-flex items-center gap-1.5 rounded-2xl bg-slate-900 px-4 py-2.5 text-xs font-black uppercase tracking-[0.14em] text-white shadow-sm transition hover:bg-slate-800"
+                                className="inline-flex items-center gap-1.5 rounded-2xl bg-slate-900 dark:bg-white px-4 py-2.5 text-xs font-black uppercase tracking-[0.14em] text-white dark:text-slate-900 shadow-sm transition hover:bg-slate-800 dark:hover:bg-slate-200"
                             >
                                 <Star className="h-3.5 w-3.5" />
                                 Review pro
@@ -500,7 +500,7 @@ const RequestCard: React.FC<{
                                 type="button"
                                 onClick={onCancel}
                                 disabled={cancelBusy}
-                                className="inline-flex items-center gap-1.5 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-2.5 text-xs font-black uppercase tracking-[0.14em] text-rose-600 transition hover:border-rose-300 hover:bg-rose-100 disabled:opacity-60"
+                                className="inline-flex items-center gap-1.5 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-2.5 text-xs font-black uppercase tracking-[0.14em] text-rose-600 transition hover:border-rose-300 hover:bg-rose-100 disabled:opacity-60 dark:border-rose-900/50 dark:bg-rose-900/40 dark:text-rose-300 dark:hover:border-rose-900/60 dark:hover:bg-rose-900/60"
                             >
                                 {cancelBusy ? (
                                     <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -537,13 +537,13 @@ const LoadingState: React.FC = () => (
 );
 
 const ErrorState: React.FC<{ message: string; onRetry: () => void }> = ({ message, onRetry }) => (
-    <div className="rounded-3xl border border-rose-200 bg-rose-50 p-8 text-center">
+    <div className="rounded-3xl border border-rose-200 bg-rose-50 p-8 text-center dark:border-rose-900/50 dark:bg-rose-900/40">
         <AlertTriangle className="mx-auto h-8 w-8 text-rose-500" />
-        <p className="mt-4 text-sm font-bold text-rose-700">{message}</p>
+        <p className="mt-4 text-sm font-bold text-rose-700 dark:text-rose-300">{message}</p>
         <button
             type="button"
             onClick={onRetry}
-            className="mt-5 inline-flex items-center gap-2 rounded-2xl bg-rose-600 px-5 py-2.5 text-xs font-black uppercase tracking-[0.14em] text-white hover:bg-rose-700"
+            className="mt-5 inline-flex items-center gap-2 rounded-2xl bg-rose-600 px-5 py-2.5 text-xs font-black uppercase tracking-[0.14em] text-white hover:bg-rose-700 dark:bg-rose-700 dark:hover:bg-rose-600"
         >
             Retry
         </button>

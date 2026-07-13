@@ -925,7 +925,7 @@ export const RequestsView: React.FC<RequestsViewProps> = ({
           </div>
         )}
 
-        {selectedRequest && statusFilter === 'accepted' && (
+        {selectedRequest && statusFilter === 'accepted' && !requestsPanelOpen && (
           <WorkerCurrentJobPanel
             request={selectedRequest}
             scheduled={selectedScheduled}
