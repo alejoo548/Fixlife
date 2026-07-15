@@ -83,7 +83,7 @@ export default function UsersModule() {
   return (
     <div className="admin-page-stack">
       <FilterBar>
-        <label className="admin-search-field"><Search size={17} /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search clients" /></label>
+        <label className="admin-search-field"><Search size={17} /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search clients" maxLength={120} /></label>
         <select value={status} onChange={(event) => setStatus(event.target.value)}><option value="all">All accounts</option><option value="active">Active</option><option value="inactive">Inactive</option></select>
       </FilterBar>
 

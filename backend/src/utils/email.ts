@@ -237,7 +237,6 @@ type PaymentInvoiceInput = {
   currencyCode?: string | null;
   commissionRatePercent?: number | null;
   policyLabel?: string | null;
-  promoCode?: string | null;
   paidAt: Date;
 };
 
@@ -248,7 +247,6 @@ export const sendPaymentInvoiceEmail = async (input: PaymentInvoiceInput) => {
     .replace(/_/g, ' ')
     .replace(/\b\w/g, (letter) => letter.toUpperCase());
   const policyLine = input.policyLabel ? escapeHtml(input.policyLabel) : 'Default commission policy';
-  const promoLine = input.promoCode ? escapeHtml(String(input.promoCode).toUpperCase()) : null;
   const bodyHtml = `
     <p style="margin: 0 0 18px; font-size: 15px; line-height: 1.7;">Hi ${escapeHtml(input.customerName)}, your payment was successfully secured. Here is your Fixlife electronic invoice with the full breakdown for this service.</p>
 
@@ -283,7 +281,6 @@ export const sendPaymentInvoiceEmail = async (input: PaymentInvoiceInput) => {
           <div style="margin-top: 10px; font-size: 20px; font-weight: 800; color: #0f172a;">${escapeHtml(input.checkoutReference)}</div>
           <div style="margin-top: 8px; font-size: 13px; line-height: 1.6; color: #475569;">
             <div>${escapeHtml(policyLine)}</div>
-            ${promoLine ? `<div>Promo applied: ${promoLine}</div>` : ''}
             ${
               input.commissionRatePercent != null
                 ? `<div>Platform fee: ${escapeHtml(Number(input.commissionRatePercent).toFixed(2))}%</div>`

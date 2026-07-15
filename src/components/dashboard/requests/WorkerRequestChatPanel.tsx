@@ -96,14 +96,14 @@ export const WorkerRequestChatPanel: React.FC<WorkerRequestChatPanelProps> = ({
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             onClick={onClose}
-            className="absolute inset-0 z-[545] bg-slate-950/25 backdrop-blur-[2px] lg:hidden"
+            className="absolute inset-0 z-[60] bg-slate-950/25 backdrop-blur-[2px] lg:hidden"
           />
           <motion.aside
             initial={{ opacity: 0, x: 36, scale: 0.98 }}
             animate={{ opacity: 1, x: 0, scale: 1 }}
             exit={{ opacity: 0, x: 36, scale: 0.98 }}
             transition={{ type: 'spring', damping: 28, stiffness: 260 }}
-            className={`absolute inset-0 z-[550] flex min-h-0 flex-col overflow-hidden bg-slate-50 pointer-events-auto sm:inset-x-3 sm:bottom-3 sm:top-3 sm:rounded-[28px] sm:border sm:border-white/80 sm:shadow-[0_28px_80px_rgba(15,23,42,0.24)] lg:inset-y-4 ${
+            className={`absolute inset-0 z-[70] flex min-h-0 flex-col overflow-hidden bg-slate-50 pointer-events-auto sm:inset-x-3 sm:bottom-3 sm:top-3 sm:rounded-[28px] sm:border sm:border-white/80 sm:shadow-[0_28px_80px_rgba(15,23,42,0.24)] lg:inset-y-4 ${
               dockBesideRequestsPanel ? 'lg:left-4 lg:right-4' : 'lg:left-auto lg:right-4 lg:w-[410px]'
             }`}
             style={desktopDockedStyle}

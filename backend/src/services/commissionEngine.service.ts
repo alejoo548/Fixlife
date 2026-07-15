@@ -11,7 +11,7 @@ export const WORKER_TIERS = ['standard', 'verified', 'trusted', 'elite'] as cons
 
 export type CommissionUrgencyLevel = (typeof URGENCY_LEVELS)[number];
 export type CommissionWorkerTier = (typeof WORKER_TIERS)[number];
-type CommissionRuleType = 'global' | 'service' | 'urgency' | 'worker_tier' | 'promo';
+type CommissionRuleType = 'global' | 'service' | 'urgency' | 'worker_tier';
 type CommissionAdjustmentMode = 'set_rate' | 'add_rate' | 'subtract_rate';
 
 type CommissionRuleRow = RowDataPacket & {
@@ -21,7 +21,6 @@ type CommissionRuleRow = RowDataPacket & {
   id_service: number | null;
   urgency_level: CommissionUrgencyLevel | null;
   worker_tier: CommissionWorkerTier | null;
-  promo_code: string | null;
   adjustment_mode: CommissionAdjustmentMode;
   rate_percent: number;
   priority: number;
@@ -37,7 +36,6 @@ export interface AppliedCommissionRule {
   id_service: number | null;
   urgency_level: CommissionUrgencyLevel | null;
   worker_tier: CommissionWorkerTier | null;
-  promo_code: string | null;
   adjustment_mode: CommissionAdjustmentMode;
   rate_percent: number;
   priority: number;
@@ -48,7 +46,6 @@ export interface CommissionContext {
   idService?: number | null;
   urgencyLevel?: CommissionUrgencyLevel | null;
   workerTier?: CommissionWorkerTier | null;
-  promoCode?: string | null;
 }
 
 export interface CommissionBreakdown {
@@ -63,7 +60,6 @@ export interface CommissionBreakdown {
       id_service: number | null;
       urgency_level: CommissionUrgencyLevel;
       worker_tier: CommissionWorkerTier;
-      promo_code: string | null;
     };
     applied_rules: AppliedCommissionRule[];
   };
@@ -83,12 +79,6 @@ export interface CommissionAdminUrgencyInput {
 
 export interface CommissionAdminTierInput {
   worker_tier: CommissionWorkerTier;
-  rate_percent: number;
-  is_active?: boolean;
-}
-
-export interface CommissionAdminPromoInput {
-  promo_code: string;
   rate_percent: number;
   is_active?: boolean;
 }
@@ -119,17 +109,11 @@ export interface CommissionAdminConfig {
       worker_tier: CommissionWorkerTier;
     }
   >;
-  promo_codes: Array<
-    CommissionAdminRuleItem & {
-      promo_code: string;
-    }
-  >;
   summary: {
     effective_default_rate_percent: number;
     service_override_count: number;
     urgency_rule_count: number;
     worker_tier_rule_count: number;
-    promo_rule_count: number;
   };
 }
 
@@ -144,13 +128,6 @@ const DEFAULT_COMMISSION_RATE = (() => {
 const roundMoney = (value: number) => Number(Number(value || 0).toFixed(2));
 const roundRate = (value: number) => Number(Number(value || 0).toFixed(4));
 const clampRate = (value: number) => Math.min(Math.max(roundRate(value), 0), 0.5);
-
-export const normalizePromoCode = (value: unknown) =>
-  String(value || '')
-    .trim()
-    .toUpperCase()
-    .replace(/\s+/g, '')
-    .slice(0, 40);
 
 export const normalizeUrgencyLevel = (value: unknown): CommissionUrgencyLevel => {
   const normalized = String(value || '').trim().toLowerCase();
@@ -195,14 +172,12 @@ const normalizeRule = (row: CommissionRuleRow): AppliedCommissionRule => ({
   rule_type:
     row.rule_type === 'service' ||
     row.rule_type === 'urgency' ||
-    row.rule_type === 'worker_tier' ||
-    row.rule_type === 'promo'
+    row.rule_type === 'worker_tier'
       ? row.rule_type
       : 'global',
   id_service: row.id_service != null ? Number(row.id_service) : null,
   urgency_level: row.urgency_level ? normalizeUrgencyLevel(row.urgency_level) : null,
   worker_tier: row.worker_tier ? normalizeWorkerTier(row.worker_tier) : null,
-  promo_code: row.promo_code ? normalizePromoCode(row.promo_code) : null,
   adjustment_mode:
     row.adjustment_mode === 'add_rate' || row.adjustment_mode === 'subtract_rate'
       ? row.adjustment_mode
@@ -221,7 +196,6 @@ const readCommissionRuleRows = async (executor: SqlExecutor) =>
        cr.id_service,
        cr.urgency_level,
        cr.worker_tier,
-       cr.promo_code,
        cr.adjustment_mode,
        cr.rate_percent,
        cr.priority,
@@ -230,6 +204,7 @@ const readCommissionRuleRows = async (executor: SqlExecutor) =>
        s.name AS service_name
      FROM commission_rules cr
      LEFT JOIN services s ON s.id_service = cr.id_service
+     WHERE cr.rule_type <> 'promo'
      ORDER BY cr.rule_type ASC, cr.priority ASC, cr.id_rule ASC`
   )) as [CommissionRuleRow[], any];
 
@@ -269,6 +244,15 @@ export const ensureCommissionEngineTables = async (executor: SqlExecutor = pool)
   await executor.execute(`
     ALTER TABLE commission_rules
     MODIFY COLUMN rule_type ENUM('global', 'service', 'urgency', 'worker_tier', 'promo') NOT NULL DEFAULT 'global'
+  `);
+
+  // Promo rules are retired: any legacy 'promo' rows are deactivated on
+  // startup so they can never affect pricing, and the promo-code creation
+  // path no longer exists (see admin.schema.ts / FinanceModule).
+  await executor.execute(`
+    UPDATE commission_rules
+    SET is_active = 0
+    WHERE rule_type = 'promo' AND is_active = 1
   `);
 
   const [commissionCols] = (await executor.execute(
@@ -416,7 +400,6 @@ export const calculateCommissionBreakdown = async (input: {
   idService?: number | null;
   urgencyLevel?: CommissionUrgencyLevel | null;
   workerTier?: CommissionWorkerTier | null;
-  promoCode?: string | null;
   executor?: SqlExecutor;
 }): Promise<CommissionBreakdown> => {
   const executor = input.executor || pool;
@@ -429,7 +412,6 @@ export const calculateCommissionBreakdown = async (input: {
       : null;
   const urgencyLevel = normalizeUrgencyLevel(input.urgencyLevel);
   const workerTier = normalizeWorkerTier(input.workerTier);
-  const promoCode = normalizePromoCode(input.promoCode);
 
   const [rows] = (await executor.execute(
     `SELECT
@@ -439,7 +421,6 @@ export const calculateCommissionBreakdown = async (input: {
        cr.id_service,
        cr.urgency_level,
        cr.worker_tier,
-       cr.promo_code,
        cr.adjustment_mode,
        cr.rate_percent,
        cr.priority,
@@ -454,10 +435,9 @@ export const calculateCommissionBreakdown = async (input: {
          OR (cr.rule_type = 'service' AND cr.id_service = ?)
          OR (cr.rule_type = 'urgency' AND cr.urgency_level = ?)
          OR (cr.rule_type = 'worker_tier' AND cr.worker_tier = ?)
-         OR (cr.rule_type = 'promo' AND cr.promo_code = ?)
        )
      ORDER BY cr.priority ASC, cr.id_rule ASC`,
-    [targetServiceId ?? -1, urgencyLevel, workerTier, promoCode || '__NO_PROMO__']
+    [targetServiceId ?? -1, urgencyLevel, workerTier]
   )) as [CommissionRuleRow[], any];
 
   const appliedRules = rows.map(normalizeRule);
@@ -475,7 +455,6 @@ export const calculateCommissionBreakdown = async (input: {
     appliedRules.some((rule) => rule.rule_type === 'service') ? 'Service override applied' : null,
     appliedRules.some((rule) => rule.rule_type === 'urgency') ? `${urgencyLevel} urgency adjustment` : null,
     appliedRules.some((rule) => rule.rule_type === 'worker_tier') ? `${workerTier} tier adjustment` : null,
-    appliedRules.some((rule) => rule.rule_type === 'promo') ? `${promoCode} promo applied` : null,
   ].filter(Boolean);
 
   return {
@@ -490,7 +469,6 @@ export const calculateCommissionBreakdown = async (input: {
         id_service: targetServiceId,
         urgency_level: urgencyLevel,
         worker_tier: workerTier,
-        promo_code: promoCode || null,
       },
       applied_rules: appliedRules,
     },
@@ -544,29 +522,16 @@ export const getCommissionRulesAdminConfig = async (): Promise<CommissionAdminCo
       adjustment_mode: rule.adjustment_mode,
     }));
 
-  const promoCodes = activeRows
-    .filter((rule) => rule.rule_type === 'promo' && rule.promo_code)
-    .map((rule) => ({
-      id_rule: rule.id_rule,
-      promo_code: rule.promo_code as string,
-      rate_percent: Number((rule.rate_percent * 100).toFixed(2)),
-      is_active: true,
-      priority: rule.priority,
-      adjustment_mode: rule.adjustment_mode,
-    }));
-
   return {
     global_rate_percent: Number((((normalizedGlobalRule?.rate_percent ?? DEFAULT_COMMISSION_RATE) * 100)).toFixed(2)),
     service_overrides: serviceOverrides,
     urgency_adjustments: urgencyAdjustments,
     worker_tier_adjustments: workerTierAdjustments,
-    promo_codes: promoCodes,
     summary: {
       effective_default_rate_percent: Number((((normalizedGlobalRule?.rate_percent ?? DEFAULT_COMMISSION_RATE) * 100)).toFixed(2)),
       service_override_count: serviceOverrides.length,
       urgency_rule_count: urgencyAdjustments.length,
       worker_tier_rule_count: workerTierAdjustments.length,
-      promo_rule_count: promoCodes.length,
     },
   };
 };
@@ -582,7 +547,6 @@ const upsertTypedRules = async (
     id_service?: number | null;
     urgency_level?: CommissionUrgencyLevel | null;
     worker_tier?: CommissionWorkerTier | null;
-    promo_code?: string | null;
     adjustment_mode: CommissionAdjustmentMode;
   }>
 ) => {
@@ -591,8 +555,7 @@ const upsertTypedRules = async (
        id_rule,
        id_service,
        urgency_level,
-       worker_tier,
-       promo_code
+       worker_tier
      FROM commission_rules
      WHERE rule_type = ?`,
     [ruleType]
@@ -607,9 +570,7 @@ const upsertTypedRules = async (
           ? `urgency:${normalizeUrgencyLevel(row.urgency_level)}`
           : ruleType === 'worker_tier'
             ? `tier:${normalizeWorkerTier(row.worker_tier)}`
-            : ruleType === 'promo'
-              ? `promo:${normalizePromoCode(row.promo_code)}`
-              : 'global';
+            : 'global';
     existingByKey.set(key, Number(row.id_rule));
   }
 
@@ -628,7 +589,6 @@ const upsertTypedRules = async (
       row.id_service ?? null,
       row.urgency_level ?? null,
       row.worker_tier ?? null,
-      row.promo_code ?? null,
       row.adjustment_mode,
       clampRate(Number(row.rate_percent || 0) / 100),
       row.priority,
@@ -641,7 +601,6 @@ const upsertTypedRules = async (
              id_service = ?,
              urgency_level = ?,
              worker_tier = ?,
-             promo_code = ?,
              adjustment_mode = ?,
              rate_percent = ?,
              priority = ?,
@@ -658,13 +617,12 @@ const upsertTypedRules = async (
            id_service,
            urgency_level,
            worker_tier,
-           promo_code,
            adjustment_mode,
            rate_percent,
            priority,
            is_active
          )
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1)`,
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1)`,
         [row.name, ruleType, ...values]
       );
     }
@@ -676,7 +634,6 @@ export const updateCommissionRulesAdminConfig = async (input: {
   service_overrides?: CommissionAdminOverrideInput[];
   urgency_adjustments?: CommissionAdminUrgencyInput[];
   worker_tier_adjustments?: CommissionAdminTierInput[];
-  promo_codes?: CommissionAdminPromoInput[];
 }) => {
   await ensureCommissionEngineTables();
 
@@ -710,16 +667,6 @@ export const updateCommissionRulesAdminConfig = async (input: {
           is_active: item.is_active !== false,
         }))
         .filter((item) => item.is_active)
-    : [];
-
-  const promoCodes = Array.isArray(input.promo_codes)
-    ? input.promo_codes
-        .map((item) => ({
-          promo_code: normalizePromoCode(item.promo_code),
-          rate_percent: Number(Number(item.rate_percent || 0).toFixed(2)),
-          is_active: item.is_active !== false,
-        }))
-        .filter((item) => item.is_active && item.promo_code)
     : [];
 
   const connection = await pool.getConnection();
@@ -798,19 +745,6 @@ export const updateCommissionRulesAdminConfig = async (input: {
         worker_tier: item.worker_tier,
         rate_percent: item.rate_percent,
         priority: 300 + index,
-        adjustment_mode: 'subtract_rate',
-      }))
-    );
-
-    await upsertTypedRules(
-      connection,
-      'promo',
-      promoCodes.map((item, index) => ({
-        key: `promo:${item.promo_code}`,
-        name: `${item.promo_code} promo adjustment`,
-        promo_code: item.promo_code,
-        rate_percent: item.rate_percent,
-        priority: 400 + index,
         adjustment_mode: 'subtract_rate',
       }))
     );

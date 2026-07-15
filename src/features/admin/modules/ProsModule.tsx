@@ -148,7 +148,7 @@ export default function ProsModule() {
       <FilterBar>
         <label className="admin-search-field">
           <Search size={17} />
-          <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search professionals" />
+          <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search professionals" maxLength={120} />
         </label>
       </FilterBar>
 

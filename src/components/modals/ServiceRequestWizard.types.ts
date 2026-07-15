@@ -85,7 +85,6 @@ export interface MyServiceRequest {
         platform_fee?: number | null;
         worker_payout?: number | null;
         commission_rate?: number | null;
-        promo_code?: string | null;
         commission_snapshot?: {
             commission_rate?: number | null;
             policy_label?: string | null;

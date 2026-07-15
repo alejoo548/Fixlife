@@ -735,7 +735,7 @@ export const RequestsView: React.FC<RequestsViewProps> = ({
         initial={mobileView === 'list' ? { y: 0 } : { y: '100%' }}
         animate={{ y: 0 }}
         transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-        className={`relative z-[510] flex h-full min-h-0 w-full flex-col overflow-hidden bg-white/96 shadow-2xl backdrop-blur-xl lg:absolute lg:inset-y-4 lg:left-4 lg:h-auto lg:w-[420px] lg:rounded-[28px] lg:border lg:border-white/80 xl:w-[440px] ${
+        className={`relative z-10 flex h-full min-h-0 w-full flex-col overflow-hidden bg-white/96 shadow-2xl backdrop-blur-xl lg:absolute lg:inset-y-4 lg:left-4 lg:h-auto lg:w-[420px] lg:rounded-[28px] lg:border lg:border-white/80 xl:w-[440px] ${
           mobileView === 'map' ? 'hidden' : 'flex lg:hidden'
         }`}
       >
@@ -889,9 +889,9 @@ export const RequestsView: React.FC<RequestsViewProps> = ({
       >
         <div ref={mapContainerRef} className="absolute inset-0 z-0 bg-gray-100" />
         {!leafletReady && (
-          <div className="absolute right-4 top-4 z-[500] h-3 w-3 animate-pulse rounded-full bg-bird-blue" />
+          <div className="absolute right-4 top-4 z-20 h-3 w-3 animate-pulse rounded-full bg-bird-blue" />
         )}
-        <div className="absolute left-4 top-4 z-[520] flex max-w-[calc(100%-7rem)] items-start gap-3">
+        <div className="absolute left-4 top-4 z-30 flex max-w-[calc(100%-7rem)] items-start gap-3">
           <div className="rounded-2xl border border-white/80 bg-white/92 p-3 text-slate-900 shadow-[0_18px_40px_rgba(15,23,42,0.24)] backdrop-blur-xl">
             <p className="text-[10px] font-black uppercase tracking-[0.16em] text-bird-blue/80">
               Worker workspace
@@ -912,7 +912,7 @@ export const RequestsView: React.FC<RequestsViewProps> = ({
           </div>
         </div>
         {!isWorkerActive && (
-          <div className="absolute inset-0 z-[400] flex items-center justify-center bg-slate-100/70 backdrop-blur-sm">
+          <div className="absolute inset-0 z-40 flex items-center justify-center bg-slate-100/70 backdrop-blur-sm">
             <div className="mx-4 max-w-sm rounded-[28px] border border-white/80 bg-white/95 p-6 text-center shadow-[0_28px_70px_rgba(15,23,42,0.16)]">
               <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-slate-100">
                 <WifiOff className="h-6 w-6 text-slate-500" />
@@ -968,14 +968,14 @@ export const RequestsView: React.FC<RequestsViewProps> = ({
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
                 onClick={() => setRequestsPanelOpen(false)}
-                className="absolute inset-0 z-[530] bg-slate-950/58 backdrop-blur-[4px] lg:hidden"
+                className="absolute inset-0 z-40 bg-slate-950/58 backdrop-blur-[4px] lg:hidden"
               />
               <motion.aside
                 initial={mobileView === 'list' ? { x: 0, opacity: 1 } : { x: -32, opacity: 0 }}
                 animate={{ x: 0, opacity: 1 }}
                 exit={{ x: -32, opacity: 0 }}
                 transition={{ type: 'spring', damping: 26, stiffness: 220 }}
-                className="absolute inset-y-3 left-3 z-[540] flex w-[calc(100%-1.5rem)] max-w-[460px] flex-col overflow-hidden rounded-[30px] border border-slate-200 bg-white shadow-[0_34px_100px_rgba(15,23,42,0.38)] lg:w-[420px] xl:w-[440px]"
+                className="absolute inset-y-3 left-3 z-50 flex w-[calc(100%-1.5rem)] max-w-[460px] flex-col overflow-hidden rounded-[30px] border border-slate-200 bg-white shadow-[0_34px_100px_rgba(15,23,42,0.38)] lg:w-[420px] xl:w-[440px]"
               >
                 <div className="border-b border-slate-200/80 bg-white px-5 pb-4 pt-5">
                   <div className="flex items-start justify-between gap-4">
@@ -1040,54 +1040,6 @@ export const RequestsView: React.FC<RequestsViewProps> = ({
                   connected={workspaceSocketConnected}
                 />
                 <div className="custom-scrollbar min-h-0 flex-1 space-y-3 overflow-y-auto bg-slate-100 p-3 pb-5">
-                  {showInlineCurrentJob && selectedRequest && (
-                    <WorkerCurrentJobPanel
-                      layout="inline"
-                      request={selectedRequest}
-                      scheduled={selectedScheduled}
-                      routeActive={routeActive}
-                      arrived={selectedArrived}
-                      canChat={canChat}
-                      canTravel={canTravel}
-                      routeLoading={routeLoading}
-                      routeReady={!!routePreview && !routeLoading}
-                      routeError={routeError}
-                      routeStatus={routeStatus}
-                      routeMetrics={displayedRouteMetrics}
-                      routePanelExpanded={routePanelExpanded}
-                      routeCameraMode={routeCameraMode}
-                      trafficEnabled={trafficEnabled}
-                      trafficDelayMinutes={simulatedTraffic?.delayMin || 0}
-                      busy={busyId === selectedRequest.id_request}
-                      onToggleTools={() => setRoutePanelExpanded((open) => !open)}
-                      onOpenChat={() => setChatPanelOpen(true)}
-                      onReport={() => setReportRequest(selectedRequest)}
-                      onCenterRoute={centerRoute}
-                      onCameraModeChange={setRouteCameraMode}
-                      onTrafficToggle={() => setTrafficEnabled((enabled) => !enabled)}
-                      onTravel={() => void toggleRoute()}
-                      onArrive={() => void markArrived(selectedRequest.id_request)}
-                      onStart={() => void handleWorkflowApproval(selectedRequest.id_request, 'start_work')}
-                      onComplete={() => void handleWorkflowApproval(selectedRequest.id_request, 'finish_work')}
-                      onFinalize={() => void handleWorkflowApproval(selectedRequest.id_request, 'complete_service')}
-                      onConfirmCash={() => void handleConfirmCash(selectedRequest.id_request)}
-                    />
-                  )}
-                  {showInlineCurrentJob && (
-                    <div className="flex items-center justify-between rounded-2xl bg-white px-4 py-3 shadow-sm">
-                      <div>
-                        <p className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">
-                          Job queue
-                        </p>
-                        <p className="mt-1 text-sm font-bold text-slate-800">
-                          Review one job at a time, then return to the map.
-                        </p>
-                      </div>
-                      <span className="rounded-full bg-slate-100 px-3 py-1 text-[10px] font-black uppercase text-slate-500">
-                        {visibleRequests.length} active
-                      </span>
-                    </div>
-                  )}
                   {loading ? (
                     <div className="rounded-2xl bg-white px-4 py-10 text-center shadow-sm">
                       <RefreshCw className="mx-auto h-5 w-5 animate-spin text-bird-blue" />
@@ -1155,7 +1107,7 @@ export const RequestsView: React.FC<RequestsViewProps> = ({
               initial={{ opacity: 0, y: -12 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -12 }}
-              className="absolute right-4 top-4 z-[520] hidden w-[300px] rounded-2xl border bg-white/95 p-4 shadow-xl xl:block"
+              className="absolute right-4 top-4 z-30 hidden w-[300px] rounded-2xl border bg-white/95 p-4 shadow-xl xl:block"
             >
               <h4 className="text-sm font-black text-slate-900">{routeAlert.title}</h4>
               <p className="mt-1 text-xs font-semibold text-slate-600">{routeAlert.message}</p>

@@ -37,6 +37,7 @@ import {
   requestChatReadLimiter,
   requestChatSendLimiter,
   sensitiveLimiter,
+  lookupLimiter,
   globalLimiter,
 } from '../middlewares/security.middleware';
 
@@ -44,10 +45,10 @@ const router = Router();
 
 router.get('/', getActiveServices);
 router.get('/cards', getPublicServiceCards);
-router.get('/geocode', sensitiveLimiter, geocodeLocation);
-router.get('/geocode/suggest', sensitiveLimiter, suggestLocations);
-router.get('/geocode/reverse', sensitiveLimiter, reverseGeocode);
-router.get('/nearby-workers', sensitiveLimiter, getNearbyWorkers);
+router.get('/geocode', lookupLimiter, geocodeLocation);
+router.get('/geocode/suggest', lookupLimiter, suggestLocations);
+router.get('/geocode/reverse', lookupLimiter, reverseGeocode);
+router.get('/nearby-workers', lookupLimiter, getNearbyWorkers);
 router.post('/payments/paypal/webhook', handlePaypalWebhook);
 router.post('/payments/virtual-wallet/webhook', handleVirtualWalletWebhook);
 router.get('/saved-locations', verifyToken, getSavedLocations);

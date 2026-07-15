@@ -229,6 +229,10 @@ export const SettingsView: React.FC = () => {
   };
 
   const handleSaveInfo = async () => {
+    if (!firstName.trim() || !lastName.trim()) {
+      notyf.error('First and last name are required.');
+      return;
+    }
     if (!/^\d{8}$/.test(phoneNumber)) {
       notyf.error('Phone number must be exactly 8 digits.');
       return;
@@ -239,13 +243,19 @@ export const SettingsView: React.FC = () => {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          name: firstName.trim(),
+          lastname: lastName.trim(),
           phone_number: phoneNumber,
           bio,
         }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data?.error || 'Could not save settings.');
-      notyf.success('Phone and description updated.');
+      const storedUser = getAuthUser('worker');
+      if (storedUser) {
+        updateStoredAuthUser({ ...storedUser, name: firstName.trim(), lastname: lastName.trim() }, 'worker');
+      }
+      notyf.success('Profile updated.');
     } catch (error: any) {
       notyf.error(error.message || 'Error saving settings.');
     } finally {
@@ -430,22 +440,22 @@ export const SettingsView: React.FC = () => {
 
   return (
     <div className="w-full h-full overflow-y-auto custom-scrollbar p-4 md:p-6 lg:p-8 pb-24 md:pb-8 flex flex-col gap-6 animate-fade-in">
-      <div className="overflow-hidden rounded-[28px] border border-slate-200 bg-white shadow-sm">
-        <div className="grid gap-0 lg:grid-cols-[340px_minmax(0,1fr)]">
-          <div className="bg-slate-950 p-6 text-white">
+      <div className="rounded-[28px] border border-slate-200 bg-white shadow-sm">
+        <div className="flex flex-col lg:flex-row">
+          <div className="w-full shrink-0 rounded-t-[28px] bg-slate-950 p-6 text-white lg:w-[340px] lg:rounded-l-[28px] lg:rounded-tr-none">
             <div className="flex items-center justify-between gap-3">
-              <div>
+              <div className="min-w-0">
                 <p className="text-[10px] font-black uppercase tracking-[0.22em] text-sky-300">Worker profile</p>
-                <h2 className="mt-2 text-2xl font-black">{firstName} {lastName}</h2>
+                <h2 className="mt-2 truncate text-2xl font-black">{firstName} {lastName}</h2>
               </div>
-              <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-400/20 bg-emerald-400/10 px-3 py-1 text-[10px] font-black uppercase tracking-[0.14em] text-emerald-200">
+              <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-emerald-400/20 bg-emerald-400/10 px-3 py-1 text-[10px] font-black uppercase tracking-[0.14em] text-emerald-200">
                 <ShieldCheck className="h-3.5 w-3.5" />
                 Verified
               </span>
             </div>
 
             <div className="mt-6 flex flex-col items-center text-center">
-              <div className="relative h-40 w-40 overflow-hidden rounded-[32px] border border-white/10 bg-white/10 shadow-2xl">
+              <div className="relative h-40 w-40 shrink-0 overflow-hidden rounded-[32px] border border-white/10 bg-white/10 shadow-2xl">
                 {displayProfileImage && !profileImgBroken ? (
                   <img
                     src={displayProfileImage}
@@ -470,14 +480,20 @@ export const SettingsView: React.FC = () => {
             </div>
           </div>
 
-          <div className="grid gap-5 p-5 md:p-6 xl:grid-cols-[minmax(0,1fr)_320px]">
-            <div className="space-y-5">
+          <div className="flex w-full min-w-0 flex-col gap-5 p-5 md:p-6 xl:flex-row">
+            <div className="min-w-0 flex-1 space-y-5">
               <div>
-                <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">Profile photo</p>
+                <div className="flex items-center gap-2">
+                  <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">Profile photo</p>
+                  <span className="inline-flex items-center gap-1 rounded-full bg-sky-100 px-2 py-0.5 text-[9px] font-black uppercase tracking-[0.1em] text-sky-700">
+                    <Pencil className="h-2.5 w-2.5" />
+                    Editable
+                  </span>
+                </div>
                 <h3 className="mt-1 text-xl font-black text-slate-950">Keep your first impression clean</h3>
               </div>
-              <label className="group flex cursor-pointer items-center justify-between gap-4 rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-4 transition hover:border-sky-400 hover:bg-sky-50">
-                <div className="flex min-w-0 items-center gap-3">
+              <label className="group flex cursor-pointer flex-wrap items-center gap-4 rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-4 transition hover:border-sky-400 hover:bg-sky-50">
+                <div className="flex min-w-0 flex-1 items-center gap-3">
                   <span className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-white text-sky-600 shadow-sm">
                     <Camera className="h-5 w-5" />
                   </span>
@@ -514,7 +530,7 @@ export const SettingsView: React.FC = () => {
               </div>
             </div>
 
-            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+            <div className="w-full shrink-0 rounded-2xl border border-slate-200 bg-slate-50 p-4 xl:w-[320px]">
               <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">Profile strength</p>
               <div className="mt-4 space-y-3">
                 {[
@@ -548,12 +564,28 @@ export const SettingsView: React.FC = () => {
           <div className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <label className="block text-xs font-bold text-gray-500 uppercase mb-1">First Name</label>
-                <input value={firstName} disabled className="w-full bg-gray-100 border border-gray-200 rounded-xl px-4 py-3 text-gray-600" />
+                <label className="mb-1 flex items-center gap-1.5 text-xs font-bold uppercase text-gray-500">
+                  <UserRound className="h-3.5 w-3.5" />
+                  First Name
+                </label>
+                <input
+                  value={firstName}
+                  onChange={(e) => setFirstName(sanitizeSafeTextInput(e.target.value, 80))}
+                  maxLength={80}
+                  className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-gray-900"
+                />
               </div>
               <div>
-                <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Last Name</label>
-                <input value={lastName} disabled className="w-full bg-gray-100 border border-gray-200 rounded-xl px-4 py-3 text-gray-600" />
+                <label className="mb-1 flex items-center gap-1.5 text-xs font-bold uppercase text-gray-500">
+                  <UserRound className="h-3.5 w-3.5" />
+                  Last Name
+                </label>
+                <input
+                  value={lastName}
+                  onChange={(e) => setLastName(sanitizeSafeTextInput(e.target.value, 80))}
+                  maxLength={80}
+                  className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-gray-900"
+                />
               </div>
             </div>
 
@@ -598,7 +630,7 @@ export const SettingsView: React.FC = () => {
             disabled={savingInfo}
             className="mt-5 px-5 py-3 rounded-xl bg-blue-500 text-white font-bold hover:bg-blue-600 disabled:bg-gray-300"
           >
-            {savingInfo ? 'Saving...' : 'Save Phone & Description'}
+            {savingInfo ? 'Saving...' : 'Save Profile'}
           </button>
         </div>
 
@@ -612,6 +644,7 @@ export const SettingsView: React.FC = () => {
               <input
                 type="email"
                 value={newEmail}
+                maxLength={100}
                 onChange={(e) => setNewEmail(e.target.value)}
                 placeholder="new-email@example.com"
                 className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3"
@@ -625,7 +658,9 @@ export const SettingsView: React.FC = () => {
               </button>
               <input
                 value={emailToken}
-                onChange={(e) => setEmailToken(e.target.value)}
+                maxLength={6}
+                inputMode="numeric"
+                onChange={(e) => setEmailToken(e.target.value.replace(/\D/g, ''))}
                 placeholder="Enter token"
                 className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3"
               />

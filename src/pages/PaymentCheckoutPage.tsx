@@ -4,7 +4,6 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { showSweetToast } from '../utils/sweetAlert';
 import { API_ENDPOINTS } from '../config/api';
 import { getAuthUser, getToken } from '../utils/session';
-import { loadVirtualWalletWidget } from '../utils/virtualWalletLoader';
 
 interface PaymentCheckoutPageProps {
     requestId: number | null;
@@ -36,7 +35,6 @@ interface MyServiceRequest {
         platform_fee?: number | null;
         worker_payout?: number | null;
         commission_rate?: number | null;
-        promo_code?: string | null;
         commission_snapshot?: {
             commission_rate?: number | null;
             policy_label?: string | null;
@@ -58,10 +56,6 @@ interface MyServiceRequest {
 
 type CheckoutStage = 'form' | 'success' | 'error';
 type CheckoutPaymentMethod = 'paypal' | 'wompi' | 'cash' | 'virtual_wallet';
-
-const VIRTUAL_WALLET_AMOUNT_ELEMENT_ID = 'vw_monto';
-const VIRTUAL_WALLET_DESC_ELEMENT_ID = 'DescCarrito';
-const VIRTUAL_WALLET_CONTAINER_ID = 'vw-widget-container';
 
 const notyf = {
   success: (message: string) => void showSweetToast({ tone: 'success', message }),
@@ -216,12 +210,10 @@ const PaymentCheckoutPage: React.FC<PaymentCheckoutPageProps> = ({ requestId, on
     const [loading, setLoading] = useState(true);
     const [request, setRequest] = useState<MyServiceRequest | null>(null);
     const [paymentMethod, setPaymentMethod] = useState<CheckoutPaymentMethod>('paypal');
-    const [promoCode, setPromoCode] = useState('');
     const [isPaying, setIsPaying] = useState(false);
     const [checkoutStage, setCheckoutStage] = useState<CheckoutStage>('form');
     const [checkoutMessage, setCheckoutMessage] = useState('');
     const [successCountdown, setSuccessCountdown] = useState(4);
-    const [virtualWalletWidgetLoaded, setVirtualWalletWidgetLoaded] = useState(false);
     const paypalReturnHandledRef = useRef(false);
 
     const amount = useMemo(() => getChargeAmount(request), [request]);
@@ -323,7 +315,6 @@ const PaymentCheckoutPage: React.FC<PaymentCheckoutPageProps> = ({ requestId, on
                 }
 
                 setRequest(matchedRequest);
-                setPromoCode(readString(matchedRequest.payment?.promo_code));
             } catch {
                 notyf.error('Network error loading checkout.');
                 setRequest(null);
@@ -367,7 +358,6 @@ const PaymentCheckoutPage: React.FC<PaymentCheckoutPageProps> = ({ requestId, on
                 body: JSON.stringify({
                     payment_method: 'paypal',
                     paypal_order_id: paypalOrderId,
-                    promo_code: promoCode.trim() || undefined,
                     payer,
                 }),
             });
@@ -392,7 +382,6 @@ const PaymentCheckoutPage: React.FC<PaymentCheckoutPageProps> = ({ requestId, on
                               platform_fee: Number(payPayload?.payment?.platform_fee ?? prev.payment?.platform_fee ?? platformFee),
                               worker_payout: Number(payPayload?.payment?.worker_payout ?? prev.payment?.worker_payout ?? workerPayout),
                               commission_rate: Number(payPayload?.payment?.commission_rate ?? prev.payment?.commission_rate ?? commissionRate),
-                              promo_code: payPayload?.payment?.promo_code ?? prev.payment?.promo_code ?? promoCode.trim() ?? null,
                               commission_snapshot: payPayload?.payment?.commission_snapshot ?? prev.payment?.commission_snapshot ?? null,
                               status: 'paid',
                               paid_at: new Date().toISOString(),
@@ -462,6 +451,14 @@ const PaymentCheckoutPage: React.FC<PaymentCheckoutPageProps> = ({ requestId, on
             });
             return;
         }
+        if (selectedMethod === 'virtual_wallet') {
+            notyf.open({
+                type: 'info',
+                message: 'Virtual Wallet will be available soon. Please use PayPal or cash for now.',
+                background: '#1d4ed8',
+            });
+            return;
+        }
         if (selectedMethod === 'cash') {
             if (isAlreadyPaid) {
                 notyf.open({
@@ -503,7 +500,6 @@ const PaymentCheckoutPage: React.FC<PaymentCheckoutPageProps> = ({ requestId, on
                                   platform_fee: Number(checkoutPayload?.checkout?.platform_fee ?? platformFee),
                                   worker_payout: Number(checkoutPayload?.checkout?.worker_payout ?? workerPayout),
                                   commission_rate: Number(checkoutPayload?.checkout?.commission_rate ?? commissionRate),
-                                  promo_code: checkoutPayload?.checkout?.promo_code ?? prev.payment?.promo_code ?? null,
                                   commission_snapshot: checkoutPayload?.checkout?.commission_snapshot ?? prev.payment?.commission_snapshot ?? null,
                                   status: 'paid',
                                   paid_at: new Date().toISOString(),
@@ -518,78 +514,6 @@ const PaymentCheckoutPage: React.FC<PaymentCheckoutPageProps> = ({ requestId, on
             } catch {
                 notyf.error('Network error selecting cash payment.');
                 moveToErrorStage('The connection dropped while selecting cash payment. Please retry.');
-            } finally {
-                setIsPaying(false);
-            }
-            return;
-        }
-        if (selectedMethod === 'virtual_wallet') {
-            if (isAlreadyPaid) {
-                notyf.open({
-                    type: 'info',
-                    message: 'This request already has a secured payment.',
-                    background: '#1d4ed8',
-                });
-                return;
-            }
-
-            const scriptUrl = readString(import.meta.env.VITE_VIRTUAL_WALLET_SCRIPT_URL);
-            const clientId = readString(import.meta.env.VITE_VIRTUAL_WALLET_CLIENT_ID);
-            if (!scriptUrl || !clientId) {
-                moveToErrorStage('Virtual Wallet is not configured yet.');
-                return;
-            }
-
-            setIsPaying(true);
-            try {
-                const checkoutRes = await fetch(API_ENDPOINTS.services.paymentCheckout(request.id_request), {
-                    method: 'POST',
-                    headers: {
-                        Authorization: `Bearer ${token}`,
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({ payment_method: 'virtual_wallet' }),
-                });
-                const checkoutPayload = await checkoutRes.json();
-                if (!checkoutRes.ok || !checkoutPayload?.success) {
-                    const message = checkoutPayload?.error || 'Could not initialize Virtual Wallet checkout.';
-                    notyf.error(message);
-                    moveToErrorStage(message);
-                    return;
-                }
-
-                setRequest((prev) =>
-                    prev
-                        ? {
-                              ...prev,
-                              payment: {
-                                  provider: 'virtual_wallet',
-                                  checkout_reference: checkoutPayload?.checkout?.checkout_reference || null,
-                                  currency_code: displayCurrency,
-                                  amount: Number(checkoutPayload?.checkout?.amount ?? amount),
-                                  platform_fee: Number(checkoutPayload?.checkout?.platform_fee ?? platformFee),
-                                  worker_payout: Number(checkoutPayload?.checkout?.worker_payout ?? workerPayout),
-                                  commission_rate: Number(checkoutPayload?.checkout?.commission_rate ?? commissionRate),
-                                  promo_code: checkoutPayload?.checkout?.promo_code ?? prev.payment?.promo_code ?? null,
-                                  commission_snapshot: checkoutPayload?.checkout?.commission_snapshot ?? prev.payment?.commission_snapshot ?? null,
-                                  status: 'pending',
-                                  paid_at: null,
-                              },
-                          }
-                        : prev
-                );
-
-                await loadVirtualWalletWidget({
-                    scriptUrl,
-                    clientId,
-                    amountElementId: VIRTUAL_WALLET_AMOUNT_ELEMENT_ID,
-                    descElementId: VIRTUAL_WALLET_DESC_ELEMENT_ID,
-                    containerId: VIRTUAL_WALLET_CONTAINER_ID,
-                });
-                setVirtualWalletWidgetLoaded(true);
-            } catch {
-                notyf.error('Could not load the Virtual Wallet widget.');
-                moveToErrorStage('The connection dropped while loading Virtual Wallet. Please retry.');
             } finally {
                 setIsPaying(false);
             }
@@ -620,7 +544,6 @@ const PaymentCheckoutPage: React.FC<PaymentCheckoutPageProps> = ({ requestId, on
                 },
                 body: JSON.stringify({
                     payment_method: selectedMethod,
-                    promo_code: promoCode.trim() || undefined,
                     return_url: `${window.location.origin}/checkout/${request.id_request}?paypal=success`,
                     cancel_url: `${window.location.origin}/checkout/${request.id_request}?paypal=cancel`,
                     payer: {
@@ -651,68 +574,6 @@ const PaymentCheckoutPage: React.FC<PaymentCheckoutPageProps> = ({ requestId, on
         } catch {
             notyf.error('Network error processing payment.');
             moveToErrorStage('The connection dropped while we were processing the payment. You can retry safely.');
-        } finally {
-            setIsPaying(false);
-        }
-    };
-
-    // Virtual Wallet has no documented server-to-server capture call, so the
-    // client reports completion once the widget has been interacted with —
-    // same trust level already accepted for cash. The webhook (logged only,
-    // for now — see plan "Fase 0") is used for reconciliation, not as a gate.
-    const handleConfirmVirtualWalletPayment = async () => {
-        const token = getToken();
-        if (!token || !request) {
-            notyf.error('Login required.');
-            return;
-        }
-
-        setIsPaying(true);
-        try {
-            const payRes = await fetch(API_ENDPOINTS.services.confirmPayment(request.id_request), {
-                method: 'POST',
-                headers: {
-                    Authorization: `Bearer ${token}`,
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({ payment_method: 'virtual_wallet' }),
-            });
-            const payPayload = await payRes.json();
-            if (!payRes.ok || !payPayload?.success) {
-                const message = payPayload?.error || 'Could not confirm the Virtual Wallet payment.';
-                notyf.error(message);
-                moveToErrorStage(message);
-                return;
-            }
-
-            setRequest((prev) =>
-                prev
-                    ? {
-                          ...prev,
-                          status: 'paid',
-                          payment: {
-                              provider: payPayload?.payment?.provider || 'virtual_wallet',
-                              checkout_reference: payPayload?.payment?.checkout_reference || prev.payment?.checkout_reference || null,
-                              currency_code: payPayload?.payment?.currency_code || prev.payment?.currency_code || displayCurrency,
-                              amount: Number(payPayload?.payment?.amount || amount),
-                              platform_fee: Number(payPayload?.payment?.platform_fee ?? prev.payment?.platform_fee ?? platformFee),
-                              worker_payout: Number(payPayload?.payment?.worker_payout ?? prev.payment?.worker_payout ?? workerPayout),
-                              commission_rate: Number(payPayload?.payment?.commission_rate ?? prev.payment?.commission_rate ?? commissionRate),
-                              promo_code: payPayload?.payment?.promo_code ?? prev.payment?.promo_code ?? null,
-                              commission_snapshot: payPayload?.payment?.commission_snapshot ?? prev.payment?.commission_snapshot ?? null,
-                              status: 'paid',
-                              paid_at: new Date().toISOString(),
-                          },
-                      }
-                    : prev
-            );
-
-            setCheckoutStage('success');
-            setCheckoutMessage('Virtual Wallet payment confirmed. Final service approval is now available.');
-            notyf.success('Virtual Wallet payment confirmed.');
-        } catch {
-            notyf.error('Network error confirming the Virtual Wallet payment.');
-            moveToErrorStage('The connection dropped while confirming the Virtual Wallet payment. Please retry.');
         } finally {
             setIsPaying(false);
         }
@@ -976,58 +837,23 @@ const PaymentCheckoutPage: React.FC<PaymentCheckoutPageProps> = ({ requestId, on
                                         setPaymentMethod('virtual_wallet');
                                         void handleSecurePayment('virtual_wallet');
                                     }}
-                                    disabled={isPaying || isAlreadyPaid || virtualWalletWidgetLoaded}
-                                    aria-pressed={paymentMethod === 'virtual_wallet'}
-                                    className={`w-full flex items-center gap-4 rounded-2xl border px-5 py-4 text-left transition disabled:cursor-not-allowed disabled:opacity-50 ${
-                                        paymentMethod === 'virtual_wallet' && (isPaying || virtualWalletWidgetLoaded)
-                                            ? 'border-violet-400 bg-violet-50/70 ring-1 ring-violet-400/20'
-                                            : 'border-slate-200 bg-white hover:border-slate-300'
-                                    }`}
+                                    disabled={isPaying || isAlreadyPaid}
+                                    className="w-full flex items-center gap-4 rounded-2xl border border-slate-200 bg-white px-5 py-4 text-left transition hover:border-slate-300 disabled:cursor-not-allowed disabled:opacity-50"
                                 >
                                     <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-violet-600 text-white">
-                                        {isPaying && paymentMethod === 'virtual_wallet' && !virtualWalletWidgetLoaded ? (
-                                            <div className="h-4 w-4 rounded-full border-2 border-white/30 border-t-white animate-spin" />
-                                        ) : (
-                                            <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth={2}>
-                                                <path strokeLinecap="round" strokeLinejoin="round" d="M21 12a2 2 0 00-2-2h-1.5a1.5 1.5 0 000 3H19a2 2 0 002-2zM3 7v10a2 2 0 002 2h14a2 2 0 002-2v-6a2 2 0 00-2-2H5a2 2 0 01-2-2zm0 0a2 2 0 012-2h12" />
-                                            </svg>
-                                        )}
+                                        <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth={2}>
+                                            <path strokeLinecap="round" strokeLinejoin="round" d="M21 12a2 2 0 00-2-2h-1.5a1.5 1.5 0 000 3H19a2 2 0 002-2zM3 7v10a2 2 0 002 2h14a2 2 0 002-2v-6a2 2 0 00-2-2H5a2 2 0 01-2-2zm0 0a2 2 0 012-2h12" />
+                                        </svg>
                                     </span>
                                     <span className="min-w-0 flex-1">
                                         <span className="block text-sm font-black text-slate-900">Virtual Wallet</span>
-                                        <span className="mt-0.5 block text-xs font-semibold text-slate-500">Pay with your linked virtual wallet.</span>
+                                        <span className="mt-0.5 block text-xs font-semibold text-slate-500">Coming soon.</span>
                                     </span>
-                                    <span className="shrink-0 rounded-full bg-emerald-100 px-2.5 py-1 text-[10px] font-black uppercase tracking-wide text-emerald-700">
-                                        Active
+                                    <span className="shrink-0 rounded-full bg-amber-100 px-2.5 py-1 text-[10px] font-black uppercase tracking-wide text-amber-700">
+                                        Soon
                                     </span>
                                 </button>
                             </div>
-
-                            {/* Hidden anchors the Virtual Wallet widget scans the DOM for (data-amount-id/data-desc-id). */}
-                            <span id={VIRTUAL_WALLET_AMOUNT_ELEMENT_ID} style={{ position: 'absolute', left: '-9999px' }}>
-                                {amount.toFixed(2)}
-                            </span>
-                            <span id={VIRTUAL_WALLET_DESC_ELEMENT_ID} style={{ position: 'absolute', left: '-9999px' }}>
-                                {request?.service_name} — {request?.payment?.checkout_reference || ''}
-                            </span>
-
-                            {paymentMethod === 'virtual_wallet' && virtualWalletWidgetLoaded && !isAlreadyPaid && (
-                                <div className="mt-5 rounded-[24px] border border-violet-200 bg-violet-50 p-5">
-                                    <p className="text-sm font-black text-violet-800">Complete your payment below</p>
-                                    <p className="mt-1 text-xs text-violet-600">
-                                        The Virtual Wallet widget renders its own payment button in this box.
-                                    </p>
-                                    <div id={VIRTUAL_WALLET_CONTAINER_ID} className="mt-4 min-h-[48px]" />
-                                    <button
-                                        type="button"
-                                        onClick={() => void handleConfirmVirtualWalletPayment()}
-                                        disabled={isPaying}
-                                        className="mt-4 w-full rounded-2xl bg-violet-600 px-4 py-3 text-sm font-black text-white shadow-sm hover:bg-violet-700 disabled:opacity-50"
-                                    >
-                                        {isPaying ? 'Confirming...' : 'I already paid with Virtual Wallet'}
-                                    </button>
-                                </div>
-                            )}
 
                             {isAlreadyPaid && (
                                 <p className="mt-4 text-center text-sm font-bold text-emerald-600">
@@ -1059,32 +885,8 @@ const PaymentCheckoutPage: React.FC<PaymentCheckoutPageProps> = ({ requestId, on
                                 {appliedCommissionRules && (
                                     <p className="mt-1 text-xs text-slate-500">{appliedCommissionRules}</p>
                                 )}
-                                {readString(request?.payment?.promo_code || promoCode) && (
-                                    <p className="mt-2 text-xs font-black uppercase tracking-[0.18em] text-emerald-600">
-                                        Promo active: {readString(request?.payment?.promo_code || promoCode)}
-                                    </p>
-                                )}
                             </div>
 
-                            {!isAlreadyPaid && (
-                                <div className="mt-3 rounded-[22px] border border-slate-200 bg-white/70 p-4">
-                                    <div className="flex items-center justify-between gap-3">
-                                        <div>
-                                            <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">Promo code</p>
-                                            <p className="mt-2 text-sm text-slate-500">
-                                                Apply a platform promo to reduce the fee on this payment split.
-                                            </p>
-                                        </div>
-                                        <input
-                                            value={promoCode}
-                                            onChange={(e) => setPromoCode(e.target.value.toUpperCase().replace(/\s+/g, ''))}
-                                            placeholder="SAVE10"
-                                            className="w-32 rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm font-black uppercase tracking-[0.12em] text-slate-900 outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10"
-                                        />
-                                    </div>
-                                </div>
-                            )}
-                            
                             <div className="mt-6 flex items-center justify-center gap-2 opacity-50">
                                 <svg className="h-4 w-4 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />

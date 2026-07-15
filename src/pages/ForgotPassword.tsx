@@ -120,6 +120,7 @@ const ForgotPassword: React.FC<ForgotPasswordProps> = ({ onBack }) => {
             type="email"
             placeholder="Email address"
             value={email}
+            maxLength={100}
             onChange={(e)=>setEmail(e.target.value)}
             required
             className="w-full px-4 py-3 border border-gray-300 rounded-xl outline-none focus:border-bird-blue"
@@ -145,7 +146,9 @@ const ForgotPassword: React.FC<ForgotPasswordProps> = ({ onBack }) => {
             type="text"
             placeholder="Enter verification code"
             value={token}
-            onChange={(e)=>setToken(e.target.value)}
+            maxLength={6}
+            inputMode="numeric"
+            onChange={(e)=>setToken(e.target.value.replace(/\D/g, ''))}
             required
             className="w-full px-4 py-3 border border-gray-300 rounded-xl outline-none focus:border-bird-blue"
           />

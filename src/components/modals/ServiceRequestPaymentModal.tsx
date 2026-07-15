@@ -251,6 +251,7 @@ export function ServiceRequestPaymentModal({
                                         <input
                                             type="text"
                                             value={paymentForm.fullName}
+                                            maxLength={100}
                                             onChange={(e) => onPaymentFormChange({ fullName: e.target.value })}
                                             className="mt-1 w-full rounded-xl border border-gray-200 px-4 py-3 text-sm text-gray-900 focus:border-bird-blue focus:outline-none"
                                             placeholder="Juan Perez"
@@ -261,6 +262,7 @@ export function ServiceRequestPaymentModal({
                                         <input
                                             type="email"
                                             value={paymentForm.email}
+                                            maxLength={100}
                                             onChange={(e) => onPaymentFormChange({ email: e.target.value })}
                                             className="mt-1 w-full rounded-xl border border-gray-200 px-4 py-3 text-sm text-gray-900 focus:border-bird-blue focus:outline-none"
                                             placeholder="john@doe.com"
@@ -271,7 +273,8 @@ export function ServiceRequestPaymentModal({
                                         <input
                                             type="text"
                                             value={paymentForm.phone}
-                                            onChange={(e) => onPaymentFormChange({ phone: e.target.value })}
+                                            maxLength={20}
+                                            onChange={(e) => onPaymentFormChange({ phone: e.target.value.replace(/[^\d+\s]/g, '') })}
                                             className="mt-1 w-full rounded-xl border border-gray-200 px-4 py-3 text-sm text-gray-900 focus:border-bird-blue focus:outline-none"
                                             placeholder="+503 7000 0000"
                                         />
@@ -281,6 +284,7 @@ export function ServiceRequestPaymentModal({
                                         <input
                                             type="text"
                                             value={paymentForm.city}
+                                            maxLength={60}
                                             onChange={(e) => onPaymentFormChange({ city: e.target.value })}
                                             className="mt-1 w-full rounded-xl border border-gray-200 px-4 py-3 text-sm text-gray-900 focus:border-bird-blue focus:outline-none"
                                             placeholder="Santa Tecla"
@@ -306,8 +310,10 @@ export function ServiceRequestPaymentModal({
                                     Tarjeta de credito o debito
                                     <input
                                         type="text"
+                                        inputMode="numeric"
                                         value={paymentForm.cardNumber}
-                                        onChange={(e) => onPaymentFormChange({ cardNumber: e.target.value })}
+                                        maxLength={19}
+                                        onChange={(e) => onPaymentFormChange({ cardNumber: e.target.value.replace(/[^\d\s]/g, '') })}
                                         className="mt-1 w-full rounded-xl border border-gray-200 px-4 py-3 text-sm text-gray-900 focus:border-bird-blue focus:outline-none"
                                         placeholder="4242 4242 4242 4242"
                                     />
@@ -318,8 +324,10 @@ export function ServiceRequestPaymentModal({
                                         MM / AA
                                         <input
                                             type="text"
+                                            inputMode="numeric"
                                             value={paymentForm.expiry}
-                                            onChange={(e) => onPaymentFormChange({ expiry: e.target.value })}
+                                            maxLength={7}
+                                            onChange={(e) => onPaymentFormChange({ expiry: e.target.value.replace(/[^\d/\s]/g, '') })}
                                             className="mt-1 w-full rounded-xl border border-gray-200 px-4 py-3 text-sm text-gray-900 focus:border-bird-blue focus:outline-none"
                                             placeholder="MM / YY"
                                         />
@@ -328,7 +336,8 @@ export function ServiceRequestPaymentModal({
                                         CVV
                                         <PasswordInput
                                             value={paymentForm.cvv}
-                                            onChange={(e) => onPaymentFormChange({ cvv: e.target.value })}
+                                            maxLength={4}
+                                            onChange={(e) => onPaymentFormChange({ cvv: e.target.value.replace(/\D/g, '') })}
                                             className="mt-1 w-full rounded-xl border border-gray-200 px-4 py-3 text-sm text-gray-900 focus:border-bird-blue focus:outline-none"
                                             placeholder="123"
                                         />

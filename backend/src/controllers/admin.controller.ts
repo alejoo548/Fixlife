@@ -2909,7 +2909,6 @@ export const updateCommissionRulesAdmin = async (req: AuthRequest, res: Response
     const workerTierAdjustments = Array.isArray(req.body?.worker_tier_adjustments)
       ? req.body.worker_tier_adjustments
       : [];
-    const promoCodes = Array.isArray(req.body?.promo_codes) ? req.body.promo_codes : [];
 
     if (!Number.isFinite(globalRatePercent) || globalRatePercent < 0 || globalRatePercent > 50) {
       res.status(400).json({ error: 'Default commission rate must be between 0 and 50.' });
@@ -2921,7 +2920,6 @@ export const updateCommissionRulesAdmin = async (req: AuthRequest, res: Response
       service_overrides: serviceOverrides,
       urgency_adjustments: urgencyAdjustments,
       worker_tier_adjustments: workerTierAdjustments,
-      promo_codes: promoCodes,
     });
     await logAdminActivity(req, 'update', 'commission_rules', 'Updated commission engine rules.', null, {
       before: previousConfig,

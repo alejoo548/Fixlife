@@ -3,7 +3,7 @@ import { ResultSetHeader, RowDataPacket } from 'mysql2';
 import pool from '../config/db';
 import { AuthRequest } from '../middlewares/auth.middleware';
 import { createUserNotification, notifyAdmins } from '../utils/notifications';
-import { emitChatMessage, emitToUser } from '../services/socketManager';
+import { emitChatMessage, emitToUser, emitToWorkers } from '../services/socketManager';
 import { getWorkerBonusPayouts, getWorkerRewardsSettings, syncWorkerBonusPayouts } from '../utils/workerRewards';
 import { resolveRequestLocation, reverseGeocodeLocation, suggestLocationTexts } from '../services/geocoding.service';
 import { getProximityBounds, getWorkerBoundsFilter } from '../services/nearbyWorkers.service';
@@ -25,7 +25,6 @@ import {
 import {
   calculateCommissionBreakdown,
   ensureCommissionEngineTables,
-  normalizePromoCode,
   normalizeUrgencyLevel,
   resolveWorkerTier,
 } from '../services/commissionEngine.service';
@@ -2125,10 +2124,28 @@ export const createServiceRequest = async (req: AuthRequest, res: Response): Pro
           },
         });
       } else {
+        const broadcastPayload = {
+          id_request: idRequest,
+          request_status: 'pending' as const,
+          id_service: idService,
+          selection_mode: selectionMode,
+          booking_type: schedule.bookingType,
+          scheduled_start_time: schedule.scheduledStartTime,
+        };
+        // Broadcast to every connected worker; RequestsView refetches and the
+        // backend query filters by coverage/location so only eligible workers see it.
+        emitToWorkers('request_updated', broadcastPayload);
         await Promise.all(
-          nearRows.map((row) =>
-            createUserNotification({
-              userId: Number(row.worker_user_id),
+          nearRows.map((row) => {
+            const workerUserId = Number(row.worker_user_id);
+            // Also target the specific nearby workers directly, in case the
+            // 'all_workers' room miss (e.g. reconnecting sockets) — belt & braces.
+            emitToUser(workerUserId, 'request_updated', {
+              ...broadcastPayload,
+              distance_km: Number(row.distance_km || 0),
+            });
+            return createUserNotification({
+              userId: workerUserId,
               eventType: 'request_available',
               title: 'New request nearby',
               message: `A new service request is available ${Number(row.distance_km || 0).toFixed(1)} km away.`,
@@ -2143,8 +2160,8 @@ export const createServiceRequest = async (req: AuthRequest, res: Response): Pro
                 selection_mode: selectionMode,
                 scheduled_start_time: schedule.scheduledStartTime,
               },
-            })
-          )
+            });
+          })
         );
       }
     }
@@ -2294,7 +2311,6 @@ export const getMyServiceRequests = async (req: AuthRequest, res: Response): Pro
          srp.worker_payout AS payment_worker_payout,
          srp.commission_rate AS payment_commission_rate,
          srp.commission_snapshot_json AS payment_commission_snapshot_json,
-         srp.promo_code AS payment_promo_code,
          srp.payment_status,
          srp.paid_at,
          srp.released_at,
@@ -2352,7 +2368,7 @@ export const getMyServiceRequests = async (req: AuthRequest, res: Response): Pro
          sr.booking_type, sr.selection_mode, sr.scheduled_date, sr.scheduled_time, sr.scheduled_start_time, sr.scheduled_end_time,
          sr.workflow_version, sr.client_approved_at, sr.route_started_at, sr.worker_arrived_at,
          sr.work_started_at, sr.work_finished_at, sr.completed_at,
-        srp.provider, srp.checkout_reference, srp.currency_code, srp.amount, srp.platform_fee, srp.worker_payout, srp.commission_rate, srp.commission_snapshot_json, srp.promo_code, srp.payment_status, srp.paid_at, srp.released_at,
+        srp.provider, srp.checkout_reference, srp.currency_code, srp.amount, srp.platform_fee, srp.worker_payout, srp.commission_rate, srp.commission_snapshot_json, srp.payment_status, srp.paid_at, srp.released_at,
          srr.id_rating, srr.punctuality, srr.quality, srr.price_fairness, srr.comment, srr.created_at,
          srw_assigned.proposed_budget, srw_assigned.counter_message, srw_assigned.counter_status
        ORDER BY sr.created_at DESC
@@ -2449,7 +2465,6 @@ export const getMyServiceRequests = async (req: AuthRequest, res: Response): Pro
               worker_payout: row.payment_worker_payout != null ? Number(row.payment_worker_payout) : null,
               commission_rate: row.payment_commission_rate != null ? Number(row.payment_commission_rate) : null,
               commission_snapshot: parseCommissionSnapshot(row.payment_commission_snapshot_json),
-              promo_code: row.payment_promo_code ? normalizePromoCode(row.payment_promo_code) : null,
               status: row.payment_status || 'pending',
               paid_at: row.paid_at || null,
               released_at: row.released_at || null,
@@ -3274,8 +3289,6 @@ export const createRequestPaymentCheckout = async (req: AuthRequest, res: Respon
 
     await connection.beginTransaction();
 
-    const requestPromoCode = normalizePromoCode(req.body?.promo_code);
-
     const [rows] = await connection.execute<RowDataPacket[]>(
       `SELECT
          sr.id_request,
@@ -3352,14 +3365,8 @@ export const createRequestPaymentCheckout = async (req: AuthRequest, res: Respon
       idService: requestRow.id_service != null ? Number(requestRow.id_service) : null,
       urgencyLevel: normalizeUrgencyLevel(requestRow.urgency_level),
       workerTier: resolveRequestWorkerTier(requestRow),
-      promoCode: requestPromoCode || null,
       executor: connection,
     });
-    if (requestPromoCode && !commission.snapshot.applied_rules.some((rule) => rule.rule_type === 'promo')) {
-      await connection.rollback();
-      res.status(400).json({ error: 'Promo code is invalid or inactive.' });
-      return;
-    }
     const { amount, platformFee, workerPayout } = commission;
     const commissionSnapshotJson = JSON.stringify(commission.snapshot);
     const checkoutReference = buildCheckoutReference(idRequest);
@@ -3395,8 +3402,8 @@ export const createRequestPaymentCheckout = async (req: AuthRequest, res: Respon
 
     await connection.execute(
       `INSERT INTO service_request_payments
-       (id_request, provider, checkout_reference, provider_payment_id, provider_capture_id, currency_code, amount, platform_fee, worker_payout, commission_rate, commission_snapshot_json, promo_code, payment_status, paid_at)
-       VALUES (?, ?, ?, ?, NULL, 'USD', ?, ?, ?, ?, ?, ?, ?, ${paymentMethod === 'cash' ? 'CURRENT_TIMESTAMP' : 'NULL'})
+       (id_request, provider, checkout_reference, provider_payment_id, provider_capture_id, currency_code, amount, platform_fee, worker_payout, commission_rate, commission_snapshot_json, payment_status, paid_at)
+       VALUES (?, ?, ?, ?, NULL, 'USD', ?, ?, ?, ?, ?, ?, ${paymentMethod === 'cash' ? 'CURRENT_TIMESTAMP' : 'NULL'})
        ON DUPLICATE KEY UPDATE
          provider = VALUES(provider),
          checkout_reference = VALUES(checkout_reference),
@@ -3408,7 +3415,6 @@ export const createRequestPaymentCheckout = async (req: AuthRequest, res: Respon
          worker_payout = VALUES(worker_payout),
          commission_rate = VALUES(commission_rate),
          commission_snapshot_json = VALUES(commission_snapshot_json),
-         promo_code = VALUES(promo_code),
          payment_status = CASE
            WHEN payment_status = 'paid' THEN payment_status
            WHEN VALUES(provider) = 'cash' THEN 'paid'
@@ -3420,7 +3426,7 @@ export const createRequestPaymentCheckout = async (req: AuthRequest, res: Respon
            ELSE paid_at
          END,
          updated_at = CURRENT_TIMESTAMP`,
-      [idRequest, paymentMethod, checkoutReference, paypalOrderId, amount, platformFee, workerPayout, commission.commissionRate, commissionSnapshotJson, requestPromoCode || null, initialPaymentStatus]
+      [idRequest, paymentMethod, checkoutReference, paypalOrderId, amount, platformFee, workerPayout, commission.commissionRate, commissionSnapshotJson, initialPaymentStatus]
     );
 
     let cashInvoiceContext: {
@@ -3464,7 +3470,6 @@ export const createRequestPaymentCheckout = async (req: AuthRequest, res: Respon
           platformFee,
           currencyCode: 'USD',
           checkoutReference,
-          promoCode: requestPromoCode || null,
           commissionSnapshot: commission.snapshot,
         });
 
@@ -3589,7 +3594,6 @@ export const createRequestPaymentCheckout = async (req: AuthRequest, res: Respon
             urgencyLevel: ctx.urgencyLevel,
             commissionRatePercent: ctx.commissionRatePercent,
             policyLabel: ctx.policyLabel,
-            promoCode: requestPromoCode || null,
             paidAt,
           },
         }));
@@ -3641,7 +3645,6 @@ export const createRequestPaymentCheckout = async (req: AuthRequest, res: Respon
         worker_payout: workerPayout,
         commission_rate: commission.commissionRate,
         commission_snapshot: commission.snapshot,
-        promo_code: requestPromoCode || null,
         payment_status: paymentMethod === 'cash' ? 'paid' : 'pending',
         request_status: paymentMethod === 'cash' ? 'paid' : 'payment_pending',
         invoice_number: paymentMethod === 'cash' ? buildInvoiceNumber(idRequest) : undefined,
@@ -3733,7 +3736,7 @@ export const confirmRequestPayment = async (req: AuthRequest, res: Response): Pr
     }
 
     const [paymentRows] = await connection.execute<RowDataPacket[]>(
-      `SELECT id_payment, provider, payment_status, amount, platform_fee, worker_payout, commission_rate, commission_snapshot_json, promo_code, checkout_reference, provider_payment_id, provider_capture_id, currency_code
+      `SELECT id_payment, provider, payment_status, amount, platform_fee, worker_payout, commission_rate, commission_snapshot_json, checkout_reference, provider_payment_id, provider_capture_id, currency_code
        FROM service_request_payments
        WHERE id_request = ?
        LIMIT 1
@@ -3741,13 +3744,11 @@ export const confirmRequestPayment = async (req: AuthRequest, res: Response): Pr
       [idRequest]
     );
 
-    const requestPromoCode = normalizePromoCode(req.body?.promo_code);
     const commission = await calculateCommissionBreakdown({
       amount: getRequestChargeAmount(requestRow),
       idService: requestRow.id_service != null ? Number(requestRow.id_service) : null,
       urgencyLevel: normalizeUrgencyLevel(requestRow.urgency_level),
       workerTier: resolveRequestWorkerTier(requestRow),
-      promoCode: requestPromoCode || null,
       executor: connection,
     });
     const { amount, platformFee, workerPayout } = commission;
@@ -3787,19 +3788,6 @@ export const confirmRequestPayment = async (req: AuthRequest, res: Response): Pr
     const expectedWorkerPayout = storedPaymentRow?.worker_payout != null ? Number(storedPaymentRow.worker_payout) : workerPayout;
     const expectedCommissionRate =
       storedPaymentRow?.commission_rate != null ? Number(storedPaymentRow.commission_rate) : commission.commissionRate;
-    const expectedPromoCode = storedPaymentRow?.promo_code
-      ? normalizePromoCode(storedPaymentRow.promo_code)
-      : requestPromoCode || null;
-    if (requestPromoCode && requestPromoCode !== expectedPromoCode) {
-      await connection.rollback();
-      res.status(409).json({ error: 'Promo code mismatch for this checkout session.' });
-      return;
-    }
-    if (requestPromoCode && !commission.snapshot.applied_rules.some((rule) => rule.rule_type === 'promo') && !storedPaymentRow?.promo_code) {
-      await connection.rollback();
-      res.status(400).json({ error: 'Promo code is invalid or inactive.' });
-      return;
-    }
     const expectedCommissionSnapshot =
       typeof storedPaymentRow?.commission_snapshot_json === 'string' && storedPaymentRow.commission_snapshot_json
         ? storedPaymentRow.commission_snapshot_json
@@ -3822,7 +3810,6 @@ export const confirmRequestPayment = async (req: AuthRequest, res: Response): Pr
           commission_rate:
             paymentRows[0].commission_rate != null ? Number(paymentRows[0].commission_rate) : expectedCommissionRate,
           commission_snapshot: parseCommissionSnapshot(paymentRows[0].commission_snapshot_json) || commission.snapshot,
-          promo_code: paymentRows[0].promo_code ? normalizePromoCode(paymentRows[0].promo_code) : expectedPromoCode,
           status: 'paid',
           checkout_reference: String(paymentRows[0].checkout_reference || checkoutReferenceForPayment),
           currency_code: String(paymentRows[0].currency_code || expectedCurrencyCode),
@@ -3857,9 +3844,9 @@ export const confirmRequestPayment = async (req: AuthRequest, res: Response): Pr
     if (paymentRows.length === 0) {
       await connection.execute(
         `INSERT INTO service_request_payments
-         (id_request, provider, checkout_reference, provider_payment_id, provider_capture_id, currency_code, amount, platform_fee, worker_payout, commission_rate, commission_snapshot_json, promo_code, payment_status, paid_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'paid', CURRENT_TIMESTAMP)`,
-        [idRequest, paymentMethod, checkoutReferenceForPayment, paypalOrderId || null, providerCaptureId, expectedCurrencyCode, expectedAmount, expectedPlatformFee, expectedWorkerPayout, expectedCommissionRate, expectedCommissionSnapshot, expectedPromoCode]
+         (id_request, provider, checkout_reference, provider_payment_id, provider_capture_id, currency_code, amount, platform_fee, worker_payout, commission_rate, commission_snapshot_json, payment_status, paid_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'paid', CURRENT_TIMESTAMP)`,
+        [idRequest, paymentMethod, checkoutReferenceForPayment, paypalOrderId || null, providerCaptureId, expectedCurrencyCode, expectedAmount, expectedPlatformFee, expectedWorkerPayout, expectedCommissionRate, expectedCommissionSnapshot]
       );
     } else {
       if (String(paymentRows[0].payment_status || '').toLowerCase() === 'paid') {
@@ -3879,12 +3866,11 @@ export const confirmRequestPayment = async (req: AuthRequest, res: Response): Pr
              worker_payout = ?,
              commission_rate = ?,
              commission_snapshot_json = ?,
-             promo_code = ?,
              payment_status = 'paid',
              paid_at = CURRENT_TIMESTAMP,
              updated_at = CURRENT_TIMESTAMP
          WHERE id_request = ?`,
-        [paymentMethod, paypalOrderId || null, providerCaptureId, expectedCurrencyCode, expectedAmount, expectedPlatformFee, expectedWorkerPayout, expectedCommissionRate, expectedCommissionSnapshot, expectedPromoCode, idRequest]
+        [paymentMethod, paypalOrderId || null, providerCaptureId, expectedCurrencyCode, expectedAmount, expectedPlatformFee, expectedWorkerPayout, expectedCommissionRate, expectedCommissionSnapshot, idRequest]
       );
     }
 
@@ -3915,7 +3901,6 @@ export const confirmRequestPayment = async (req: AuthRequest, res: Response): Pr
         workerPayout: expectedWorkerPayout,
         currencyCode: expectedCurrencyCode,
         checkoutReference: checkoutReferenceForPayment,
-        promoCode: expectedPromoCode,
         commissionSnapshot: resolvedCommissionSnapshot,
       });
     }
@@ -3994,7 +3979,6 @@ export const confirmRequestPayment = async (req: AuthRequest, res: Response): Pr
           urgencyLevel: sanitizePaymentValue(requestRow.urgency_level, 40) || 'standard',
           commissionRatePercent: Number((expectedCommissionRate * 100).toFixed(2)),
           policyLabel: resolvedCommissionSnapshot?.policy_label || null,
-          promoCode: expectedPromoCode || null,
           paidAt,
         },
       });
@@ -4034,7 +4018,6 @@ export const confirmRequestPayment = async (req: AuthRequest, res: Response): Pr
         worker_payout: expectedWorkerPayout,
         commission_rate: expectedCommissionRate,
         commission_snapshot: resolvedCommissionSnapshot,
-        promo_code: expectedPromoCode,
         status: 'paid',
         checkout_reference: checkoutReference,
         currency_code: expectedCurrencyCode,
@@ -4127,7 +4110,7 @@ export const confirmCashPayment = async (req: AuthRequest, res: Response): Promi
     }
 
     const [paymentRows] = await connection.execute<RowDataPacket[]>(
-      `SELECT id_payment, provider, payment_status, amount, platform_fee, worker_payout, commission_rate, commission_snapshot_json, promo_code, checkout_reference, currency_code
+      `SELECT id_payment, provider, payment_status, amount, platform_fee, worker_payout, commission_rate, commission_snapshot_json, checkout_reference, currency_code
        FROM service_request_payments
        WHERE id_request = ?
        LIMIT 1
@@ -4160,13 +4143,11 @@ export const confirmCashPayment = async (req: AuthRequest, res: Response): Promi
       return;
     }
 
-    const requestPromoCode = storedPaymentRow.promo_code ? normalizePromoCode(storedPaymentRow.promo_code) : null;
     const commission = await calculateCommissionBreakdown({
       amount: getRequestChargeAmount(requestRow),
       idService: requestRow.id_service != null ? Number(requestRow.id_service) : null,
       urgencyLevel: normalizeUrgencyLevel(requestRow.urgency_level),
       workerTier: resolveRequestWorkerTier(requestRow),
-      promoCode: requestPromoCode || null,
       executor: connection,
     });
 
@@ -4211,7 +4192,6 @@ export const confirmCashPayment = async (req: AuthRequest, res: Response): Promi
       platformFee: expectedPlatformFee,
       currencyCode: expectedCurrencyCode,
       checkoutReference,
-      promoCode: requestPromoCode || null,
       commissionSnapshot: resolvedCommissionSnapshot,
     });
 
@@ -4278,7 +4258,6 @@ export const confirmCashPayment = async (req: AuthRequest, res: Response): Promi
           urgencyLevel: sanitizePaymentValue(requestRow.urgency_level, 40) || 'standard',
           commissionRatePercent: Number((expectedCommissionRate * 100).toFixed(2)),
           policyLabel: resolvedCommissionSnapshot?.policy_label || null,
-          promoCode: requestPromoCode || null,
           paidAt: new Date(),
         },
       });
@@ -4864,7 +4843,8 @@ export const submitRequestRating = async (req: AuthRequest, res: Response): Prom
     const punctuality = Number(req.body?.punctuality);
     const quality = Number(req.body?.quality);
     const priceFairness = Number(req.body?.price_fairness);
-    const comment = req.body?.comment != null ? String(req.body.comment).trim().slice(0, 255) : null;
+    const rawComment = req.body?.comment != null ? sanitizeMessage(req.body.comment, 255) : '';
+    const comment = rawComment.length > 0 ? rawComment : null;
 
     if (!idRequest) {
       res.status(400).json({ error: 'Invalid request id.' });

@@ -2797,8 +2797,9 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                             <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400 dark:text-slate-500">Comment</p>
                                             <textarea
                                                 value={getRatingDraft(ratingModalRequest.id_request).comment}
-                                                onChange={(e) => updateRatingDraft(ratingModalRequest.id_request, { comment: e.target.value })}
+                                                onChange={(e) => updateRatingDraft(ratingModalRequest.id_request, { comment: e.target.value.slice(0, 255) })}
                                                 placeholder="Tell us how the service went, what stood out, or what could be better..."
+                                                maxLength={255}
                                                 className="mt-3 min-h-[120px] w-full rounded-2xl border border-slate-200 dark:border-white/10 px-4 py-3 text-sm text-slate-700 dark:text-slate-300 outline-none transition focus:border-bird-blue/40 focus:ring-2 focus:ring-bird-blue/10"
                                             />
                                         </div>
@@ -2921,6 +2922,7 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                                     <input
                                                         type="text"
                                                         value={savedPlacesSearch}
+                                                        maxLength={120}
                                                         onChange={(e) => setSavedPlacesSearch(e.target.value)}
                                                         placeholder="Search by name, address or type"
                                                         className="w-full rounded-2xl border border-gray-200 dark:border-white/10 bg-gray-50 dark:bg-white/[0.04] pl-10 pr-10 py-3 text-sm text-gray-900 dark:text-slate-100 focus:border-bird-blue focus:bg-white focus:outline-none"
@@ -3591,6 +3593,7 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                             value={pendingRenameTitle}
                                             autoFocus
                                             autoComplete="off"
+                                            maxLength={80}
                                             onChange={(e) => setPendingRenameTitle(e.target.value)}
                                             onKeyDown={(e) => {
                                                 if (e.key === 'Enter') {

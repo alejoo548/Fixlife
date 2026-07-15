@@ -23,7 +23,7 @@ import { getWorkerTierBenefits } from '../services/workerTier.service';
 import {
   queueWorkerPayoutStatementEmail,
 } from '../services/workerPayoutStatement.service';
-import { sanitizeMessage, sanitizeStrictText } from '../utils/sanitize';
+import { sanitizeMessage, sanitizeStrictText, sanitizeNameLike } from '../utils/sanitize';
 
 const servicesController = require(path.join(__dirname, './services.controller'));
 const {
@@ -2414,7 +2414,7 @@ export const updateWorkerSettings = async (req: AuthRequest, res: Response): Pro
       return;
     }
 
-    const { phone_number, bio } = req.body;
+    const { name, lastname, phone_number, bio } = req.body;
     const changes: string[] = [];
 
     if (phone_number != null) {
@@ -2427,6 +2427,28 @@ export const updateWorkerSettings = async (req: AuthRequest, res: Response): Pro
 
     const profileId = await ensureWorkerProfile(userId);
     const userBefore = await getUserCore(userId);
+
+    const sanitizedName = name != null ? sanitizeNameLike(name, 80) : undefined;
+    const sanitizedLastname = lastname != null ? sanitizeNameLike(lastname, 80) : undefined;
+
+    if (sanitizedName !== undefined && !sanitizedName.trim()) {
+      res.status(400).json({ error: 'First name cannot be empty.' });
+      return;
+    }
+    if (sanitizedLastname !== undefined && !sanitizedLastname.trim()) {
+      res.status(400).json({ error: 'Last name cannot be empty.' });
+      return;
+    }
+
+    if (sanitizedName !== undefined && sanitizedName !== userBefore?.name) {
+      await pool.execute(`UPDATE users SET name = ? WHERE id_user = ?`, [sanitizedName, userId]);
+      changes.push('First name updated');
+    }
+
+    if (sanitizedLastname !== undefined && sanitizedLastname !== userBefore?.lastname) {
+      await pool.execute(`UPDATE users SET lastname = ? WHERE id_user = ?`, [sanitizedLastname, userId]);
+      changes.push('Last name updated');
+    }
 
     if (phone_number != null && String(phone_number).trim() !== userBefore?.phone_number) {
       await pool.execute(`UPDATE users SET phone_number = ? WHERE id_user = ?`, [

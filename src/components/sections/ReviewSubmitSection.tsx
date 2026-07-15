@@ -293,6 +293,7 @@ export const ReviewSubmitSection: React.FC<ReviewSubmitSectionProps> = ({ onLogi
             onChange={handleTextChange}
             placeholder="Share your experience with Fixlife — what went well, what you appreciated, and how we helped you…"
             rows={5}
+            maxLength={MAX}
             className={`w-full rounded-xl border px-4 py-3 text-sm text-slate-900 dark:text-slate-100 outline-none transition-all focus:ring-2 focus:ring-bird-blue/25 focus:border-bird-blue resize-none ${
               errors.text ? 'border-red-300 bg-red-50 dark:bg-red-900/40 focus:ring-red-200' : 'border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-white/[0.04] hover:border-slate-300'
             }`}

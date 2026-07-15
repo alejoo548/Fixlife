@@ -25,7 +25,6 @@ type LedgerReportRow = RowDataPacket & {
   platform_fee: number | null;
   worker_payout: number | null;
   commission_rate: number | null;
-  promo_code: string | null;
 };
 
 type InvoiceReportRow = RowDataPacket & {
@@ -45,7 +44,6 @@ type InvoiceReportRow = RowDataPacket & {
   worker_payout: number | null;
   currency_code: string | null;
   commission_rate: number | null;
-  promo_code: string | null;
   commission_snapshot_json: string | null;
 };
 
@@ -147,8 +145,7 @@ export const getFinanceSettlementReport = async (input: { from?: unknown; to?: u
        srp.amount AS payment_amount,
        srp.platform_fee,
        srp.worker_payout,
-       srp.commission_rate,
-       srp.promo_code
+       srp.commission_rate
      FROM service_payment_ledger spl
      LEFT JOIN service_requests sr ON sr.id_request = spl.id_request
      LEFT JOIN services s ON s.id_service = sr.id_service
@@ -177,7 +174,6 @@ export const getFinanceSettlementReport = async (input: { from?: unknown; to?: u
        srp.worker_payout,
        srp.currency_code,
        srp.commission_rate,
-       srp.promo_code,
        srp.commission_snapshot_json
      FROM service_request_payments srp
      INNER JOIN service_requests sr ON sr.id_request = srp.id_request
@@ -297,7 +293,6 @@ export const getFinanceSettlementReport = async (input: { from?: unknown; to?: u
         worker_payout: formatMoney(row.worker_payout),
         currency_code: row.currency_code || 'USD',
         commission_rate_percent: Number((Number(row.commission_rate || 0) * 100).toFixed(2)),
-        promo_code: row.promo_code || null,
         policy_label: policyLabel,
       };
     }),
@@ -319,7 +314,6 @@ export const getFinanceSettlementReport = async (input: { from?: unknown; to?: u
       platform_fee: formatMoney(row.platform_fee),
       worker_payout: formatMoney(row.worker_payout),
       commission_rate_percent: Number((Number(row.commission_rate || 0) * 100).toFixed(2)),
-      promo_code: row.promo_code || '',
     })),
   };
 };
@@ -356,7 +350,6 @@ export const buildFinanceSettlementCsv = (report: Awaited<ReturnType<typeof getF
     'platform_fee',
     'worker_payout',
     'commission_rate_percent',
-    'promo_code',
   ].join(','));
 
   for (const row of report.export_rows) {
@@ -379,7 +372,6 @@ export const buildFinanceSettlementCsv = (report: Awaited<ReturnType<typeof getF
         row.platform_fee,
         row.worker_payout,
         row.commission_rate_percent,
-        row.promo_code,
       ]
         .map(escapeCsvValue)
         .join(',')

@@ -202,7 +202,6 @@ export const recordConfirmedPaymentLedger = async (
     workerPayout: number;
     currencyCode?: string | null;
     checkoutReference?: string | null;
-    promoCode?: string | null;
     commissionSnapshot?: Record<string, any> | null;
   }
 ) => {
@@ -211,7 +210,6 @@ export const recordConfirmedPaymentLedger = async (
   const currencyCode = String(input.currencyCode || 'USD').toUpperCase();
   const metadata = {
     checkout_reference: input.checkoutReference || null,
-    promo_code: input.promoCode || null,
     commission_snapshot: input.commissionSnapshot || null,
   };
 
@@ -262,7 +260,6 @@ export const recordCashCollectedLedger = async (
     platformFee: number;
     currencyCode?: string | null;
     checkoutReference?: string | null;
-    promoCode?: string | null;
     commissionSnapshot?: Record<string, any> | null;
   }
 ) => {
@@ -271,7 +268,6 @@ export const recordCashCollectedLedger = async (
   const currencyCode = String(input.currencyCode || 'USD').toUpperCase();
   const metadata = {
     checkout_reference: input.checkoutReference || null,
-    promo_code: input.promoCode || null,
     commission_snapshot: input.commissionSnapshot || null,
   };
 

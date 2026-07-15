@@ -1860,9 +1860,10 @@ export const Navbar: React.FC<NavbarProps> = ({
                       </label>
                       <textarea
                         value={chatMessage[openChatRequestId] || ''}
-                        onChange={(event) => setChatMessage((prev) => ({ ...prev, [openChatRequestId]: event.target.value }))}
+                        onChange={(event) => setChatMessage((prev) => ({ ...prev, [openChatRequestId]: event.target.value.slice(0, 500) }))}
                         placeholder="Write a message..."
                         rows={1}
+                        maxLength={500}
                         className="min-h-11 flex-1 resize-none rounded-xl border border-slate-200 px-4 py-3 text-sm font-semibold outline-none focus:border-bird-blue"
                       />
                       <button
