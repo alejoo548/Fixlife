@@ -1,5 +1,7 @@
 import React from 'react';
 import { motion } from 'framer-motion';
+import { useTranslation } from 'react-i18next';
+import { localizeServiceName } from '../../utils/serviceLocalization';
 
 type PaymentMethod = 'card' | 'paypal';
 
@@ -44,6 +46,9 @@ export function ServiceRequestPaymentModal({
     onPaymentFormChange,
     onConfirmPayment,
 }: ServiceRequestPaymentModalProps) {
+    const { i18n } = useTranslation();
+    const currentLanguage = i18n.resolvedLanguage || i18n.language || 'en';
+
     return (
         <motion.div
             initial={{ opacity: 0 }}
@@ -71,7 +76,7 @@ export function ServiceRequestPaymentModal({
                         </div>
                         <div className="mt-10 rounded-3xl bg-white/10 p-5 backdrop-blur-sm">
                             <p className="text-[11px] uppercase tracking-[0.18em] text-blue-100">Solicitud actual</p>
-                            <p className="mt-2 text-2xl font-black">{paymentModalRequest.service_name}</p>
+                            <p className="mt-2 text-2xl font-black">{localizeServiceName(paymentModalRequest.service_name, currentLanguage)}</p>
                             <p className="mt-2 text-sm text-blue-100 line-clamp-3">{paymentModalRequest.description}</p>
                             <div className="mt-5 grid grid-cols-2 gap-3">
                                 <div className="rounded-2xl bg-white/10 px-4 py-3">

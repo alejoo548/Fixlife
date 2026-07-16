@@ -1,6 +1,7 @@
 import React, { useState, useEffect, Suspense, lazy } from 'react';
 import { motion } from 'framer-motion';
 import { Navigate, Route, Routes, useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { Navbar } from './components/layout/Navbar';
 import { NavItemType, AuthMode } from './types';
 import { AuthModal } from './components/modals/AuthModal';
@@ -39,19 +40,6 @@ const AdminApp = lazy(() =>
 );
 const PaymentCheckoutPage = lazy(() => import('./pages/PaymentCheckoutPage'));
 const ResetPassword = lazy(() => import('./pages/ResetPassword'));
-
-const navItems: NavItemType[] = [
-  { name: "Services" },
-  { name: "Professionals" },
-  {
-    name: "Categories",
-    items: ["Plumbing", "Electrical", "Cleaning", "Landscaping", "Mechanics"]
-  },
-  {
-    name: "Help",
-    items: ["Support", "How it works"]
-  }
-];
 
 interface HomeServiceCard {
   id_card: number;
@@ -100,6 +88,37 @@ const normalizeServiceCardImage = (card: HomeServiceCard): HomeServiceCard => {
 
   return card;
 };
+
+const DEFAULT_SERVICE_CARD_TRANSLATIONS = [
+  {
+    badge: 'POPULAR',
+    headline: 'Carpentry',
+    summary: 'Custom woodwork, furniture repair, and door/window installations.',
+    ctaLabel: 'Learn More',
+    serviceName: 'Carpentry',
+  },
+  {
+    badge: 'POPULAR',
+    headline: 'Childcare / Babysitting',
+    summary: 'Safe and reliable care for children at home.',
+    ctaLabel: 'Learn More',
+    serviceName: 'Childcare / Babysitting',
+  },
+  {
+    badge: 'POPULAR',
+    headline: 'House Painting',
+    summary: 'Interior and exterior painting with clean, professional finishing.',
+    ctaLabel: 'Learn More',
+    serviceName: 'House Painting',
+  },
+  {
+    badge: 'POPULAR',
+    headline: 'Gardening',
+    summary: 'Lawn care, planting, pruning, and garden maintenance.',
+    ctaLabel: 'Learn More',
+    serviceName: 'Gardening',
+  },
+] as const;
 
 const LANDING_SECTION_IDS = {
   services: 'services-section',
@@ -236,6 +255,7 @@ const buildBookingPath = (service?: { id: number; name: string } | null) => {
 };
 
 const App: React.FC = () => {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const location = useLocation();
   const [isAuthOpen, setIsAuthOpen] = useState(false);
@@ -246,6 +266,7 @@ const App: React.FC = () => {
   const [pendingSection, setPendingSection] = useState<LandingSectionTarget | null>(null);
   const [pendingBookingPath, setPendingBookingPath] = useState<string | null>(null);
   const isLandingRoute = location.pathname === '/';
+  const navItems = t('navigation.items', { returnObjects: true }) as NavItemType[];
 
   useEffect(() => {
     const fetchServiceCards = async () => {
@@ -378,49 +399,60 @@ const App: React.FC = () => {
       id_card: 0,
       id_service: 0,
       image_url: '/landing-home-repair.jpg',
-      badge: 'POPULAR',
-      headline: 'Expert Plumbing',
-      summary: 'Leak repairs, pipe installation, and sanitary maintenance.',
-      cta_label: 'Learn More',
-      service_name: 'Plumbing',
+      ...((t('landing.fallbacks.0', { returnObjects: true }) as Omit<HomeServiceCard, 'id_card' | 'id_service' | 'image_url' | 'service_icon'>)),
       service_icon: 'PL',
     },
     {
       id_card: 0,
       id_service: 0,
       image_url: '/landing-home-repair.jpg',
-      badge: 'POPULAR',
-      headline: 'Electrical',
-      summary: 'Safe installations, wiring, panels, and short circuit repairs.',
-      cta_label: 'Learn More',
-      service_name: 'Electrical Services',
+      ...((t('landing.fallbacks.1', { returnObjects: true }) as Omit<HomeServiceCard, 'id_card' | 'id_service' | 'image_url' | 'service_icon'>)),
       service_icon: 'EL',
     },
     {
       id_card: 0,
       id_service: 0,
       image_url: '/landing-home-repair.jpg',
-      badge: 'POPULAR',
-      headline: 'Auto Mechanics',
-      summary: 'Vehicle diagnostics, oil changes, and mobile repairs.',
-      cta_label: 'Learn More',
-      service_name: 'Auto Mechanic',
+      ...((t('landing.fallbacks.2', { returnObjects: true }) as Omit<HomeServiceCard, 'id_card' | 'id_service' | 'image_url' | 'service_icon'>)),
       service_icon: 'AU',
     },
     {
       id_card: 0,
       id_service: 0,
       image_url: '/landing-carpentry.jpg',
-      badge: 'POPULAR',
-      headline: 'Carpentry',
-      summary: 'Furniture design, door repair, and structure assembly.',
-      cta_label: 'Learn More',
-      service_name: 'Carpentry',
+      ...((t('landing.fallbacks.3', { returnObjects: true }) as Omit<HomeServiceCard, 'id_card' | 'id_service' | 'image_url' | 'service_icon'>)),
       service_icon: 'CA',
     },
   ];
 
-  const cardsToRender = serviceCards.length > 0 ? serviceCards.slice(0, 8) : fallbackCards;
+  const localizeServiceCard = (card: HomeServiceCard): HomeServiceCard => {
+    const normalizeText = (value: string) => value.trim().toLowerCase().replace(/\s+/g, ' ');
+    const matchedIndex = DEFAULT_SERVICE_CARD_TRANSLATIONS.findIndex((defaultCard) => {
+      const matchesHeadline = normalizeText(defaultCard.headline) === normalizeText(card.headline);
+      const matchesSummary = normalizeText(defaultCard.summary) === normalizeText(card.summary);
+      const matchesService = normalizeText(defaultCard.serviceName) === normalizeText(card.service_name);
+      const matchesCta = !card.cta_label || normalizeText(defaultCard.ctaLabel) === normalizeText(card.cta_label);
+
+      return (matchesHeadline && matchesSummary) || (matchesHeadline && matchesService && matchesCta);
+    });
+
+    if (matchedIndex === -1) {
+      return card;
+    }
+
+    const localized = t(`landing.fallbacks.${matchedIndex}`, { returnObjects: true }) as Omit<HomeServiceCard, 'id_card' | 'id_service' | 'image_url' | 'service_icon'>;
+
+    return {
+      ...card,
+      badge: localized.badge,
+      headline: localized.headline,
+      summary: localized.summary,
+      cta_label: localized.cta_label,
+      service_name: card.service_name,
+    };
+  };
+
+  const cardsToRender = (serviceCards.length > 0 ? serviceCards.slice(0, 8).map(localizeServiceCard) : fallbackCards);
 
   const normalizeLabel = (value: string) => value.toLowerCase().replace(/[^a-z0-9]+/g, '');
 
@@ -628,7 +660,7 @@ const App: React.FC = () => {
                         transition={{ duration: 2, repeat: Infinity }}
                         className="w-2 h-2 rounded-full bg-green-500"
                       />
-                      <span className="text-xs font-bold text-green-700 tracking-wider uppercase">Verified local pros</span>
+                      <span className="text-xs font-bold text-green-700 tracking-wider uppercase">{t('landing.statusBadge')}</span>
                     </motion.div>
 
                     <motion.h1
@@ -637,7 +669,7 @@ const App: React.FC = () => {
                       transition={{ delay: 0.5, duration: 0.6 }}
                       className="text-3xl md:text-4xl xl:text-5xl font-black mb-4 md:mb-6 leading-tight tracking-tight text-gray-900"
                     >
-                      Book trusted home help <br />
+                      {t('landing.heroTitlePrefix')} <br />
                       <motion.span
                         animate={{
                           backgroundPosition: ["0% 50%", "100% 50%", "0% 50%"],
@@ -650,7 +682,7 @@ const App: React.FC = () => {
                         className="text-transparent bg-clip-text bg-gradient-to-r from-bird-blue via-bird-yellow to-bird-orange"
                         style={{ backgroundSize: "200% 200%" }}
                       >
-                        with Fixlife
+                        {t('landing.heroTitleAccent')}
                       </motion.span>
                     </motion.h1>
 
@@ -660,7 +692,7 @@ const App: React.FC = () => {
                       transition={{ delay: 0.6, duration: 0.6 }}
                       className="text-gray-600 text-base md:text-lg leading-relaxed mb-6 md:mb-8 max-w-md font-medium"
                     >
-                      Describe the problem, review nearby professionals, and chat before accepting a quote. <span className="text-gray-900 font-bold">Cleaner booking, less guesswork.</span>
+                      {t('landing.heroDescription')} <span className="text-gray-900 font-bold">{t('landing.heroDescriptionStrong')}</span>
                     </motion.p>
                   </div>
 
@@ -681,7 +713,7 @@ const App: React.FC = () => {
                         </svg>
                       }
                     >
-                      Book a service
+                      {t('landing.primaryCta')}
                     </Button>
 
                     <Button
@@ -690,11 +722,11 @@ const App: React.FC = () => {
                       size="lg"
                       fullWidth
                     >
-                      See how it works
+                      {t('landing.secondaryCta')}
                     </Button>
 
                     <p className="pt-2 text-sm leading-relaxed text-gray-500">
-                      Share the problem, add photos, and we help you connect with nearby pros.
+                      {t('landing.helperText')}
                     </p>
                   </motion.div>
                 </div>
@@ -708,10 +740,10 @@ const App: React.FC = () => {
                   <div>
                     <h3 className="text-3xl md:text-4xl font-black text-gray-900 flex items-center gap-4">
                       <span className="w-1.5 h-8 rounded-full bg-bird-blue shadow-[0_0_15px_rgba(0,144,255,0.4)] origin-bottom" />
-                      Professional Services
+                      {t('landing.servicesTitle')}
                     </h3>
                     <p className="text-gray-600 mt-2 ml-6 text-sm font-medium">
-                      Expert solutions for every home need
+                      {t('landing.servicesSubtitle')}
                     </p>
                   </div>
                   <Button
@@ -725,7 +757,7 @@ const App: React.FC = () => {
                       </svg>
                     }
                   >
-                    View All
+                    {t('landing.servicesViewAll')}
                   </Button>
                 </div>
               </ScrollReveal>
@@ -779,7 +811,7 @@ const App: React.FC = () => {
                           }}
                           className="flex items-center gap-2 text-bird-blue font-bold text-sm mt-2 group-hover:gap-3 transition-all"
                         >
-                          <span>{item.cta_label || 'Learn More'}</span>
+                          <span>{item.cta_label || t('landing.servicesViewAll')}</span>
                           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" />
                           </svg>

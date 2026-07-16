@@ -1,5 +1,6 @@
 import React from 'react';
 import { motion } from 'framer-motion';
+import { useTranslation } from 'react-i18next';
 
 const safetyFeatures = [
   {
@@ -71,6 +72,8 @@ const getColorClasses = (color: string) => {
 };
 
 export const SafetySection: React.FC = () => {
+  const { t } = useTranslation();
+
   return (
     <div className="relative">
       <div className="text-center mb-12 md:mb-16">
@@ -171,7 +174,7 @@ export const SafetySection: React.FC = () => {
           </p>
         </div>
         <a href="#" className="px-6 py-3 rounded-xl bg-green-600 text-white font-bold hover:bg-green-700 transition-all shadow-lg shadow-green-600/20 whitespace-nowrap">
-          Learn More
+          {t('safety.cta')}
         </a>
       </div>
     </div>

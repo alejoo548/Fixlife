@@ -1,4 +1,5 @@
 import React from 'react';
+import i18n from '../../i18n';
 
 export interface ServiceRequestLike {
     status: string;
@@ -36,21 +37,22 @@ export const hasPendingWorkerApproval = (request: ServiceRequestLike) =>
 export const statusLabel = (statusRaw: string, request?: ServiceRequestLike) => {
     const status = String(statusRaw || 'pending').toLowerCase();
     if (status === 'assigned') {
-        if (request && hasPendingWorkerApproval(request)) return 'Review Worker';
-        if (request && hasPendingCounter(request)) return 'Counter Pending';
-        return 'Worker Accepted';
+        if (request && hasPendingWorkerApproval(request)) return i18n.t('serviceRequest.statuses.reviewWorker');
+        if (request && hasPendingCounter(request)) return i18n.t('serviceRequest.statuses.counterPending');
+        return i18n.t('serviceRequest.statuses.workerAccepted');
     }
-    if (status === 'payment_pending') return 'Payment Pending';
-    if (status === 'route_in_progress') return 'Worker On The Way';
-    if (status === 'arrived') return 'Worker Arrived';
-    if (status === 'start_pending') return 'Start Approval';
-    if (status === 'finish_pending') return 'Finish Approval';
-    if (status === 'paid') return 'Paid';
-    if (status === 'completion_pending') return 'Final Approval';
-    if (status === 'awaiting_confirmation') return 'Awaiting Confirmation';
-    if (status === 'in_progress') return 'In Progress';
-    if (status === 'done') return 'Completed';
-    if (status === 'pending') return 'Finding Worker';
+    if (status === 'payment_pending') return i18n.t('serviceRequest.statuses.paymentPending');
+    if (status === 'route_in_progress') return i18n.t('serviceRequest.statuses.workerOnTheWay');
+    if (status === 'arrived') return i18n.t('serviceRequest.statuses.workerArrived');
+    if (status === 'start_pending') return i18n.t('serviceRequest.statuses.startApproval');
+    if (status === 'finish_pending') return i18n.t('serviceRequest.statuses.finishApproval');
+    if (status === 'paid') return i18n.t('serviceRequest.statuses.paid');
+    if (status === 'completion_pending') return i18n.t('serviceRequest.statuses.finalApproval');
+    if (status === 'awaiting_confirmation') return i18n.t('serviceRequest.statuses.awaitingConfirmation');
+    if (status === 'in_progress') return i18n.t('serviceRequest.statuses.inProgress');
+    if (status === 'done') return i18n.t('serviceRequest.statuses.completed');
+    if (status === 'cancelled') return i18n.t('serviceRequest.statuses.cancelled');
+    if (status === 'pending') return i18n.t('serviceRequest.statuses.findingWorker');
     return status.charAt(0).toUpperCase() + status.slice(1);
 };
 
@@ -78,13 +80,13 @@ export const getClientTimelineState = (request: ServiceRequestLike) => {
 };
 
 export const timelineSteps = [
-    { key: 'workerAccepted', label: 'Pro approved' },
-    { key: 'onTheWay', label: 'On route' },
-    { key: 'arrived', label: 'Arrived' },
-    { key: 'workInProgress', label: 'Working' },
-    { key: 'workFinished', label: 'Work finished' },
-    { key: 'paymentSecured', label: 'Paid' },
-    { key: 'completed', label: 'Completed' },
+    { key: 'workerAccepted', label: i18n.t('serviceRequest.timeline.proApproved') },
+    { key: 'onTheWay', label: i18n.t('serviceRequest.timeline.onRoute') },
+    { key: 'arrived', label: i18n.t('serviceRequest.timeline.arrived') },
+    { key: 'workInProgress', label: i18n.t('serviceRequest.timeline.working') },
+    { key: 'workFinished', label: i18n.t('serviceRequest.timeline.workFinished') },
+    { key: 'paymentSecured', label: i18n.t('serviceRequest.timeline.paid') },
+    { key: 'completed', label: i18n.t('serviceRequest.timeline.completed') },
 ] as const;
 
 export const canUseRequestChat = (request: ServiceRequestLike) => {
@@ -117,10 +119,10 @@ export const getTimelineProgress = (request: ServiceRequestLike) => {
 export const counterBadge = (request: ServiceRequestLike) => {
     if (request.proposed_budget == null) return null;
     if (request.counter_status === 'accepted') {
-        return <span className="text-[10px] font-bold px-2 py-1 rounded-full bg-emerald-100 text-emerald-700 border border-emerald-200">Counter Accepted</span>;
+        return <span className="text-[10px] font-bold px-2 py-1 rounded-full bg-emerald-100 text-emerald-700 border border-emerald-200">{i18n.t('serviceRequest.counters.accepted')}</span>;
     }
     if (request.counter_status === 'declined') {
-        return <span className="text-[10px] font-bold px-2 py-1 rounded-full bg-red-100 text-red-700 border border-red-200">Counter Declined</span>;
+        return <span className="text-[10px] font-bold px-2 py-1 rounded-full bg-red-100 text-red-700 border border-red-200">{i18n.t('serviceRequest.counters.declined')}</span>;
     }
-    return <span className="text-[10px] font-bold px-2 py-1 rounded-full bg-amber-100 text-amber-700 border border-amber-200">Counter Offer</span>;
+    return <span className="text-[10px] font-bold px-2 py-1 rounded-full bg-amber-100 text-amber-700 border border-amber-200">{i18n.t('serviceRequest.counters.offer')}</span>;
 };

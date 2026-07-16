@@ -1,5 +1,6 @@
 import React, { useRef, useState } from 'react';
-import { Send, Paperclip, X } from 'lucide-react';
+import { Paperclip, Send, X } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { hasUnsafeSupportText, sanitizeSupportTextInput } from '../../utils/supportSecurity';
 
 interface SupportMessageInputProps {
@@ -11,6 +12,10 @@ export const SupportMessageInput: React.FC<SupportMessageInputProps> = ({
   onSend,
   disabled = false,
 }) => {
+  const { i18n } = useTranslation();
+  const docLanguage = typeof document !== 'undefined' ? document.documentElement.lang : '';
+  const currentLanguage = docLanguage || i18n.resolvedLanguage || i18n.language || 'en';
+  const isSpanish = currentLanguage.startsWith('es');
   const [message, setMessage] = useState('');
   const [image, setImage] = useState<File | null>(null);
   const [imageError, setImageError] = useState<string | null>(null);
@@ -29,13 +34,17 @@ export const SupportMessageInput: React.FC<SupportMessageInputProps> = ({
     if (!ALLOWED_IMAGE_TYPES.includes(file.type)) {
       setImage(null);
       if (fileInputRef.current) fileInputRef.current.value = '';
-      setImageError('Only JPG, PNG or WEBP images are allowed.');
+      setImageError(
+        isSpanish ? 'Solo se permiten imagenes JPG, PNG o WEBP.' : 'Only JPG, PNG or WEBP images are allowed.'
+      );
       return;
     }
     if (file.size > MAX_IMAGE_BYTES) {
       setImage(null);
       if (fileInputRef.current) fileInputRef.current.value = '';
-      setImageError('Image must be 5 MB or smaller.');
+      setImageError(
+        isSpanish ? 'La imagen debe pesar 5 MB o menos.' : 'Image must be 5 MB or smaller.'
+      );
       return;
     }
     setImage(file);
@@ -98,7 +107,7 @@ export const SupportMessageInput: React.FC<SupportMessageInputProps> = ({
           value={message}
           onChange={(e) => setMessage(sanitizeSupportTextInput(e.target.value, 2000))}
           onKeyDown={handleKeyDown}
-          placeholder="Type your message..."
+          placeholder={isSpanish ? 'Escribe tu mensaje...' : 'Type your message...'}
           maxLength={2000}
           className="flex-1 bg-transparent text-[15px] placeholder:text-gray-400 focus:outline-none"
           disabled={disabled}
@@ -117,8 +126,8 @@ export const SupportMessageInput: React.FC<SupportMessageInputProps> = ({
         {imageError
           ? imageError
           : hasUnsafeContent
-            ? 'Malicious characters or patterns are not allowed.'
-            : 'Support available 8am to 8pm'}
+            ? (isSpanish ? 'No se permiten caracteres o patrones maliciosos.' : 'Malicious characters or patterns are not allowed.')
+            : (isSpanish ? 'Soporte disponible de 8am a 8pm' : 'Support available 8am to 8pm')}
       </div>
     </div>
   );

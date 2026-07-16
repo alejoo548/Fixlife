@@ -1,9 +1,10 @@
-import { useState } from "react";
+import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   forgotPassword,
   verifyResetToken,
-  resetPassword
-} from "../services/authService";
+  resetPassword,
+} from '../services/authService';
 import { showSweetToast } from '../utils/sweetAlert';
 
 interface WorkerForgotPasswordProps {
@@ -11,22 +12,19 @@ interface WorkerForgotPasswordProps {
 }
 
 const WorkerForgotPassword: React.FC<WorkerForgotPasswordProps> = ({ onBack }) => {
-
+  const { t } = useTranslation();
   const [step, setStep] = useState(1);
-
-  const [email, setEmail] = useState("");
-  const [token, setToken] = useState("");
-
-  const [password, setPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState("");
-
+  const [email, setEmail] = useState('');
+  const [token, setToken] = useState('');
+  const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [loading, setLoading] = useState(false);
 
   const handleSendEmail = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!email.trim()) {
-      void showSweetToast({ tone: 'error', message: "Please enter your email" });
+      void showSweetToast({ tone: 'error', message: t('passwordRecovery.messages.enterEmail') });
       return;
     }
 
@@ -34,10 +32,10 @@ const WorkerForgotPassword: React.FC<WorkerForgotPasswordProps> = ({ onBack }) =
 
     try {
       await forgotPassword(email.trim());
-      void showSweetToast({ tone: 'success', message: "Verification code sent to your email" });
+      void showSweetToast({ tone: 'success', message: t('passwordRecovery.messages.codeSent') });
       setStep(2);
     } catch (error: any) {
-      const errorMsg = error.response?.data?.error || "Error sending email. Please try again.";
+      const errorMsg = error.response?.data?.error || t('passwordRecovery.messages.sendError');
       void showSweetToast({ tone: 'error', message: errorMsg });
     } finally {
       setLoading(false);
@@ -46,9 +44,9 @@ const WorkerForgotPassword: React.FC<WorkerForgotPasswordProps> = ({ onBack }) =
 
   const handleVerifyToken = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!token.trim()) {
-      void showSweetToast({ tone: 'error', message: "Please enter the verification code" });
+      void showSweetToast({ tone: 'error', message: t('passwordRecovery.messages.enterCode') });
       return;
     }
 
@@ -56,10 +54,13 @@ const WorkerForgotPassword: React.FC<WorkerForgotPasswordProps> = ({ onBack }) =
 
     try {
       await verifyResetToken(email.trim(), token.trim());
-      void showSweetToast({ tone: 'success', message: "Code verified successfully" });
+      void showSweetToast({ tone: 'success', message: t('passwordRecovery.messages.codeVerified') });
       setStep(3);
     } catch (error: any) {
-      const errorMsg = error.response?.data?.error || error.response?.data?.message || "Invalid or expired code";
+      const errorMsg =
+        error.response?.data?.error ||
+        error.response?.data?.message ||
+        t('passwordRecovery.messages.invalidCode');
       void showSweetToast({ tone: 'error', message: errorMsg });
     } finally {
       setLoading(false);
@@ -70,17 +71,17 @@ const WorkerForgotPassword: React.FC<WorkerForgotPasswordProps> = ({ onBack }) =
     e.preventDefault();
 
     if (!password.trim() || !confirmPassword.trim()) {
-      void showSweetToast({ tone: 'error', message: "Please fill in all fields" });
+      void showSweetToast({ tone: 'error', message: t('passwordRecovery.messages.fillFields') });
       return;
     }
 
     if (password.length < 8) {
-      void showSweetToast({ tone: 'error', message: "Password must be at least 8 characters" });
+      void showSweetToast({ tone: 'error', message: t('passwordRecovery.messages.minPassword') });
       return;
     }
 
     if (password !== confirmPassword) {
-      void showSweetToast({ tone: 'error', message: "Passwords do not match" });
+      void showSweetToast({ tone: 'error', message: t('passwordRecovery.messages.passwordsDoNotMatch') });
       return;
     }
 
@@ -88,15 +89,13 @@ const WorkerForgotPassword: React.FC<WorkerForgotPasswordProps> = ({ onBack }) =
 
     try {
       await resetPassword(email.trim(), token.trim(), password);
-      void showSweetToast({ tone: 'success', message: "Password successfully updated! You can now log in." });
-      
-      // Esperar 1.5 segundos antes de volver al login
-      setTimeout(() => {
-        if (onBack) onBack();
-      }, 1500);
+      void showSweetToast({ tone: 'success', message: t('passwordRecovery.messages.resetSuccess') });
 
+      setTimeout(() => {
+        onBack?.();
+      }, 1500);
     } catch (error: any) {
-      const errorMsg = error.response?.data?.error || "Error resetting password. Please try again.";
+      const errorMsg = error.response?.data?.error || t('passwordRecovery.messages.resetError');
       void showSweetToast({ tone: 'error', message: errorMsg });
     } finally {
       setLoading(false);
@@ -105,19 +104,17 @@ const WorkerForgotPassword: React.FC<WorkerForgotPasswordProps> = ({ onBack }) =
 
   return (
     <div className="flex flex-col gap-6">
-
       <h2 className="text-2xl font-bold text-gray-900 text-center">
-        Recover password
+        {t('passwordRecovery.title')}
       </h2>
 
       {step === 1 && (
         <form onSubmit={handleSendEmail} className="flex flex-col gap-4">
-
           <input
             type="email"
-            placeholder="Email address"
+            placeholder={t('passwordRecovery.fields.email')}
             value={email}
-            onChange={(e)=>setEmail(e.target.value)}
+            onChange={(e) => setEmail(e.target.value)}
             required
             className="w-full px-4 py-3 border border-gray-300 rounded-xl outline-none focus:border-bird-orange"
           />
@@ -127,20 +124,18 @@ const WorkerForgotPassword: React.FC<WorkerForgotPasswordProps> = ({ onBack }) =
             disabled={loading}
             className="w-full py-4 rounded-full bg-gradient-to-r from-bird-orange to-bird-gold text-white font-bold text-sm tracking-wide shadow-lg shadow-bird-orange/20 hover:scale-[1.02] transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {loading ? "Sending..." : "Send code"}
+            {loading ? t('passwordRecovery.actions.sending') : t('passwordRecovery.actions.sendCode')}
           </button>
-
         </form>
       )}
 
       {step === 2 && (
         <form onSubmit={handleVerifyToken} className="flex flex-col gap-4">
-
           <input
             type="text"
-            placeholder="Enter verification code"
+            placeholder={t('passwordRecovery.fields.code')}
             value={token}
-            onChange={(e)=>setToken(e.target.value)}
+            onChange={(e) => setToken(e.target.value)}
             required
             className="w-full px-4 py-3 border border-gray-300 rounded-xl outline-none focus:border-bird-orange"
           />
@@ -150,29 +145,27 @@ const WorkerForgotPassword: React.FC<WorkerForgotPasswordProps> = ({ onBack }) =
             disabled={loading}
             className="w-full py-4 rounded-full bg-gradient-to-r from-bird-orange to-bird-gold text-white font-bold text-sm tracking-wide shadow-lg shadow-bird-orange/20 hover:scale-[1.02] transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {loading ? "Verifying..." : "Verify code"}
+            {loading ? t('passwordRecovery.actions.verifying') : t('passwordRecovery.actions.verifyCode')}
           </button>
-
         </form>
       )}
 
       {step === 3 && (
         <form onSubmit={handleResetPassword} className="flex flex-col gap-4">
-
           <input
             type="password"
-            placeholder="New password"
+            placeholder={t('passwordRecovery.fields.newPassword')}
             value={password}
-            onChange={(e)=>setPassword(e.target.value)}
+            onChange={(e) => setPassword(e.target.value)}
             required
             className="w-full px-4 py-3 border border-gray-300 rounded-xl outline-none focus:border-bird-orange"
           />
 
           <input
             type="password"
-            placeholder="Confirm password"
+            placeholder={t('passwordRecovery.fields.confirmPassword')}
             value={confirmPassword}
-            onChange={(e)=>setConfirmPassword(e.target.value)}
+            onChange={(e) => setConfirmPassword(e.target.value)}
             required
             className="w-full px-4 py-3 border border-gray-300 rounded-xl outline-none focus:border-bird-orange"
           />
@@ -182,9 +175,8 @@ const WorkerForgotPassword: React.FC<WorkerForgotPasswordProps> = ({ onBack }) =
             disabled={loading}
             className="w-full py-4 rounded-full bg-gradient-to-r from-bird-orange to-bird-gold text-white font-bold text-sm tracking-wide shadow-lg shadow-bird-orange/20 hover:scale-[1.02] transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {loading ? "Saving..." : "Reset password"}
+            {loading ? t('passwordRecovery.actions.saving') : t('passwordRecovery.actions.resetPassword')}
           </button>
-
         </form>
       )}
 
@@ -193,10 +185,9 @@ const WorkerForgotPassword: React.FC<WorkerForgotPasswordProps> = ({ onBack }) =
           onClick={onBack}
           className="text-sm text-gray-500 hover:text-bird-orange transition-colors self-center"
         >
-          &larr; Back to login
+          {`← ${t('passwordRecovery.actions.backToLogin')}`}
         </button>
       )}
-
     </div>
   );
 };

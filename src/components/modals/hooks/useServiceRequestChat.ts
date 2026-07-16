@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { API_ENDPOINTS } from '../../../config/api';
 import { useSSE } from '../../../hooks/useSSE';
 import { useChatSocket } from '../../../hooks/useChatSocket';
+import i18n from '../../../i18n';
 
 type ToastType = 'success' | 'error' | 'info';
 
@@ -95,7 +96,7 @@ export function useServiceRequestChat<TRequest extends ServiceRequestChatRequest
         const payload = await res.json();
         if (!res.ok || !payload?.success) {
           if (!silent) {
-            showToast('error', payload?.error || 'Could not load chat.');
+            showToast('error', payload?.error || i18n.t('serviceRequest.notifications.chatLoadError'));
           }
           return;
         }
@@ -115,7 +116,7 @@ export function useServiceRequestChat<TRequest extends ServiceRequestChatRequest
         });
       } catch {
         if (!silent) {
-          showToast('error', 'Network error loading chat.');
+          showToast('error', i18n.t('serviceRequest.notifications.chatLoadNetworkError'));
         }
       }
     },
@@ -129,7 +130,7 @@ export function useServiceRequestChat<TRequest extends ServiceRequestChatRequest
       const image = chatImage[idRequest] || null;
 
       if (!text && !image) {
-        showToast('error', 'Write a message or attach an image.');
+        showToast('error', i18n.t('serviceRequest.notifications.chatWriteOrAttach'));
         return;
       }
 
@@ -146,7 +147,7 @@ export function useServiceRequestChat<TRequest extends ServiceRequestChatRequest
         });
         const payload = await res.json();
         if (!res.ok || !payload?.success) {
-          showToast('error', payload?.error || 'Could not send message.');
+          showToast('error', payload?.error || i18n.t('serviceRequest.notifications.chatSendError'));
           return;
         }
 
@@ -162,7 +163,7 @@ export function useServiceRequestChat<TRequest extends ServiceRequestChatRequest
           await fetchRequestChat(idRequest, { silent: true });
         }
       } catch {
-        showToast('error', 'Network error sending message.');
+        showToast('error', i18n.t('serviceRequest.notifications.chatSendNetworkError'));
       } finally {
         setChatBusyId(null);
       }

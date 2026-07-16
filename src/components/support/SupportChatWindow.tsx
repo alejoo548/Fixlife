@@ -1,9 +1,10 @@
-import React, { useRef, useEffect } from 'react';
-import { SupportThread, SupportMessage } from '../../types/support';
+import React, { useEffect, useRef } from 'react';
 import { ArrowLeft } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
+import { SupportMessage, SupportThread } from '../../types/support';
+import { getSafeSupportDisplayText } from '../../utils/supportSecurity';
 import { SupportMessageInput } from './SupportMessageInput';
 import { SupportProtectedImage } from './SupportProtectedImage';
-import { getSafeSupportDisplayText } from '../../utils/supportSecurity';
 
 interface SupportChatWindowProps {
   thread: SupportThread;
@@ -20,7 +21,12 @@ export const SupportChatWindow: React.FC<SupportChatWindowProps> = ({
   onBack,
   isSending,
 }) => {
+  const { i18n } = useTranslation();
+  const docLanguage = typeof document !== 'undefined' ? document.documentElement.lang : '';
+  const currentLanguage = docLanguage || i18n.resolvedLanguage || i18n.language || 'en';
+  const isSpanish = currentLanguage.startsWith('es');
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const locale = isSpanish ? 'es-ES' : 'en-US';
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -36,7 +42,6 @@ export const SupportChatWindow: React.FC<SupportChatWindowProps> = ({
 
   return (
     <div className="flex h-full flex-col bg-[#f8f9fb]">
-      {/* Chat Header */}
       <div className="flex items-center gap-3 border-b bg-white px-4 py-3">
         <button
           onClick={onBack}
@@ -46,15 +51,18 @@ export const SupportChatWindow: React.FC<SupportChatWindowProps> = ({
         </button>
         <div className="min-w-0 flex-1">
           <div className="font-bold text-gray-900">{thread.subject}</div>
-          <div className="text-xs text-gray-500">Fixlife Support • Response in ~2h</div>
+          <div className="text-xs text-gray-500">
+            {isSpanish ? 'Soporte Fixlife • Respuesta en ~2h' : 'Fixlife Support • Response in ~2h'}
+          </div>
         </div>
       </div>
 
-      {/* Messages */}
       <div className="flex-1 space-y-4 overflow-y-auto px-4 py-4 custom-scrollbar">
         {messages.length === 0 && (
           <div className="py-8 text-center text-sm text-gray-500">
-            This is the start of your conversation with the support team.
+            {isSpanish
+              ? 'Este es el inicio de tu conversacion con el equipo de soporte.'
+              : 'This is the start of your conversation with the support team.'}
           </div>
         )}
 
@@ -82,7 +90,7 @@ export const SupportChatWindow: React.FC<SupportChatWindowProps> = ({
                 )}
                 {safeMessage && <div>{safeMessage}</div>}
                 <div className={`mt-2 text-right text-[9.5px] ${isMine ? 'text-white/50' : 'text-gray-400'}`}>
-                  {new Date(msg.createdAt).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
+                  {new Date(msg.createdAt).toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' })}
                 </div>
               </div>
             </div>
@@ -91,7 +99,6 @@ export const SupportChatWindow: React.FC<SupportChatWindowProps> = ({
         <div ref={messagesEndRef} />
       </div>
 
-      {/* Input */}
       <SupportMessageInput
         onSend={handleSend}
         disabled={isSending}

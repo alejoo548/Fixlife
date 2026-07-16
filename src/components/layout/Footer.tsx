@@ -1,4 +1,5 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import { TextHoverEffect } from '../common/TextHoverEffect';
 
 interface FooterProps {
@@ -16,18 +17,16 @@ export const Footer: React.FC<FooterProps> = ({
   onGoHome,
   onNavigateSection,
 }) => {
-  const platformLinks = [
-    { label: 'Explore Services', target: 'services' },
-    { label: 'How it Works', target: 'steps' },
-    { label: 'Pricing', target: 'services' },
-    { label: 'Help Center', target: 'faq' },
-    { label: 'FAQ', target: 'faq' },
-  ];
-
-  const companyLinks = [
-    { label: 'Reviews', target: 'testimonials' },
-    { label: 'Become a Pro', onClick: onOpenPro },
-  ];
+  const { t } = useTranslation();
+  const platformLinks = t('footer.platformLinks', { returnObjects: true }) as Array<{
+    label: string;
+    target: string;
+  }>;
+  const companyLinks = t('footer.companyLinks', { returnObjects: true }) as Array<{
+    label: string;
+    target?: string;
+    action?: 'openPro';
+  }>;
 
   return (
     <footer className="relative bg-gradient-to-b from-transparent via-orange-50/30 to-gray-50 pt-16 pb-10 border-t border-gray-200">
@@ -55,12 +54,12 @@ export const Footer: React.FC<FooterProps> = ({
               </div>
               <div>
                 <span className="font-bold text-2xl tracking-tight text-gray-900 block">Fixlife</span>
-                <span className="text-xs text-bird-blue font-semibold">Your Home Hero</span>
+                <span className="text-xs text-bird-blue font-semibold">{t('footer.tagline')}</span>
               </div>
             </button>
 
             <p className="text-gray-600 text-sm leading-relaxed max-w-sm">
-              The leading platform connecting local talent with real needs. Safety, trust, and speed in every service.
+              {t('footer.description')}
             </p>
 
             <div className="flex items-center gap-3 mt-2">
@@ -87,7 +86,7 @@ export const Footer: React.FC<FooterProps> = ({
           <div className="col-span-1 lg:col-span-3">
             <h4 className="text-gray-900 font-bold text-base mb-5 flex items-center gap-2">
               <div className="w-1 h-5 bg-bird-blue rounded-full" />
-              Platform
+              {t('footer.platformTitle')}
             </h4>
             <ul className="flex flex-col gap-3">
               {platformLinks.map((item) => (
@@ -110,14 +109,14 @@ export const Footer: React.FC<FooterProps> = ({
           <div className="col-span-1 lg:col-span-3">
             <h4 className="text-gray-900 font-bold text-base mb-5 flex items-center gap-2">
               <div className="w-1 h-5 bg-bird-yellow rounded-full" />
-              Company
+              {t('footer.companyTitle')}
             </h4>
             <ul className="flex flex-col gap-3">
               {companyLinks.map((item) => (
                 <li key={item.label}>
                   <button
                     type="button"
-                    onClick={() => (item.onClick ? item.onClick() : onNavigateSection?.(item.target as string))}
+                    onClick={() => (item.action === 'openPro' ? onOpenPro?.() : onNavigateSection?.(item.target as string))}
                     className="text-gray-600 hover:text-bird-blue hover:translate-x-1 transition-all text-sm font-medium inline-flex items-center gap-2 group"
                   >
                     <svg className="w-4 h-4 opacity-0 group-hover:opacity-100 transition-opacity" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -138,9 +137,9 @@ export const Footer: React.FC<FooterProps> = ({
 
         <div className="pt-8 border-t border-gray-200 flex flex-col md:flex-row items-center justify-between gap-4 text-xs text-gray-500 text-center md:text-left">
           <div className="flex items-center gap-2 text-gray-400">
-            <p>(c) 2024 Fixlife Inc. All rights reserved.</p>
+            <p>{t('footer.copyright')}</p>
             <span className="hidden md:inline">|</span>
-            <p className="hidden md:inline">Built for your home.</p>
+            <p className="hidden md:inline">{t('footer.builtForHome')}</p>
           </div>
           <div className="flex flex-wrap justify-center gap-6 md:gap-8 items-center">
             <button
@@ -152,7 +151,7 @@ export const Footer: React.FC<FooterProps> = ({
                 <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 11c0 3.517-1.009 6.799-2.753 9.571m-3.44-2.04l.054-.09A13.916 13.916 0 008 11a4 4 0 118 0c0 1.017-.07 2.019-.203 3m-2.118 6.844A21.88 21.88 0 0015.171 17m3.839 1.132c.645-2.266.99-4.659.99-7.132A8 8 0 008 4.07M3 15.364c.64-1.319 1-2.8 1-4.364 0-1.457.39-2.823 1.07-4" />
                 </svg>
-                Admin Area
+                {t('footer.adminArea')}
               </span>
             </button>
             <span className="text-gray-300 hidden md:inline">|</span>
@@ -161,10 +160,10 @@ export const Footer: React.FC<FooterProps> = ({
               onClick={() => onNavigateSection?.('faq')}
               className="hover:text-bird-blue transition-colors font-medium"
             >
-              Help Center
+              {t('footer.helpCenter')}
             </button>
             <button type="button" onClick={onBookService} className="hover:text-bird-blue transition-colors font-medium">
-              Book a Service
+              {t('footer.bookService')}
             </button>
           </div>
         </div>

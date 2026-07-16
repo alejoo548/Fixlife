@@ -1,6 +1,12 @@
-export interface NavItemType {
+export interface NavSubItemType {
+  id: string;
   name: string;
-  items?: string[];
+}
+
+export interface NavItemType {
+  id: string;
+  name: string;
+  items?: NavSubItemType[];
   href?: string;
 }
 

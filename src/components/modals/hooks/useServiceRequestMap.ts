@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { addResilientTileLayer, loadLeaflet } from '../../../utils/leafletLoader';
+import i18n from '../../../i18n';
 
 declare global {
   interface Window {
@@ -159,7 +160,7 @@ export function useServiceRequestMap({
       })
         .addTo(map)
         .bindPopup(
-          `<b>${selectedVisual.label}</b><br/>Confirmed service location.`
+          `<b>${selectedVisual.label}</b><br/>${i18n.t('serviceRequest.location.confirmedServiceLocation')}`
         );
 
       currentMarkerRef.current = me;
@@ -167,7 +168,7 @@ export function useServiceRequestMap({
       currentMarkerRef.current.setLatLng([currentCoords.lat, currentCoords.lng]);
       currentMarkerRef.current.setIcon(createLeafletPinIcon(L, activeLocationKind));
       currentMarkerRef.current.setPopupContent(
-        `<b>${selectedVisual.label}</b><br/>Confirmed service location.`
+        `<b>${selectedVisual.label}</b><br/>${i18n.t('serviceRequest.location.confirmedServiceLocation')}`
       );
     }
 

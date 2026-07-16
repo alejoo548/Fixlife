@@ -1,9 +1,11 @@
 import React, { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { RefreshCw } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { API_ENDPOINTS, API_URL } from '../../config/api';
 import { NavbarProps, AuthMode } from '../../types';
 import { Logo } from '../common/Logo';
+import { LanguageSwitcher } from '../common/LanguageSwitcher';
 import { useAuth } from '../../context/AuthContext';
 import { NotificationCenter } from '../common/NotificationCenter';
 import { getToken } from '../../utils/session';
@@ -12,6 +14,7 @@ import { useSSE } from '../../hooks/useSSE';
 import { useServiceRequestChat } from '../modals/hooks/useServiceRequestChat';
 import { canUseRequestChat, hasPendingCounter, hasPendingWorkerApproval } from '../modals/serviceRequestHelpers';
 import { showSweetToast } from '../../utils/sweetAlert';
+import { localizeServiceName } from '../../utils/serviceLocalization';
 
 
 const ClientLiveRequestTracker = lazy(() => import('../modals/ClientLiveRequestTracker'));
@@ -94,38 +97,38 @@ interface NavbarWorkerProfile {
   }>;
 }
 
-const requestStatusCopy = (statusRaw: ClientRequestStatus) => {
+const requestStatusCopy = (statusRaw: ClientRequestStatus, t: (key: string, options?: Record<string, unknown>) => string) => {
   const status = String(statusRaw || '').toLowerCase();
-  if (status === 'done') return { label: 'Completed', hint: 'Saved in your service history.', tone: 'bg-slate-100 text-slate-700 border-slate-200' };
-  if (status === 'cancelled') return { label: 'Cancelled', hint: 'This request is closed.', tone: 'bg-red-50 text-red-600 border-red-100' };
-  if (status === 'awaiting_confirmation') return { label: 'Confirm finish', hint: 'Your pro marked the work as complete.', tone: 'bg-amber-50 text-amber-700 border-amber-100' };
-  if (status === 'completion_pending') return { label: 'Final approval', hint: 'Payment completed. Both must close service.', tone: 'bg-emerald-50 text-emerald-700 border-emerald-100' };
-  if (status === 'finish_pending') return { label: 'Finish approval', hint: 'Work ends after both approve.', tone: 'bg-violet-50 text-violet-700 border-violet-100' };
-  if (status === 'in_progress') return { label: 'In progress', hint: 'Your pro is working on it now.', tone: 'bg-blue-50 text-blue-700 border-blue-100' };
-  if (status === 'start_pending') return { label: 'Approve work start', hint: 'Worker approved. Your approval is required.', tone: 'bg-blue-50 text-blue-700 border-blue-100' };
-  if (status === 'arrived') return { label: 'Worker arrived', hint: 'Both must approve before work starts.', tone: 'bg-violet-50 text-violet-700 border-violet-100' };
-  if (status === 'route_in_progress') return { label: 'Worker on route', hint: 'Follow live route to destination.', tone: 'bg-sky-50 text-sky-700 border-sky-100' };
-  if (status === 'paid') return { label: 'Payment completed', hint: 'Final approval required from both.', tone: 'bg-emerald-50 text-emerald-700 border-emerald-100' };
-  if (status === 'payment_pending') return { label: 'Work finished - pay', hint: 'Both approved work finish. Complete payment.', tone: 'bg-orange-50 text-orange-700 border-orange-100' };
-  if (status === 'assigned') return { label: 'Pro assigned', hint: 'Review the assigned professional.', tone: 'bg-sky-50 text-sky-700 border-sky-100' };
-  return { label: 'Finding a pro', hint: 'We are matching your request.', tone: 'bg-slate-100 text-slate-700 border-slate-200' };
+  if (status === 'done') return { label: t('serviceRequest.requestPanel.status.done.label'), hint: t('serviceRequest.requestPanel.status.done.hint'), tone: 'bg-slate-100 text-slate-700 border-slate-200' };
+  if (status === 'cancelled') return { label: t('serviceRequest.requestPanel.status.cancelled.label'), hint: t('serviceRequest.requestPanel.status.cancelled.hint'), tone: 'bg-red-50 text-red-600 border-red-100' };
+  if (status === 'awaiting_confirmation') return { label: t('serviceRequest.requestPanel.status.awaitingConfirmation.label'), hint: t('serviceRequest.requestPanel.status.awaitingConfirmation.hint'), tone: 'bg-amber-50 text-amber-700 border-amber-100' };
+  if (status === 'completion_pending') return { label: t('serviceRequest.requestPanel.status.completionPending.label'), hint: t('serviceRequest.requestPanel.status.completionPending.hint'), tone: 'bg-emerald-50 text-emerald-700 border-emerald-100' };
+  if (status === 'finish_pending') return { label: t('serviceRequest.requestPanel.status.finishPending.label'), hint: t('serviceRequest.requestPanel.status.finishPending.hint'), tone: 'bg-violet-50 text-violet-700 border-violet-100' };
+  if (status === 'in_progress') return { label: t('serviceRequest.requestPanel.status.inProgress.label'), hint: t('serviceRequest.requestPanel.status.inProgress.hint'), tone: 'bg-blue-50 text-blue-700 border-blue-100' };
+  if (status === 'start_pending') return { label: t('serviceRequest.requestPanel.status.startPending.label'), hint: t('serviceRequest.requestPanel.status.startPending.hint'), tone: 'bg-blue-50 text-blue-700 border-blue-100' };
+  if (status === 'arrived') return { label: t('serviceRequest.requestPanel.status.arrived.label'), hint: t('serviceRequest.requestPanel.status.arrived.hint'), tone: 'bg-violet-50 text-violet-700 border-violet-100' };
+  if (status === 'route_in_progress') return { label: t('serviceRequest.requestPanel.status.routeInProgress.label'), hint: t('serviceRequest.requestPanel.status.routeInProgress.hint'), tone: 'bg-sky-50 text-sky-700 border-sky-100' };
+  if (status === 'paid') return { label: t('serviceRequest.requestPanel.status.paid.label'), hint: t('serviceRequest.requestPanel.status.paid.hint'), tone: 'bg-emerald-50 text-emerald-700 border-emerald-100' };
+  if (status === 'payment_pending') return { label: t('serviceRequest.requestPanel.status.paymentPending.label'), hint: t('serviceRequest.requestPanel.status.paymentPending.hint'), tone: 'bg-orange-50 text-orange-700 border-orange-100' };
+  if (status === 'assigned') return { label: t('serviceRequest.requestPanel.status.assigned.label'), hint: t('serviceRequest.requestPanel.status.assigned.hint'), tone: 'bg-sky-50 text-sky-700 border-sky-100' };
+  return { label: t('serviceRequest.requestPanel.status.pending.label'), hint: t('serviceRequest.requestPanel.status.pending.hint'), tone: 'bg-slate-100 text-slate-700 border-slate-200' };
 };
 
-const formatRequestSchedule = (request: ClientRequestSummary | null) => {
+const formatRequestSchedule = (request: ClientRequestSummary | null, t: (key: string, options?: Record<string, unknown>) => string, language: string) => {
   if (!request) return '';
-  if (String(request.booking_type || 'express').toLowerCase() !== 'scheduled') return 'Express visit';
+  if (String(request.booking_type || 'express').toLowerCase() !== 'scheduled') return t('serviceRequest.requestPanel.schedule.expressVisit');
 
   const rawStart = request.scheduled_start_time || (
     request.scheduled_date && request.scheduled_time
       ? `${request.scheduled_date}T${request.scheduled_time}`
       : ''
   );
-  if (!rawStart) return 'Scheduled visit';
+  if (!rawStart) return t('serviceRequest.requestPanel.schedule.scheduledVisit');
 
   const start = new Date(rawStart);
-  if (Number.isNaN(start.getTime())) return 'Scheduled visit';
+  if (Number.isNaN(start.getTime())) return t('serviceRequest.requestPanel.schedule.scheduledVisit');
 
-  return start.toLocaleDateString('en-US', {
+  return start.toLocaleDateString(language.startsWith('es') ? 'es-ES' : 'en-US', {
     month: 'short',
     day: 'numeric',
     hour: 'numeric',
@@ -165,8 +168,6 @@ const sortClientRequests = (requests: ClientRequestSummary[]) =>
 const isCancelledRequest = (request: ClientRequestSummary) =>
   ['cancelled', 'canceled'].includes(String(request.status || '').toLowerCase());
 
-const requestProgressLabels = ['Pro approved', 'On route', 'Arrived', 'Working', 'Work finished', 'Paid', 'Completed'];
-
 const getRequestStepIndex = (statusRaw: ClientRequestStatus) => {
   const status = String(statusRaw || '').toLowerCase();
   if (status === 'done') return 6;
@@ -187,6 +188,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   onNavigateSection,
   onSelectCategory,
 }) => {
+  const { t, i18n } = useTranslation();
   const navigate = useNavigate();
   const { user, logout } = useAuth();
   const authToken = getToken();
@@ -220,7 +222,7 @@ export const Navbar: React.FC<NavbarProps> = ({
     return `${apiPublicUrl}/uploads/${cleanPath}`;
   }, [user?.profile_image]);
 
-  const [activeItem, setActiveItem] = useState<number | null>(null);
+  const [activeIndicator, setActiveIndicator] = useState<{ left: number; width: number } | null>(null);
   const [isAccountOpen, setIsAccountOpen] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isRequestModalOpen, setIsRequestModalOpen] = useState(false);
@@ -245,6 +247,7 @@ export const Navbar: React.FC<NavbarProps> = ({
     proposedBudget: number | null;
   }>>({});
   const requestStateInitializedRef = useRef(false);
+  const navTrackRef = useRef<HTMLDivElement | null>(null);
 
   const visibleClientRequests = useMemo(
     () => clientRequests.filter((request) => {
@@ -263,7 +266,21 @@ export const Navbar: React.FC<NavbarProps> = ({
   const selectedRequestPosition = primaryRequest
     ? orderedClientRequests.findIndex((request) => request.id_request === primaryRequest.id_request) + 1
     : 0;
-  const primaryRequestStatus = requestStatusCopy(primaryRequest?.status || 'pending');
+  const currentLanguage = i18n.resolvedLanguage || i18n.language || 'en';
+  const localizedPrimaryServiceName = primaryRequest ? localizeServiceName(primaryRequest.service_name, currentLanguage) : '';
+  const primaryRequestStatus = requestStatusCopy(primaryRequest?.status || 'pending', t);
+  const requestProgressLabels = useMemo(
+    () => [
+      t('serviceRequest.requestPanel.progress.proApproved'),
+      t('serviceRequest.requestPanel.progress.onRoute'),
+      t('serviceRequest.requestPanel.progress.arrived'),
+      t('serviceRequest.requestPanel.progress.working'),
+      t('serviceRequest.requestPanel.progress.workFinished'),
+      t('serviceRequest.requestPanel.progress.paid'),
+      t('serviceRequest.requestPanel.progress.completed'),
+    ],
+    [t]
+  );
   const primaryRequestStep = getRequestStepIndex(primaryRequest?.status || 'pending');
   const pendingWorkerApproval = primaryRequest ? hasPendingWorkerApproval(primaryRequest) : false;
   const pendingCounter = primaryRequest ? hasPendingCounter(primaryRequest) : false;
@@ -320,12 +337,22 @@ export const Navbar: React.FC<NavbarProps> = ({
     showToast: showRequestMessage,
   });
 
-  const handleMouseEnter = (index: number) => {
-    setActiveItem(index);
+  const handleMouseEnter = (event: React.MouseEvent<HTMLElement>) => {
+    const target = event.currentTarget;
+    const track = navTrackRef.current;
+    if (!track) return;
+
+    const targetRect = target.getBoundingClientRect();
+    const trackRect = track.getBoundingClientRect();
+
+    setActiveIndicator({
+      left: targetRect.left - trackRect.left,
+      width: targetRect.width,
+    });
   };
 
   const handleMouseLeave = () => {
-    setActiveItem(null);
+    setActiveIndicator(null);
   };
 
   const handleAuthClick = (e: React.MouseEvent, mode: AuthMode) => {
@@ -381,7 +408,7 @@ export const Navbar: React.FC<NavbarProps> = ({
       const payload = await response.json().catch(() => ({}));
 
       if (!response.ok) {
-        throw new Error(payload?.error || 'Could not load your request.');
+        throw new Error(payload?.error || t('serviceRequest.requestPanel.messages.loadError'));
       }
 
       const requests = Array.isArray(payload?.requests) ? payload.requests : [];
@@ -391,18 +418,18 @@ export const Navbar: React.FC<NavbarProps> = ({
           return !isCancelledRequest(request) && s !== 'done';
         })
       );
-      void showSweetToast({ tone: 'success', message: 'Request updated.' });
+      void showSweetToast({ tone: 'success', message: t('serviceRequest.requestPanel.messages.updated') });
     } catch (error: any) {
       const rawMessage = String(error?.message || '');
       setRequestsError(
         rawMessage.toLowerCase().includes('failed to fetch')
-          ? 'We could not reach the server yet. Check your connection while we try again.'
-          : rawMessage || 'We could not refresh your request right now.'
+          ? t('serviceRequest.requestPanel.messages.networkRetry')
+          : rawMessage || t('serviceRequest.requestPanel.messages.refreshError')
       );
     } finally {
       setRequestsLoading(false);
     }
-  }, [authToken, user]);
+  }, [authToken, t, user]);
 
   const handleMyRequestClick = () => {
     setIsAccountOpen(false);
@@ -435,7 +462,7 @@ export const Navbar: React.FC<NavbarProps> = ({
         portfolio: Array.isArray(payload.portfolio) ? payload.portfolio : [],
       });
     } catch (error: any) {
-      setRequestActionMessage(String(error?.message || 'Could not load this professional.'));
+      setRequestActionMessage(String(error?.message || (currentLanguage.startsWith('es') ? 'No se pudo cargar este profesional.' : 'Could not load this professional.')));
     } finally {
       setWorkerProfileLoading(false);
     }
@@ -466,7 +493,7 @@ export const Navbar: React.FC<NavbarProps> = ({
       });
       const payload = await response.json().catch(() => ({}));
       if (!response.ok || !payload?.success) {
-        throw new Error(payload?.error || 'Could not save your decision.');
+        throw new Error(payload?.error || (currentLanguage.startsWith('es') ? 'No se pudo guardar tu decisión.' : 'Could not save your decision.'));
       }
       setWorkerProfile(null);
       if (kind === 'request') {
@@ -476,17 +503,25 @@ export const Navbar: React.FC<NavbarProps> = ({
         setSelectedRequestId(null);
       }
       setRequestActionMessage(
-        kind === 'request'
-          ? `Request #${primaryRequest.id_request} was cancelled.`
-          : decision === 'accept'
-          ? kind === 'counter'
-            ? 'Counter offer accepted. Worker can start route.'
-            : 'Professional approved. Worker can start route.'
-          : 'Declined. Fixlife will continue looking for another professional.'
+        currentLanguage.startsWith('es')
+          ? kind === 'request'
+            ? `La solicitud #${primaryRequest.id_request} fue cancelada.`
+            : decision === 'accept'
+              ? kind === 'counter'
+                ? 'La contraoferta fue aceptada. El trabajador puede iniciar la ruta.'
+                : 'El profesional fue aprobado. El trabajador puede iniciar la ruta.'
+              : 'Rechazado. Fixlife seguirá buscando otro profesional.'
+          : kind === 'request'
+            ? `Request #${primaryRequest.id_request} was cancelled.`
+            : decision === 'accept'
+              ? kind === 'counter'
+                ? 'Counter offer accepted. Worker can start route.'
+                : 'Professional approved. Worker can start route.'
+              : 'Declined. Fixlife will continue looking for another professional.'
       );
       await fetchClientRequests();
     } catch (error: any) {
-      setRequestActionMessage(String(error?.message || 'Could not save your decision.'));
+      setRequestActionMessage(String(error?.message || (currentLanguage.startsWith('es') ? 'No se pudo guardar tu decisión.' : 'Could not save your decision.')));
     } finally {
       setRequestActionBusy(false);
     }
@@ -503,8 +538,8 @@ export const Navbar: React.FC<NavbarProps> = ({
         body: JSON.stringify({ action }),
       });
       const payload = await response.json().catch(() => ({}));
-      if (!response.ok || !payload?.success) throw new Error(payload?.error || 'Could not save approval.');
-      setRequestActionMessage(payload?.message || 'Approval saved.');
+      if (!response.ok || !payload?.success) throw new Error(payload?.error || (currentLanguage.startsWith('es') ? 'No se pudo guardar la aprobacion.' : 'Could not save approval.'));
+      setRequestActionMessage(payload?.message || (currentLanguage.startsWith('es') ? 'Aprobacion guardada.' : 'Approval saved.'));
 
       if (action === 'complete_service') {
         // Immediately remove from the "in process / active services" views.
@@ -517,25 +552,25 @@ export const Navbar: React.FC<NavbarProps> = ({
 
       await fetchClientRequests();
     } catch (error: any) {
-      setRequestActionMessage(String(error?.message || 'Could not save approval.'));
+      setRequestActionMessage(String(error?.message || (currentLanguage.startsWith('es') ? 'No se pudo guardar la aprobacion.' : 'Could not save approval.')));
     } finally {
       setRequestActionBusy(false);
     }
   };
 
-  const handleNavItemClick = (itemName: string) => {
+  const handleNavItemClick = (itemId: string) => {
     setIsAccountOpen(false);
     setIsMobileMenuOpen(false);
 
-    switch (itemName) {
-      case 'Services':
-      case 'Categories':
+    switch (itemId) {
+      case 'services':
+      case 'categories':
         onNavigateSection?.('services');
         break;
-      case 'Professionals':
+      case 'professionals':
         onNavigateSection?.('professionals');
         break;
-      case 'Help':
+      case 'help':
         onNavigateSection?.('faq');
         break;
       default:
@@ -543,20 +578,20 @@ export const Navbar: React.FC<NavbarProps> = ({
     }
   };
 
-  const handleSubItemClick = (parentName: string, subItem: string) => {
+  const handleSubItemClick = (parentId: string, subItemId: string, subItemName: string) => {
     setIsAccountOpen(false);
     setIsMobileMenuOpen(false);
 
-    if (parentName === 'Categories') {
-      onSelectCategory?.(subItem);
+    if (parentId === 'categories') {
+      onSelectCategory?.(subItemName);
       return;
     }
 
-    switch (subItem) {
-      case 'Support':
+    switch (subItemId) {
+      case 'support':
         onNavigateSection?.('faq');
         break;
-      case 'How it works':
+      case 'how-it-works':
         onNavigateSection?.('steps');
         break;
       default:
@@ -634,8 +669,9 @@ export const Navbar: React.FC<NavbarProps> = ({
       if (!requestStateInitializedRef.current) continue;
       const previous = previousRequestStateRef.current[request.id_request];
       if (!previous) {
-        setLiveRequestNotice(`New request #${request.id_request} was added.`);
-        void showSweetToast({ tone: 'info', message: `New request #${request.id_request} was added.` });
+        const message = t('serviceRequest.requestPanel.messages.newRequest', { id: request.id_request });
+        setLiveRequestNotice(message);
+        void showSweetToast({ tone: 'info', message });
         continue;
       }
       if (
@@ -643,28 +679,30 @@ export const Navbar: React.FC<NavbarProps> = ({
         (request.counter_status == null || request.counter_status === 'pending') &&
         (previous.counterStatus !== counterStatus || previous.proposedBudget !== proposedBudget)
       ) {
-        setLiveRequestNotice(
-          `${request.assigned_worker?.name || 'Your professional'} sent a counter offer for request #${request.id_request}.`
-        );
+        const message = t('serviceRequest.requestPanel.messages.counterOffer', {
+          name: request.assigned_worker?.name || t('serviceRequest.requestPanel.messages.professionalFallback'),
+          id: request.id_request,
+        });
+        setLiveRequestNotice(message);
         void showSweetToast({
           tone: 'warning',
-          message: `${request.assigned_worker?.name || 'Your professional'} sent a counter offer for request #${request.id_request}.`,
+          message,
         });
         continue;
       }
       if (previous.status !== status) {
-        setLiveRequestNotice(
-          `Request #${request.id_request} changed to ${requestStatusCopy(status).label}.`
-        );
+        const statusLabel = requestStatusCopy(status, t).label;
+        const message = t('serviceRequest.requestPanel.messages.statusChanged', { id: request.id_request, status: statusLabel });
+        setLiveRequestNotice(message);
         void showSweetToast({
           tone: 'info',
-          message: `Request #${request.id_request} changed to ${requestStatusCopy(status).label}.`,
+          message,
         });
       }
     }
     previousRequestStateRef.current = nextState;
     requestStateInitializedRef.current = true;
-  }, [orderedClientRequests]);
+  }, [orderedClientRequests, t]);
 
   useEffect(() => {
     if (!isRequestModalOpen || !requestsError || requestRetryAttempt >= 2) return undefined;
@@ -701,47 +739,46 @@ export const Navbar: React.FC<NavbarProps> = ({
     };
   }, [isRequestModalOpen]);
 
-  const ITEM_WIDTH = '140px';
-
   const BOOKING_INDEX = navItems.length;
-  const ACCOUNT_INDEX = navItems.length + 1;
+  const LANGUAGE_INDEX = navItems.length + 1;
+  const ACCOUNT_INDEX = navItems.length + 2;
 
   return (
     <>
-      <header className="fixed top-4 lg:top-6 left-4 right-4 lg:left-0 lg:right-0 h-16 lg:h-20 flex items-center justify-between px-4 lg:px-8 bg-white/90 backdrop-blur-xl border border-gray-200/50 lg:mx-auto max-w-7xl rounded-2xl z-50 shadow-xl shadow-bird-blue/10 animate-slide-down group/header hover:shadow-2xl hover:shadow-bird-blue/15 transition-shadow duration-300">
+      <header className="fixed top-4 lg:top-6 left-4 right-4 lg:left-0 lg:right-0 h-16 lg:h-20 flex items-center gap-3 px-4 lg:px-6 bg-white/90 backdrop-blur-xl border border-gray-200/50 lg:mx-auto max-w-7xl rounded-2xl z-50 shadow-xl shadow-bird-blue/10 animate-slide-down group/header hover:shadow-2xl hover:shadow-bird-blue/15 transition-shadow duration-300">
         <div className="w-auto lg:w-32 flex-shrink-0 transform hover:scale-105 transition-transform duration-300">
           <Logo onClick={handleGoHomeClick} />
         </div>
 
-        <nav
-          className="hidden lg:flex relative items-center h-full ml-auto"
-          onMouseLeave={handleMouseLeave}
-        >
-          <div className="flex relative z-10">
-            {navItems.map((item, index) => (
+        <div className="hidden lg:flex min-w-0 flex-1 items-center justify-end gap-2">
+          <nav
+            className="relative flex min-w-0 items-center h-full"
+            onMouseLeave={handleMouseLeave}
+          >
+          <div ref={navTrackRef} className="flex relative z-10 min-w-0 items-center">
+            {navItems.map((item) => (
               <div
                 key={item.name}
-                className="group relative flex items-center justify-center h-16 cursor-pointer text-gray-700 hover:text-bird-blue transition-all duration-300"
-                style={{ width: ITEM_WIDTH }}
-                onMouseEnter={() => handleMouseEnter(index)}
-                onClick={() => handleNavItemClick(item.name)}
+                className="group relative flex h-16 w-[110px] xl:w-[118px] 2xl:w-[128px] items-center justify-center cursor-pointer text-gray-700 hover:text-bird-blue transition-all duration-300"
+                onMouseEnter={handleMouseEnter}
+                onClick={() => handleNavItemClick(item.id)}
               >
-                <span className="font-bold text-sm tracking-wide z-20 transform group-hover:scale-105 transition-transform duration-200">{item.name}</span>
+                <span className="truncate px-2 text-center font-bold text-sm tracking-wide z-20 transform group-hover:scale-105 transition-transform duration-200">{item.name}</span>
 
                 {item.items && (
                   <div className="absolute top-14 left-0 w-full pt-4 opacity-0 translate-y-[-10px] pointer-events-none group-hover:opacity-100 group-hover:translate-y-0 group-hover:pointer-events-auto transition-all duration-300 ease-out z-30">
                     <div className="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-xl p-1 flex flex-col gap-1">
                       {item.items.map((subItem) => (
                         <button
-                          key={subItem}
+                          key={subItem.id}
                           type="button"
                           onClick={(event) => {
                             event.stopPropagation();
-                            handleSubItemClick(item.name, subItem);
+                            handleSubItemClick(item.id, subItem.id, subItem.name);
                           }}
                           className="block w-full px-4 py-2 text-left text-sm text-gray-600 hover:bg-bird-blue/5 hover:text-bird-blue rounded-lg transition-colors font-medium"
                         >
-                          {subItem}
+                          {subItem.name}
                         </button>
                       ))}
                     </div>
@@ -751,18 +788,23 @@ export const Navbar: React.FC<NavbarProps> = ({
             ))}
 
             <div
-              className="group relative flex items-center justify-center h-16 cursor-pointer text-gray-700 hover:text-bird-blue transition-all duration-300"
-              style={{ width: ITEM_WIDTH }}
-              onMouseEnter={() => handleMouseEnter(BOOKING_INDEX)}
+              className="group relative flex h-16 w-[122px] xl:w-[128px] 2xl:w-[136px] items-center justify-center cursor-pointer text-gray-700 hover:text-bird-blue transition-all duration-300"
+              onMouseEnter={handleMouseEnter}
               onClick={handleBookingClick}
             >
-              <span className="font-bold text-sm tracking-wide z-20 transform group-hover:scale-105 transition-transform duration-200">Book Service</span>
+              <span className="truncate px-2 text-center font-bold text-sm tracking-wide z-20 transform group-hover:scale-105 transition-transform duration-200">{t('navbar.bookService')}</span>
             </div>
 
             <div
-              className="group relative flex items-center justify-center h-16 cursor-pointer text-gray-700 hover:text-bird-blue transition-all duration-300"
-              style={{ width: ITEM_WIDTH }}
-              onMouseEnter={() => handleMouseEnter(ACCOUNT_INDEX)}
+              className="group relative flex h-16 w-[122px] xl:w-[128px] items-center justify-center text-gray-700 transition-all duration-300"
+              onMouseEnter={handleMouseEnter}
+            >
+              <LanguageSwitcher />
+            </div>
+
+            <div
+              className="group relative flex h-16 max-w-[150px] xl:max-w-[170px] items-center justify-center cursor-pointer px-2 text-gray-700 hover:text-bird-blue transition-all duration-300"
+              onMouseEnter={handleMouseEnter}
               onClick={() => setIsAccountOpen(!isAccountOpen)}
             >
               <div className="flex items-center gap-2 z-20 transform group-hover:scale-105 transition-transform duration-200">
@@ -771,7 +813,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                   profileImageUrl ? (
                     <img
                       src={profileImageUrl}
-                      alt="Profile"
+                      alt={t('navbar.myProfile')}
                       className="w-8 h-8 rounded-full object-cover border border-gray-200"
                     />
                   ) : (
@@ -782,7 +824,9 @@ export const Navbar: React.FC<NavbarProps> = ({
                 )}
 
                 <span className="font-bold text-sm tracking-wide">
-                  {user ? user.name : 'Account'}
+                  <span className="inline-block max-w-[78px] xl:max-w-[96px] truncate align-bottom">
+                    {user ? user.name : t('navbar.account')}
+                  </span>
                 </span>
                 <svg
                   className={`w-4 h-4 transition-transform duration-300 ${isAccountOpen ? 'rotate-180 text-bird-blue' : 'group-hover:text-bird-blue'}`}
@@ -817,7 +861,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                             d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1"
                           />
                         </svg>
-                        Sign In
+                        {t('navbar.signIn')}
                       </button>
 
                       <button
@@ -837,7 +881,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                             d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z"
                           />
                         </svg>
-                        Sign Up
+                        {t('navbar.signUp')}
                       </button>
                     </>
                   ) : (
@@ -846,21 +890,21 @@ export const Navbar: React.FC<NavbarProps> = ({
                         onClick={handleProfileClick}
                         className="w-full px-4 py-3 text-sm text-gray-600 hover:bg-bird-blue/5 rounded-lg text-left font-medium"
                       >
-                        My Profile
+                        {t('navbar.myProfile')}
                       </button>
 
                       <button
                         onClick={handleMyRequestsHistoryClick}
                         className="w-full px-4 py-3 text-sm text-gray-600 hover:bg-bird-blue/5 rounded-lg text-left font-medium"
                       >
-                        My Requests
+                        {t('navbar.myRequests')}
                       </button>
 
                       <button
                         onClick={handleLogoutClick}
                         className="w-full px-4 py-3 text-sm text-red-500 hover:bg-red-50 rounded-lg text-left font-medium"
                       >
-                        Log Out
+                        {t('navbar.logOut')}
                       </button>
                     </>
                   )}
@@ -872,26 +916,26 @@ export const Navbar: React.FC<NavbarProps> = ({
           <div
             className="absolute bottom-0 h-[4px] rounded-t-full bg-bird-blue transition-all duration-300 ease-out shadow-[0_0_15px_rgba(0,144,255,0.6)]"
             style={{
-              width: ITEM_WIDTH,
-              left: 0,
-              transform: `translateX(${activeItem !== null ? activeItem * 100 : 0}%)`,
-              opacity: activeItem !== null ? 1 : 0,
+              width: `${activeIndicator?.width || 0}px`,
+              left: `${activeIndicator?.left || 0}px`,
+              opacity: activeIndicator ? 1 : 0,
             }}
           />
-        </nav>
+          </nav>
 
-        {user && (
-          <div className="hidden lg:flex items-center gap-3 ml-4">
+          {user && (
+          <div className="ml-1 flex shrink-0 items-center gap-2">
             <button
               type="button"
               onClick={handleMyRequestClick}
-              className="relative inline-flex h-12 items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 text-sm font-black text-slate-800 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-bird-blue/40 hover:text-bird-blue hover:shadow-lg hover:shadow-bird-blue/10"
-              aria-label="Open my service request"
+              className="relative inline-flex h-11 items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 xl:px-4 text-sm font-black text-slate-800 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-bird-blue/40 hover:text-bird-blue hover:shadow-lg hover:shadow-bird-blue/10"
+              aria-label={t('navbar.openMyServiceRequest')}
             >
               <svg className="h-4 w-4 text-bird-blue" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.2} d="M9 12h6m-6 4h6M7 4h10a2 2 0 012 2v14l-3-2-3 2-3-2-3 2V6a2 2 0 012-2z" />
               </svg>
-              <span>Request</span>
+              <span className="hidden xl:inline">{t('navbar.myRequest')}</span>
+              <span className="xl:hidden">{t('navbar.myRequest').split(' ')[0]}</span>
               {openRequestsCount > 0 && (
                 <span className="absolute -right-1.5 -top-1.5 flex h-5 min-w-5 items-center justify-center rounded-full bg-bird-yellow px-1.5 text-[10px] font-black text-slate-900 shadow">
                   {openRequestsCount}
@@ -900,7 +944,8 @@ export const Navbar: React.FC<NavbarProps> = ({
             </button>
             <NotificationCenter token={authToken} className="shrink-0" />
           </div>
-        )}
+          )}
+        </div>
 
         <div className="lg:hidden flex items-center">
           {user && <NotificationCenter token={authToken} className="mr-2" />}
@@ -937,7 +982,7 @@ export const Navbar: React.FC<NavbarProps> = ({
               <div key={item.name} className="flex flex-col gap-3">
                 <button
                   type="button"
-                  onClick={() => handleNavItemClick(item.name)}
+                  onClick={() => handleNavItemClick(item.id)}
                   className="text-xl font-bold text-left text-gray-900 hover:text-bird-blue transition-colors"
                 >
                   {item.name}
@@ -946,12 +991,12 @@ export const Navbar: React.FC<NavbarProps> = ({
                   <div className="flex flex-col gap-2 pl-4 border-l-2 border-bird-blue/30">
                     {item.items.map((subItem) => (
                       <button
-                        key={subItem}
+                        key={subItem.id}
                         type="button"
-                        onClick={() => handleSubItemClick(item.name, subItem)}
+                        onClick={() => handleSubItemClick(item.id, subItem.id, subItem.name)}
                         className="text-left text-gray-600 hover:text-bird-blue text-sm py-1 font-medium"
                       >
-                        {subItem}
+                        {subItem.name}
                       </button>
                     ))}
                   </div>
@@ -961,19 +1006,20 @@ export const Navbar: React.FC<NavbarProps> = ({
           </div>
 
           <div className="mt-auto pt-8 border-t border-gray-200 flex flex-col gap-4">
+  <LanguageSwitcher mobile />
   {!user ? (
     <>
       <button
         onClick={(e) => handleAuthClick(e, 'signin')}
         className="w-full py-4 rounded-xl bg-gray-100 border border-gray-200 text-gray-900 font-bold active:scale-95 transition-transform shadow-sm"
       >
-        Sign In
+        {t('navbar.signIn')}
       </button>
       <button
         onClick={(e) => handleAuthClick(e, 'signup')}
         className="w-full py-4 rounded-xl bg-bird-blue text-white font-bold shadow-lg shadow-bird-blue/20 active:scale-95 transition-transform"
       >
-        Create Account
+        {t('navbar.createAccount')}
       </button>
     </>
   ) : (
@@ -982,25 +1028,25 @@ export const Navbar: React.FC<NavbarProps> = ({
         onClick={handleMyRequestClick}
         className="w-full py-4 rounded-xl bg-bird-blue text-white font-bold active:scale-95 transition-transform shadow-lg shadow-bird-blue/20"
       >
-        My Request
+        {t('navbar.myRequest')}
       </button>
       <button
         onClick={handleProfileClick}
         className="w-full py-4 rounded-xl bg-gray-100 border border-gray-200 text-gray-900 font-bold active:scale-95 transition-transform shadow-sm"
       >
-        My Profile
+        {t('navbar.myProfile')}
       </button>
       <button
         onClick={handleMyRequestsHistoryClick}
         className="w-full py-4 rounded-xl bg-gray-100 border border-gray-200 text-gray-900 font-bold active:scale-95 transition-transform shadow-sm"
       >
-        My Requests
+        {t('navbar.myRequests')}
       </button>
       <button
         onClick={handleLogoutClick}
         className="w-full py-4 rounded-xl bg-red-50 text-red-600 border border-red-200 font-bold active:scale-95 transition-transform"
       >
-        Log Out
+        {t('navbar.logOut')}
       </button>
     </>
   )}
@@ -1017,16 +1063,16 @@ export const Navbar: React.FC<NavbarProps> = ({
                 <div className="min-w-0">
                   <div className="mb-2 flex flex-wrap items-center gap-2">
                     <span className="inline-flex rounded-full bg-bird-blue/10 px-3 py-1 text-[11px] font-black uppercase tracking-[0.18em] text-bird-blue">
-                      My requests
+                      {t('serviceRequest.requestPanel.title')}
                     </span>
                     {primaryRequest && (
                       <span className="text-xs font-black text-slate-400">
-                        {selectedRequestPosition} of {orderedClientRequests.length}
+                        {t('serviceRequest.requestPanel.position', { current: selectedRequestPosition, total: orderedClientRequests.length })}
                       </span>
                     )}
                   </div>
                   <h2 className="truncate text-2xl font-black leading-tight text-slate-950 sm:text-3xl">
-                    {primaryRequest ? primaryRequest.service_name : 'Your active service'}
+                    {primaryRequest ? localizedPrimaryServiceName : t('serviceRequest.requestPanel.activeFallback')}
                   </h2>
                 </div>
 
@@ -1041,7 +1087,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                       }}
                       disabled={selectedRequestPosition <= 1}
                       className="flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 transition hover:border-bird-blue hover:text-bird-blue disabled:cursor-not-allowed disabled:opacity-35"
-                      aria-label="Previous request"
+                      aria-label={t('serviceRequest.requestPanel.previousRequest')}
                     >
                       <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.4} d="M15 19l-7-7 7-7" />
@@ -1055,7 +1101,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                       }}
                       disabled={selectedRequestPosition >= orderedClientRequests.length}
                       className="flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 transition hover:border-bird-blue hover:text-bird-blue disabled:cursor-not-allowed disabled:opacity-35"
-                      aria-label="Next request"
+                      aria-label={t('serviceRequest.requestPanel.nextRequest')}
                     >
                       <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.4} d="M9 5l7 7-7 7" />
@@ -1072,7 +1118,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                   type="button"
                   onClick={() => setIsRequestModalOpen(false)}
                   className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-500 shadow-sm transition-colors hover:text-slate-950"
-                  aria-label="Close request modal"
+                  aria-label={t('serviceRequest.requestPanel.closeModal')}
                 >
                   <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.4} d="M6 18L18 6M6 6l12 12" />
@@ -1086,16 +1132,16 @@ export const Navbar: React.FC<NavbarProps> = ({
               <div className="border-b border-slate-200 bg-slate-50 px-5 py-3 sm:px-7">
                 <div className="mb-2 flex items-center justify-between gap-3">
                   <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">
-                    All your requests
+                    {t('serviceRequest.requestPanel.allRequests')}
                   </p>
                   <p className="text-xs font-bold text-slate-500">
-                    {openRequestsCount} active · {orderedClientRequests.length} total
+                    {t('serviceRequest.requestPanel.requestTotals', { active: openRequestsCount, total: orderedClientRequests.length })}
                   </p>
                 </div>
                 <div className="flex gap-2 overflow-x-auto pb-1 custom-scrollbar">
                   {orderedClientRequests.map((request) => {
                     const selected = request.id_request === primaryRequest?.id_request;
-                    const requestStatus = requestStatusCopy(request.status);
+                    const requestStatus = requestStatusCopy(request.status, t);
                     return (
                       <button
                         key={request.id_request}
@@ -1120,11 +1166,11 @@ export const Navbar: React.FC<NavbarProps> = ({
                             #{request.id_request}
                           </span>
                         </div>
-                        <p className="mt-1 truncate text-sm font-black text-slate-900">{request.service_name}</p>
+                        <p className="mt-1 truncate text-sm font-black text-slate-900">{localizeServiceName(request.service_name, currentLanguage)}</p>
                         <div className="mt-1 flex items-center justify-between gap-2">
                           <span className="truncate text-[11px] font-bold text-slate-500">{requestStatus.label}</span>
                           <span className="shrink-0 text-[10px] font-semibold text-slate-400">
-                            {request.created_at ? new Date(request.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : ''}
+                            {request.created_at ? new Date(request.created_at).toLocaleDateString(currentLanguage.startsWith('es') ? 'es-ES' : 'en-US', { month: 'short', day: 'numeric' }) : ''}
                           </span>
                         </div>
                       </button>
@@ -1145,7 +1191,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                   onClick={() => setLiveRequestNotice('')}
                   className="shrink-0 text-xs font-black text-blue-700 hover:text-blue-950"
                 >
-                  Dismiss
+                  {t('serviceRequest.requestPanel.dismiss')}
                 </button>
               </div>
             )}
@@ -1155,7 +1201,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                 <div className="grid min-h-[520px] place-items-center rounded-[1.5rem] bg-white">
                   <div className="text-center">
                     <div className="mx-auto mb-4 h-12 w-12 rounded-full border-4 border-bird-blue/20 border-t-bird-blue animate-spin" />
-                    <p className="text-sm font-bold text-slate-500">Loading your request...</p>
+                    <p className="text-sm font-bold text-slate-500">{t('serviceRequest.requestPanel.loading')}</p>
                   </div>
                 </div>
               ) : requestsError ? (
@@ -1166,11 +1212,11 @@ export const Navbar: React.FC<NavbarProps> = ({
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.2} d="M4 4v5h5M20 20v-5h-5M5.7 15a7 7 0 0011.6 2M18.3 9A7 7 0 006.7 7" />
                       </svg>
                     </div>
-                    <h3 className="text-xl font-black text-slate-950">Reconnecting to your request</h3>
+                    <h3 className="text-xl font-black text-slate-950">{t('serviceRequest.requestPanel.reconnecting')}</h3>
                     <p className="mt-2 text-sm font-semibold leading-6 text-slate-500">{requestsError}</p>
                     {requestRetryAttempt < 2 && (
                       <p className="mt-3 text-xs font-black uppercase tracking-[0.14em] text-bird-blue">
-                        Retrying automatically...
+                        {t('serviceRequest.requestPanel.retrying')}
                       </p>
                     )}
                     <button
@@ -1181,7 +1227,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                       }}
                       className="mt-5 rounded-xl bg-bird-blue px-5 py-3 text-sm font-black text-white shadow-lg shadow-bird-blue/20 transition-transform active:scale-95"
                     >
-                      Retry now
+                      {t('serviceRequest.requestPanel.retryNow')}
                     </button>
                   </div>
                 </div>
@@ -1193,16 +1239,16 @@ export const Navbar: React.FC<NavbarProps> = ({
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.2} d="M8 7V3m8 4V3M5 11h14M7 21h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v12a2 2 0 002 2z" />
                       </svg>
                     </div>
-                    <h3 className="text-2xl font-black text-slate-950">No active request yet</h3>
+                    <h3 className="text-2xl font-black text-slate-950">{t('serviceRequest.requestPanel.noActiveTitle')}</h3>
                     <p className="mt-3 text-sm font-semibold leading-6 text-slate-500">
-                      When you book a service, this space becomes your quick view for status, pro details, route and next steps.
+                      {t('serviceRequest.requestPanel.noActiveHelp')}
                     </p>
                     <button
                       type="button"
                       onClick={handleBookingClick}
                       className="mt-6 rounded-xl bg-bird-blue px-6 py-3 text-sm font-black text-white shadow-lg shadow-bird-blue/20 transition-transform active:scale-95"
                     >
-                      Book a service
+                      {t('serviceRequest.requestPanel.bookService')}
                     </button>
                   </div>
                 </div>
@@ -1214,7 +1260,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                         <div className={`mb-4 inline-flex rounded-full border border-white/15 bg-white/10 px-3 py-1.5 text-xs font-black text-white`}>
                           {primaryRequestStatus.label}
                         </div>
-                        <h3 className="text-2xl font-black leading-tight">{primaryRequest.service_name}</h3>
+                        <h3 className="text-2xl font-black leading-tight">{localizedPrimaryServiceName}</h3>
                         <p className="mt-2 text-sm font-semibold leading-6 text-white/70">{primaryRequestStatus.hint}</p>
                       </div>
 
@@ -1241,18 +1287,18 @@ export const Navbar: React.FC<NavbarProps> = ({
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.2} d="M12 11.5a2.5 2.5 0 100-5 2.5 2.5 0 000 5z" />
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.2} d="M19.5 9c0 7-7.5 12-7.5 12S4.5 16 4.5 9a7.5 7.5 0 1115 0z" />
                             </svg>
-                            <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">Location</p>
+                            <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">{t('serviceRequest.requestPanel.labels.location')}</p>
                           </div>
                           <p className="line-clamp-2 text-sm font-bold leading-6 text-slate-900">{primaryRequest.location_text}</p>
                         </div>
 
                         <div className="grid grid-cols-2 gap-3">
                           <div className="rounded-2xl border border-slate-100 bg-white p-4 shadow-sm">
-                            <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">Visit</p>
-                            <p className="mt-2 text-sm font-black leading-5 text-slate-900">{formatRequestSchedule(primaryRequest)}</p>
+                            <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">{t('serviceRequest.requestPanel.labels.visit')}</p>
+                            <p className="mt-2 text-sm font-black leading-5 text-slate-900">{formatRequestSchedule(primaryRequest, t, currentLanguage)}</p>
                           </div>
                           <div className="rounded-2xl border border-slate-100 bg-white p-4 shadow-sm">
-                            <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">Budget</p>
+                            <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">{t('serviceRequest.requestPanel.labels.budget')}</p>
                             <p className="mt-2 text-lg font-black text-slate-900">
                               ${Number(primaryRequest.final_budget ?? primaryRequest.budget ?? 0).toFixed(2)}
                             </p>
@@ -1263,10 +1309,10 @@ export const Navbar: React.FC<NavbarProps> = ({
 
                     <div className="rounded-[1.5rem] border border-slate-100 bg-white p-5 shadow-sm">
                       <div className="mb-3 flex items-center justify-between gap-3">
-                        <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">Professional</p>
+                        <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">{t('serviceRequest.requestPanel.labels.professional')}</p>
                         {!primaryRequest.assigned_worker && (
                           <span className="rounded-full bg-bird-yellow/20 px-2.5 py-1 text-[10px] font-black uppercase tracking-wide text-yellow-700">
-                            Matching
+                            {t('serviceRequest.requestPanel.labels.matching')}
                           </span>
                         )}
                       </div>
@@ -1287,7 +1333,9 @@ export const Navbar: React.FC<NavbarProps> = ({
                             <div className="min-w-0 flex-1">
                               <p className="truncate text-base font-black text-slate-950">{primaryRequest.assigned_worker.name}</p>
                               <p className="text-xs font-bold text-slate-500">
-                                {primaryRequest.assigned_worker.is_online ? 'Online now' : 'Assigned to your request'}
+                                {currentLanguage.startsWith('es')
+                                  ? (primaryRequest.assigned_worker.is_online ? 'En línea ahora' : 'Asignado a tu solicitud')
+                                  : (primaryRequest.assigned_worker.is_online ? 'Online now' : 'Assigned to your request')}
                               </p>
                             </div>
                           </div>
@@ -1297,7 +1345,9 @@ export const Navbar: React.FC<NavbarProps> = ({
                             disabled={workerProfileLoading}
                             className="mt-4 w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-black text-slate-900 transition hover:border-bird-blue hover:text-bird-blue disabled:opacity-50"
                           >
-                            {workerProfileLoading ? 'Loading profile...' : 'View profile and portfolio'}
+                            {currentLanguage.startsWith('es')
+                              ? (workerProfileLoading ? 'Cargando perfil...' : 'Ver perfil y portafolio')
+                              : (workerProfileLoading ? 'Loading profile...' : 'View profile and portfolio')}
                           </button>
                           {canUseRequestChat(primaryRequest) && (
                             <button
@@ -1308,7 +1358,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                               }}
                               className="mt-2 w-full rounded-xl bg-bird-blue px-4 py-3 text-sm font-black text-white shadow-lg shadow-bird-blue/15 transition hover:bg-blue-600"
                             >
-                              Chat with {primaryRequest.assigned_worker.name}
+                              {currentLanguage.startsWith('es') ? `Chatear con ${primaryRequest.assigned_worker.name}` : `Chat with ${primaryRequest.assigned_worker.name}`}
                             </button>
                           )}
                         </div>
@@ -1316,7 +1366,9 @@ export const Navbar: React.FC<NavbarProps> = ({
                         <div className="flex gap-3">
                           <div className="mt-1 h-2.5 w-2.5 shrink-0 rounded-full bg-bird-blue shadow-[0_0_0_6px_rgba(0,144,255,0.12)]" />
                           <p className="text-sm font-semibold leading-6 text-slate-600">
-                            We are checking nearby verified pros. This updates automatically when someone accepts.
+                            {currentLanguage.startsWith('es')
+                              ? 'Estamos revisando profesionales verificados cercanos. Esto se actualiza automáticamente cuando alguien acepta.'
+                              : 'We are checking nearby verified pros. This updates automatically when someone accepts.'}
                           </p>
                         </div>
                       )}
@@ -1324,14 +1376,16 @@ export const Navbar: React.FC<NavbarProps> = ({
 
                     {pendingCounter && (
                       <div className="rounded-[1.5rem] border border-amber-200 bg-amber-50 p-5 shadow-sm">
-                        <p className="text-[10px] font-black uppercase tracking-[0.18em] text-amber-700">Counter offer</p>
+                        <p className="text-[10px] font-black uppercase tracking-[0.18em] text-amber-700">{currentLanguage.startsWith('es') ? 'Contraoferta' : 'Counter offer'}</p>
                         <div className="mt-2 flex items-end justify-between gap-3">
                           <div>
                             <p className="text-3xl font-black text-slate-950">
                               ${Number(primaryRequest.proposed_budget || 0).toFixed(2)}
                             </p>
                             <p className="mt-1 text-xs font-bold text-slate-500">
-                              Your original estimate was ${Number(primaryRequest.budget || 0).toFixed(2)}
+                              {currentLanguage.startsWith('es')
+                                ? `Tu estimado original era $${Number(primaryRequest.budget || 0).toFixed(2)}`
+                                : `Your original estimate was $${Number(primaryRequest.budget || 0).toFixed(2)}`}
                             </p>
                           </div>
                         </div>
@@ -1347,7 +1401,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                             onClick={() => setPendingDecision({ kind: 'counter', decision: 'decline' })}
                             className="rounded-xl border border-red-200 bg-white px-4 py-3 text-sm font-black text-red-600 hover:bg-red-50 disabled:opacity-50"
                           >
-                            Decline
+                            {currentLanguage.startsWith('es') ? 'Rechazar' : 'Decline'}
                           </button>
                           <button
                             type="button"
@@ -1355,7 +1409,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                             onClick={() => setPendingDecision({ kind: 'counter', decision: 'accept' })}
                             className="rounded-xl bg-slate-950 px-4 py-3 text-sm font-black text-white hover:bg-black disabled:opacity-50"
                           >
-                            Accept offer
+                            {currentLanguage.startsWith('es') ? 'Aceptar oferta' : 'Accept offer'}
                           </button>
                         </div>
                       </div>
@@ -1363,9 +1417,11 @@ export const Navbar: React.FC<NavbarProps> = ({
 
                     {pendingWorkerApproval && (
                       <div className="rounded-[1.5rem] border border-sky-200 bg-sky-50 p-5 shadow-sm">
-                        <p className="text-[10px] font-black uppercase tracking-[0.18em] text-sky-700">Your approval is needed</p>
+                        <p className="text-[10px] font-black uppercase tracking-[0.18em] text-sky-700">{currentLanguage.startsWith('es') ? 'Se necesita tu aprobación' : 'Your approval is needed'}</p>
                         <p className="mt-2 text-sm font-semibold leading-6 text-slate-700">
-                          Review professional and portfolio. After approval, worker can start route. Payment happens only after work finishes.
+                          {currentLanguage.startsWith('es')
+                            ? 'Revisa al profesional y su portafolio. Después de aprobar, el trabajador podrá iniciar la ruta. El pago ocurre solo cuando el trabajo termina.'
+                            : 'Review professional and portfolio. After approval, worker can start route. Payment happens only after work finishes.'}
                         </p>
                         <div className="mt-4 grid grid-cols-2 gap-2">
                           <button
@@ -1374,7 +1430,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                             onClick={() => setPendingDecision({ kind: 'worker', decision: 'decline' })}
                             className="rounded-xl border border-red-200 bg-white px-4 py-3 text-sm font-black text-red-600 hover:bg-red-50 disabled:opacity-50"
                           >
-                            Find another
+                            {currentLanguage.startsWith('es') ? 'Buscar otro' : 'Find another'}
                           </button>
                           <button
                             type="button"
@@ -1382,7 +1438,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                             onClick={() => setPendingDecision({ kind: 'worker', decision: 'accept' })}
                             className="rounded-xl bg-slate-950 px-4 py-3 text-sm font-black text-white hover:bg-black disabled:opacity-50"
                           >
-                            Approve pro
+                            {currentLanguage.startsWith('es') ? 'Aprobar profesional' : 'Approve pro'}
                           </button>
                         </div>
                       </div>
@@ -1390,14 +1446,16 @@ export const Navbar: React.FC<NavbarProps> = ({
 
                     {primaryRequest.workflow_version === 2 && ['arrived', 'start_pending'].includes(primaryStatus) && (
                       <div className="rounded-[1.5rem] border border-blue-200 bg-blue-50 p-5 shadow-sm">
-                        <p className="text-[10px] font-black uppercase tracking-[0.18em] text-blue-700">Start work approval</p>
-                        <h4 className="mt-2 text-xl font-black text-slate-950">Worker arrived</h4>
+                        <p className="text-[10px] font-black uppercase tracking-[0.18em] text-blue-700">{currentLanguage.startsWith('es') ? 'Aprobación de inicio' : 'Start work approval'}</p>
+                        <h4 className="mt-2 text-xl font-black text-slate-950">{currentLanguage.startsWith('es') ? 'El trabajador llegó' : 'Worker arrived'}</h4>
                         <p className="mt-2 text-sm font-semibold leading-6 text-slate-600">
-                          {clientStartApproved ? 'Your approval is saved. Waiting for worker approval.' : 'Approve only when worker is present and both are ready to begin.'}
+                          {currentLanguage.startsWith('es')
+                            ? (clientStartApproved ? 'Tu aprobación ya fue guardada. Esperando la aprobación del trabajador.' : 'Aprueba solo cuando el trabajador esté presente y ambos estén listos para comenzar.')
+                            : (clientStartApproved ? 'Your approval is saved. Waiting for worker approval.' : 'Approve only when worker is present and both are ready to begin.')}
                         </p>
                         {canApproveStart && (
                           <button type="button" disabled={requestActionBusy} onClick={() => void approveWorkflowAction('start_work')} className="mt-4 w-full rounded-xl bg-blue-600 px-5 py-3.5 text-sm font-black text-white disabled:opacity-50">
-                            Approve work start
+                            {currentLanguage.startsWith('es') ? 'Aprobar inicio del trabajo' : 'Approve work start'}
                           </button>
                         )}
                       </div>
@@ -1405,14 +1463,16 @@ export const Navbar: React.FC<NavbarProps> = ({
 
                     {primaryRequest.workflow_version === 2 && ['in_progress', 'finish_pending'].includes(primaryStatus) && (
                       <div className="rounded-[1.5rem] border border-violet-200 bg-violet-50 p-5 shadow-sm">
-                        <p className="text-[10px] font-black uppercase tracking-[0.18em] text-violet-700">Finish work approval</p>
-                        <h4 className="mt-2 text-xl font-black text-slate-950">Work in progress</h4>
+                        <p className="text-[10px] font-black uppercase tracking-[0.18em] text-violet-700">{currentLanguage.startsWith('es') ? 'Aprobación de finalización' : 'Finish work approval'}</p>
+                        <h4 className="mt-2 text-xl font-black text-slate-950">{currentLanguage.startsWith('es') ? 'Trabajo en progreso' : 'Work in progress'}</h4>
                         <p className="mt-2 text-sm font-semibold leading-6 text-slate-600">
-                          {clientFinishApproved ? 'Your finish approval is saved. Waiting for worker.' : canApproveFinish ? 'Confirm technical work is finished. Payment unlocks after both approve.' : 'Finish approval unlocks 1 minute after work starts.'}
+                          {currentLanguage.startsWith('es')
+                            ? (clientFinishApproved ? 'Tu aprobación de finalización ya fue guardada. Esperando al trabajador.' : canApproveFinish ? 'Confirma que el trabajo técnico terminó. El pago se desbloquea cuando ambos aprueben.' : 'La aprobación de finalización se habilita 1 minuto después de iniciar el trabajo.')
+                            : (clientFinishApproved ? 'Your finish approval is saved. Waiting for worker.' : canApproveFinish ? 'Confirm technical work is finished. Payment unlocks after both approve.' : 'Finish approval unlocks 1 minute after work starts.')}
                         </p>
                         {canApproveFinish && (
                           <button type="button" disabled={requestActionBusy} onClick={() => void approveWorkflowAction('finish_work')} className="mt-4 w-full rounded-xl bg-violet-600 px-5 py-3.5 text-sm font-black text-white disabled:opacity-50">
-                            Approve work finish
+                            {currentLanguage.startsWith('es') ? 'Aprobar finalización del trabajo' : 'Approve work finish'}
                           </button>
                         )}
                       </div>
@@ -1426,10 +1486,12 @@ export const Navbar: React.FC<NavbarProps> = ({
 
                     {String(primaryRequest.status || '').toLowerCase() === 'payment_pending' && (
                       <div className="rounded-[1.5rem] border border-emerald-200 bg-emerald-50 p-5 shadow-sm">
-                        <p className="text-[10px] font-black uppercase tracking-[0.18em] text-emerald-700">Next step</p>
-                        <h4 className="mt-2 text-xl font-black text-slate-950">Pay for finished work</h4>
+                        <p className="text-[10px] font-black uppercase tracking-[0.18em] text-emerald-700">{currentLanguage.startsWith('es') ? 'Siguiente paso' : 'Next step'}</p>
+                        <h4 className="mt-2 text-xl font-black text-slate-950">{currentLanguage.startsWith('es') ? 'Paga el trabajo terminado' : 'Pay for finished work'}</h4>
                         <p className="mt-2 text-sm font-semibold leading-6 text-slate-600">
-                          Both approved work finish. Pay ${Number(primaryRequest.final_budget ?? primaryRequest.budget ?? 0).toFixed(2)} to continue to final closure.
+                          {currentLanguage.startsWith('es')
+                            ? `Ambos aprobaron la finalización del trabajo. Paga $${Number(primaryRequest.final_budget ?? primaryRequest.budget ?? 0).toFixed(2)} para continuar al cierre final.`
+                            : `Both approved work finish. Pay $${Number(primaryRequest.final_budget ?? primaryRequest.budget ?? 0).toFixed(2)} to continue to final closure.`}
                         </p>
                         <button
                           type="button"
@@ -1440,21 +1502,23 @@ export const Navbar: React.FC<NavbarProps> = ({
                           }}
                           className="mt-4 w-full rounded-xl bg-emerald-600 px-5 py-3.5 text-sm font-black text-white shadow-lg shadow-emerald-600/20 hover:bg-emerald-700"
                         >
-                          Continue to payment
+                          {t('serviceRequest.requestPanel.continueToPayment')}
                         </button>
                       </div>
                     )}
 
                     {primaryRequest.workflow_version === 2 && ['paid', 'completion_pending'].includes(primaryStatus) && (
                       <div className="rounded-[1.5rem] border border-emerald-200 bg-emerald-50 p-5 shadow-sm">
-                        <p className="text-[10px] font-black uppercase tracking-[0.18em] text-emerald-700">Final service approval</p>
-                        <h4 className="mt-2 text-xl font-black text-slate-950">Payment completed</h4>
+                        <p className="text-[10px] font-black uppercase tracking-[0.18em] text-emerald-700">{currentLanguage.startsWith('es') ? 'Aprobación final del servicio' : 'Final service approval'}</p>
+                        <h4 className="mt-2 text-xl font-black text-slate-950">{currentLanguage.startsWith('es') ? 'Pago completado' : 'Payment completed'}</h4>
                         <p className="mt-2 text-sm font-semibold leading-6 text-slate-600">
-                          {clientCompleteApproved ? 'Your final approval is saved. Waiting for worker.' : 'Approve final closure. Service completes only after both approve.'}
+                          {currentLanguage.startsWith('es')
+                            ? (clientCompleteApproved ? 'Tu aprobación final ya fue guardada. Esperando al trabajador.' : 'Aprueba el cierre final. El servicio se completa solo cuando ambos aprueban.')
+                            : (clientCompleteApproved ? 'Your final approval is saved. Waiting for worker.' : 'Approve final closure. Service completes only after both approve.')}
                         </p>
                         {canApproveCompletion && (
                           <button type="button" disabled={requestActionBusy} onClick={() => void approveWorkflowAction('complete_service')} className="mt-4 w-full rounded-xl bg-emerald-600 px-5 py-3.5 text-sm font-black text-white disabled:opacity-50">
-                            Approve service completion
+                            {currentLanguage.startsWith('es') ? 'Aprobar finalización del servicio' : 'Approve service completion'}
                           </button>
                         )}
                       </div>
@@ -1467,7 +1531,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                       className="flex w-full items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-5 py-3 text-sm font-black text-slate-900 shadow-sm transition-all hover:-translate-y-0.5 hover:border-bird-blue/30 hover:shadow-lg hover:shadow-bird-blue/10 active:scale-[0.97] disabled:opacity-60 disabled:hover:translate-y-0"
                     >
                       <RefreshCw className={`h-4 w-4 ${requestsLoading ? 'animate-spin' : ''}`} />
-                      {requestsLoading ? 'Refreshing...' : 'Refresh request'}
+                      {requestsLoading ? t('serviceRequest.history.refreshing') : t('serviceRequest.requestPanel.retryNow')}
                     </button>
                     {canCancelRequest && (
                       <button
@@ -1476,7 +1540,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                         onClick={() => setPendingDecision({ kind: 'request', decision: 'decline' })}
                         className="w-full rounded-xl border border-red-200 bg-red-50 px-5 py-3 text-sm font-black text-red-700 transition hover:border-red-300 hover:bg-red-100 disabled:opacity-50"
                       >
-                        Cancel this request
+                        {t('serviceRequest.actions.cancelRequest')}
                       </button>
                     )}
                   </aside>
@@ -1486,7 +1550,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                       <Suspense
                         fallback={
                           <div className="grid h-full min-h-[520px] place-items-center bg-slate-100">
-                            <p className="text-sm font-bold text-slate-500">Preparing live view...</p>
+                            <p className="text-sm font-bold text-slate-500">{currentLanguage.startsWith('es') ? 'Preparando vista en vivo...' : 'Preparing live view...'}</p>
                           </div>
                         }
                       >
@@ -1505,17 +1569,25 @@ export const Navbar: React.FC<NavbarProps> = ({
                             </svg>
                           </div>
                           <p className="mt-5 text-xs font-black uppercase tracking-[0.18em] text-bird-blue">
-                            {isScheduledFuture ? 'Visit confirmed' : 'Professional selected'}
+                            {currentLanguage.startsWith('es')
+                              ? (isScheduledFuture ? 'Visita confirmada' : 'Profesional seleccionado')
+                              : (isScheduledFuture ? 'Visit confirmed' : 'Professional selected')}
                           </p>
                           <h3 className="mt-2 text-3xl font-black text-slate-950">
-                            {isScheduledFuture ? 'Your map will open near visit time' : pendingWorkerApproval ? 'Review professional' : 'Waiting for route start'}
+                              {currentLanguage.startsWith('es')
+                                ? (isScheduledFuture ? 'Tu mapa se abrirá cerca de la hora de la visita' : pendingWorkerApproval ? 'Revisa al profesional' : 'Esperando el inicio de la ruta')
+                                : (isScheduledFuture ? 'Your map will open near visit time' : pendingWorkerApproval ? 'Review professional' : 'Waiting for route start')}
                           </h3>
                           <p className="mx-auto mt-3 max-w-md text-sm font-semibold leading-7 text-slate-500">
                             {isScheduledFuture
-                              ? `${formatRequestSchedule(primaryRequest)} is reserved. Live location stays private until the professional starts the trip.`
-                              : pendingWorkerApproval
-                                ? 'Review professional and approve selection. Worker can then start route.'
-                                : 'Professional is approved. Live route appears as soon as worker starts traveling.'}
+                              ? t('serviceRequest.requestPanel.map.futureVisitHelp', { schedule: formatRequestSchedule(primaryRequest, t, currentLanguage) })
+                              : currentLanguage.startsWith('es')
+                                ? (pendingWorkerApproval
+                                  ? 'Revisa al profesional y aprueba la selección. Luego el trabajador podrá iniciar la ruta.'
+                                  : 'El profesional ya está aprobado. La ruta en vivo aparecerá en cuanto comience a trasladarse.')
+                                : (pendingWorkerApproval
+                                  ? 'Review professional and approve selection. Worker can then start route.'
+                                  : 'Professional is approved. Live route appears as soon as worker starts traveling.')}
                           </p>
                           <div className="mt-6 flex flex-col justify-center gap-2 sm:flex-row">
                             <button
@@ -1523,7 +1595,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                               onClick={() => void openWorkerProfile()}
                               className="rounded-xl border border-slate-200 bg-white px-6 py-3 text-sm font-black text-slate-900 hover:border-bird-blue hover:text-bird-blue"
                             >
-                              Review professional
+                              {currentLanguage.startsWith('es') ? 'Revisar profesional' : 'Review professional'}
                             </button>
                             {canUseRequestChat(primaryRequest) && (
                               <button
@@ -1534,7 +1606,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                                 }}
                                 className="rounded-xl bg-bird-blue px-6 py-3 text-sm font-black text-white shadow-lg shadow-bird-blue/20"
                               >
-                                Open chat
+                                {currentLanguage.startsWith('es') ? 'Abrir chat' : 'Open chat'}
                               </button>
                             )}
                           </div>
@@ -1552,14 +1624,20 @@ export const Navbar: React.FC<NavbarProps> = ({
                               </svg>
                             </div>
                           </div>
-                          <p className="mb-3 text-xs font-black uppercase tracking-[0.22em] text-bird-yellow">Matching in progress</p>
-                          <h3 className="text-4xl font-black leading-tight">Finding the right pro</h3>
+                          <p className="mb-3 text-xs font-black uppercase tracking-[0.22em] text-bird-yellow">{currentLanguage.startsWith('es') ? 'Búsqueda en progreso' : 'Matching in progress'}</p>
+                          <h3 className="text-4xl font-black leading-tight">{currentLanguage.startsWith('es') ? 'Buscando al profesional ideal' : 'Finding the right pro'}</h3>
                           <p className="mx-auto mt-4 max-w-md text-sm font-semibold leading-7 text-white/75">
-                            We are looking for a verified professional near your address. As soon as one accepts, this turns into your live route view.
+                            {currentLanguage.startsWith('es')
+                              ? 'Estamos buscando un profesional verificado cerca de tu dirección. En cuanto uno acepte, esto se convertirá en tu vista de ruta en vivo.'
+                              : 'We are looking for a verified professional near your address. As soon as one accepts, this turns into your live route view.'}
                           </p>
 
                           <div className="mt-8 grid grid-cols-3 gap-3 text-left">
-                            {['Request sent', 'Pros nearby', 'Live route next'].map((label, index) => (
+                            {[
+                              currentLanguage.startsWith('es') ? 'Solicitud enviada' : 'Request sent',
+                              currentLanguage.startsWith('es') ? 'Profesionales cerca' : 'Pros nearby',
+                              currentLanguage.startsWith('es') ? 'Ruta en vivo después' : 'Live route next',
+                            ].map((label, index) => (
                               <div key={label} className="rounded-2xl border border-white/10 bg-white/10 p-3">
                                 <div className={`mb-3 h-2 w-2 rounded-full ${index <= 1 ? 'bg-bird-yellow' : 'bg-white/35'}`} />
                                 <p className="text-xs font-black leading-5 text-white">{label}</p>
@@ -1579,14 +1657,14 @@ export const Navbar: React.FC<NavbarProps> = ({
                 <div className="max-h-[88vh] w-full max-w-4xl overflow-y-auto rounded-[1.5rem] bg-white shadow-2xl">
                   <div className="sticky top-0 z-10 flex items-center justify-between border-b border-slate-100 bg-white px-5 py-4 sm:px-6">
                     <div>
-                      <p className="text-[10px] font-black uppercase tracking-[0.18em] text-bird-blue">Verified professional</p>
-                      <h3 className="mt-1 text-xl font-black text-slate-950">Profile and completed work</h3>
+                      <p className="text-[10px] font-black uppercase tracking-[0.18em] text-bird-blue">{currentLanguage.startsWith('es') ? 'Profesional verificado' : 'Verified professional'}</p>
+                      <h3 className="mt-1 text-xl font-black text-slate-950">{currentLanguage.startsWith('es') ? 'Perfil y trabajos completados' : 'Profile and completed work'}</h3>
                     </div>
                     <button
                       type="button"
                       onClick={() => setWorkerProfile(null)}
                       className="flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 text-slate-500 hover:text-slate-950"
-                      aria-label="Close worker profile"
+                      aria-label={currentLanguage.startsWith('es') ? 'Cerrar perfil del profesional' : 'Close worker profile'}
                     >
                       <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.4} d="M6 18L18 6M6 6l12 12" />
@@ -1611,26 +1689,26 @@ export const Navbar: React.FC<NavbarProps> = ({
                           )}
                           <div className="min-w-0">
                             <h4 className="truncate text-lg font-black text-slate-950">{workerProfile.worker.name}</h4>
-                            <p className="mt-1 text-xs font-bold text-emerald-700">Identity verified</p>
+                            <p className="mt-1 text-xs font-bold text-emerald-700">{currentLanguage.startsWith('es') ? 'Identidad verificada' : 'Identity verified'}</p>
                           </div>
                         </div>
                         <p className="mt-4 text-sm font-semibold leading-6 text-slate-600">
-                          {workerProfile.worker.bio || 'This professional has not added a biography yet.'}
+                          {workerProfile.worker.bio || (currentLanguage.startsWith('es') ? 'Este profesional todavía no ha agregado una biografía.' : 'This professional has not added a biography yet.')}
                         </p>
                         <div className="mt-5 grid grid-cols-2 gap-2">
                           <div className="rounded-xl bg-white p-3">
-                            <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">Rating</p>
+                            <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">{currentLanguage.startsWith('es') ? 'Calificación' : 'Rating'}</p>
                             <p className="mt-1 text-base font-black text-slate-950">
                               {workerProfile.worker.rating_average != null
                                 ? `${Number(workerProfile.worker.rating_average).toFixed(1)} / 5`
-                                : 'New'}
+                                : currentLanguage.startsWith('es') ? 'Nuevo' : 'New'}
                             </p>
-                            <p className="text-[10px] font-bold text-slate-400">{workerProfile.worker.rating_count} reviews</p>
+                            <p className="text-[10px] font-bold text-slate-400">{workerProfile.worker.rating_count} {currentLanguage.startsWith('es') ? 'reseñas' : 'reviews'}</p>
                           </div>
                           <div className="rounded-xl bg-white p-3">
-                            <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">Jobs</p>
+                            <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">{currentLanguage.startsWith('es') ? 'Trabajos' : 'Jobs'}</p>
                             <p className="mt-1 text-base font-black text-slate-950">{workerProfile.worker.completed_jobs}</p>
-                            <p className="text-[10px] font-bold text-slate-400">completed</p>
+                            <p className="text-[10px] font-bold text-slate-400">{currentLanguage.startsWith('es') ? 'completados' : 'completed'}</p>
                           </div>
                         </div>
                         <p className="mt-4 text-xs font-bold text-slate-500">{workerProfile.worker.experience_label}</p>
@@ -1639,11 +1717,11 @@ export const Navbar: React.FC<NavbarProps> = ({
                       <div>
                         <div className="flex items-center justify-between gap-3">
                           <div>
-                            <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">Portfolio</p>
-                            <h4 className="mt-1 text-lg font-black text-slate-950">Previous work</h4>
+                            <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">{currentLanguage.startsWith('es') ? 'Portafolio' : 'Portfolio'}</p>
+                            <h4 className="mt-1 text-lg font-black text-slate-950">{currentLanguage.startsWith('es') ? 'Trabajos anteriores' : 'Previous work'}</h4>
                           </div>
                           <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-black text-slate-600">
-                            {workerProfile.portfolio.length} photos
+                            {workerProfile.portfolio.length} {currentLanguage.startsWith('es') ? 'fotos' : 'photos'}
                           </span>
                         </div>
 
@@ -1654,11 +1732,11 @@ export const Navbar: React.FC<NavbarProps> = ({
                                 {photo.image_url ? (
                                   <img
                                     src={photo.image_url}
-                                    alt={photo.description || 'Completed work'}
+                                     alt={photo.description || (currentLanguage.startsWith('es') ? 'Trabajo completado' : 'Completed work')}
                                     className="aspect-square w-full object-cover"
                                   />
                                 ) : (
-                                  <div className="grid aspect-square place-items-center text-xs font-bold text-slate-400">No image</div>
+                                    <div className="grid aspect-square place-items-center text-xs font-bold text-slate-400">{currentLanguage.startsWith('es') ? 'Sin imagen' : 'No image'}</div>
                                 )}
                                 {photo.description && (
                                   <figcaption className="line-clamp-2 p-2.5 text-xs font-semibold text-slate-600">
@@ -1670,8 +1748,8 @@ export const Navbar: React.FC<NavbarProps> = ({
                           </div>
                         ) : (
                           <div className="mt-4 rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-8 text-center">
-                            <p className="text-sm font-black text-slate-700">No portfolio photos yet</p>
-                            <p className="mt-1 text-xs font-semibold text-slate-500">Use ratings, completed jobs and experience to make your decision.</p>
+                            <p className="text-sm font-black text-slate-700">{currentLanguage.startsWith('es') ? 'Aún no hay fotos en el portafolio' : 'No portfolio photos yet'}</p>
+                            <p className="mt-1 text-xs font-semibold text-slate-500">{currentLanguage.startsWith('es') ? 'Usa las calificaciones, trabajos completados y experiencia para tomar tu decisión.' : 'Use ratings, completed jobs and experience to make your decision.'}</p>
                           </div>
                         )}
 
@@ -1683,7 +1761,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                               onClick={() => setPendingDecision({ kind: pendingCounter ? 'counter' : 'worker', decision: 'decline' })}
                               className="rounded-xl border border-red-200 bg-white px-5 py-3 text-sm font-black text-red-600 hover:bg-red-50 disabled:opacity-50"
                             >
-                              Decline
+                              {currentLanguage.startsWith('es') ? 'Rechazar' : 'Decline'}
                             </button>
                             <button
                               type="button"
@@ -1691,7 +1769,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                               onClick={() => setPendingDecision({ kind: pendingCounter ? 'counter' : 'worker', decision: 'accept' })}
                               className="rounded-xl bg-slate-950 px-5 py-3 text-sm font-black text-white hover:bg-black disabled:opacity-50"
                             >
-                              {pendingCounter ? 'Accept counter offer' : 'Approve professional'}
+                              {currentLanguage.startsWith('es') ? (pendingCounter ? 'Aceptar contraoferta' : 'Aprobar profesional') : (pendingCounter ? 'Accept counter offer' : 'Approve professional')}
                             </button>
                           </div>
                         )}
@@ -1708,17 +1786,17 @@ export const Navbar: React.FC<NavbarProps> = ({
                   <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4">
                     <div className="min-w-0">
                       <p className="text-[10px] font-black uppercase tracking-[0.18em] text-bird-blue">
-                        Request #{primaryRequest.id_request}
+                        {currentLanguage.startsWith('es') ? 'Solicitud' : 'Request'} #{primaryRequest.id_request}
                       </p>
                       <h3 className="truncate text-lg font-black text-slate-950">
-                        Chat with {primaryRequest.assigned_worker?.name || 'your professional'}
+                        {currentLanguage.startsWith('es') ? `Chatear con ${primaryRequest.assigned_worker?.name || 'tu profesional'}` : `Chat with ${primaryRequest.assigned_worker?.name || 'your professional'}`}
                       </h3>
                     </div>
                     <button
                       type="button"
                       onClick={() => setOpenChatRequestId(null)}
                       className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-slate-200 text-slate-500 hover:text-slate-950"
-                      aria-label="Close chat"
+                      aria-label={currentLanguage.startsWith('es') ? 'Cerrar chat' : 'Close chat'}
                     >
                       <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.4} d="M6 18L18 6M6 6l12 12" />
@@ -1730,9 +1808,9 @@ export const Navbar: React.FC<NavbarProps> = ({
                     {(chatByRequest[openChatRequestId] || []).length === 0 ? (
                       <div className="grid h-full place-items-center text-center">
                         <div>
-                          <p className="text-base font-black text-slate-700">Start the conversation</p>
+                          <p className="text-base font-black text-slate-700">{currentLanguage.startsWith('es') ? 'Inicia la conversacion' : 'Start the conversation'}</p>
                           <p className="mt-1 text-sm font-semibold text-slate-500">
-                            Ask about arrival, materials or details for this request.
+                            {currentLanguage.startsWith('es') ? 'Pregunta sobre la llegada, materiales o detalles de esta solicitud.' : 'Ask about arrival, materials or details for this request.'}
                           </p>
                         </div>
                       </div>
@@ -1747,7 +1825,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                               {message.image_url && (
                                 <img
                                   src={message.image_url}
-                                  alt="Chat attachment"
+                                  alt={currentLanguage.startsWith('es') ? 'Adjunto del chat' : 'Chat attachment'}
                                   className="mb-2 max-h-52 w-full rounded-xl object-cover"
                                 />
                               )}
@@ -1767,7 +1845,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                       <div className="mb-2 flex items-center justify-between rounded-xl bg-blue-50 px-3 py-2 text-xs font-bold text-blue-800">
                         <span className="truncate">{chatImage[openChatRequestId]?.name}</span>
                         <button type="button" onClick={() => setChatImage((prev) => ({ ...prev, [openChatRequestId]: null }))}>
-                          Remove
+                          {currentLanguage.startsWith('es') ? 'Quitar' : 'Remove'}
                         </button>
                       </div>
                     )}
@@ -1790,7 +1868,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                       <textarea
                         value={chatMessage[openChatRequestId] || ''}
                         onChange={(event) => setChatMessage((prev) => ({ ...prev, [openChatRequestId]: event.target.value }))}
-                        placeholder="Write a message..."
+                        placeholder={currentLanguage.startsWith('es') ? 'Escribe un mensaje...' : 'Write a message...'}
                         rows={1}
                         className="min-h-11 flex-1 resize-none rounded-xl border border-slate-200 px-4 py-3 text-sm font-semibold outline-none focus:border-bird-blue"
                       />
@@ -1800,7 +1878,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                         onClick={() => void sendRequestChat(openChatRequestId)}
                         className="h-11 shrink-0 rounded-xl bg-bird-blue px-5 text-sm font-black text-white disabled:opacity-50"
                       >
-                        {chatBusyId === openChatRequestId ? 'Sending' : 'Send'}
+                        {chatBusyId === openChatRequestId ? (currentLanguage.startsWith('es') ? 'Enviando' : 'Sending') : (currentLanguage.startsWith('es') ? 'Enviar' : 'Send')}
                       </button>
                     </div>
                   </div>
@@ -1818,23 +1896,31 @@ export const Navbar: React.FC<NavbarProps> = ({
                   </div>
                   <h3 className="mt-4 text-xl font-black text-slate-950">
                     {pendingDecision.kind === 'request'
-                      ? `Cancel request #${primaryRequest.id_request}?`
+                      ? (currentLanguage.startsWith('es') ? `¿Cancelar la solicitud #${primaryRequest.id_request}?` : `Cancel request #${primaryRequest.id_request}?`)
                       : pendingDecision.decision === 'decline'
                       ? pendingDecision.kind === 'worker'
-                        ? 'Find another professional?'
-                        : 'Decline this counter offer?'
+                        ? (currentLanguage.startsWith('es') ? '¿Buscar otro profesional?' : 'Find another professional?')
+                        : (currentLanguage.startsWith('es') ? '¿Rechazar esta contraoferta?' : 'Decline this counter offer?')
                       : pendingDecision.kind === 'worker'
-                        ? 'Approve this professional?'
-                        : 'Accept this counter offer?'}
+                        ? (currentLanguage.startsWith('es') ? '¿Aprobar a este profesional?' : 'Approve this professional?')
+                        : (currentLanguage.startsWith('es') ? '¿Aceptar esta contraoferta?' : 'Accept this counter offer?')}
                   </h3>
                   <p className="mt-2 text-sm font-semibold leading-6 text-slate-500">
                     {pendingDecision.kind === 'request'
-                      ? 'Fixlife will stop matching this request. An assigned professional will be released and this action cannot be undone.'
+                      ? (currentLanguage.startsWith('es')
+                        ? 'Fixlife dejará de buscar coincidencias para esta solicitud. Si hay un profesional asignado, será liberado y esta acción no se puede deshacer.'
+                        : 'Fixlife will stop matching this request. An assigned professional will be released and this action cannot be undone.')
                       : pendingDecision.decision === 'decline'
-                      ? 'This professional will be removed from this request and Fixlife will continue matching.'
+                      ? (currentLanguage.startsWith('es')
+                        ? 'Este profesional será removido de esta solicitud y Fixlife continuará buscando coincidencias.'
+                        : 'This professional will be removed from this request and Fixlife will continue matching.')
                       : pendingDecision.kind === 'counter'
-                        ? `The service estimate will change to $${Number(primaryRequest.proposed_budget || 0).toFixed(2)} and payment will be the next step.`
-                        : 'The professional will be approved and payment will be the next step.'}
+                        ? (currentLanguage.startsWith('es')
+                          ? `El estimado del servicio cambiará a $${Number(primaryRequest.proposed_budget || 0).toFixed(2)} y el pago será el siguiente paso.`
+                          : `The service estimate will change to $${Number(primaryRequest.proposed_budget || 0).toFixed(2)} and payment will be the next step.`)
+                        : (currentLanguage.startsWith('es')
+                          ? 'El profesional será aprobado y el pago será el siguiente paso.'
+                          : 'The professional will be approved and payment will be the next step.')}
                   </p>
                   <div className="mt-6 grid grid-cols-2 gap-3">
                     <button
@@ -1843,7 +1929,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                       onClick={() => setPendingDecision(null)}
                       className="rounded-xl border border-slate-200 px-4 py-3 text-sm font-black text-slate-700 hover:bg-slate-50"
                     >
-                      Go back
+                      {currentLanguage.startsWith('es') ? 'Volver' : 'Go back'}
                     </button>
                     <button
                       type="button"
@@ -1859,7 +1945,11 @@ export const Navbar: React.FC<NavbarProps> = ({
                           : 'bg-slate-950 hover:bg-black'
                       }`}
                     >
-                      {requestActionBusy ? 'Saving...' : pendingDecision.kind === 'request' ? 'Cancel request' : 'Confirm'}
+                      {requestActionBusy
+                        ? (currentLanguage.startsWith('es') ? 'Guardando...' : 'Saving...')
+                        : pendingDecision.kind === 'request'
+                          ? (currentLanguage.startsWith('es') ? 'Cancelar solicitud' : 'Cancel request')
+                          : (currentLanguage.startsWith('es') ? 'Confirmar' : 'Confirm')}
                     </button>
                   </div>
                 </div>

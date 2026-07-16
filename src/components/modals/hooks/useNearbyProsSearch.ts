@@ -1,6 +1,7 @@
 import { useCallback } from 'react';
 import type { Dispatch, SetStateAction } from 'react';
 import { API_ENDPOINTS } from '../../../config/api';
+import i18n from '../../../i18n';
 
 interface Coordinates {
   lat: number;
@@ -59,7 +60,8 @@ export const useNearbyProsSearch = <TWorker,>({
       const workers = Array.isArray(payload.workers) ? payload.workers : [];
       setNearbyWorkers(workers);
       if (workers.length > 0) {
-        showToast('success', 'Nearby workers loaded.');
+        const currentLanguage = i18n.resolvedLanguage || i18n.language || 'en';
+        showToast('success', currentLanguage.startsWith('es') ? 'Profesionales cercanos cargados.' : 'Nearby workers loaded.');
       }
       return workers as TWorker[];
     } catch {

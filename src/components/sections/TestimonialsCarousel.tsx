@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 
 const AVATAR_COLORS = ['#0090ff', '#f59e0b', '#10b981', '#8b5cf6', '#ef4444'];
 
@@ -63,8 +64,14 @@ const testimonials = [
 ];
 
 export const TestimonialsCarousel: React.FC = () => {
+  const { t } = useTranslation();
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isAutoPlaying, setIsAutoPlaying] = useState(true);
+  const translatedTestimonials = t('testimonials.items', { returnObjects: true }) as Array<{
+    role: string;
+    text: string;
+    service: string;
+  }>;
 
   useEffect(() => {
     if (!isAutoPlaying) return;
@@ -100,9 +107,9 @@ export const TestimonialsCarousel: React.FC = () => {
         <div>
           <h3 className="text-2xl font-black text-gray-900 flex items-center gap-4">
             <span className="w-1.5 h-8 rounded-full bg-bird-yellow shadow-[0_0_15px_rgba(255,194,14,0.4)]"></span>
-            What Our Customers Say
+            {t('testimonials.title')}
           </h3>
-          <p className="text-gray-600 mt-2 ml-6 text-sm font-medium">Real experiences from real people</p>
+          <p className="text-gray-600 mt-2 ml-6 text-sm font-medium">{t('testimonials.subtitle')}</p>
         </div>
       </div>
 
@@ -142,7 +149,7 @@ export const TestimonialsCarousel: React.FC = () => {
               <div className="flex items-start justify-between gap-4 mb-2">
                 <div className="min-w-0">
                   <h4 className="text-base md:text-lg font-bold text-gray-900 truncate">{testimonials[currentIndex].name}</h4>
-                  <p className="text-sm text-gray-600 font-medium">{testimonials[currentIndex].role}</p>
+                  <p className="text-sm text-gray-600 font-medium">{translatedTestimonials[currentIndex]?.role || testimonials[currentIndex].role}</p>
                 </div>
                 <div className="flex gap-1 shrink-0">
                   {[...Array(testimonials[currentIndex].rating)].map((_, i) => (
@@ -154,14 +161,14 @@ export const TestimonialsCarousel: React.FC = () => {
               </div>
 
               <p className="text-gray-700 text-sm md:text-base leading-relaxed mb-3 font-medium">
-                "{testimonials[currentIndex].text}"
+                "{translatedTestimonials[currentIndex]?.text || testimonials[currentIndex].text}"
               </p>
 
               <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-gray-100 border border-gray-200">
                 <svg className="w-4 h-4 text-bird-blue" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                 </svg>
-                <span className="text-xs font-bold text-gray-700 uppercase tracking-wider">{testimonials[currentIndex].service}</span>
+                <span className="text-xs font-bold text-gray-700 uppercase tracking-wider">{translatedTestimonials[currentIndex]?.service || testimonials[currentIndex].service}</span>
               </div>
             </div>
           </div>
@@ -177,7 +184,7 @@ export const TestimonialsCarousel: React.FC = () => {
                       ? 'w-8 bg-bird-blue'
                       : 'w-2 bg-gray-300 hover:bg-gray-400'
                   }`}
-                  aria-label={`Go to testimonial ${index + 1}`}
+                  aria-label={t('testimonials.a11y.goTo', { index: index + 1 })}
                 />
               ))}
             </div>
@@ -186,7 +193,7 @@ export const TestimonialsCarousel: React.FC = () => {
               <button
                 onClick={prevSlide}
                 className="w-10 h-10 rounded-full bg-gray-100 border border-gray-200 flex items-center justify-center text-gray-700 hover:bg-bird-blue hover:text-white hover:border-bird-blue transition-all shadow-sm"
-                aria-label="Previous testimonial"
+                aria-label={t('testimonials.a11y.previous')}
               >
                 <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
@@ -195,7 +202,7 @@ export const TestimonialsCarousel: React.FC = () => {
               <button
                 onClick={nextSlide}
                 className="w-10 h-10 rounded-full bg-gray-100 border border-gray-200 flex items-center justify-center text-gray-700 hover:bg-bird-blue hover:text-white hover:border-bird-blue transition-all shadow-sm"
-                aria-label="Next testimonial"
+                aria-label={t('testimonials.a11y.next')}
               >
                 <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
@@ -209,19 +216,19 @@ export const TestimonialsCarousel: React.FC = () => {
       <div className="mt-5 grid grid-cols-2 md:grid-cols-4 gap-3">
         <div className="bg-white/80 backdrop-blur-sm border border-gray-200 rounded-2xl p-3 md:p-4 text-center shadow-sm hover:shadow-lg transition-shadow">
           <div className="text-2xl md:text-3xl font-black text-bird-blue mb-0.5">2.4k+</div>
-          <div className="text-xs md:text-sm text-gray-600 font-medium">Happy Customers</div>
+          <div className="text-xs md:text-sm text-gray-600 font-medium">{t('testimonials.stats.happyCustomers')}</div>
         </div>
         <div className="bg-white/80 backdrop-blur-sm border border-gray-200 rounded-2xl p-3 md:p-4 text-center shadow-sm hover:shadow-lg transition-shadow">
           <div className="text-2xl md:text-3xl font-black text-bird-yellow mb-0.5">4.9</div>
-          <div className="text-xs md:text-sm text-gray-600 font-medium">Average Rating</div>
+          <div className="text-xs md:text-sm text-gray-600 font-medium">{t('testimonials.stats.averageRating')}</div>
         </div>
         <div className="bg-white/80 backdrop-blur-sm border border-gray-200 rounded-2xl p-3 md:p-4 text-center shadow-sm hover:shadow-lg transition-shadow">
           <div className="text-2xl md:text-3xl font-black text-bird-orange mb-0.5">15k+</div>
-          <div className="text-xs md:text-sm text-gray-600 font-medium">Jobs Completed</div>
+          <div className="text-xs md:text-sm text-gray-600 font-medium">{t('testimonials.stats.jobsCompleted')}</div>
         </div>
         <div className="bg-white/80 backdrop-blur-sm border border-gray-200 rounded-2xl p-3 md:p-4 text-center shadow-sm hover:shadow-lg transition-shadow">
           <div className="text-2xl md:text-3xl font-black text-bird-blue mb-0.5">98%</div>
-          <div className="text-xs md:text-sm text-gray-600 font-medium">Satisfaction Rate</div>
+          <div className="text-xs md:text-sm text-gray-600 font-medium">{t('testimonials.stats.satisfactionRate')}</div>
         </div>
       </div>
     </div>

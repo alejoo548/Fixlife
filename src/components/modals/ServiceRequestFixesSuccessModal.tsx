@@ -1,5 +1,7 @@
 import React from 'react';
 import { motion } from 'framer-motion';
+import { useTranslation } from 'react-i18next';
+import { localizeServiceName } from '../../utils/serviceLocalization';
 
 type FixesRequest = {
     id_request: number;
@@ -22,6 +24,8 @@ export function ServiceRequestFixesSuccessModal({
     priceFairness,
     onClose,
 }: ServiceRequestFixesSuccessModalProps) {
+    const { t, i18n } = useTranslation();
+
     return (
         <motion.div
             initial={{ opacity: 0 }}
@@ -40,10 +44,10 @@ export function ServiceRequestFixesSuccessModal({
                     <div className="absolute -right-10 -top-10 h-36 w-36 rounded-full bg-white/10 blur-2xl" />
                     <div className="relative flex items-start justify-between gap-4">
                         <div>
-                            <p className="text-[11px] font-black uppercase tracking-[0.2em] text-white/80">Fixes saved</p>
-                            <h3 className="mt-2 text-3xl font-black">Thanks for the review</h3>
+                            <p className="text-[11px] font-black uppercase tracking-[0.2em] text-white/80">{t('serviceRequest.rating.fixesSaved')}</p>
+                            <h3 className="mt-2 text-3xl font-black">{t('serviceRequest.rating.thanks')}</h3>
                             <p className="mt-2 text-sm text-gray-900">
-                                Your Fixes stars for <span className="font-black">{request.service_name}</span> are now part of the worker profile.
+                                {t('serviceRequest.rating.profileSaved', { service: localizeServiceName(request.service_name, i18n.resolvedLanguage || i18n.language || 'en') })}
                             </p>
                         </div>
                         <div className="flex h-16 w-16 items-center justify-center rounded-full bg-white/15 text-white shadow-[0_20px_34px_rgba(15,23,42,0.18)]">
@@ -56,28 +60,28 @@ export function ServiceRequestFixesSuccessModal({
                     <div className="rounded-[26px] border border-slate-200 bg-slate-50 p-4">
                         <div className="flex flex-wrap items-center justify-between gap-3">
                             <div>
-                                <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">Reviewed pro</p>
+                                <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">{t('serviceRequest.rating.reviewedPro')}</p>
                                 <p className="mt-1 text-lg font-black text-slate-900">
-                                    {request.assigned_worker?.name || 'Assigned pro'}
+                                    {request.assigned_worker?.name || t('serviceRequest.rating.assignedPro')}
                                 </p>
                             </div>
                             <span className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-[11px] font-black uppercase tracking-[0.18em] text-emerald-700">
-                                Review submitted
+                                {t('serviceRequest.rating.reviewSubmitted')}
                             </span>
                         </div>
                     </div>
 
                     <div className="mt-4 grid gap-3 sm:grid-cols-3">
                         <div className="rounded-2xl border border-bird-yellow/20 bg-bird-yellow/10 px-4 py-4 text-center">
-                            <p className="text-[11px] font-black uppercase tracking-[0.18em] text-amber-700">Punctuality</p>
+                            <p className="text-[11px] font-black uppercase tracking-[0.18em] text-amber-700">{t('serviceRequest.rating.punctuality')}</p>
                             <p className="mt-2 text-2xl font-black text-slate-950">{punctuality}/5</p>
                         </div>
                         <div className="rounded-2xl border border-bird-blue/15 bg-bird-blue/10 px-4 py-4 text-center">
-                            <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-900">Quality</p>
+                            <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-900">{t('serviceRequest.rating.quality')}</p>
                             <p className="mt-2 text-2xl font-black text-slate-950">{quality}/5</p>
                         </div>
                         <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-4 text-center">
-                            <p className="text-[11px] font-black uppercase tracking-[0.18em] text-emerald-700">Price fairness</p>
+                            <p className="text-[11px] font-black uppercase tracking-[0.18em] text-emerald-700">{t('serviceRequest.rating.priceFairness')}</p>
                             <p className="mt-2 text-2xl font-black text-slate-950">{priceFairness}/5</p>
                         </div>
                     </div>
@@ -88,7 +92,7 @@ export function ServiceRequestFixesSuccessModal({
                             onClick={onClose}
                             className="rounded-2xl bg-bird-blue px-5 py-3 text-sm font-black text-white shadow-[0_16px_30px_rgba(0,144,255,0.18)] transition hover:-translate-y-0.5 hover:bg-blue-700"
                         >
-                            Back to requests
+                            {t('serviceRequest.rating.backToRequests')}
                         </button>
                     </div>
                 </div>

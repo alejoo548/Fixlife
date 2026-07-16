@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useTranslation } from 'react-i18next';
 import { HeroSliderProps } from '../../types';
 import {
-  DEFAULT_HERO_SLIDES,
   fetchHeroSlides,
   getHeroSlides,
   HERO_SLIDES_STORAGE_KEY,
@@ -22,6 +22,7 @@ const preloadHeroImages = (images: string[]) => {
 };
 
 export const HeroSlider: React.FC<HeroSliderProps> = ({ onStartBooking }) => {
+  const { i18n } = useTranslation();
   const [slides, setSlides] = useState(() => getHeroSlides());
   const [current, setCurrent] = useState(0);
 
@@ -42,7 +43,7 @@ export const HeroSlider: React.FC<HeroSliderProps> = ({ onStartBooking }) => {
 
     const syncSlides = () => {
       const nextSlides = getHeroSlides();
-      setSlides(nextSlides.length > 0 ? nextSlides : DEFAULT_HERO_SLIDES);
+      setSlides(nextSlides);
     };
 
     const onStorage = (event: StorageEvent) => {
@@ -65,6 +66,10 @@ export const HeroSlider: React.FC<HeroSliderProps> = ({ onStartBooking }) => {
   useEffect(() => {
     preloadHeroImages(slides.map((slide) => slide.image));
   }, [slides]);
+
+  useEffect(() => {
+    setSlides(getHeroSlides());
+  }, [i18n.resolvedLanguage]);
 
   return (
     <motion.div

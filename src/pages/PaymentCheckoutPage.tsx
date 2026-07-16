@@ -1,9 +1,11 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
+import { useTranslation } from 'react-i18next';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { showSweetToast } from '../utils/sweetAlert';
 import { API_ENDPOINTS } from '../config/api';
 import { getAuthUser, getToken } from '../utils/session';
+import { localizeServiceName } from '../utils/serviceLocalization';
 
 interface PaymentCheckoutPageProps {
     requestId: number | null;
@@ -97,7 +99,7 @@ const getLocationMeta = (label: string) => {
 const isScheduledRequest = (request: MyServiceRequest | null) =>
     String(request?.booking_type || 'express').toLowerCase() === 'scheduled';
 
-const formatScheduledWindow = (request: MyServiceRequest | null) => {
+const formatScheduledWindow = (request: MyServiceRequest | null, language: string) => {
     if (!request) return '';
     const startValue = request.scheduled_start_time || (
         request.scheduled_date && request.scheduled_time
@@ -110,23 +112,107 @@ const formatScheduledWindow = (request: MyServiceRequest | null) => {
     const end = request.scheduled_end_time ? new Date(request.scheduled_end_time) : null;
     if (Number.isNaN(start.getTime())) return '';
 
-    const dateLabel = start.toLocaleDateString('en-US', {
+    const locale = language.startsWith('es') ? 'es-SV' : 'en-US';
+    const dateLabel = start.toLocaleDateString(locale, {
         weekday: 'short',
         month: 'short',
         day: 'numeric',
     });
-    const startLabel = start.toLocaleTimeString('en-US', {
+    const startLabel = start.toLocaleTimeString(locale, {
         hour: 'numeric',
         minute: '2-digit',
     });
     const endLabel = end && !Number.isNaN(end.getTime())
-        ? end.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
+        ? end.toLocaleTimeString(locale, { hour: 'numeric', minute: '2-digit' })
         : '';
 
     return endLabel ? `${dateLabel}, ${startLabel} - ${endLabel}` : `${dateLabel}, ${startLabel}`;
 };
 
 const readString = (value: unknown) => (typeof value === 'string' ? value.trim() : '');
+
+const localizeCheckoutBackendText = (message: string, language: string) => {
+    const text = readString(message);
+    if (!text) return '';
+    if (!language.startsWith('es')) return text;
+
+    const normalized = text.toLowerCase();
+
+    if (normalized.includes('this request is not waiting for payment')) {
+        return 'Esta solicitud no esta esperando pago.';
+    }
+    if (normalized.includes('could not load checkout request')) {
+        return 'No se pudo cargar la solicitud del pago.';
+    }
+    if (normalized.includes('that request is no longer available for checkout')) {
+        return 'Esa solicitud ya no esta disponible para pago.';
+    }
+    if (normalized.includes('network error loading checkout')) {
+        return 'Error de red al cargar el pago.';
+    }
+    if (normalized.includes('paypal payment secured successfully')) {
+        return 'El pago con PayPal fue asegurado correctamente. Tu comprobante electronico fue enviado a tu correo.';
+    }
+    if (normalized.includes('this request already has a secured payment')) {
+        return 'Esta solicitud ya tiene un pago asegurado. El profesional ya puede continuar con el trabajo.';
+    }
+    if (normalized.includes('your worker can continue with the job')) {
+        return 'El profesional ya puede continuar con el trabajo.';
+    }
+    if (normalized.includes('wompi will be available soon')) {
+        return 'Wompi estara disponible pronto. Usa PayPal por ahora.';
+    }
+    if (normalized.includes('your session expired before checkout could start')) {
+        return 'Tu sesion expiro antes de iniciar el pago.';
+    }
+    if (normalized.includes('your session expired before paypal confirmation could finish')) {
+        return 'Tu sesion expiro antes de terminar la confirmacion de PayPal.';
+    }
+    if (normalized.includes('paypal payment was cancelled')) {
+        return 'El pago con PayPal fue cancelado. Puedes intentarlo de nuevo cuando quieras.';
+    }
+    if (normalized.includes('paypal returned without an order token')) {
+        return 'PayPal regreso sin un token de orden. Intenta el pago nuevamente.';
+    }
+    if (normalized.includes('could not confirm paypal payment')) {
+        return 'No se pudo confirmar el pago con PayPal.';
+    }
+    if (normalized.includes('network error confirming paypal payment')) {
+        return 'Error de red al confirmar el pago con PayPal.';
+    }
+    if (normalized.includes('the connection dropped while we were confirming your paypal payment')) {
+        return 'La conexion se interrumpio mientras confirmabamos tu pago con PayPal. Intentalo de nuevo.';
+    }
+    if (normalized.includes('login required')) {
+        return 'Debes iniciar sesion.';
+    }
+    if (normalized.includes('global default commission')) {
+        return 'Comision global predeterminada';
+    }
+    if (normalized.includes('global platform fee')) {
+        return text.replace(/global platform fee/i, 'Comision global de plataforma');
+    }
+    if (normalized.includes('could not initialize payment')) {
+        return 'No se pudo iniciar el pago.';
+    }
+    if (normalized.includes('paypal did not return an approval link')) {
+        return 'PayPal no devolvio un enlace de aprobacion. Intenta nuevamente.';
+    }
+    if (normalized.includes('payment provider returned an unsafe redirect')) {
+        return 'El proveedor de pago devolvio una redireccion no segura. Intenta nuevamente.';
+    }
+    if (normalized.includes('network error processing payment')) {
+        return 'Error de red al procesar el pago.';
+    }
+    if (normalized.includes('the connection dropped while we were processing the payment')) {
+        return 'La conexion se interrumpio mientras procesabamos el pago. Puedes reintentarlo con seguridad.';
+    }
+    if (normalized.includes('internal server error')) {
+        return 'Error interno del servidor.';
+    }
+
+    return text;
+};
 
 const isAllowedPaymentRedirect = (value: string) => {
     try {
@@ -206,6 +292,7 @@ const renderStageIcon = (stage: CheckoutStage) => {
 };
 
 const PaymentCheckoutPage: React.FC<PaymentCheckoutPageProps> = ({ requestId, onBack }) => {
+    const { t, i18n } = useTranslation();
     const navigate = useNavigate();
     const location = useLocation();
     const [loading, setLoading] = useState(true);
@@ -218,11 +305,16 @@ const PaymentCheckoutPage: React.FC<PaymentCheckoutPageProps> = ({ requestId, on
     const [successCountdown, setSuccessCountdown] = useState(4);
     const paypalReturnHandledRef = useRef(false);
 
+    const currentLanguage = i18n.resolvedLanguage || i18n.language || 'en';
     const amount = useMemo(() => getChargeAmount(request), [request]);
     const locationMeta = useMemo(() => getLocationMeta(request?.location_text || ''), [request?.location_text]);
-    const scheduledWindow = useMemo(() => formatScheduledWindow(request), [request]);
-    const bookingLabel = isScheduledRequest(request) ? 'Scheduled visit' : 'Express service';
+    const scheduledWindow = useMemo(() => formatScheduledWindow(request, currentLanguage), [currentLanguage, request]);
+    const bookingLabel = isScheduledRequest(request) ? t('serviceRequest.checkout.scheduledVisit') : t('serviceRequest.checkout.expressService');
     const displayCurrency = useMemo(() => readString(request?.payment?.currency_code).toUpperCase() || 'USD', [request?.payment?.currency_code]);
+    const localizedServiceName = useMemo(
+        () => localizeServiceName(request?.service_name, currentLanguage),
+        [currentLanguage, request?.service_name]
+    );
     const platformFee = useMemo(() => {
         if (request?.payment?.platform_fee != null) {
             return Number(request.payment.platform_fee);
@@ -246,8 +338,11 @@ const PaymentCheckoutPage: React.FC<PaymentCheckoutPageProps> = ({ requestId, on
         return Number((platformFee / amount).toFixed(4));
     }, [amount, platformFee, request?.payment?.commission_rate]);
     const commissionLabel = useMemo(
-        () => readString(request?.payment?.commission_snapshot?.policy_label) || 'Protected with the current platform fee policy.',
-        [request?.payment?.commission_snapshot?.policy_label]
+        () => localizeCheckoutBackendText(
+            readString(request?.payment?.commission_snapshot?.policy_label) || t('serviceRequest.checkout.currentPolicyProtected'),
+            currentLanguage
+        ),
+        [currentLanguage, request?.payment?.commission_snapshot?.policy_label, t]
     );
     const appliedCommissionRules = useMemo(() => {
         const rules = request?.payment?.commission_snapshot?.applied_rules;
@@ -301,7 +396,7 @@ const PaymentCheckoutPage: React.FC<PaymentCheckoutPageProps> = ({ requestId, on
                 const payload = await res.json();
 
                 if (!res.ok || !payload?.success || !Array.isArray(payload?.requests)) {
-                    notyf.error(payload?.error || 'Could not load checkout request.');
+                    notyf.error(localizeCheckoutBackendText(payload?.error || 'Could not load checkout request.', currentLanguage));
                     setRequest(null);
                     return;
                 }
@@ -311,7 +406,7 @@ const PaymentCheckoutPage: React.FC<PaymentCheckoutPageProps> = ({ requestId, on
                 ) as MyServiceRequest | undefined;
 
                 if (!matchedRequest) {
-                    notyf.error('That request is no longer available for checkout.');
+                    notyf.error(localizeCheckoutBackendText('That request is no longer available for checkout.', currentLanguage));
                     setRequest(null);
                     return;
                 }
@@ -319,7 +414,7 @@ const PaymentCheckoutPage: React.FC<PaymentCheckoutPageProps> = ({ requestId, on
                 setRequest(matchedRequest);
                 setPromoCode(readString(matchedRequest.payment?.promo_code));
             } catch {
-                notyf.error('Network error loading checkout.');
+                notyf.error(localizeCheckoutBackendText('Network error loading checkout.', currentLanguage));
                 setRequest(null);
             } finally {
                 setLoading(false);
@@ -327,11 +422,11 @@ const PaymentCheckoutPage: React.FC<PaymentCheckoutPageProps> = ({ requestId, on
         };
 
         void fetchCheckoutRequest();
-    }, [requestId]);
+    }, [currentLanguage, requestId]);
 
     const moveToErrorStage = (message: string) => {
         setCheckoutStage('error');
-        setCheckoutMessage(message);
+        setCheckoutMessage(localizeCheckoutBackendText(message, currentLanguage));
     };
 
     const handlePaypalReturnConfirmation = async (paypalOrderId: string) => {
@@ -367,7 +462,7 @@ const PaymentCheckoutPage: React.FC<PaymentCheckoutPageProps> = ({ requestId, on
             });
             const payPayload = await payRes.json();
             if (!payRes.ok || !payPayload?.success) {
-                const message = payPayload?.error || 'Could not confirm PayPal payment.';
+                const message = localizeCheckoutBackendText(payPayload?.error || 'Could not confirm PayPal payment.', currentLanguage);
                 notyf.error(message);
                 moveToErrorStage(message);
                 return;
@@ -397,11 +492,15 @@ const PaymentCheckoutPage: React.FC<PaymentCheckoutPageProps> = ({ requestId, on
 
             navigate(`/checkout/${request.id_request}`, { replace: true });
             setCheckoutStage('success');
-            setCheckoutMessage('PayPal payment secured successfully. Your electronic invoice was sent to your email.');
-            notyf.success('PayPal payment confirmed. Your pro can now start the job.');
+            setCheckoutMessage(localizeCheckoutBackendText('PayPal payment secured successfully. Your electronic invoice was sent to your email.', currentLanguage));
+            notyf.success(
+                currentLanguage.startsWith('es')
+                    ? 'Pago de PayPal confirmado. Tu profesional ya puede iniciar el trabajo.'
+                    : 'PayPal payment confirmed. Your pro can now start the job.'
+            );
         } catch {
-            notyf.error('Network error confirming PayPal payment.');
-            moveToErrorStage('The connection dropped while we were confirming your PayPal payment. Please retry.');
+            notyf.error(localizeCheckoutBackendText('Network error confirming PayPal payment.', currentLanguage));
+            moveToErrorStage(localizeCheckoutBackendText('The connection dropped while we were confirming your PayPal payment. Please retry.', currentLanguage));
         } finally {
             setIsPaying(false);
         }
@@ -418,7 +517,7 @@ const PaymentCheckoutPage: React.FC<PaymentCheckoutPageProps> = ({ requestId, on
             if (!paypalReturnHandledRef.current) {
                 notyf.open({
                     type: 'info',
-                    message: 'PayPal payment was cancelled. You can retry when ready.',
+                    message: localizeCheckoutBackendText('PayPal payment was cancelled. You can retry when ready.', currentLanguage),
                     background: '#1d4ed8',
                 });
             }
@@ -430,7 +529,7 @@ const PaymentCheckoutPage: React.FC<PaymentCheckoutPageProps> = ({ requestId, on
         if (paypalState === 'success') {
             const tokenFromUrl = readString(params.get('token'));
             if (!tokenFromUrl) {
-                moveToErrorStage('PayPal returned without an order token. Please try payment again.');
+                moveToErrorStage(localizeCheckoutBackendText('PayPal returned without an order token. Please try payment again.', currentLanguage));
                 navigate(`/checkout/${request.id_request}`, { replace: true });
                 return;
             }
@@ -443,14 +542,14 @@ const PaymentCheckoutPage: React.FC<PaymentCheckoutPageProps> = ({ requestId, on
     const handleSecurePayment = async (selectedMethod: CheckoutPaymentMethod = paymentMethod) => {
         const token = getToken();
         if (!token || !request) {
-            notyf.error('Login required.');
-            moveToErrorStage('Your session expired before checkout could start.');
+            notyf.error(localizeCheckoutBackendText('Login required.', currentLanguage));
+            moveToErrorStage(localizeCheckoutBackendText('Your session expired before checkout could start.', currentLanguage));
             return;
         }
         if (selectedMethod === 'wompi') {
             notyf.open({
                 type: 'info',
-                message: 'Wompi will be available soon. Please use PayPal for now.',
+                message: localizeCheckoutBackendText('Wompi will be available soon. Please use PayPal for now.', currentLanguage),
                 background: '#1d4ed8',
             });
             return;
@@ -458,11 +557,11 @@ const PaymentCheckoutPage: React.FC<PaymentCheckoutPageProps> = ({ requestId, on
         if (isAlreadyPaid) {
             notyf.open({
                 type: 'info',
-                message: 'This request already has a secured payment.',
+                message: localizeCheckoutBackendText('This request already has a secured payment.', currentLanguage),
                 background: '#1d4ed8',
             });
             setCheckoutStage('success');
-            setCheckoutMessage('This request already has a secured payment. Your worker can continue with the job.');
+            setCheckoutMessage(localizeCheckoutBackendText('This request already has a secured payment. Your worker can continue with the job.', currentLanguage));
             return;
         }
 
@@ -491,26 +590,26 @@ const PaymentCheckoutPage: React.FC<PaymentCheckoutPageProps> = ({ requestId, on
             });
             const checkoutPayload = await checkoutRes.json();
             if (!checkoutRes.ok || !checkoutPayload?.success) {
-                const message = checkoutPayload?.error || 'Could not initialize payment.';
+                const message = localizeCheckoutBackendText(checkoutPayload?.error || 'Could not initialize payment.', currentLanguage);
                 notyf.error(message);
                 moveToErrorStage(message);
                 return;
             }
             const approvalUrl = readString(checkoutPayload?.checkout?.approval_url);
             if (!approvalUrl) {
-                moveToErrorStage('PayPal did not return an approval link. Please try again.');
+                moveToErrorStage(localizeCheckoutBackendText('PayPal did not return an approval link. Please try again.', currentLanguage));
                 return;
             }
             if (!isAllowedPaymentRedirect(approvalUrl)) {
-                moveToErrorStage('Payment provider returned an unsafe redirect. Please retry checkout.');
+                moveToErrorStage(localizeCheckoutBackendText('Payment provider returned an unsafe redirect. Please retry checkout.', currentLanguage));
                 return;
             }
 
             window.location.href = approvalUrl;
             return;
         } catch {
-            notyf.error('Network error processing payment.');
-            moveToErrorStage('The connection dropped while we were processing the payment. You can retry safely.');
+            notyf.error(localizeCheckoutBackendText('Network error processing payment.', currentLanguage));
+            moveToErrorStage(localizeCheckoutBackendText('The connection dropped while we were processing the payment. You can retry safely.', currentLanguage));
         } finally {
             setIsPaying(false);
         }
@@ -532,27 +631,27 @@ const PaymentCheckoutPage: React.FC<PaymentCheckoutPageProps> = ({ requestId, on
             <div className="relative">
             {renderStageIcon(checkoutStage)}
             <p className={`mt-6 text-[11px] font-black uppercase tracking-[0.24em] ${checkoutStage === 'success' ? 'text-emerald-500' : 'text-amber-500'}`}>
-                {checkoutStage === 'success' ? 'Payment complete' : 'Checkout issue'}
+                {checkoutStage === 'success' ? t('serviceRequest.checkout.paymentComplete') : t('serviceRequest.checkout.checkoutIssue')}
             </p>
             <h2 className="mt-3 text-3xl font-black text-slate-950">
-                {checkoutStage === 'success' ? 'Booking secured' : 'Payment needs one more try'}
+                {checkoutStage === 'success' ? t('serviceRequest.checkout.bookingSecured') : t('serviceRequest.checkout.paymentNeedsRetry')}
             </h2>
             <p className="mx-auto mt-3 max-w-xl text-sm leading-6 text-slate-500">
                 {checkoutMessage}
             </p>
 
             <div className="mt-7 rounded-[28px] border border-slate-200 bg-slate-50 p-5 text-left">
-                <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">Request recap</p>
+                <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">{t('serviceRequest.checkout.requestRecap')}</p>
                 <div className="mt-4 grid gap-4 sm:grid-cols-2">
                     <div>
-                        <p className="text-sm font-black text-slate-900">{request?.service_name}</p>
+                        <p className="text-sm font-black text-slate-900">{localizedServiceName}</p>
                         <p className="mt-1 text-xs font-black uppercase tracking-[0.16em] text-blue-600">{bookingLabel}</p>
                         {scheduledWindow && <p className="mt-1 text-sm font-semibold text-slate-600">{scheduledWindow}</p>}
                         <p className="mt-1 text-sm text-slate-500">{locationMeta.primary}</p>
                         <p className="mt-1 text-xs text-slate-400">{locationMeta.secondary}</p>
                     </div>
                     <div className="text-left sm:text-right">
-                        <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">Charge</p>
+                        <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">{t('serviceRequest.checkout.charge')}</p>
                         <p className="mt-2 text-3xl font-black text-slate-950">${amount.toFixed(2)}</p>
                     </div>
                 </div>
@@ -560,21 +659,21 @@ const PaymentCheckoutPage: React.FC<PaymentCheckoutPageProps> = ({ requestId, on
 
             <div className="mt-4 grid gap-3 sm:grid-cols-2">
                 <div className="rounded-[24px] border border-slate-200 bg-white/85 p-4 text-left shadow-sm">
-                    <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">Reference</p>
+                    <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">{t('serviceRequest.checkout.reference')}</p>
                     <p className="mt-2 text-base font-black text-slate-950">
-                        {request?.payment?.checkout_reference || 'Sandbox booking'}
+                        {request?.payment?.checkout_reference || t('serviceRequest.checkout.sandboxBooking')}
                     </p>
-                    <p className="mt-1 text-xs text-slate-500">Keep this reference if you need support later.</p>
+                    <p className="mt-1 text-xs text-slate-500">{t('serviceRequest.checkout.keepReference')}</p>
                 </div>
                 <div className="rounded-[24px] border border-slate-200 bg-white/85 p-4 text-left shadow-sm">
-                    <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">Status</p>
+                    <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">{t('serviceRequest.checkout.status')}</p>
                     <p className="mt-2 text-base font-black text-slate-950">
-                        {checkoutStage === 'success' ? 'Funds secured' : 'Retry available'}
+                        {checkoutStage === 'success' ? t('serviceRequest.checkout.fundsSecured') : t('serviceRequest.checkout.retryAvailable')}
                     </p>
                     <p className="mt-1 text-xs text-slate-500">
                         {checkoutStage === 'success'
-                            ? 'The request can now continue into the active job flow.'
-                            : 'Your booking is still safe. You can retry the payment from here.'}
+                            ? t('serviceRequest.checkout.continueFlow')
+                            : t('serviceRequest.checkout.bookingSafe')}
                     </p>
                 </div>
             </div>
@@ -586,7 +685,7 @@ const PaymentCheckoutPage: React.FC<PaymentCheckoutPageProps> = ({ requestId, on
                         onClick={() => setCheckoutStage('form')}
                         className="rounded-2xl bg-bird-blue px-6 py-3 text-sm font-black text-slate-900 shadow-[0_16px_34px_rgba(29,78,216,0.24)] hover:bg-bird-darkBlue"
                     >
-                        Try again
+                        {t('serviceRequest.checkout.tryAgain')}
                     </button>
                 )}
                 <button
@@ -594,14 +693,14 @@ const PaymentCheckoutPage: React.FC<PaymentCheckoutPageProps> = ({ requestId, on
                     onClick={onBack}
                     className="rounded-2xl border border-slate-200 bg-white px-6 py-3 text-sm font-black text-slate-700 hover:border-slate-300"
                 >
-                    Back to requests
+                    {t('serviceRequest.checkout.backToRequests')}
                 </button>
             </div>
 
             {checkoutStage === 'success' && (
                 <div className="mx-auto mt-6 max-w-md">
                     <div className="flex items-center justify-between text-[11px] font-black uppercase tracking-[0.18em] text-emerald-600">
-                        <span>Returning automatically</span>
+                        <span>{t('serviceRequest.checkout.returningAutomatically')}</span>
                         <span>{successCountdown}s</span>
                     </div>
                     <div className="mt-2 h-2 overflow-hidden rounded-full bg-emerald-100">
@@ -627,25 +726,25 @@ const PaymentCheckoutPage: React.FC<PaymentCheckoutPageProps> = ({ requestId, on
                     className="mb-8 inline-flex items-center gap-2 text-sm font-bold text-slate-500 hover:text-slate-900 transition-colors"
                 >
                     <span className="text-lg leading-none">&larr;</span>
-                    Back
+                    {t('serviceRequest.checkout.back')}
                 </button>
 
                 {loading ? (
                     <div className="rounded-[32px] bg-white p-8 shadow-sm border border-slate-100 flex flex-col items-center justify-center min-h-[400px]">
                          <div className="h-8 w-8 rounded-full border-4 border-slate-100 border-t-bird-blue animate-spin" />
-                         <p className="mt-4 text-sm font-semibold text-slate-500">Loading secure checkout...</p>
+                         <p className="mt-4 text-sm font-semibold text-slate-500">{t('serviceRequest.checkout.loading')}</p>
                     </div>
                 ) : !request ? (
                     <div className="rounded-[32px] bg-white p-10 text-center shadow-sm border border-slate-100">
-                        <p className="text-[11px] font-black uppercase tracking-[0.24em] text-slate-400">Error</p>
-                        <h1 className="mt-3 text-2xl font-black text-slate-900">Request not found</h1>
-                        <p className="mt-2 text-sm text-slate-500">We couldn't load the details for this payment.</p>
+                        <p className="text-[11px] font-black uppercase tracking-[0.24em] text-slate-400">{t('serviceRequest.checkout.error')}</p>
+                        <h1 className="mt-3 text-2xl font-black text-slate-900">{t('serviceRequest.checkout.requestNotFound')}</h1>
+                        <p className="mt-2 text-sm text-slate-500">{t('serviceRequest.checkout.requestNotFoundDescription')}</p>
                         <button
                             type="button"
                             onClick={onBack}
                             className="mt-6 rounded-2xl bg-bird-blue px-6 py-3 text-sm font-black text-slate-900 hover:bg-bird-darkBlue transition"
                         >
-                            Go back
+                            {t('serviceRequest.checkout.goBack')}
                         </button>
                     </div>
                 ) : checkoutStage === 'form' ? (
@@ -655,9 +754,9 @@ const PaymentCheckoutPage: React.FC<PaymentCheckoutPageProps> = ({ requestId, on
                         className="rounded-[32px] bg-white shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-slate-100 overflow-hidden"
                     >
                         <div className="p-8 pb-6 border-b border-slate-100">
-                            <p className="text-[11px] font-black uppercase tracking-[0.24em] text-slate-400 text-center">Secure Payment</p>
-                            <h1 className="mt-4 text-3xl font-black text-slate-900 text-center">Fixlife Checkout</h1>
-                            <p className="mt-2 text-sm text-slate-500 text-center">{request.service_name}</p>
+                            <p className="text-[11px] font-black uppercase tracking-[0.24em] text-slate-400 text-center">{t('serviceRequest.checkout.securePayment')}</p>
+                            <h1 className="mt-4 text-3xl font-black text-slate-900 text-center">{t('serviceRequest.checkout.title')}</h1>
+                            <p className="mt-2 text-sm text-slate-500 text-center">{localizedServiceName}</p>
                             <div className="mt-3 flex flex-col items-center gap-1">
                                 <span className="rounded-full border border-blue-100 bg-blue-50 px-3 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-blue-700">
                                     {bookingLabel}
@@ -676,7 +775,7 @@ const PaymentCheckoutPage: React.FC<PaymentCheckoutPageProps> = ({ requestId, on
                         </div>
 
                         <div className="p-8 bg-slate-50/50">
-                            <p className="text-[12px] font-bold text-slate-500 mb-4 text-center">Choose your payment method</p>
+                            <p className="text-[12px] font-bold text-slate-500 mb-4 text-center">{t('serviceRequest.checkout.chooseMethod')}</p>
                             
                             <div className="space-y-3">
                                 <button
@@ -712,37 +811,37 @@ const PaymentCheckoutPage: React.FC<PaymentCheckoutPageProps> = ({ requestId, on
 
                             {isAlreadyPaid && (
                                 <p className="mt-4 text-center text-sm font-bold text-emerald-600">
-                                    Payment already secured for this request.
+                                    {t('serviceRequest.checkout.paymentAlreadySecured')}
                                 </p>
                             )}
 
                             <div className="mt-5 grid gap-3 rounded-[24px] border border-slate-200 bg-white/80 p-4 sm:grid-cols-3">
                                 <div>
-                                    <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">{isScheduledRequest(request) ? 'Visit payment' : 'Protected now'}</p>
+                                    <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">{isScheduledRequest(request) ? t('serviceRequest.checkout.visitPayment') : t('serviceRequest.checkout.protectedNow')}</p>
                                     <p className="mt-2 text-lg font-black text-slate-950">
                                         ${amount.toFixed(2)} <span className="text-xs font-bold text-slate-400">{displayCurrency}</span>
                                     </p>
                                 </div>
                                 <div>
-                                    <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">Platform protection</p>
+                                    <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">{t('serviceRequest.checkout.platformProtection')}</p>
                                     <p className="mt-2 text-lg font-black text-slate-950">${platformFee.toFixed(2)}</p>
-                                    <p className="mt-1 text-[11px] text-slate-500">{`${(commissionRate * 100).toFixed(1)}% commission`}</p>
+                                    <p className="mt-1 text-[11px] text-slate-500">{t('serviceRequest.checkout.commission', { rate: (commissionRate * 100).toFixed(1) })}</p>
                                 </div>
                                 <div>
-                                    <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">Pro release</p>
+                                    <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">{t('serviceRequest.checkout.proRelease')}</p>
                                     <p className="mt-2 text-lg font-black text-slate-950">${workerPayout.toFixed(2)}</p>
-                                    <p className="mt-1 text-[11px] text-slate-500">Released after the job is confirmed complete.</p>
+                                    <p className="mt-1 text-[11px] text-slate-500">{t('serviceRequest.checkout.releasedAfterJob')}</p>
                                 </div>
                             </div>
                             <div className="mt-3 rounded-[22px] border border-slate-200 bg-white/70 p-4">
-                                <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">Commission policy</p>
+                                <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">{t('serviceRequest.checkout.commissionPolicy')}</p>
                                 <p className="mt-2 text-sm font-semibold text-slate-700">{commissionLabel}</p>
                                 {appliedCommissionRules && (
                                     <p className="mt-1 text-xs text-slate-500">{appliedCommissionRules}</p>
                                 )}
                                 {readString(request?.payment?.promo_code || promoCode) && (
                                     <p className="mt-2 text-xs font-black uppercase tracking-[0.18em] text-emerald-600">
-                                        Promo active: {readString(request?.payment?.promo_code || promoCode)}
+                                        {t('serviceRequest.checkout.promoActive', { code: readString(request?.payment?.promo_code || promoCode) })}
                                     </p>
                                 )}
                             </div>
@@ -751,9 +850,9 @@ const PaymentCheckoutPage: React.FC<PaymentCheckoutPageProps> = ({ requestId, on
                                 <div className="mt-3 rounded-[22px] border border-slate-200 bg-white/70 p-4">
                                     <div className="flex items-center justify-between gap-3">
                                         <div>
-                                            <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">Promo code</p>
+                                            <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">{t('serviceRequest.checkout.promoCode')}</p>
                                             <p className="mt-2 text-sm text-slate-500">
-                                                Apply a platform promo to reduce the fee on this payment split.
+                                                {t('serviceRequest.checkout.promoHelp')}
                                             </p>
                                         </div>
                                         <input
@@ -770,7 +869,7 @@ const PaymentCheckoutPage: React.FC<PaymentCheckoutPageProps> = ({ requestId, on
                                 <svg className="h-4 w-4 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
                                 </svg>
-                                <span className="text-xs font-semibold text-slate-500">Payments are secure and encrypted</span>
+                                <span className="text-xs font-semibold text-slate-500">{t('serviceRequest.checkout.paymentsSecure')}</span>
                             </div>
                         </div>
                     </motion.div>

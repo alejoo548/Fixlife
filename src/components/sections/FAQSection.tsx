@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useTranslation } from 'react-i18next';
 
 interface FAQItem {
   question: string;
@@ -56,7 +57,12 @@ const faqs: FAQItem[] = [
 ];
 
 export const FAQSection: React.FC<FAQSectionProps> = ({ onBookService, onNavigateSection }) => {
+  const { t } = useTranslation();
   const [openIndex, setOpenIndex] = useState<number | null>(0);
+  const translatedFaqs = t('faq.items', { returnObjects: true }) as Array<{
+    question: string;
+    answer: string;
+  }>;
 
   const toggleFAQ = (index: number) => {
     setOpenIndex(openIndex === index ? null : index);
@@ -68,9 +74,9 @@ export const FAQSection: React.FC<FAQSectionProps> = ({ onBookService, onNavigat
         <div>
           <h3 className="text-2xl font-black text-gray-900 flex items-center gap-4">
             <span className="w-1.5 h-8 rounded-full bg-bird-orange shadow-[0_0_15px_rgba(255,128,0,0.4)]"></span>
-            Frequently Asked Questions
+            {t('faq.title')}
           </h3>
-          <p className="text-gray-600 mt-2 ml-6 text-sm font-medium">Everything you need to know about Fixlife</p>
+          <p className="text-gray-600 mt-2 ml-6 text-sm font-medium">{t('faq.subtitle')}</p>
         </div>
         <div className="ml-6 md:ml-0">
           <button
@@ -78,7 +84,7 @@ export const FAQSection: React.FC<FAQSectionProps> = ({ onBookService, onNavigat
             onClick={() => onNavigateSection?.('steps')}
             className="inline-flex items-center gap-2 px-6 py-3 rounded-full bg-gray-100 border border-gray-200 text-gray-900 font-bold text-sm hover:bg-gray-200 transition-all group"
           >
-            <span>See how it works</span>
+            <span>{t('faq.cta')}</span>
             <svg className="w-4 h-4 group-hover:translate-x-1 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" />
             </svg>
@@ -87,7 +93,10 @@ export const FAQSection: React.FC<FAQSectionProps> = ({ onBookService, onNavigat
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
-        {faqs.map((faq, index) => (
+        {faqs.map((faq, index) => {
+          const translatedFaq = translatedFaqs[index];
+
+          return (
           <div
             key={index}
             className="bg-white/80 backdrop-blur-sm border border-gray-200 rounded-2xl overflow-hidden shadow-sm hover:shadow-lg transition-all duration-300"
@@ -110,7 +119,7 @@ export const FAQSection: React.FC<FAQSectionProps> = ({ onBookService, onNavigat
                 <h4 className={`text-sm md:text-base font-bold mb-1 transition-colors ${
                   openIndex === index ? 'text-bird-blue' : 'text-gray-900 group-hover:text-bird-blue'
                 }`}>
-                  {faq.question}
+                  {translatedFaq?.question || faq.question}
                 </h4>
                 <AnimatePresence>
                   {openIndex === index && (
@@ -122,7 +131,7 @@ export const FAQSection: React.FC<FAQSectionProps> = ({ onBookService, onNavigat
                       className="overflow-hidden"
                     >
                       <p className="text-gray-600 text-xs md:text-sm leading-relaxed mt-2 font-medium">
-                        {faq.answer}
+                        {translatedFaq?.answer || faq.answer}
                       </p>
                     </motion.div>
                   )}
@@ -142,7 +151,8 @@ export const FAQSection: React.FC<FAQSectionProps> = ({ onBookService, onNavigat
               </motion.div>
             </button>
           </div>
-        ))}
+          );
+        })}
       </div>
 
     </div>

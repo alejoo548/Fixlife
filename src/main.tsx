@@ -2,6 +2,7 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import './index.css';
 import App from './App';
+import i18n from './i18n';
 import { AuthProvider } from './context/AuthContext';
 import { BrowserRouter } from 'react-router-dom';
 import { AppErrorBoundary } from './components/common/AppErrorBoundary';
@@ -27,10 +28,10 @@ const renderRuntimeFallback = (message: string) => {
       <div style="width:min(420px,100%);border:1px solid rgba(186,230,253,.9);background:rgba(255,255,255,.95);border-radius:28px;padding:24px;box-shadow:0 24px 70px rgba(15,23,42,.16);">
         <img src="/Fixilogo.webp" alt="Fixlife" style="width:52px;height:52px;object-fit:contain;margin-bottom:12px;" />
         <p style="margin:0 0 6px;font-size:11px;font-weight:900;letter-spacing:.18em;text-transform:uppercase;color:#0284c7;">Fixlife</p>
-        <h1 style="margin:0 0 10px;font-size:24px;line-height:1.1;font-weight:900;">Display issue</h1>
-        <p style="margin:0 0 14px;font-size:14px;line-height:1.5;color:#475569;">The app could not finish loading this screen. Please refresh once.</p>
+        <h1 style="margin:0 0 10px;font-size:24px;line-height:1.1;font-weight:900;">${i18n.t('runtime.title')}</h1>
+        <p style="margin:0 0 14px;font-size:14px;line-height:1.5;color:#475569;">${i18n.t('runtime.description')}</p>
         <pre style="max-height:96px;overflow:auto;border-radius:16px;background:#020617;color:#bae6fd;padding:12px;font-size:11px;white-space:pre-wrap;">${message.replace(/[<>&]/g, (char) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;' }[char] || char))}</pre>
-        <button onclick="window.location.reload()" style="margin-top:16px;width:100%;border:0;border-radius:16px;background:#0090ff;color:white;padding:13px 16px;font-size:14px;font-weight:900;">Reload page</button>
+        <button onclick="window.location.reload()" style="margin-top:16px;width:100%;border:0;border-radius:16px;background:#0090ff;color:white;padding:13px 16px;font-size:14px;font-weight:900;">${i18n.t('runtime.reload')}</button>
       </div>
     </div>
   `;

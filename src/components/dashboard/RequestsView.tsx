@@ -393,6 +393,7 @@ export const RequestsView: React.FC<RequestsViewProps> = ({
           : 'This request will leave your available list. The client will continue looking for another professional.',
       tone: action === 'accept' ? 'info' : 'warning',
       confirmText: action === 'accept' ? 'Accept request' : 'Pass request',
+      cancelText: 'Go back',
       destructive: action === 'reject',
     });
     if (!confirmed) return;
@@ -419,6 +420,7 @@ export const RequestsView: React.FC<RequestsViewProps> = ({
       message: 'Your approval is saved. Service advances only after client also approves.',
       tone: action === 'start_work' ? 'info' : 'warning',
       confirmText: labels[action][1],
+      cancelText: 'Go back',
     });
     if (!confirmed) return;
     if (!token) return;
@@ -464,6 +466,7 @@ export const RequestsView: React.FC<RequestsViewProps> = ({
       message: 'Only confirm after reaching the service address. The Start work action will become available.',
       tone: 'info',
       confirmText: 'I have arrived',
+      cancelText: 'Go back',
     });
     if (!confirmed) return;
     if (!token) return;
