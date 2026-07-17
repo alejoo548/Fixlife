@@ -200,9 +200,9 @@ export const resolveFinanceCase = async (input: {
     if (caseRow.case_type === 'refund' && caseRow.id_payment != null) {
       await pool.execute(
         `UPDATE service_request_payments
-         SET payment_status = 'refunded',
-             updated_at = CURRENT_TIMESTAMP
-         WHERE id_payment = ?`,
+        SET payment_status = 'refunded',
+            updated_at = CURRENT_TIMESTAMP
+        WHERE id_payment = ?`,
         [Number(caseRow.id_payment)]
       );
     }
@@ -236,28 +236,28 @@ export const getFinanceCases = async (input?: {
   const safeLimit = clampLimit(input?.limit, 40, 100);
   const [rows] = await pool.execute<FinanceCaseRow[]>(
     `SELECT
-       fc.id_case,
-       fc.case_type,
-       fc.case_status,
-       fc.direction,
-       fc.id_request,
-       fc.id_payment,
-       fc.amount,
-       fc.currency_code,
-       fc.reason,
-       fc.notes,
-       fc.created_by_user_id,
-       fc.resolved_by_user_id,
-       fc.created_at,
-       fc.resolved_at,
-       s.name AS service_name,
-       sr.location_text
-     FROM finance_cases fc
-     LEFT JOIN service_requests sr ON sr.id_request = fc.id_request
-     LEFT JOIN services s ON s.id_service = sr.id_service
-     WHERE ${whereParts.join(' AND ')}
-     ORDER BY fc.created_at DESC, fc.id_case DESC
-     LIMIT ${safeLimit}`,
+      fc.id_case,
+      fc.case_type,
+      fc.case_status,
+      fc.direction,
+      fc.id_request,
+      fc.id_payment,
+      fc.amount,
+      fc.currency_code,
+      fc.reason,
+      fc.notes,
+  fc.created_by_user_id,
+  fc.resolved_by_user_id,
+      fc.created_at,
+      fc.resolved_at,
+    s.name AS service_name,
+    sr.location_text
+    FROM finance_cases fc
+    LEFT JOIN service_requests sr ON sr.id_request = fc.id_request
+  LEFT JOIN services s ON s.id_service = sr.id_service
+    WHERE ${whereParts.join(' AND ')}
+  ORDER BY fc.created_at DESC, fc.id_case DESC
+  LIMIT ${safeLimit}`,
     params
   );
 
