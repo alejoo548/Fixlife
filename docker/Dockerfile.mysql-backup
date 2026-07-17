@@ -1,0 +1,14 @@
+FROM oraclelinux:9-slim
+
+# Cliente MySQL real (mysqldump + mysqlbinlog), compatible con el binlog que
+# escribe el servicio "mysql" (mismo mysql:8.0 / Oracle Linux 9 upstream).
+# El cliente Alpine/MariaDB no sirve: emite variables de sesión que MySQL 8
+# no reconoce al reproducir binlogs (ver docker/restore.sh).
+RUN microdnf install -y mysql cronie gzip tar shadow-utils && microdnf clean all
+
+COPY backup-entrypoint.sh /backup-entrypoint.sh
+COPY backup.sh /backup.sh
+RUN chmod +x /backup-entrypoint.sh /backup.sh \
+    && mkdir -p /backup
+
+ENTRYPOINT ["/backup-entrypoint.sh"]
