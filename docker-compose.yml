@@ -14,7 +14,7 @@ services:
     container_name: fixlife_frontend
     restart: unless-stopped
     ports:
-      - "3000:3000"
+      - "127.0.0.1:3000:3000"
     depends_on:
       backend:
         condition: service_healthy
@@ -32,7 +32,7 @@ services:
     user: root
     env_file:
       - ./.env
-    command: sh -c "npm install && npm run dev"
+    command: sh -c "npm run dev"
     volumes:
       - ./backend:/app
       - /app/node_modules
@@ -106,7 +106,7 @@ services:
       - PMA_PORT=3306
       - PMA_ARBITRARY=0
     ports:
-      - "8081:80"
+      - "127.0.0.1:8081:80"
     depends_on:
       mysql:
         condition: service_healthy

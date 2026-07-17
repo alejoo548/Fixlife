@@ -717,7 +717,7 @@ export const getActiveServices = async (_req: Request, res: Response): Promise<v
   }
 };
 
-export const getPublicServiceCards = async (_req: Request, res: Response): Promise<void> => {
+export const getPublicServiceCards = async (req: Request, res: Response): Promise<void> => {
   try {
     await ensureServiceCardsTable();
 
@@ -744,7 +744,7 @@ export const getPublicServiceCards = async (_req: Request, res: Response): Promi
     const cards = rows.map((row) => ({
       id_card: Number(row.id_card),
       id_service: Number(row.id_service),
-      image_url: row.image_url,
+      image_url: buildPublicAssetUrl(req, row.image_url) || row.image_url,
       badge: row.badge || 'POPULAR',
       headline: row.headline || row.service_name,
       summary: row.summary || row.service_description || '',
