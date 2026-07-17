@@ -1,10 +1,11 @@
 import React, { useState, useEffect, Suspense, lazy, useRef } from 'react';
+import { ReviewSubmitSection } from '../sections/ReviewSubmitSection';
 import { useLocation } from 'react-router-dom';
 import { useSSE } from '../../hooks/useSSE';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ProSidebar } from './ProSidebar';
 import { API_URL } from '../../config/api';
-import { AUTH_SESSION_CHANGED_EVENT, getAuthUser, getToken as getSessionToken, isAuthenticated, logoutAuthSession, updateStoredAuthUser } from '../../utils/session';
+import { AUTH_SESSION_CHANGED_EVENT, getAuthUser, getToken as getSessionToken, isAuthenticated, logoutAndReload, updateStoredAuthUser } from '../../utils/session';
 import { NotificationCenter } from '../common/NotificationCenter';
 import { DashboardThemeToggle } from '../common/DashboardThemeToggle';
 import { useDashboardTheme } from '../../hooks/useDashboardTheme';
@@ -180,12 +181,7 @@ export const ProDashboard: React.FC<ProDashboardProps> = ({ isOpen, onClose, onS
    };
 
    const handleSignOut = () => {
-      logoutAuthSession('worker');
-      if (onSignOut) {
-         onSignOut();
-         return;
-      }
-      onClose();
+      logoutAndReload('worker');
    };
 
    const normalizeBool = (value: any) => {
@@ -494,7 +490,7 @@ export const ProDashboard: React.FC<ProDashboardProps> = ({ isOpen, onClose, onS
                         animate={{ opacity: 1, x: 0 }}
                         className="flex items-center gap-2 truncate text-lg font-black capitalize text-slate-950 md:gap-3 md:text-xl"
                      >
-                        <span className="truncate">{({ requests: 'Requests', appointments: 'Upcoming', schedule: 'Calendar', earnings: 'Earnings', 'completed-work': 'History', settings: 'Profile' } as Record<string, string>)[activeTab] || activeTab.replace('-', ' ')}</span>
+                        <span className="truncate">{({ requests: 'Requests', appointments: 'Upcoming', schedule: 'Calendar', earnings: 'Earnings', 'completed-work': 'History', review: 'Leave a Review', settings: 'Profile' } as Record<string, string>)[activeTab] || activeTab.replace('-', ' ')}</span>
                         {activeTab === 'requests' && (
                            <motion.span
                               initial={{ scale: 0 }}
@@ -883,6 +879,19 @@ export const ProDashboard: React.FC<ProDashboardProps> = ({ isOpen, onClose, onS
                            </Suspense>
                         </motion.div>
                      )}
+
+                     {activeTab === 'review' && (
+                        <motion.div
+                           key="review"
+                           initial={{ opacity: 0, x: 20 }}
+                           animate={{ opacity: 1, x: 0 }}
+                           exit={{ opacity: 0, x: -20 }}
+                           transition={{ duration: 0.3 }}
+                           className="w-full h-full overflow-y-auto p-6 md:p-8"
+                        >
+                           <ReviewSubmitSection />
+                        </motion.div>
+                     )}
                   </AnimatePresence>
                   </>
                )}
@@ -897,6 +906,7 @@ export const ProDashboard: React.FC<ProDashboardProps> = ({ isOpen, onClose, onS
             >
                {[
                   { id: 'requests', label: 'Requests', icon: 'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2' },
+                  { id: 'review', label: 'Review', icon: 'M11.48 3.499a.562.562 0 011.04 0l2.125 5.111a.563.563 0 00.475.345l5.518.442c.499.04.701.663.321.988l-4.204 3.602a.563.563 0 00-.182.557l1.285 5.385a.562.562 0 01-.84.61l-4.725-2.885a.563.563 0 00-.586 0L6.982 20.54a.562.562 0 01-.84-.61l1.285-5.386a.562.562 0 00-.182-.557l-4.204-3.602a.562.562 0 01.321-.988l5.518-.442a.563.563 0 00.475-.345L11.48 3.5z' },
                   { id: 'appointments', label: 'Upcoming', icon: 'M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2zm7 6h-4v4' },
                   { id: 'schedule', label: 'Calendar', icon: 'M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z' },
                   { id: 'earnings', label: 'Earnings', icon: 'M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z' },

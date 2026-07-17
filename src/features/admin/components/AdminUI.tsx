@@ -140,7 +140,7 @@ export const DetailDrawer = ({ open, title, subtitle, onClose, children }: { ope
 export const ConfirmActionDialog = ({ open, title, description, confirmLabel, reason, onReasonChange, onCancel, onConfirm, busy }: { open: boolean; title: string; description: string; confirmLabel: string; reason: string; onReasonChange: (value: string) => void; onCancel: () => void; onConfirm: () => void; busy?: boolean }) => open ? (
   <div className="admin-dialog-layer" role="dialog" aria-modal="true" aria-label={title}><div className="admin-dialog">
     <AlertTriangle className="text-amber-500" size={28} /><h2>{title}</h2><p className="admin-muted">{description}</p>
-    <label className="admin-field"><span>Reason (required)</span><textarea value={reason} onChange={(e) => onReasonChange(e.target.value)} minLength={8} placeholder="Explain why this action is required..." /></label>
+    <label className="admin-field"><span>Reason (required)</span><textarea value={reason} onChange={(e) => onReasonChange(e.target.value.slice(0, 500))} minLength={8} maxLength={500} placeholder="Explain why this action is required..." /></label>
     <div className="admin-dialog__actions"><button className="admin-button admin-button--secondary" onClick={onCancel}>Cancel</button><button className="admin-button admin-button--danger" disabled={busy || reason.trim().length < 8} onClick={onConfirm}>{busy ? 'Working...' : confirmLabel}</button></div>
   </div></div>
 ) : null;

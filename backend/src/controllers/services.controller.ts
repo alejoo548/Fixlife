@@ -3,7 +3,7 @@ import { ResultSetHeader, RowDataPacket } from 'mysql2';
 import pool from '../config/db';
 import { AuthRequest } from '../middlewares/auth.middleware';
 import { createUserNotification, notifyAdmins } from '../utils/notifications';
-import { emitChatMessage, emitToUser } from '../services/socketManager';
+import { emitChatMessage, emitToUser, emitToWorkers } from '../services/socketManager';
 import { getWorkerBonusPayouts, getWorkerRewardsSettings, syncWorkerBonusPayouts } from '../utils/workerRewards';
 import { resolveRequestLocation, reverseGeocodeLocation, suggestLocationTexts } from '../services/geocoding.service';
 import { getProximityBounds, getWorkerBoundsFilter } from '../services/nearbyWorkers.service';
@@ -25,18 +25,20 @@ import {
 import {
   calculateCommissionBreakdown,
   ensureCommissionEngineTables,
-  normalizePromoCode,
   normalizeUrgencyLevel,
   resolveWorkerTier,
 } from '../services/commissionEngine.service';
 import {
+  computeReleaseNetAmount,
   ensurePaymentLedgerTables,
+  recordCashCollectedLedger,
   recordConfirmedPaymentLedger,
   scheduleWorkerPayoutForReleasedRequest,
 } from '../services/paymentLedger.service';
 import { evaluateAutomaticWorkerTier } from '../services/workerTier.service';
 import { enqueueBackgroundJob } from '../services/backgroundJobs.service';
 import { storePaypalWebhookEvent, verifyPaypalWebhookSignature } from '../services/paypalWebhook.service';
+import { storeRawVirtualWalletWebhookEvent } from '../services/virtualWalletWebhook.service';
 import { isDatabaseSchemaReady } from '../services/schemaState.service';
 import { recordSystemEvent } from '../services/systemEvents.service';
 import { sanitizeLettersOnly, sanitizeMessage, sanitizeStrictText } from '../utils/sanitize';
@@ -170,10 +172,8 @@ const normalizeBookingType = (value: unknown): 'express' | 'scheduled' => {
 
 const normalizeSelectionMode = (
   value: unknown,
-  bookingType: 'express' | 'scheduled'
+  _bookingType: 'express' | 'scheduled'
 ): 'auto_assign' | 'client_review' => {
-  if (bookingType === 'express') return 'auto_assign';
-
   const normalized = String(value || '').trim().toLowerCase();
   if (normalized === 'auto_assign') return 'auto_assign';
   if (normalized === 'client_review') return 'client_review';
@@ -715,7 +715,7 @@ export const getActiveServices = async (_req: Request, res: Response): Promise<v
   }
 };
 
-export const getPublicServiceCards = async (_req: Request, res: Response): Promise<void> => {
+export const getPublicServiceCards = async (req: Request, res: Response): Promise<void> => {
   try {
     await ensureServiceCardsTable();
 
@@ -742,7 +742,7 @@ export const getPublicServiceCards = async (_req: Request, res: Response): Promi
     const cards = rows.map((row) => ({
       id_card: Number(row.id_card),
       id_service: Number(row.id_service),
-      image_url: row.image_url,
+      image_url: buildPublicAssetUrl(req, row.image_url) || row.image_url,
       badge: row.badge || 'POPULAR',
       headline: row.headline || row.service_name,
       summary: row.summary || row.service_description || '',
@@ -2122,10 +2122,28 @@ export const createServiceRequest = async (req: AuthRequest, res: Response): Pro
           },
         });
       } else {
+        const broadcastPayload = {
+          id_request: idRequest,
+          request_status: 'pending' as const,
+          id_service: idService,
+          selection_mode: selectionMode,
+          booking_type: schedule.bookingType,
+          scheduled_start_time: schedule.scheduledStartTime,
+        };
+        // Broadcast to every connected worker; RequestsView refetches and the
+        // backend query filters by coverage/location so only eligible workers see it.
+        emitToWorkers('request_updated', broadcastPayload);
         await Promise.all(
-          nearRows.map((row) =>
-            createUserNotification({
-              userId: Number(row.worker_user_id),
+          nearRows.map((row) => {
+            const workerUserId = Number(row.worker_user_id);
+            // Also target the specific nearby workers directly, in case the
+            // 'all_workers' room miss (e.g. reconnecting sockets) — belt & braces.
+            emitToUser(workerUserId, 'request_updated', {
+              ...broadcastPayload,
+              distance_km: Number(row.distance_km || 0),
+            });
+            return createUserNotification({
+              userId: workerUserId,
               eventType: 'request_available',
               title: 'New request nearby',
               message: `A new service request is available ${Number(row.distance_km || 0).toFixed(1)} km away.`,
@@ -2140,8 +2158,8 @@ export const createServiceRequest = async (req: AuthRequest, res: Response): Pro
                 selection_mode: selectionMode,
                 scheduled_start_time: schedule.scheduledStartTime,
               },
-            })
-          )
+            });
+          })
         );
       }
     }
@@ -2291,7 +2309,6 @@ export const getMyServiceRequests = async (req: AuthRequest, res: Response): Pro
          srp.worker_payout AS payment_worker_payout,
          srp.commission_rate AS payment_commission_rate,
          srp.commission_snapshot_json AS payment_commission_snapshot_json,
-         srp.promo_code AS payment_promo_code,
          srp.payment_status,
          srp.paid_at,
          srp.released_at,
@@ -2304,6 +2321,12 @@ export const getMyServiceRequests = async (req: AuthRequest, res: Response): Pro
          MAX(CASE WHEN sra.action = 'finish_work' AND sra.actor_role = 'worker' THEN sra.approved_at END) AS finish_worker_approved_at,
          MAX(CASE WHEN sra.action = 'complete_service' AND sra.actor_role = 'client' THEN sra.approved_at END) AS complete_client_approved_at,
          MAX(CASE WHEN sra.action = 'complete_service' AND sra.actor_role = 'worker' THEN sra.approved_at END) AS complete_worker_approved_at,
+         srr.id_rating AS rating_id,
+         srr.punctuality AS rating_punctuality,
+         srr.quality AS rating_quality,
+         srr.price_fairness AS rating_price_fairness,
+         srr.comment AS rating_comment,
+         srr.created_at AS rating_created_at,
          GROUP_CONCAT(DISTINCT sri.image_url ORDER BY sri.id_image ASC SEPARATOR '||') AS image_urls
        FROM service_requests sr
        INNER JOIN services s ON s.id_service = sr.id_service
@@ -2333,6 +2356,7 @@ export const getMyServiceRequests = async (req: AuthRequest, res: Response): Pro
         ON srw_assigned.id_request = sr.id_request
        AND srw_assigned.id_worker_profile = sr.assigned_worker_profile
        LEFT JOIN service_request_workflow_approvals sra ON sra.id_request = sr.id_request
+       LEFT JOIN service_request_ratings srr ON srr.id_request = sr.id_request
        LEFT JOIN service_request_images sri ON sri.id_request = sr.id_request
        WHERE ${whereParts.join(' AND ')}
        GROUP BY
@@ -2342,7 +2366,8 @@ export const getMyServiceRequests = async (req: AuthRequest, res: Response): Pro
          sr.booking_type, sr.selection_mode, sr.scheduled_date, sr.scheduled_time, sr.scheduled_start_time, sr.scheduled_end_time,
          sr.workflow_version, sr.client_approved_at, sr.route_started_at, sr.worker_arrived_at,
          sr.work_started_at, sr.work_finished_at, sr.completed_at,
-        srp.provider, srp.checkout_reference, srp.currency_code, srp.amount, srp.platform_fee, srp.worker_payout, srp.commission_rate, srp.commission_snapshot_json, srp.promo_code, srp.payment_status, srp.paid_at, srp.released_at,
+        srp.provider, srp.checkout_reference, srp.currency_code, srp.amount, srp.platform_fee, srp.worker_payout, srp.commission_rate, srp.commission_snapshot_json, srp.payment_status, srp.paid_at, srp.released_at,
+         srr.id_rating, srr.punctuality, srr.quality, srr.price_fairness, srr.comment, srr.created_at,
          srw_assigned.proposed_budget, srw_assigned.counter_message, srw_assigned.counter_status
        ORDER BY sr.created_at DESC
        LIMIT 100`,
@@ -2438,7 +2463,6 @@ export const getMyServiceRequests = async (req: AuthRequest, res: Response): Pro
               worker_payout: row.payment_worker_payout != null ? Number(row.payment_worker_payout) : null,
               commission_rate: row.payment_commission_rate != null ? Number(row.payment_commission_rate) : null,
               commission_snapshot: parseCommissionSnapshot(row.payment_commission_snapshot_json),
-              promo_code: row.payment_promo_code ? normalizePromoCode(row.payment_promo_code) : null,
               status: row.payment_status || 'pending',
               paid_at: row.paid_at || null,
               released_at: row.released_at || null,
@@ -2454,6 +2478,18 @@ export const getMyServiceRequests = async (req: AuthRequest, res: Response): Pro
                 url: buildProtectedAssetUrl(req, name),
               }))
           : [],
+      has_rating: row.rating_id != null,
+      rating:
+        row.rating_id != null
+          ? {
+              id_rating: Number(row.rating_id),
+              punctuality: Number(row.rating_punctuality),
+              quality: Number(row.rating_quality),
+              price_fairness: Number(row.rating_price_fairness),
+              comment: row.rating_comment || null,
+              created_at: row.rating_created_at || null,
+            }
+          : null,
     }));
 
     res.json({ success: true, requests });
@@ -3251,8 +3287,6 @@ export const createRequestPaymentCheckout = async (req: AuthRequest, res: Respon
 
     await connection.beginTransaction();
 
-    const requestPromoCode = normalizePromoCode(req.body?.promo_code);
-
     const [rows] = await connection.execute<RowDataPacket[]>(
       `SELECT
          sr.id_request,
@@ -3292,19 +3326,45 @@ export const createRequestPaymentCheckout = async (req: AuthRequest, res: Respon
       return;
     }
 
+    const [existingPaymentRows] = await connection.execute<RowDataPacket[]>(
+      `SELECT id_payment, provider, payment_status, checkout_reference
+         FROM service_request_payments
+        WHERE id_request = ?
+        LIMIT 1
+        FOR UPDATE`,
+      [idRequest]
+    );
+    const existingPaymentRow = existingPaymentRows[0] || null;
+    if (existingPaymentRow) {
+      const existingProvider = String(existingPaymentRow.provider || '').toLowerCase();
+      const existingStatus = String(existingPaymentRow.payment_status || '').toLowerCase();
+
+      if (existingStatus === 'paid') {
+        await connection.rollback();
+        res.status(409).json({
+          error: 'This request already has a completed payment. It cannot be paid again.',
+          payment_method: existingProvider || null,
+        });
+        return;
+      }
+
+      if (existingProvider && existingProvider !== paymentMethod && existingProvider !== 'sandbox') {
+        await connection.rollback();
+        res.status(409).json({
+          error: `Checkout already started with ${existingProvider}. Cancel or finish it before switching methods.`,
+          existing_payment_method: existingProvider,
+        });
+        return;
+      }
+    }
+
     const commission = await calculateCommissionBreakdown({
       amount: getRequestChargeAmount(requestRow),
       idService: requestRow.id_service != null ? Number(requestRow.id_service) : null,
       urgencyLevel: normalizeUrgencyLevel(requestRow.urgency_level),
       workerTier: resolveRequestWorkerTier(requestRow),
-      promoCode: requestPromoCode || null,
       executor: connection,
     });
-    if (requestPromoCode && !commission.snapshot.applied_rules.some((rule) => rule.rule_type === 'promo')) {
-      await connection.rollback();
-      res.status(400).json({ error: 'Promo code is invalid or inactive.' });
-      return;
-    }
     const { amount, platformFee, workerPayout } = commission;
     const commissionSnapshotJson = JSON.stringify(commission.snapshot);
     const checkoutReference = buildCheckoutReference(idRequest);
@@ -3336,10 +3396,12 @@ export const createRequestPaymentCheckout = async (req: AuthRequest, res: Respon
       }
     }
 
+    const initialPaymentStatus = paymentMethod === 'cash' ? 'paid' : 'pending';
+
     await connection.execute(
       `INSERT INTO service_request_payments
-       (id_request, provider, checkout_reference, provider_payment_id, provider_capture_id, currency_code, amount, platform_fee, worker_payout, commission_rate, commission_snapshot_json, promo_code, payment_status)
-       VALUES (?, ?, ?, ?, NULL, 'USD', ?, ?, ?, ?, ?, ?, 'pending')
+       (id_request, provider, checkout_reference, provider_payment_id, provider_capture_id, currency_code, amount, platform_fee, worker_payout, commission_rate, commission_snapshot_json, payment_status, paid_at)
+       VALUES (?, ?, ?, ?, NULL, 'USD', ?, ?, ?, ?, ?, ?, ${paymentMethod === 'cash' ? 'CURRENT_TIMESTAMP' : 'NULL'})
        ON DUPLICATE KEY UPDATE
          provider = VALUES(provider),
          checkout_reference = VALUES(checkout_reference),
@@ -3351,16 +3413,225 @@ export const createRequestPaymentCheckout = async (req: AuthRequest, res: Respon
          worker_payout = VALUES(worker_payout),
          commission_rate = VALUES(commission_rate),
          commission_snapshot_json = VALUES(commission_snapshot_json),
-         promo_code = VALUES(promo_code),
-         payment_status = CASE WHEN payment_status = 'paid' THEN payment_status ELSE 'pending' END,
+         payment_status = CASE
+           WHEN payment_status = 'paid' THEN payment_status
+           WHEN VALUES(provider) = 'cash' THEN 'paid'
+           ELSE 'pending'
+         END,
+         paid_at = CASE
+           WHEN payment_status = 'paid' THEN paid_at
+           WHEN VALUES(provider) = 'cash' THEN CURRENT_TIMESTAMP
+           ELSE paid_at
+         END,
          updated_at = CURRENT_TIMESTAMP`,
-      [idRequest, paymentMethod, checkoutReference, paypalOrderId, amount, platformFee, workerPayout, commission.commissionRate, commissionSnapshotJson, requestPromoCode || null]
+      [idRequest, paymentMethod, checkoutReference, paypalOrderId, amount, platformFee, workerPayout, commission.commissionRate, commissionSnapshotJson, initialPaymentStatus]
     );
 
+    let cashInvoiceContext: {
+      paymentId: number;
+      workerUserId: number | null;
+      workerName: string;
+      workerEmail: string;
+      customerName: string;
+      clientEmail: string;
+      serviceName: string;
+      invoiceNumber: string;
+      locationText: string | null;
+      urgencyLevel: string;
+      commissionRatePercent: number;
+      policyLabel: string | null;
+      commissionSnapshot: any;
+    } | null = null;
+
+    if (paymentMethod === 'cash') {
+      await connection.execute(
+        `UPDATE service_requests
+         SET status = 'paid',
+             final_budget = COALESCE(final_budget, budget),
+             updated_at = CURRENT_TIMESTAMP
+         WHERE id_request = ?`,
+        [idRequest]
+      );
+
+      const [cashPaymentRows] = await connection.execute<RowDataPacket[]>(
+        `SELECT id_payment FROM service_request_payments WHERE id_request = ? LIMIT 1`,
+        [idRequest]
+      );
+      const cashPaymentId = cashPaymentRows[0]?.id_payment != null ? Number(cashPaymentRows[0].id_payment) : null;
+
+      if (cashPaymentId) {
+        await recordCashCollectedLedger(connection, {
+          idRequest,
+          idPayment: cashPaymentId,
+          idWorkerProfile: requestRow.assigned_worker_profile != null ? Number(requestRow.assigned_worker_profile) : null,
+          amount,
+          platformFee,
+          currencyCode: 'USD',
+          checkoutReference,
+          commissionSnapshot: commission.snapshot,
+        });
+
+        const [ctxRows] = await connection.execute<RowDataPacket[]>(
+          `SELECT
+             s.name AS service_name,
+             sr.location_text,
+             sr.urgency_level,
+             cu.name AS client_name,
+             cu.lastname AS client_lastname,
+             cu.email AS client_email,
+             wu.id_user AS worker_user_id,
+             wu.name AS worker_name,
+             wu.lastname AS worker_lastname,
+             wu.email AS worker_email
+           FROM service_requests sr
+           INNER JOIN services s ON s.id_service = sr.id_service
+           INNER JOIN users cu ON cu.id_user = sr.id_user
+           LEFT JOIN worker_profiles wp ON wp.id_worker_profile = sr.assigned_worker_profile
+           LEFT JOIN users wu ON wu.id_user = wp.id_user
+           WHERE sr.id_request = ?
+           LIMIT 1`,
+          [idRequest]
+        );
+        const ctxRow = ctxRows[0] || {};
+
+        cashInvoiceContext = {
+          paymentId: cashPaymentId,
+          workerUserId: ctxRow.worker_user_id != null ? Number(ctxRow.worker_user_id) : null,
+          workerName: [sanitizePaymentValue(ctxRow.worker_name, 80), sanitizePaymentValue(ctxRow.worker_lastname, 80)].filter(Boolean).join(' ').trim() || 'Pro worker',
+          workerEmail: sanitizePaymentValue(ctxRow.worker_email, 140),
+          customerName: [sanitizePaymentValue(ctxRow.client_name, 80), sanitizePaymentValue(ctxRow.client_lastname, 80)].filter(Boolean).join(' ').trim() || payerFullName || 'Fixlife customer',
+          clientEmail: sanitizePaymentValue(ctxRow.client_email, 140) || payerEmail,
+          serviceName: sanitizePaymentValue(ctxRow.service_name, 150) || 'Fixlife service',
+          invoiceNumber: buildInvoiceNumber(idRequest),
+          locationText: sanitizePaymentValue(ctxRow.location_text, 180) || null,
+          urgencyLevel: sanitizePaymentValue(ctxRow.urgency_level, 40) || 'standard',
+          commissionRatePercent: Number((commission.commissionRate * 100).toFixed(2)),
+          policyLabel: commission.snapshot?.policy_label || null,
+          commissionSnapshot: commission.snapshot,
+        };
+      }
+    }
+
     await connection.commit();
+
+    if (paymentMethod === 'cash' && cashInvoiceContext) {
+      const ctx = cashInvoiceContext;
+      const paidAt = new Date();
+      const safe = async <T,>(label: string, fn: () => Promise<T>) => {
+        try {
+          return await fn();
+        } catch (postCommitError: any) {
+          await recordSystemEvent({
+            level: 'warning',
+            component: 'services',
+            eventType: 'cash_post_commit_side_effect_failed',
+            message: `Cash post-commit side effect failed: ${label}`,
+            metadata: {
+              requestId: idRequest,
+              step: label,
+              error: String(postCommitError?.message || postCommitError || 'unknown'),
+            },
+          }).catch(() => undefined);
+          return null;
+        }
+      };
+
+      await safe('client_notification', () => createUserNotification({
+        userId,
+        eventType: 'payment_secured',
+        title: 'Cash payment reserved',
+        message: `Cash payment reserved for request #${idRequest}. Pay the professional directly when the job is done.`,
+        tone: 'success',
+        requestId: idRequest,
+        actionUrl: '/app',
+        dedupeKey: `request-${idRequest}-payment-secured-client`,
+        metadata: { request_status: 'paid', provider: 'cash' },
+      }));
+
+      if (ctx.workerUserId) {
+        await safe('worker_notification', () => createUserNotification({
+          userId: ctx.workerUserId!,
+          eventType: 'payment_secured',
+          title: 'Client picked cash payment',
+          message: `The client will pay in cash for request #${idRequest}. Collect the full amount on site; the platform commission will be netted from your next payout.`,
+          tone: 'success',
+          requestId: idRequest,
+          actionUrl: '/pro-dashboard',
+          dedupeKey: `request-${idRequest}-payment-secured-worker`,
+          metadata: { request_status: 'paid', provider: 'cash' },
+        }));
+      }
+
+      await safe('admin_notification', () => notifyAdmins({
+        eventType: 'admin_payment_secured',
+        title: 'Cash payment reserved',
+        message: `${amount.toLocaleString('en-US', { style: 'currency', currency: 'USD' })} reserved as cash for request #${idRequest}.`,
+        tone: 'success',
+        actionUrl: `/admin-dashboard/requests?request=${idRequest}`,
+        dedupeKey: `admin-payment-secured-${idRequest}`,
+        metadata: { requestId: idRequest, amount, currency: 'USD', provider: 'cash' },
+      }));
+
+      if (ctx.clientEmail) {
+        await safe('client_invoice_email', () => enqueueBackgroundJob({
+          jobType: 'send_payment_invoice_email',
+          jobKey: `invoice-email-${idRequest}-${checkoutReference}`,
+          payload: {
+            to: ctx.clientEmail,
+            customerName: ctx.customerName,
+            requestId: idRequest,
+            serviceName: ctx.serviceName,
+            amount,
+            platformFee,
+            workerPayout,
+            checkoutReference,
+            invoiceNumber: ctx.invoiceNumber,
+            provider: 'cash',
+            currencyCode: 'USD',
+            locationText: ctx.locationText,
+            urgencyLevel: ctx.urgencyLevel,
+            commissionRatePercent: ctx.commissionRatePercent,
+            policyLabel: ctx.policyLabel,
+            paidAt,
+          },
+        }));
+      }
+
+      if (ctx.workerEmail) {
+        await safe('worker_secured_email', () => enqueueBackgroundJob({
+          jobType: 'send_worker_payment_secured_email',
+          jobKey: `worker-secured-email-${idRequest}-${checkoutReference}`,
+          payload: {
+            to: ctx.workerEmail,
+            workerName: ctx.workerName,
+            requestId: idRequest,
+            serviceName: ctx.serviceName,
+            amount: workerPayout,
+            checkoutReference,
+          },
+        }));
+      }
+
+      await recordSystemEvent({
+        level: 'info',
+        component: 'services',
+        eventType: 'cash_payment_reserved',
+        message: 'Cash payment reserved by client at checkout.',
+        metadata: {
+          requestId: idRequest,
+          userId,
+          amount,
+          checkoutReference,
+          invoiceNumber: ctx.invoiceNumber,
+          clientEmail: ctx.clientEmail || null,
+          workerEmail: ctx.workerEmail || null,
+        },
+      }).catch(() => undefined);
+    }
+
     res.json({
       success: true,
-      message: 'Checkout session created.',
+      message: paymentMethod === 'cash' ? 'Cash payment reserved.' : 'Checkout session created.',
       checkout: {
         id_request: idRequest,
         provider: paymentMethod,
@@ -3372,7 +3643,9 @@ export const createRequestPaymentCheckout = async (req: AuthRequest, res: Respon
         worker_payout: workerPayout,
         commission_rate: commission.commissionRate,
         commission_snapshot: commission.snapshot,
-        promo_code: requestPromoCode || null,
+        payment_status: paymentMethod === 'cash' ? 'paid' : 'pending',
+        request_status: paymentMethod === 'cash' ? 'paid' : 'payment_pending',
+        invoice_number: paymentMethod === 'cash' ? buildInvoiceNumber(idRequest) : undefined,
       },
     });
   } catch (error: any) {
@@ -3461,7 +3734,7 @@ export const confirmRequestPayment = async (req: AuthRequest, res: Response): Pr
     }
 
     const [paymentRows] = await connection.execute<RowDataPacket[]>(
-      `SELECT id_payment, provider, payment_status, amount, platform_fee, worker_payout, commission_rate, commission_snapshot_json, promo_code, checkout_reference, provider_payment_id, provider_capture_id, currency_code
+      `SELECT id_payment, provider, payment_status, amount, platform_fee, worker_payout, commission_rate, commission_snapshot_json, checkout_reference, provider_payment_id, provider_capture_id, currency_code
        FROM service_request_payments
        WHERE id_request = ?
        LIMIT 1
@@ -3469,19 +3742,23 @@ export const confirmRequestPayment = async (req: AuthRequest, res: Response): Pr
       [idRequest]
     );
 
-    const requestPromoCode = normalizePromoCode(req.body?.promo_code);
     const commission = await calculateCommissionBreakdown({
       amount: getRequestChargeAmount(requestRow),
       idService: requestRow.id_service != null ? Number(requestRow.id_service) : null,
       urgencyLevel: normalizeUrgencyLevel(requestRow.urgency_level),
       workerTier: resolveRequestWorkerTier(requestRow),
-      promoCode: requestPromoCode || null,
       executor: connection,
     });
     const { amount, platformFee, workerPayout } = commission;
     const storedPaymentRow = paymentRows.length > 0 ? paymentRows[0] : null;
     const storedPaymentMethod = storedPaymentRow ? parseRequestedPaymentMethod(storedPaymentRow.provider) : null;
     const paymentMethod: SupportedPaymentMethod = requestedPaymentMethod || storedPaymentMethod || 'paypal';
+
+    if (paymentMethod === 'cash' || storedPaymentMethod === 'cash') {
+      await connection.rollback();
+      res.status(409).json({ error: 'Cash payments are confirmed by the assigned worker, not the client.' });
+      return;
+    }
 
     if (storedPaymentMethod && requestedPaymentMethod && storedPaymentMethod !== requestedPaymentMethod) {
       await connection.rollback();
@@ -3509,19 +3786,6 @@ export const confirmRequestPayment = async (req: AuthRequest, res: Response): Pr
     const expectedWorkerPayout = storedPaymentRow?.worker_payout != null ? Number(storedPaymentRow.worker_payout) : workerPayout;
     const expectedCommissionRate =
       storedPaymentRow?.commission_rate != null ? Number(storedPaymentRow.commission_rate) : commission.commissionRate;
-    const expectedPromoCode = storedPaymentRow?.promo_code
-      ? normalizePromoCode(storedPaymentRow.promo_code)
-      : requestPromoCode || null;
-    if (requestPromoCode && requestPromoCode !== expectedPromoCode) {
-      await connection.rollback();
-      res.status(409).json({ error: 'Promo code mismatch for this checkout session.' });
-      return;
-    }
-    if (requestPromoCode && !commission.snapshot.applied_rules.some((rule) => rule.rule_type === 'promo') && !storedPaymentRow?.promo_code) {
-      await connection.rollback();
-      res.status(400).json({ error: 'Promo code is invalid or inactive.' });
-      return;
-    }
     const expectedCommissionSnapshot =
       typeof storedPaymentRow?.commission_snapshot_json === 'string' && storedPaymentRow.commission_snapshot_json
         ? storedPaymentRow.commission_snapshot_json
@@ -3544,7 +3808,6 @@ export const confirmRequestPayment = async (req: AuthRequest, res: Response): Pr
           commission_rate:
             paymentRows[0].commission_rate != null ? Number(paymentRows[0].commission_rate) : expectedCommissionRate,
           commission_snapshot: parseCommissionSnapshot(paymentRows[0].commission_snapshot_json) || commission.snapshot,
-          promo_code: paymentRows[0].promo_code ? normalizePromoCode(paymentRows[0].promo_code) : expectedPromoCode,
           status: 'paid',
           checkout_reference: String(paymentRows[0].checkout_reference || checkoutReferenceForPayment),
           currency_code: String(paymentRows[0].currency_code || expectedCurrencyCode),
@@ -3579,9 +3842,9 @@ export const confirmRequestPayment = async (req: AuthRequest, res: Response): Pr
     if (paymentRows.length === 0) {
       await connection.execute(
         `INSERT INTO service_request_payments
-         (id_request, provider, checkout_reference, provider_payment_id, provider_capture_id, currency_code, amount, platform_fee, worker_payout, commission_rate, commission_snapshot_json, promo_code, payment_status, paid_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'paid', CURRENT_TIMESTAMP)`,
-        [idRequest, paymentMethod, checkoutReferenceForPayment, paypalOrderId || null, providerCaptureId, expectedCurrencyCode, expectedAmount, expectedPlatformFee, expectedWorkerPayout, expectedCommissionRate, expectedCommissionSnapshot, expectedPromoCode]
+         (id_request, provider, checkout_reference, provider_payment_id, provider_capture_id, currency_code, amount, platform_fee, worker_payout, commission_rate, commission_snapshot_json, payment_status, paid_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'paid', CURRENT_TIMESTAMP)`,
+        [idRequest, paymentMethod, checkoutReferenceForPayment, paypalOrderId || null, providerCaptureId, expectedCurrencyCode, expectedAmount, expectedPlatformFee, expectedWorkerPayout, expectedCommissionRate, expectedCommissionSnapshot]
       );
     } else {
       if (String(paymentRows[0].payment_status || '').toLowerCase() === 'paid') {
@@ -3601,12 +3864,11 @@ export const confirmRequestPayment = async (req: AuthRequest, res: Response): Pr
              worker_payout = ?,
              commission_rate = ?,
              commission_snapshot_json = ?,
-             promo_code = ?,
              payment_status = 'paid',
              paid_at = CURRENT_TIMESTAMP,
              updated_at = CURRENT_TIMESTAMP
          WHERE id_request = ?`,
-        [paymentMethod, paypalOrderId || null, providerCaptureId, expectedCurrencyCode, expectedAmount, expectedPlatformFee, expectedWorkerPayout, expectedCommissionRate, expectedCommissionSnapshot, expectedPromoCode, idRequest]
+        [paymentMethod, paypalOrderId || null, providerCaptureId, expectedCurrencyCode, expectedAmount, expectedPlatformFee, expectedWorkerPayout, expectedCommissionRate, expectedCommissionSnapshot, idRequest]
       );
     }
 
@@ -3637,7 +3899,6 @@ export const confirmRequestPayment = async (req: AuthRequest, res: Response): Pr
         workerPayout: expectedWorkerPayout,
         currencyCode: expectedCurrencyCode,
         checkoutReference: checkoutReferenceForPayment,
-        promoCode: expectedPromoCode,
         commissionSnapshot: resolvedCommissionSnapshot,
       });
     }
@@ -3716,7 +3977,6 @@ export const confirmRequestPayment = async (req: AuthRequest, res: Response): Pr
           urgencyLevel: sanitizePaymentValue(requestRow.urgency_level, 40) || 'standard',
           commissionRatePercent: Number((expectedCommissionRate * 100).toFixed(2)),
           policyLabel: resolvedCommissionSnapshot?.policy_label || null,
-          promoCode: expectedPromoCode || null,
           paidAt,
         },
       });
@@ -3756,7 +4016,6 @@ export const confirmRequestPayment = async (req: AuthRequest, res: Response): Pr
         worker_payout: expectedWorkerPayout,
         commission_rate: expectedCommissionRate,
         commission_snapshot: resolvedCommissionSnapshot,
-        promo_code: expectedPromoCode,
         status: 'paid',
         checkout_reference: checkoutReference,
         currency_code: expectedCurrencyCode,
@@ -3767,6 +4026,270 @@ export const confirmRequestPayment = async (req: AuthRequest, res: Response): Pr
   } catch (error: any) {
     await connection.rollback();
     console.error('Error in confirmRequestPayment:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  } finally {
+    connection.release();
+  }
+};
+
+// Cash jobs are never confirmed by the client — the assigned worker marks that
+// they collected the cash directly from the client, since the platform never
+// touches that money. Modeled on confirmRequestPayment but worker-authenticated
+// and skipping the PayPal capture path entirely.
+export const confirmCashPayment = async (req: AuthRequest, res: Response): Promise<void> => {
+  const connection = await pool.getConnection();
+  try {
+    const userId = req.user?.user_id;
+    if (!userId) {
+      res.status(401).json({ error: 'Unauthorized' });
+      return;
+    }
+
+    await ensureServiceRequestTables();
+
+    const idRequest = Number(req.params.idRequest);
+    if (!idRequest) {
+      res.status(400).json({ error: 'Invalid request id.' });
+      return;
+    }
+
+    await connection.beginTransaction();
+
+    const [requestRows] = await connection.execute<RowDataPacket[]>(
+      `SELECT
+         sr.id_request,
+         sr.id_user,
+         sr.id_service,
+         sr.urgency_level,
+         sr.status,
+         sr.budget,
+         sr.final_budget,
+         sr.location_text,
+         sr.assigned_worker_profile,
+         s.name AS service_name,
+         cu.name AS client_name,
+         cu.lastname AS client_lastname,
+         cu.email AS client_email,
+         wp.membership_tier AS worker_membership_tier,
+         wp.is_verified AS worker_is_verified,
+         wp.id_user AS worker_user_id,
+         wu.name AS worker_name,
+         wu.lastname AS worker_lastname,
+         wu.email AS worker_email
+       FROM service_requests sr
+       INNER JOIN services s ON s.id_service = sr.id_service
+       INNER JOIN users cu ON cu.id_user = sr.id_user
+       LEFT JOIN worker_profiles wp ON wp.id_worker_profile = sr.assigned_worker_profile
+       LEFT JOIN users wu ON wu.id_user = wp.id_user
+       WHERE sr.id_request = ?
+       LIMIT 1
+       FOR UPDATE`,
+      [idRequest]
+    );
+
+    if (requestRows.length === 0) {
+      await connection.rollback();
+      res.status(404).json({ error: 'Request not found.' });
+      return;
+    }
+
+    const requestRow = requestRows[0];
+    if (Number(requestRow.worker_user_id || 0) !== Number(userId)) {
+      await connection.rollback();
+      res.status(403).json({ error: 'Only the assigned worker can confirm a cash payment.' });
+      return;
+    }
+
+    const currentStatus = String(requestRow.status || '').toLowerCase();
+    if (currentStatus !== 'payment_pending') {
+      await connection.rollback();
+      res.status(409).json({ error: 'This request is not waiting for payment.' });
+      return;
+    }
+
+    const [paymentRows] = await connection.execute<RowDataPacket[]>(
+      `SELECT id_payment, provider, payment_status, amount, platform_fee, worker_payout, commission_rate, commission_snapshot_json, checkout_reference, currency_code
+       FROM service_request_payments
+       WHERE id_request = ?
+       LIMIT 1
+       FOR UPDATE`,
+      [idRequest]
+    );
+
+    if (paymentRows.length === 0 || String(paymentRows[0].provider || '').toLowerCase() !== 'cash') {
+      await connection.rollback();
+      res.status(409).json({ error: 'This request was not set up for cash payment.' });
+      return;
+    }
+
+    const storedPaymentRow = paymentRows[0];
+    if (String(storedPaymentRow.payment_status || '').toLowerCase() === 'paid') {
+      await connection.rollback();
+      res.json({
+        success: true,
+        message: 'Cash payment already confirmed.',
+        id_request: idRequest,
+        payment: {
+          provider: 'cash',
+          amount: Number(storedPaymentRow.amount || 0),
+          platform_fee: Number(storedPaymentRow.platform_fee || 0),
+          worker_payout: Number(storedPaymentRow.worker_payout || 0),
+          status: 'paid',
+        },
+        request_status: 'paid',
+      });
+      return;
+    }
+
+    const commission = await calculateCommissionBreakdown({
+      amount: getRequestChargeAmount(requestRow),
+      idService: requestRow.id_service != null ? Number(requestRow.id_service) : null,
+      urgencyLevel: normalizeUrgencyLevel(requestRow.urgency_level),
+      workerTier: resolveRequestWorkerTier(requestRow),
+      executor: connection,
+    });
+
+    const expectedAmount = storedPaymentRow.amount != null ? Number(storedPaymentRow.amount) : commission.amount;
+    const expectedPlatformFee =
+      storedPaymentRow.platform_fee != null ? Number(storedPaymentRow.platform_fee) : commission.platformFee;
+    const expectedWorkerPayout =
+      storedPaymentRow.worker_payout != null ? Number(storedPaymentRow.worker_payout) : commission.workerPayout;
+    const expectedCommissionRate =
+      storedPaymentRow.commission_rate != null ? Number(storedPaymentRow.commission_rate) : commission.commissionRate;
+    const expectedCommissionSnapshot =
+      typeof storedPaymentRow.commission_snapshot_json === 'string' && storedPaymentRow.commission_snapshot_json
+        ? storedPaymentRow.commission_snapshot_json
+        : JSON.stringify(commission.snapshot);
+    const resolvedCommissionSnapshot = parseCommissionSnapshot(expectedCommissionSnapshot) || commission.snapshot;
+    const expectedCurrencyCode = storedPaymentRow.currency_code ? String(storedPaymentRow.currency_code).toUpperCase() : 'USD';
+    const checkoutReference = String(storedPaymentRow.checkout_reference || buildCheckoutReference(idRequest));
+
+    await connection.execute(
+      `UPDATE service_request_payments
+       SET payment_status = 'paid',
+           paid_at = CURRENT_TIMESTAMP,
+           updated_at = CURRENT_TIMESTAMP
+       WHERE id_request = ?`,
+      [idRequest]
+    );
+
+    await connection.execute(
+      `UPDATE service_requests
+       SET status = 'paid',
+           final_budget = COALESCE(final_budget, budget),
+           updated_at = CURRENT_TIMESTAMP
+       WHERE id_request = ?`,
+      [idRequest]
+    );
+
+    await recordCashCollectedLedger(connection, {
+      idRequest,
+      idPayment: Number(storedPaymentRow.id_payment),
+      idWorkerProfile: requestRow.assigned_worker_profile != null ? Number(requestRow.assigned_worker_profile) : null,
+      amount: expectedAmount,
+      platformFee: expectedPlatformFee,
+      currencyCode: expectedCurrencyCode,
+      checkoutReference,
+      commissionSnapshot: resolvedCommissionSnapshot,
+    });
+
+    await connection.commit();
+
+    await createUserNotification({
+      userId: Number(requestRow.id_user),
+      eventType: 'payment_secured',
+      title: 'Cash payment confirmed',
+      message: `The professional confirmed they collected the cash payment for request #${idRequest}. Final service approval is now available.`,
+      tone: 'success',
+      requestId: idRequest,
+      actionUrl: '/app',
+      dedupeKey: `request-${idRequest}-payment-secured-client`,
+      metadata: { request_status: 'paid', provider: 'cash' },
+    });
+
+    await createUserNotification({
+      userId: Number(userId),
+      eventType: 'payment_secured',
+      title: 'Cash payment confirmed',
+      message: `You confirmed collecting the cash payment for request #${idRequest}. The platform commission will be deducted from your next scheduled payout.`,
+      tone: 'success',
+      requestId: idRequest,
+      actionUrl: '/pro-dashboard',
+      dedupeKey: `request-${idRequest}-payment-secured-worker`,
+      metadata: { request_status: 'paid', provider: 'cash' },
+    });
+
+    await notifyAdmins({
+      eventType: 'admin_payment_secured',
+      title: 'Cash payment confirmed',
+      message: `${expectedAmount.toLocaleString('en-US', { style: 'currency', currency: expectedCurrencyCode })} was collected in cash for request #${idRequest}.`,
+      tone: 'success',
+      actionUrl: `/admin-dashboard/requests?request=${idRequest}`,
+      dedupeKey: `admin-payment-secured-${idRequest}`,
+      metadata: { requestId: idRequest, amount: expectedAmount, currency: expectedCurrencyCode, provider: 'cash' },
+    });
+
+    const invoiceNumber = buildInvoiceNumber(idRequest);
+    const serviceName = sanitizePaymentValue(requestRow.service_name, 150) || 'Fixlife service';
+    const clientFirstName = sanitizePaymentValue(requestRow.client_name, 80);
+    const clientLastName = sanitizePaymentValue(requestRow.client_lastname, 80);
+    const clientEmail = sanitizePaymentValue(requestRow.client_email, 140);
+    const customerName = [clientFirstName, clientLastName].filter(Boolean).join(' ').trim() || 'Fixlife customer';
+
+    if (clientEmail) {
+      await enqueueBackgroundJob({
+        jobType: 'send_payment_invoice_email',
+        jobKey: `invoice-email-${idRequest}-${checkoutReference}`,
+        payload: {
+          to: clientEmail,
+          customerName,
+          requestId: idRequest,
+          serviceName,
+          amount: expectedAmount,
+          platformFee: expectedPlatformFee,
+          workerPayout: expectedWorkerPayout,
+          checkoutReference,
+          invoiceNumber,
+          provider: 'cash',
+          currencyCode: expectedCurrencyCode,
+          locationText: sanitizePaymentValue(requestRow.location_text, 180) || null,
+          urgencyLevel: sanitizePaymentValue(requestRow.urgency_level, 40) || 'standard',
+          commissionRatePercent: Number((expectedCommissionRate * 100).toFixed(2)),
+          policyLabel: resolvedCommissionSnapshot?.policy_label || null,
+          paidAt: new Date(),
+        },
+      });
+    }
+
+    await recordSystemEvent({
+      level: 'info',
+      component: 'services',
+      eventType: 'cash_payment_confirmed',
+      message: 'Service request cash payment confirmed by worker.',
+      metadata: { requestId: idRequest, userId, amount: expectedAmount },
+    }).catch(() => undefined);
+
+    res.json({
+      success: true,
+      message: 'Cash payment confirmed. Final service approval is now available.',
+      id_request: idRequest,
+      payment: {
+        provider: 'cash',
+        amount: expectedAmount,
+        platform_fee: expectedPlatformFee,
+        worker_payout: expectedWorkerPayout,
+        commission_rate: expectedCommissionRate,
+        commission_snapshot: resolvedCommissionSnapshot,
+        status: 'paid',
+        checkout_reference: checkoutReference,
+        currency_code: expectedCurrencyCode,
+        invoice_number: invoiceNumber,
+      },
+      request_status: 'paid',
+    });
+  } catch (error: any) {
+    await connection.rollback();
+    console.error('Error in confirmCashPayment:', error);
     res.status(500).json({ error: 'Internal server error' });
   } finally {
     connection.release();
@@ -3821,6 +4344,32 @@ export const handlePaypalWebhook = async (req: Request, res: Response): Promise<
         error: String(error?.message || 'Unknown webhook error.').slice(0, 600),
       },
     }).catch(() => undefined);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
+// Virtual Wallet's webhook payload/signature scheme is undocumented (Fase 0
+// of the integration plan). This handler only logs the raw request so a real
+// payload can be captured and inspected before writing parsing/verification
+// logic — it does not touch service_requests/service_request_payments yet.
+export const handleVirtualWalletWebhook = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const idEventLog = await storeRawVirtualWalletWebhookEvent({
+      headers: req.headers as Record<string, string | string[] | undefined>,
+      payload: req.body,
+    });
+
+    await recordSystemEvent({
+      level: 'info',
+      component: 'virtual_wallet_webhook',
+      eventType: 'raw_event_logged',
+      message: 'Virtual Wallet webhook received and logged (unparsed).',
+      metadata: { id_event_log: idEventLog },
+    }).catch(() => undefined);
+
+    res.json({ success: true, logged: true });
+  } catch (error: any) {
+    console.error('Error in handleVirtualWalletWebhook:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 };
@@ -3890,7 +4439,7 @@ export const confirmServiceCompletion = async (req: AuthRequest, res: Response):
     } | null = null;
     if (requestRows[0].assigned_worker_profile != null) {
       const [paymentRows] = await connection.execute<RowDataPacket[]>(
-        `SELECT id_payment, amount, platform_fee, worker_payout, currency_code, payment_status, released_at
+        `SELECT id_payment, provider, amount, platform_fee, worker_payout, currency_code, payment_status, released_at
          FROM service_request_payments
          WHERE id_request = ?
          LIMIT 1`,
@@ -3898,15 +4447,21 @@ export const confirmServiceCompletion = async (req: AuthRequest, res: Response):
       );
       const paymentRow = paymentRows[0];
       if (paymentRow && String(paymentRow.payment_status || '').toLowerCase() === 'released') {
+        const isCash = String(paymentRow.provider || '').toLowerCase() === 'cash';
         const payout = await scheduleWorkerPayoutForReleasedRequest(connection, {
           idRequest,
           idPayment: Number(paymentRow.id_payment),
           idWorkerProfile: Number(requestRows[0].assigned_worker_profile),
           grossAmount: Number(paymentRow.amount || 0),
           platformFee: Number(paymentRow.platform_fee || 0),
-          netAmount: Number(paymentRow.worker_payout || 0),
+          netAmount: computeReleaseNetAmount({
+            provider: paymentRow.provider,
+            workerPayout: Number(paymentRow.worker_payout || 0),
+            platformFee: Number(paymentRow.platform_fee || 0),
+          }),
           currencyCode: String(paymentRow.currency_code || 'USD'),
           releasedAt: paymentRow.released_at ? new Date(paymentRow.released_at) : new Date(),
+          notes: isCash ? `Platform commission owed for cash job #${idRequest}.` : undefined,
         });
         scheduledWorkerPayout = payout
           ? {
@@ -4194,21 +4749,27 @@ export const approveServiceWorkflowAction = async (req: AuthRequest, res: Respon
         );
         if (request.assigned_worker_profile != null) {
           const [paymentRows] = await connection.execute<RowDataPacket[]>(
-            `SELECT id_payment, amount, platform_fee, worker_payout, currency_code, payment_status, released_at
+            `SELECT id_payment, provider, amount, platform_fee, worker_payout, currency_code, payment_status, released_at
              FROM service_request_payments WHERE id_request = ? LIMIT 1`,
             [idRequest]
           );
           const payment = paymentRows[0];
           if (payment && String(payment.payment_status) === 'released') {
+            const isCash = String(payment.provider || '').toLowerCase() === 'cash';
             await scheduleWorkerPayoutForReleasedRequest(connection, {
               idRequest,
               idPayment: Number(payment.id_payment),
               idWorkerProfile: Number(request.assigned_worker_profile),
               grossAmount: Number(payment.amount || 0),
               platformFee: Number(payment.platform_fee || 0),
-              netAmount: Number(payment.worker_payout || 0),
+              netAmount: computeReleaseNetAmount({
+                provider: payment.provider,
+                workerPayout: Number(payment.worker_payout || 0),
+                platformFee: Number(payment.platform_fee || 0),
+              }),
               currencyCode: String(payment.currency_code || 'USD'),
               releasedAt: payment.released_at ? new Date(payment.released_at) : new Date(),
+              notes: isCash ? `Platform commission owed for cash job #${idRequest}.` : undefined,
             });
           }
         }
@@ -4280,7 +4841,8 @@ export const submitRequestRating = async (req: AuthRequest, res: Response): Prom
     const punctuality = Number(req.body?.punctuality);
     const quality = Number(req.body?.quality);
     const priceFairness = Number(req.body?.price_fairness);
-    const comment = req.body?.comment != null ? String(req.body.comment).trim().slice(0, 255) : null;
+    const rawComment = req.body?.comment != null ? sanitizeMessage(req.body.comment, 255) : '';
+    const comment = rawComment.length > 0 ? rawComment : null;
 
     if (!idRequest) {
       res.status(400).json({ error: 'Invalid request id.' });
@@ -4314,16 +4876,19 @@ export const submitRequestRating = async (req: AuthRequest, res: Response): Prom
       return;
     }
 
+    const [existing] = await pool.execute<RowDataPacket[]>(
+      `SELECT id_rating FROM service_request_ratings WHERE id_request = ? LIMIT 1`,
+      [idRequest]
+    );
+    if (existing.length > 0) {
+      res.status(409).json({ error: 'You already reviewed this service.', already_rated: true });
+      return;
+    }
+
     await pool.execute(
       `INSERT INTO service_request_ratings
        (id_request, id_client_user, id_worker_profile, punctuality, quality, price_fairness, comment)
-       VALUES (?, ?, ?, ?, ?, ?, ?)
-       ON DUPLICATE KEY UPDATE
-         punctuality = VALUES(punctuality),
-         quality = VALUES(quality),
-         price_fairness = VALUES(price_fairness),
-         comment = VALUES(comment),
-         updated_at = CURRENT_TIMESTAMP`,
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
       [idRequest, userId, workerProfileId, punctuality, quality, priceFairness, comment]
     );
 

@@ -12,6 +12,7 @@ import { ensureFinanceOperationsTables } from '../services/financeOperations.ser
 import { ensureBackgroundJobsTable } from '../services/backgroundJobs.service';
 import { ensureSystemEventsTable } from '../services/systemEvents.service';
 import { ensurePaypalWebhookTables } from '../services/paypalWebhook.service';
+import { ensureVirtualWalletWebhookTables } from '../services/virtualWalletWebhook.service';
 import { ensureSupportTables } from '../services/support.service';
 import { markDatabaseSchemaReady } from '../services/schemaState.service';
 import { ensureNotificationsTable } from '../utils/notifications';
@@ -161,6 +162,20 @@ const MIGRATIONS: MigrationDefinition[] = [
     description: 'Dynamic public FAQ items managed from admin',
     run: async () => {
       await ensurePublicFaqItemsTable();
+    },
+  },
+  {
+    id: '20260708_001_cash_payment_ledger_entries',
+    description: 'Cash payment ledger entry types (cash_collected, worker_commission_owed)',
+    run: async () => {
+      await ensurePaymentLedgerTables();
+    },
+  },
+  {
+    id: '20260710_001_virtual_wallet_webhook_events',
+    description: 'Virtual Wallet webhook raw event logging table',
+    run: async () => {
+      await ensureVirtualWalletWebhookTables();
     },
   },
 ];

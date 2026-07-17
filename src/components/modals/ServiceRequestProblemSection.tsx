@@ -61,6 +61,7 @@ export function ServiceRequestProblemSection({
                     className="w-full h-32 bg-gray-100 border-none rounded-xl p-4 text-gray-900 focus:outline-none focus:ring-2 focus:ring-gray-300 transition-all resize-none placeholder-gray-400"
                     placeholder="Describe what needs fixing..."
                     value={description}
+                    maxLength={1000}
                     onChange={(e) => onDescriptionChange(e.target.value)}
                 />
             </motion.div>

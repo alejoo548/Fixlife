@@ -20,6 +20,7 @@ import { ServiceRequestFixesSuccessModal } from './ServiceRequestFixesSuccessMod
 import { ServiceReportModal } from '../shared/ServiceReportModal';
 import { showSweetAlert, showSweetToast } from '../../utils/sweetAlert';
 import { sanitizeLettersOnly, sanitizeMessageText, sanitizeStrictText } from '../../utils/textSanitize';
+import { useProfanityGuard } from '../../hooks/useProfanityGuard';
 import { useResponsiveSheet } from '../../hooks/useResponsiveSheet';
 import { useServiceRequestChat } from './hooks/useServiceRequestChat';
 import { useActiveTrackedRequest } from './hooks/useActiveTrackedRequest';
@@ -38,6 +39,7 @@ import {
     hasPendingWorkerApproval,
     canUseRequestChat,
     counterBadge,
+    isCashReservedRequest,
 } from './serviceRequestHelpers';
 import type {
     LocationSuggestion,
@@ -97,12 +99,12 @@ class TrackerErrorBoundary extends React.Component<
     render() {
         if (this.state.hasError) {
             return (
-                <div className="rounded-3xl border border-amber-200 bg-gradient-to-r from-amber-50 via-white to-sky-50 p-5 shadow-sm">
-                    <p className="text-[11px] font-black uppercase tracking-[0.18em] text-amber-700">Tracker paused</p>
-                    <p className="mt-2 text-sm font-semibold text-slate-900">
+                <div className="rounded-3xl border border-amber-200 dark:border-amber-900/50 bg-gradient-to-r from-amber-50 via-white to-sky-50 p-5 shadow-sm">
+                    <p className="text-[11px] font-black uppercase tracking-[0.18em] text-amber-700 dark:text-amber-400">Tracker paused</p>
+                    <p className="mt-2 text-sm font-semibold text-slate-900 dark:text-slate-100">
                         The live route hit a temporary issue and was reset safely.
                     </p>
-                    <p className="mt-1 text-sm text-slate-500">
+                    <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
                         Refresh the page or reopen the request to continue tracking.
                     </p>
                 </div>
@@ -114,10 +116,10 @@ class TrackerErrorBoundary extends React.Component<
 }
 
 const InlineTrackerFallback: React.FC = () => (
-    <div className="rounded-[28px] border border-bird-blue/10 bg-white/95 p-4 shadow-[0_18px_38px_rgba(15,23,42,0.05)]">
+    <div className="rounded-[28px] border border-bird-blue/10 bg-white/95 dark:bg-slate-900/70 p-4 shadow-[0_18px_38px_rgba(15,23,42,0.05)]">
         <div className="flex items-center gap-3">
             <div className="h-3.5 w-3.5 rounded-full border-2 border-bird-blue/20 border-t-bird-blue animate-spin" />
-            <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-900">Preparing live tracker</p>
+            <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-900 dark:text-slate-100">Preparing live tracker</p>
         </div>
     </div>
 );
@@ -220,37 +222,37 @@ const buildSubmittedRequestSummaryHtml = (request: {
 
     return `
         <div class="mt-2 text-left">
-            <div class="rounded-3xl border border-slate-200 bg-slate-50 p-4">
+            <div class="rounded-3xl border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-white/[0.04] p-4">
                 <div class="flex items-start justify-between gap-3">
                     <div>
-                        <p class="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">Request ${escapeHtml(requestNumber)}</p>
-                        <h3 class="mt-1 text-lg font-black leading-tight text-slate-950">${escapeHtml(request.service_name)}</h3>
+                        <p class="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">Request ${escapeHtml(requestNumber)}</p>
+                        <h3 class="mt-1 text-lg font-black leading-tight text-slate-950 dark:text-slate-100">${escapeHtml(request.service_name)}</h3>
                     </div>
-                    <span class="shrink-0 rounded-full bg-emerald-100 px-3 py-1 text-[10px] font-black uppercase tracking-[0.12em] text-emerald-700">${escapeHtml(statusLabelText)}</span>
+                    <span class="shrink-0 rounded-full bg-emerald-100 dark:bg-emerald-900/40 px-3 py-1 text-[10px] font-black uppercase tracking-[0.12em] text-emerald-700 dark:text-emerald-400">${escapeHtml(statusLabelText)}</span>
                 </div>
                 <div class="mt-4 grid grid-cols-2 gap-2">
-                    <div class="rounded-2xl border border-slate-200 bg-white p-3">
-                        <p class="text-[10px] font-black uppercase tracking-[0.14em] text-slate-400">Type</p>
-                        <p class="mt-1 text-sm font-black text-slate-950">${escapeHtml(modeLabel)}</p>
+                    <div class="rounded-2xl border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900/70 p-3">
+                        <p class="text-[10px] font-black uppercase tracking-[0.14em] text-slate-400 dark:text-slate-500">Type</p>
+                        <p class="mt-1 text-sm font-black text-slate-950 dark:text-slate-100">${escapeHtml(modeLabel)}</p>
                     </div>
-                    <div class="rounded-2xl border border-slate-200 bg-white p-3">
-                        <p class="text-[10px] font-black uppercase tracking-[0.14em] text-slate-400">Budget</p>
-                        <p class="mt-1 text-sm font-black text-slate-950">$${Number(request.budget || 0).toFixed(2)}</p>
+                    <div class="rounded-2xl border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900/70 p-3">
+                        <p class="text-[10px] font-black uppercase tracking-[0.14em] text-slate-400 dark:text-slate-500">Budget</p>
+                        <p class="mt-1 text-sm font-black text-slate-950 dark:text-slate-100">$${Number(request.budget || 0).toFixed(2)}</p>
                     </div>
-                    <div class="rounded-2xl border border-slate-200 bg-white p-3">
-                        <p class="text-[10px] font-black uppercase tracking-[0.14em] text-slate-400">Schedule</p>
-                        <p class="mt-1 text-sm font-black text-slate-950">${escapeHtml(scheduleLabel)}</p>
+                    <div class="rounded-2xl border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900/70 p-3">
+                        <p class="text-[10px] font-black uppercase tracking-[0.14em] text-slate-400 dark:text-slate-500">Schedule</p>
+                        <p class="mt-1 text-sm font-black text-slate-950 dark:text-slate-100">${escapeHtml(scheduleLabel)}</p>
                     </div>
-                    <div class="rounded-2xl border border-slate-200 bg-white p-3">
-                        <p class="text-[10px] font-black uppercase tracking-[0.14em] text-slate-400">Photos</p>
-                        <p class="mt-1 text-sm font-black text-slate-950">${request.image_count}</p>
+                    <div class="rounded-2xl border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900/70 p-3">
+                        <p class="text-[10px] font-black uppercase tracking-[0.14em] text-slate-400 dark:text-slate-500">Photos</p>
+                        <p class="mt-1 text-sm font-black text-slate-950 dark:text-slate-100">${request.image_count}</p>
                     </div>
                 </div>
-                <div class="mt-3 rounded-2xl border border-slate-200 bg-white p-3">
-                    <p class="text-[10px] font-black uppercase tracking-[0.14em] text-slate-400">Location</p>
-                    <p class="mt-1 break-words text-sm font-bold leading-5 text-slate-700">${escapeHtml(request.location)}</p>
+                <div class="mt-3 rounded-2xl border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900/70 p-3">
+                    <p class="text-[10px] font-black uppercase tracking-[0.14em] text-slate-400 dark:text-slate-500">Location</p>
+                    <p class="mt-1 break-words text-sm font-bold leading-5 text-slate-700 dark:text-slate-300">${escapeHtml(request.location)}</p>
                 </div>
-                <p class="mt-3 text-center text-xs font-bold leading-5 text-slate-500">
+                <p class="mt-3 text-center text-xs font-bold leading-5 text-slate-500 dark:text-slate-400">
                     You will return to the main map now. You can reopen this request from notifications or My Requests later.
                 </p>
             </div>
@@ -297,6 +299,7 @@ const formatRequestVisit = (data: ServiceRequestData) => {
 export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOpen, onClose, initialServiceId, initialServiceName, onOpenCheckout, openOnHistory }) => {
     const location = useLocation();
     const navigate = useNavigate();
+    const { guardValue: guardDescriptionValue } = useProfanityGuard();
     const [step, setStep] = useState(initialServiceId ? 1 : 0);
     const [requestFlowStep, setRequestFlowStep] = useState(0);
     const [services, setServices] = useState<ServiceOption[]>([]);
@@ -377,9 +380,11 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
         confirmPaymentThroughModal,
         handleSecurePayment,
         paymentBusyId,
+        paymentError,
         paymentForm,
         paymentMethod,
         paymentModalRequest,
+        setPaymentError,
         setPaymentForm,
         setPaymentMethod,
         setPaymentModalRequest,
@@ -1346,9 +1351,9 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
         }
 
         return (
-            <div className="mt-2 rounded-2xl border-none bg-gray-50/80 hover:bg-gray-100 transition-colors shadow-lg overflow-hidden">
+            <div className="mt-2 rounded-2xl border-none bg-gray-50/80 dark:bg-white/[0.04] hover:bg-gray-100 dark:hover:bg-white/[0.06] transition-colors shadow-lg overflow-hidden">
                 {suggestionsLoading ? (
-                    <div className="px-4 py-3 text-sm font-medium text-gray-500">Searching places in El Salvador...</div>
+                    <div className="px-4 py-3 text-sm font-medium text-gray-500 dark:text-slate-400">Searching places in El Salvador...</div>
                 ) : (
                     locationSuggestions.map((suggestion, suggestionIndex) => {
                         const display = getSuggestionDisplay(suggestion);
@@ -1361,7 +1366,7 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                     selectLocationSuggestion(suggestion);
                                 }}
                                 onMouseEnter={() => setHighlightedSuggestionIndex(suggestionIndex)}
-                                className={`w-full border-b border-gray-100 last:border-b-0 px-4 py-3 text-left transition ${
+                                className={`w-full border-b border-gray-100 dark:border-white/5 last:border-b-0 px-4 py-3 text-left transition ${
                                     highlightedSuggestionIndex === suggestionIndex
                                         ? 'bg-bird-blue/10'
                                         : 'hover:bg-bird-blue/5'
@@ -1369,14 +1374,14 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                             >
                                 <div className="flex items-start justify-between gap-3">
                                     <div className="min-w-0">
-                                        <div className="text-sm font-semibold text-gray-900 line-clamp-1">{display.title}</div>
-                                        <div className="mt-1 text-xs text-gray-500 line-clamp-1">{display.context}</div>
+                                        <div className="text-sm font-semibold text-gray-900 dark:text-slate-100 line-clamp-1">{display.title}</div>
+                                        <div className="mt-1 text-xs text-gray-500 dark:text-slate-400 line-clamp-1">{display.context}</div>
                                     </div>
                                     <span
                                         className={`shrink-0 rounded-full px-2 py-1 text-[10px] font-black uppercase tracking-wide ${
                                             suggestion.source === 'local'
-                                                ? 'bg-emerald-100 text-emerald-700'
-                                                : 'bg-blue-100 text-blue-700'
+                                                ? 'bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-400'
+                                                : 'bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-400'
                                         }`}
                                     >
                                         {getSuggestionBadgeLabel(suggestion)}
@@ -2067,6 +2072,9 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
             }
             showToast(payload.both_approved ? 'success' : 'info', payload.message || 'Approval saved.');
             await fetchMyRequests(historyStatus, true);
+            if (action === 'complete_service' && !request.has_rating) {
+                setRatingModalRequest(request);
+            }
         } catch {
             showToast('error', 'Network error saving approval.');
         } finally {
@@ -2239,6 +2247,7 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                 guidedBookingAlign={step === 1 && requestFlowStep === 1 ? 'left' : 'center'}
                 hasActiveTrackedRequest={!!activeTrackedRequest}
                 onClose={onClose}
+                onBack={step === 1 ? () => setStep(0) : onClose}
                 notificationCenter={<NotificationCenter token={getToken()} variant="panel" />}
             >
                 <AnimatePresence mode="wait">
@@ -2263,19 +2272,19 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                 transition={{ duration: 0.3 }}
                                 className="flex h-full flex-col"
                             >
-                                <div className="border-b border-slate-200 bg-white px-5 py-4 sm:px-7">
+                                <div className="border-b border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900/70 px-5 py-4 sm:px-7">
                                     <div className="flex items-start justify-between gap-4">
                                         <div className="min-w-0">
                                             <p className="text-[10px] font-black uppercase tracking-[0.2em] text-bird-blue">
                                                 {requestFlowStep + 1} of {REQUEST_FLOW_STEPS.length}
                                             </p>
-                                            <h2 className="mt-1 text-2xl font-black text-slate-950">
+                                            <h2 className="mt-1 text-2xl font-black text-slate-950 dark:text-slate-100">
                                                 {requestFlowStep === 0 && 'Tell us what needs fixing'}
                                                 {requestFlowStep === 1 && 'Where should the pro go?'}
                                                 {requestFlowStep === 2 && 'When should we visit?'}
                                                 {requestFlowStep === 3 && 'Review your request'}
                                             </h2>
-                                            <p className="mt-1 truncate text-sm font-bold text-slate-500">
+                                            <p className="mt-1 truncate text-sm font-bold text-slate-500 dark:text-slate-400">
                                                 {selectedServiceTitle || 'Selected service'}
                                             </p>
                                         </div>
@@ -2285,7 +2294,7 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                                 setRequestFlowStep(0);
                                                 setStep(0);
                                             }}
-                                            className="shrink-0 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-black text-slate-600 hover:border-bird-blue hover:text-bird-blue"
+                                            className="shrink-0 rounded-xl border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900/70 px-3 py-2 text-xs font-black text-slate-600 dark:text-slate-300 hover:border-bird-blue hover:text-bird-blue"
                                         >
                                             Change service
                                         </button>
@@ -2305,10 +2314,10 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                                     className="min-w-0 text-left"
                                                 >
                                                     <span className={`mb-2 block h-1.5 rounded-full transition ${
-                                                        active || complete ? 'bg-bird-blue' : 'bg-slate-200'
+                                                        active || complete ? 'bg-bird-blue' : 'bg-slate-200 dark:bg-white/[0.08]'
                                                     }`} />
                                                     <span className={`block truncate text-[10px] font-black uppercase tracking-[0.08em] ${
-                                                        active ? 'text-slate-950' : complete ? 'text-bird-blue' : 'text-slate-400'
+                                                        active ? 'text-slate-950 dark:text-slate-100' : complete ? 'text-bird-blue' : 'text-slate-400 dark:text-slate-500'
                                                     }`}>
                                                         {flowStep.label}
                                                     </span>
@@ -2342,7 +2351,7 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                                     showBudget={false}
                                                     showResults={false}
                                                     showActions={false}
-                                                    onDescriptionChange={(value) => setData({ ...data, description: sanitizeMessageText(value, 1000) })}
+                                                    onDescriptionChange={(value) => setData({ ...data, description: guardDescriptionValue(sanitizeMessageText(value, 1000)) })}
                                                     onPriceChange={(nextValue) => setData({ ...data, price: sanitizeBudgetInput(nextValue) })}
                                                     onPricePaste={(value) => setData({ ...data, price: sanitizeBudgetInput(value) })}
                                                     onProblemFilesChange={handleProblemFiles}
@@ -2432,9 +2441,7 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                                         selection_mode:
                                                             patch.booking_type === 'scheduled'
                                                                 ? 'client_review'
-                                                                : patch.booking_type === 'express'
-                                                                    ? 'auto_assign'
-                                                                    : prev.selection_mode,
+                                                                : prev.selection_mode,
                                                     }))}
                                                 />
                                             </motion.div>
@@ -2449,53 +2456,51 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                                 className="space-y-4"
                                             >
                                                 <div className="grid gap-3 sm:grid-cols-2">
-                                                    <div className="rounded-2xl border border-slate-200 bg-white p-4">
-                                                        <p className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">Service</p>
-                                                        <p className="mt-2 text-base font-black text-slate-900">{selectedServiceTitle}</p>
-                                                        <p className="mt-1 line-clamp-3 text-sm font-semibold leading-6 text-slate-500">{data.description}</p>
+                                                    <div className="rounded-2xl border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900/70 p-4">
+                                                        <p className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400 dark:text-slate-500">Service</p>
+                                                        <p className="mt-2 text-base font-black text-slate-900 dark:text-slate-100">{selectedServiceTitle}</p>
+                                                        <p className="mt-1 line-clamp-3 text-sm font-semibold leading-6 text-slate-500 dark:text-slate-400">{data.description}</p>
                                                     </div>
-                                                    <div className="rounded-2xl border border-slate-200 bg-white p-4">
+                                                    <div className="rounded-2xl border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900/70 p-4">
                                                         <div className="flex items-center justify-between gap-3">
-                                                            <p className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">Location</p>
-                                                            <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2 py-1 text-[10px] font-black text-emerald-700">
+                                                            <p className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400 dark:text-slate-500">Location</p>
+                                                            <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 dark:bg-emerald-900/40 px-2 py-1 text-[10px] font-black text-emerald-700 dark:text-emerald-400">
                                                                 <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
                                                                 Confirmed
                                                             </span>
                                                         </div>
-                                                        <p className="mt-2 line-clamp-3 text-sm font-black leading-6 text-slate-900">{data.location}</p>
+                                                        <p className="mt-2 line-clamp-3 text-sm font-black leading-6 text-slate-900 dark:text-slate-100">{data.location}</p>
                                                         <p className="mt-2 text-xs font-bold text-bird-blue">{radiusKm} km search radius</p>
                                                     </div>
-                                                    <div className="rounded-2xl border border-slate-200 bg-white p-4">
-                                                        <p className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">Visit</p>
-                                                        <p className="mt-2 text-sm font-black text-slate-900">
+                                                    <div className="rounded-2xl border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900/70 p-4">
+                                                        <p className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400 dark:text-slate-500">Visit</p>
+                                                        <p className="mt-2 text-sm font-black text-slate-900 dark:text-slate-100">
                                                             {formatRequestVisit(data)}
                                                         </p>
                                                         {data.booking_type === 'scheduled' && (
-                                                            <p className="mt-1 text-xs font-bold text-slate-500">
+                                                            <p className="mt-1 text-xs font-bold text-slate-500 dark:text-slate-400">
                                                                 Estimated duration: {data.scheduled_duration_minutes / 60}h
                                                             </p>
                                                         )}
                                                     </div>
-                                                    <div className="rounded-2xl border border-slate-200 bg-white p-4">
-                                                        <p className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">Photos</p>
-                                                        <p className="mt-2 text-sm font-black text-slate-900">{problemFiles.length} attached</p>
-                                                        <p className="mt-1 text-xs font-semibold text-slate-500">Verified before upload</p>
+                                                    <div className="rounded-2xl border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900/70 p-4">
+                                                        <p className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400 dark:text-slate-500">Photos</p>
+                                                        <p className="mt-2 text-sm font-black text-slate-900 dark:text-slate-100">{problemFiles.length} attached</p>
+                                                        <p className="mt-1 text-xs font-semibold text-slate-500 dark:text-slate-400">Verified before upload</p>
                                                     </div>
                                                 </div>
 
-                                                <div className="rounded-2xl border border-slate-200 bg-white p-4">
+                                                <div className="rounded-2xl border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900/70 p-4">
                                                     <div className="flex flex-wrap items-start justify-between gap-3">
                                                         <div>
-                                                            <p className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">
+                                                            <p className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400 dark:text-slate-500">
                                                                 Hiring preference
                                                             </p>
-                                                            <h3 className="mt-1 text-lg font-black text-slate-950">
-                                                                {data.booking_type === 'express'
-                                                                    ? 'Express assigns the first available Pro'
-                                                                    : 'How should Fixlife match your Pro?'}
+                                                            <h3 className="mt-1 text-lg font-black text-slate-950 dark:text-slate-100">
+                                                                How should Fixlife match your Pro?
                                                             </h3>
                                                         </div>
-                                                        <span className="rounded-full border border-bird-blue/20 bg-sky-50 px-3 py-1 text-[10px] font-black uppercase tracking-[0.14em] text-bird-blue">
+                                                        <span className="rounded-full border border-bird-blue/20 bg-sky-50 dark:bg-sky-900/40 px-3 py-1 text-[10px] font-black uppercase tracking-[0.14em] text-bird-blue">
                                                             Protected match
                                                         </span>
                                                     </div>
@@ -2514,62 +2519,55 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                                                 eyebrow: data.booking_type === 'scheduled' ? 'Recommended for scheduled' : 'More control',
                                                                 body: 'Compare Pro profiles, portfolio and experience before approving who can start the route.',
                                                             },
-                                                        ]
-                                                            .filter((option) => data.booking_type !== 'express' || option.mode === 'auto_assign')
-                                                            .map((option) => {
-                                                            const selected =
-                                                                data.booking_type === 'express'
-                                                                    ? option.mode === 'auto_assign'
-                                                                    : data.selection_mode === option.mode;
+                                                        ].map((option) => {
+                                                            const selected = data.selection_mode === option.mode;
                                                             return (
                                                                 <button
                                                                     type="button"
                                                                     key={option.mode}
                                                                     onClick={() => setData((prev) => ({
                                                                         ...prev,
-                                                                        selection_mode: data.booking_type === 'express' ? 'auto_assign' : option.mode,
+                                                                        selection_mode: option.mode,
                                                                     }))}
                                                                     className={`min-h-[150px] rounded-2xl border p-4 text-left transition-all ${
                                                                         selected
-                                                                            ? 'border-bird-blue bg-sky-50 shadow-[0_16px_34px_rgba(14,165,233,0.12)]'
-                                                                            : 'border-slate-200 bg-slate-50 hover:border-slate-300 hover:bg-white'
+                                                                            ? 'border-bird-blue bg-sky-50 dark:bg-sky-900/40 shadow-[0_16px_34px_rgba(14,165,233,0.12)]'
+                                                                            : 'border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-white/[0.04] hover:border-slate-300 dark:hover:border-white/10 hover:bg-white dark:hover:bg-slate-900/70'
                                                                     }`}
                                                                     aria-pressed={selected}
                                                                 >
                                                                     <div className="flex items-center justify-between gap-3">
                                                                         <span className={`rounded-full px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.12em] ${
-                                                                            selected ? 'bg-bird-blue text-white' : 'bg-white text-slate-500'
+                                                                            selected ? 'bg-bird-blue text-white' : 'bg-white dark:bg-slate-900/70 text-slate-500 dark:text-slate-400'
                                                                         }`}>
                                                                             {option.eyebrow}
                                                                         </span>
                                                                         <span className={`flex h-6 w-6 items-center justify-center rounded-full border text-[11px] font-black ${
                                                                             selected
                                                                                 ? 'border-bird-blue bg-bird-blue text-white'
-                                                                                : 'border-slate-300 bg-white text-slate-400'
+                                                                                : 'border-slate-300 dark:border-white/10 bg-white dark:bg-slate-900/70 text-slate-400 dark:text-slate-500'
                                                                         }`}>
                                                                             {selected ? 'OK' : ''}
                                                                         </span>
                                                                     </div>
-                                                                    <p className="mt-4 text-base font-black text-slate-950">{option.title}</p>
-                                                                    <p className="mt-2 text-xs font-semibold leading-5 text-slate-600">{option.body}</p>
+                                                                    <p className="mt-4 text-base font-black text-slate-950 dark:text-slate-100">{option.title}</p>
+                                                                    <p className="mt-2 text-xs font-semibold leading-5 text-slate-600 dark:text-slate-300">{option.body}</p>
                                                                 </button>
                                                             );
                                                         })}
                                                     </div>
 
-                                                    <p className="mt-3 text-xs font-semibold leading-5 text-slate-500">
-                                                        {data.booking_type === 'express'
-                                                            ? 'Express is protected: the first verified, available Pro who accepts is assigned automatically.'
-                                                            : 'Fast Match is still protected: unverified, unavailable or conflicting workers are rejected by the backend.'}
+                                                    <p className="mt-3 text-xs font-semibold leading-5 text-slate-500 dark:text-slate-400">
+                                                        Fast Match is still protected: unverified, unavailable or conflicting workers are rejected by the backend.
                                                     </p>
                                                 </div>
 
-                                                <div className="rounded-2xl border border-slate-200 bg-white p-4">
-                                                    <label className="block text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">
+                                                <div className="rounded-2xl border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900/70 p-4">
+                                                    <label className="block text-[10px] font-black uppercase tracking-[0.16em] text-slate-400 dark:text-slate-500">
                                                         Your estimated budget
                                                     </label>
                                                     <div className="relative mt-2">
-                                                        <span className="absolute left-4 top-1/2 -translate-y-1/2 text-lg font-black text-slate-400">$</span>
+                                                        <span className="absolute left-4 top-1/2 -translate-y-1/2 text-lg font-black text-slate-400 dark:text-slate-500">$</span>
                                                         <input
                                                             type="text"
                                                             inputMode="decimal"
@@ -2577,22 +2575,22 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                                             onChange={(event) => setData({ ...data, price: sanitizeBudgetInput(event.target.value) })}
                                                             placeholder="0.00"
                                                             maxLength={7}
-                                                            className="w-full rounded-xl border border-slate-200 bg-slate-50 py-3 pl-9 pr-16 text-lg font-black text-slate-900 outline-none focus:border-bird-blue focus:bg-white"
+                                                            className="w-full rounded-xl border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-white/[0.04] py-3 pl-9 pr-16 text-lg font-black text-slate-900 dark:text-slate-100 outline-none focus:border-bird-blue focus:bg-white"
                                                         />
-                                                        <span className="absolute right-4 top-1/2 -translate-y-1/2 text-xs font-black text-slate-400">USD</span>
+                                                        <span className="absolute right-4 top-1/2 -translate-y-1/2 text-xs font-black text-slate-400 dark:text-slate-500">USD</span>
                                                     </div>
-                                                    <p className="mt-2 text-xs font-semibold text-slate-500">
+                                                    <p className="mt-2 text-xs font-semibold text-slate-500 dark:text-slate-400">
                                                         This is your starting estimate. Maximum allowed: $1,000.00.
                                                     </p>
                                                     {!hasValidBudget && (
-                                                        <p className="mt-2 text-xs font-black text-amber-700">
+                                                        <p className="mt-2 text-xs font-black text-amber-700 dark:text-amber-400">
                                                             Enter an amount greater than $0 to send the request.
                                                         </p>
                                                     )}
                                                 </div>
 
-                                                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                                                    <p className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">
+                                                <div className="rounded-2xl border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-white/[0.04] p-4">
+                                                    <p className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400 dark:text-slate-500">
                                                         Ready to send
                                                     </p>
                                                     <div className="mt-3 grid gap-2 sm:grid-cols-2">
@@ -2606,8 +2604,8 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                                                 key={label}
                                                                 className={`flex items-center gap-2 rounded-xl border px-3 py-2 text-xs font-bold ${
                                                                     ready
-                                                                        ? 'border-emerald-200 bg-emerald-50 text-emerald-800'
-                                                                        : 'border-amber-200 bg-amber-50 text-amber-800'
+                                                                        ? 'border-emerald-200 dark:border-emerald-900/50 bg-emerald-50 dark:bg-emerald-900/40 text-emerald-800 dark:text-emerald-400'
+                                                                        : 'border-amber-200 dark:border-amber-900/50 bg-amber-50 dark:bg-amber-900/40 text-amber-800 dark:text-amber-400'
                                                                 }`}
                                                             >
                                                                 <span className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[11px] text-white ${
@@ -2622,17 +2620,17 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                                 </div>
 
                                                 {nearbyWorkers.length > 0 && (
-                                                    <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
-                                                        <p className="text-sm font-black text-emerald-900">
+                                                    <div className="rounded-2xl border border-emerald-200 dark:border-emerald-900/50 bg-emerald-50 dark:bg-emerald-900/40 p-4">
+                                                        <p className="text-sm font-black text-emerald-900 dark:text-emerald-200">
                                                             {nearbyWorkers.length} verified pro{nearbyWorkers.length === 1 ? '' : 's'} found nearby
                                                         </p>
-                                                        <p className="mt-1 text-xs font-semibold text-emerald-700">Your request is ready to send.</p>
+                                                        <p className="mt-1 text-xs font-semibold text-emerald-700 dark:text-emerald-400">Your request is ready to send.</p>
                                                     </div>
                                                 )}
                                                 {noNearbyProsNotice && nearbyWorkers.length === 0 && (
-                                                    <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4">
-                                                        <p className="text-sm font-black text-amber-900">Matching may take a little longer</p>
-                                                        <p className="mt-1 text-xs font-semibold leading-5 text-amber-700">{noNearbyProsNotice}</p>
+                                                    <div className="rounded-2xl border border-amber-200 dark:border-amber-900/50 bg-amber-50 dark:bg-amber-900/40 p-4">
+                                                        <p className="text-sm font-black text-amber-900 dark:text-amber-200">Matching may take a little longer</p>
+                                                        <p className="mt-1 text-xs font-semibold leading-5 text-amber-700 dark:text-amber-400">{noNearbyProsNotice}</p>
                                                     </div>
                                                 )}
                                             </motion.div>
@@ -2640,11 +2638,11 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                     </AnimatePresence>
                                 </div>
 
-                                <div className="flex items-center justify-between gap-3 border-t border-slate-200 bg-white px-5 py-4 sm:px-7">
+                                <div className="flex items-center justify-between gap-3 border-t border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900/70 px-5 py-4 sm:px-7">
                                     <button
                                         type="button"
                                         onClick={moveRequestFlowBack}
-                                        className="rounded-xl border border-slate-200 bg-white px-5 py-3 text-sm font-black text-slate-700 hover:border-slate-300 hover:bg-slate-50"
+                                        className="rounded-xl border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900/70 px-5 py-3 text-sm font-black text-slate-700 dark:text-slate-300 hover:border-slate-300 dark:hover:border-white/10 hover:bg-slate-50 dark:hover:bg-white/[0.04]"
                                     >
                                         Back
                                     </button>
@@ -2704,7 +2702,7 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                     animate={{ opacity: 1, scale: 1, y: 0 }}
                                     exit={{ opacity: 0, scale: 0.96, y: 12 }}
                                     transition={{ type: 'spring', damping: 24, stiffness: 260 }}
-                                    className="w-full max-w-2xl overflow-hidden rounded-[30px] border border-gray-200 bg-white shadow-2xl"
+                                    className="w-full max-w-2xl overflow-hidden rounded-[30px] border border-gray-200 dark:border-white/10 bg-white dark:bg-slate-900/70 shadow-2xl"
                                 >
                                     <div className="bg-gradient-to-r from-bird-blue via-sky-500 to-bird-yellow px-6 py-5 text-white">
                                         <div className="flex items-start justify-between gap-4">
@@ -2729,15 +2727,15 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                         <div className="rounded-3xl border border-bird-blue/10 bg-gradient-to-r from-sky-50 via-white to-amber-50 p-4">
                                             <div className="flex flex-wrap items-center justify-between gap-3">
                                                 <div>
-                                                    <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-900">Completed service</p>
-                                                    <p className="mt-1 text-lg font-black text-slate-900">
+                                                    <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-900 dark:text-slate-100">Completed service</p>
+                                                    <p className="mt-1 text-lg font-black text-slate-900 dark:text-slate-100">
                                                         {ratingModalRequest.service_name}
                                                     </p>
-                                                    <p className="mt-1 text-sm text-slate-600">
+                                                    <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
                                                         {ratingModalRequest.assigned_worker?.name || 'Your pro'}
                                                     </p>
                                                 </div>
-                                                <span className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-[11px] font-black uppercase tracking-[0.18em] text-emerald-700">
+                                                <span className="rounded-full border border-emerald-200 dark:border-emerald-900/50 bg-emerald-50 dark:bg-emerald-900/40 px-3 py-1.5 text-[11px] font-black uppercase tracking-[0.18em] text-emerald-700 dark:text-emerald-400">
                                                     Unlocked
                                                 </span>
                                             </div>
@@ -2747,15 +2745,15 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                             {(['punctuality', 'quality', 'price_fairness'] as RatingMetricKey[]).map((key) => {
                                                 const currentValue = getRatingDraft(ratingModalRequest.id_request)[key];
                                                 return (
-                                                    <div key={key} className="rounded-3xl border border-slate-200 bg-slate-50 p-4">
+                                                    <div key={key} className="rounded-3xl border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-white/[0.04] p-4">
                                                         <div className="flex items-center justify-between gap-3">
                                                             <div>
-                                                                <p className="text-sm font-black text-slate-900">{RATING_METRIC_LABELS[key]}</p>
-                                                                <p className="mt-1 text-xs text-slate-500">
+                                                                <p className="text-sm font-black text-slate-900 dark:text-slate-100">{RATING_METRIC_LABELS[key]}</p>
+                                                                <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
                                                                     Leave your Fixes stars for this part of the service.
                                                                 </p>
                                                             </div>
-                                                            <span className="rounded-full border border-bird-yellow/25 bg-bird-yellow/10 px-3 py-1 text-[11px] font-black text-amber-700">
+                                                            <span className="rounded-full border border-bird-yellow/25 bg-bird-yellow/10 px-3 py-1 text-[11px] font-black text-amber-700 dark:text-amber-400">
                                                                 {currentValue}/5
                                                             </span>
                                                         </div>
@@ -2771,7 +2769,7 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                                                         className={`flex h-11 w-11 items-center justify-center rounded-2xl border text-xl transition ${
                                                                             active
                                                                                 ? 'border-bird-yellow/30 bg-bird-yellow/15 text-bird-yellow shadow-sm'
-                                                                                : 'border-slate-200 bg-white text-slate-300 hover:border-bird-blue/20 hover:text-slate-900'
+                                                                                : 'border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900/70 text-slate-300 dark:text-slate-400 hover:border-bird-blue/20 hover:text-slate-900 dark:hover:text-slate-100'
                                                                         }`}
                                                                     >
                                                                         {'★'}
@@ -2784,13 +2782,14 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                             })}
                                         </div>
 
-                                        <div className="mt-5 rounded-3xl border border-slate-200 bg-white p-4">
-                                            <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">Comment</p>
+                                        <div className="mt-5 rounded-3xl border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900/70 p-4">
+                                            <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400 dark:text-slate-500">Comment</p>
                                             <textarea
                                                 value={getRatingDraft(ratingModalRequest.id_request).comment}
-                                                onChange={(e) => updateRatingDraft(ratingModalRequest.id_request, { comment: e.target.value })}
+                                                onChange={(e) => updateRatingDraft(ratingModalRequest.id_request, { comment: e.target.value.slice(0, 255) })}
                                                 placeholder="Tell us how the service went, what stood out, or what could be better..."
-                                                className="mt-3 min-h-[120px] w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm text-slate-700 outline-none transition focus:border-bird-blue/40 focus:ring-2 focus:ring-bird-blue/10"
+                                                maxLength={255}
+                                                className="mt-3 min-h-[120px] w-full rounded-2xl border border-slate-200 dark:border-white/10 px-4 py-3 text-sm text-slate-700 dark:text-slate-300 outline-none transition focus:border-bird-blue/40 focus:ring-2 focus:ring-bird-blue/10"
                                             />
                                         </div>
 
@@ -2798,7 +2797,7 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                             <button
                                                 type="button"
                                                 onClick={() => setRatingModalRequest(null)}
-                                                className="rounded-2xl border border-slate-200 bg-white px-5 py-3 text-sm font-black text-slate-600 transition hover:border-slate-300 hover:bg-slate-50"
+                                                className="rounded-2xl border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900/70 px-5 py-3 text-sm font-black text-slate-600 dark:text-slate-300 transition hover:border-slate-300 dark:hover:border-white/10 hover:bg-slate-50 dark:hover:bg-white/[0.04]"
                                             >
                                                 Maybe later
                                             </button>
@@ -2812,12 +2811,12 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                             </button>
                                         </div>
                                     </div>
-                                    <div className="border-t border-slate-200 bg-white/95 px-6 py-4 backdrop-blur">
+                                    <div className="border-t border-slate-200 dark:border-white/10 bg-white/95 dark:bg-slate-900/70 px-6 py-4 backdrop-blur">
                                         {workerProfileRequest && hasPendingWorkerApproval(workerProfileRequest) ? (
                                             <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
                                                 <div className="min-w-0">
-                                                    <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-900">Approve this pro</p>
-                                                    <p className="mt-1 text-sm text-slate-500">
+                                                    <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-900 dark:text-slate-100">Approve this pro</p>
+                                                    <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
                                                         Review the profile and portfolio, then confirm this worker to move the request to payment.
                                                     </p>
                                                 </div>
@@ -2826,7 +2825,7 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                                         type="button"
                                                         disabled={workerApprovalBusyId === workerProfileRequest.id_request}
                                                         onClick={() => handleWorkerApprovalDecision(workerProfileRequest, 'decline')}
-                                                        className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-black text-red-600 transition hover:bg-red-100 disabled:opacity-50"
+                                                        className="rounded-2xl border border-red-200 dark:border-red-900/50 bg-red-50 dark:bg-red-900/40 px-4 py-3 text-sm font-black text-red-600 dark:text-red-400 transition hover:bg-red-100 disabled:opacity-50"
                                                     >
                                                         {workerApprovalBusyId === workerProfileRequest.id_request ? 'Saving...' : 'Decline worker'}
                                                     </button>
@@ -2849,7 +2848,7 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                                         setWorkerProfileData(null);
                                                         setWorkerProfileLoading(false);
                                                     }}
-                                                    className="rounded-2xl bg-slate-100 px-5 py-3 text-sm font-black text-slate-700 transition hover:bg-slate-200"
+                                                    className="rounded-2xl bg-slate-100 dark:bg-white/[0.06] px-5 py-3 text-sm font-black text-slate-700 dark:text-slate-300 transition hover:bg-slate-200 dark:hover:bg-white/[0.08]"
                                                 >
                                                     Close profile
                                                 </button>
@@ -2886,19 +2885,19 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                     animate={{ x: 0, opacity: 1 }}
                                     exit={{ x: 36, opacity: 0 }}
                                     transition={{ type: 'spring', damping: 24, stiffness: 220 }}
-                                    className="h-full w-full max-w-[420px] border-l border-gray-200 bg-white shadow-2xl"
+                                    className="h-full w-full max-w-[420px] border-l border-gray-200 dark:border-white/10 bg-white dark:bg-slate-900/70 shadow-2xl"
                                 >
                                     <div className="flex h-full flex-col">
-                                        <div className="border-b border-gray-200 px-5 py-4">
+                                        <div className="border-b border-gray-200 dark:border-white/10 px-5 py-4">
                                             <div className="flex items-center justify-between gap-4">
                                                 <div>
-                                                    <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-gray-400">Saved places</p>
-                                                    <h3 className="mt-1 text-lg font-black text-gray-900">Your location library</h3>
+                                                    <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-gray-400 dark:text-slate-500">Saved places</p>
+                                                    <h3 className="mt-1 text-lg font-black text-gray-900 dark:text-slate-100">Your location library</h3>
                                                 </div>
                                                 <button
                                                     type="button"
                                                     onClick={() => setShowSavedPlacesModal(false)}
-                                                    className="rounded-2xl border-none bg-gray-50/80 hover:bg-gray-100 transition-colors px-3 py-2 text-xs font-bold text-gray-500 hover:text-gray-700"
+                                                    className="rounded-2xl border-none bg-gray-50/80 dark:bg-white/[0.04] hover:bg-gray-100 dark:hover:bg-white/[0.06] transition-colors px-3 py-2 text-xs font-bold text-gray-500 dark:text-slate-400 hover:text-gray-700 dark:hover:text-slate-300"
                                                 >
                                                     Close
                                                 </button>
@@ -2906,21 +2905,22 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
 
                                             <div className="mt-4 space-y-3">
                                                 <div className="relative">
-                                                    <svg className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                    <svg className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400 dark:text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-4.35-4.35m1.85-5.15a7 7 0 11-14 0 7 7 0 0114 0z" />
                                                     </svg>
                                                     <input
                                                         type="text"
                                                         value={savedPlacesSearch}
+                                                        maxLength={120}
                                                         onChange={(e) => setSavedPlacesSearch(e.target.value)}
                                                         placeholder="Search by name, address or type"
-                                                        className="w-full rounded-2xl border border-gray-200 bg-gray-50 pl-10 pr-10 py-3 text-sm text-gray-900 focus:border-bird-blue focus:bg-white focus:outline-none"
+                                                        className="w-full rounded-2xl border border-gray-200 dark:border-white/10 bg-gray-50 dark:bg-white/[0.04] pl-10 pr-10 py-3 text-sm text-gray-900 dark:text-slate-100 focus:border-bird-blue focus:bg-white focus:outline-none"
                                                     />
                                                     {savedPlacesSearch.trim() && (
                                                         <button
                                                             type="button"
                                                             onClick={() => setSavedPlacesSearch('')}
-                                                            className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-black text-gray-400 hover:text-gray-600"
+                                                            className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-black text-gray-400 dark:text-slate-500 hover:text-gray-600 dark:hover:text-slate-300"
                                                         >
                                                             x
                                                         </button>
@@ -2941,14 +2941,14 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                                             className={`inline-flex items-center gap-2 rounded-full border px-3 py-2 text-xs font-bold transition ${
                                                                 savedPlacesFilter === option.key
                                                                     ? 'border-bird-blue bg-bird-blue text-white shadow-sm'
-                                                                    : 'border-gray-200 bg-white text-gray-600 hover:border-bird-blue/40 hover:text-slate-900'
+                                                                    : 'border-gray-200 dark:border-white/10 bg-white dark:bg-slate-900/70 text-gray-600 dark:text-slate-300 hover:border-bird-blue/40 hover:text-slate-900 dark:hover:text-slate-100'
                                                             }`}
                                                         >
                                                             <span>{option.label}</span>
                                                             <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-black ${
                                                                 savedPlacesFilter === option.key
                                                                     ? 'bg-white/20 text-white'
-                                                                    : 'bg-gray-100 text-gray-500'
+                                                                    : 'bg-gray-100 dark:bg-white/[0.06] text-gray-500 dark:text-slate-400'
                                                             }`}>
                                                                 {option.count}
                                                             </span>
@@ -2960,18 +2960,18 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
 
                                         <div className="flex-1 overflow-y-auto p-5 space-y-5">
                                             {quickAccessLocations.length === 0 ? (
-                                                <div className="rounded-2xl border border-dashed border-gray-300 bg-gray-50 px-4 py-5 text-sm text-gray-500">
-                                                    You do not have saved places yet. Resolve a location first, then use <span className="font-bold text-gray-700">Add location</span>.
+                                                <div className="rounded-2xl border border-dashed border-gray-300 dark:border-white/10 bg-gray-50 dark:bg-white/[0.04] px-4 py-5 text-sm text-gray-500 dark:text-slate-400">
+                                                    You do not have saved places yet. Resolve a location first, then use <span className="font-bold text-gray-700 dark:text-slate-300">Add location</span>.
                                                 </div>
                                             ) : filteredSavedLocations.total === 0 ? (
-                                                <div className="rounded-2xl border border-dashed border-gray-300 bg-gray-50 px-4 py-5 text-sm text-gray-500">
+                                                <div className="rounded-2xl border border-dashed border-gray-300 dark:border-white/10 bg-gray-50 dark:bg-white/[0.04] px-4 py-5 text-sm text-gray-500 dark:text-slate-400">
                                                     No saved places match your current search or filter.
                                                 </div>
                                             ) : (
                                                 <>
                                                     {filteredSavedLocations.primary.length > 0 && (
                                                         <div>
-                                                            <p className="mb-3 text-[11px] font-bold uppercase tracking-wide text-gray-400">Home & Work</p>
+                                                            <p className="mb-3 text-[11px] font-bold uppercase tracking-wide text-gray-400 dark:text-slate-500">Home & Work</p>
                                                             <div className="space-y-3">
                                                                 {filteredSavedLocations.primary.map((location, index) => {
                                                                     const visual = getLocationVisual(location.kind);
@@ -2984,7 +2984,7 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                                                     return (
                                                                         <div
                                                                             key={`${location.kind}-modal-${index}-${location.label}`}
-                                                                            className="rounded-2xl border border-gray-200 bg-slate-50 p-3"
+                                                                            className="rounded-2xl border border-gray-200 dark:border-white/10 bg-slate-50 dark:bg-white/[0.04] p-3"
                                                                         >
                                                                             <div className="flex items-center gap-3">
                                                                                 {renderLocationBadge(location.kind, 'md')}
@@ -2993,8 +2993,8 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                                                                     onClick={() => handleUseSavedLocation(location)}
                                                                                     className="min-w-0 flex-1 text-left"
                                                                                 >
-                                                                                    <p className="text-[15px] font-bold text-slate-800">{location.title}</p>
-                                                                                    <p className="mt-1 line-clamp-2 text-xs text-gray-500">{location.label}</p>
+                                                                                    <p className="text-[15px] font-bold text-slate-800 dark:text-slate-100">{location.title}</p>
+                                                                                    <p className="mt-1 line-clamp-2 text-xs text-gray-500 dark:text-slate-400">{location.label}</p>
                                                                                     <p className={`mt-1 inline-flex rounded-full border px-2 py-1 text-[11px] font-semibold ${visual.chipClass}`}>
                                                                                         {distanceLabel || `${location.lat.toFixed(4)}, ${location.lng.toFixed(4)}`}
                                                                                     </p>
@@ -3012,7 +3012,7 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
 
                                                     {filteredSavedLocations.favorites.length > 0 && (
                                                         <div>
-                                                            <p className="mb-3 text-[11px] font-bold uppercase tracking-wide text-gray-400">Favorites</p>
+                                                            <p className="mb-3 text-[11px] font-bold uppercase tracking-wide text-gray-400 dark:text-slate-500">Favorites</p>
                                                             <div className="space-y-3">
                                                                 {filteredSavedLocations.favorites.map((location, index) => {
                                                                     const visual = getLocationVisual(location.kind);
@@ -3025,9 +3025,9 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                                                     return (
                                                                         <div
                                                                             key={`${location.kind}-modal-favorite-${index}-${location.label}`}
-                                                                            className="flex items-center gap-3 rounded-2xl border border-gray-200 bg-white p-3"
+                                                                            className="flex items-center gap-3 rounded-2xl border border-gray-200 dark:border-white/10 bg-white dark:bg-slate-900/70 p-3"
                                                                         >
-                                                                            <div className="relative h-16 w-16 shrink-0 overflow-hidden rounded-2xl border border-gray-200 bg-slate-100">
+                                                                            <div className="relative h-16 w-16 shrink-0 overflow-hidden rounded-2xl border border-gray-200 dark:border-white/10 bg-slate-100 dark:bg-white/[0.06]">
                                                                                 <img src={getPreviewTileUrl(location.lat, location.lng)} alt={location.title} className="h-full w-full object-cover" />
                                                                                 <div className="absolute inset-0 bg-gradient-to-t from-black/25 via-transparent to-white/10" />
                                                                                 <span className="absolute left-2 top-2">
@@ -3039,8 +3039,8 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                                                                 onClick={() => handleUseSavedLocation(location)}
                                                                                 className="min-w-0 flex-1 text-left"
                                                                             >
-                                                                                <p className="truncate text-[15px] font-bold text-slate-800">{location.title}</p>
-                                                                                <p className="mt-1 truncate text-xs text-gray-500">{location.label}</p>
+                                                                                <p className="truncate text-[15px] font-bold text-slate-800 dark:text-slate-100">{location.title}</p>
+                                                                                <p className="mt-1 truncate text-xs text-gray-500 dark:text-slate-400">{location.label}</p>
                                                                                 <p className={`mt-1 inline-flex rounded-full border px-2 py-1 text-[11px] font-semibold ${visual.chipClass}`}>
                                                                                     {distanceLabel || `${location.lat.toFixed(4)}, ${location.lng.toFixed(4)}`}
                                                                                 </p>
@@ -3058,7 +3058,7 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                                     {filteredSavedLocations.recents.length > 0 && (
                                                         <div>
                                                             <div className="mb-3 flex items-center justify-between gap-3">
-                                                                <p className="text-[11px] font-bold uppercase tracking-wide text-gray-400">Recent</p>
+                                                                <p className="text-[11px] font-bold uppercase tracking-wide text-gray-400 dark:text-slate-500">Recent</p>
                                                                 <button
                                                                     type="button"
                                                                     onClick={() => void clearRecentLocations()}
@@ -3087,11 +3087,11 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                                                 {filteredSavedLocations.recents.map((location, index) => (
                                                                     <div
                                                                         key={`${location.kind}-actions-${index}-${location.label}`}
-                                                                        className="flex items-center justify-between rounded-2xl border border-gray-200 bg-white px-3 py-2"
+                                                                        className="flex items-center justify-between rounded-2xl border border-gray-200 dark:border-white/10 bg-white dark:bg-slate-900/70 px-3 py-2"
                                                                     >
                                                                         <div className="min-w-0">
-                                                                            <p className="truncate text-xs font-bold text-gray-800">{location.title}</p>
-                                                                            <p className="truncate text-[11px] text-gray-400">{location.label}</p>
+                                                                            <p className="truncate text-xs font-bold text-gray-800 dark:text-slate-100">{location.title}</p>
+                                                                            <p className="truncate text-[11px] text-gray-400 dark:text-slate-500">{location.label}</p>
                                                                         </div>
                                                                         <div className="shrink-0">
                                                                             {renderSavedPlaceActions(location, { compact: true })}
@@ -3124,11 +3124,11 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                     exit={{ opacity: 0, y: 60, scale: 0.97 }}
                                     transition={{ type: 'spring', damping: 28, stiffness: 280 }}
                                     onClick={(e) => e.stopPropagation()}
-                                    className="flex w-full max-w-2xl max-h-[92vh] sm:max-h-[88vh] flex-col overflow-hidden rounded-t-[2rem] sm:rounded-[2rem] bg-white shadow-2xl"
+                                    className="flex w-full max-w-2xl max-h-[92vh] sm:max-h-[88vh] flex-col overflow-hidden rounded-t-[2rem] sm:rounded-[2rem] bg-white dark:bg-slate-900/70 shadow-2xl"
                                 >
                                     {/* Drag handle (mobile) */}
                                     <div className="flex justify-center pt-3 pb-1 sm:hidden shrink-0">
-                                        <div className="w-10 h-1.5 rounded-full bg-slate-200" />
+                                        <div className="w-10 h-1.5 rounded-full bg-slate-200 dark:bg-white/[0.08]" />
                                     </div>
 
                                     {/* Header */}
@@ -3171,7 +3171,7 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                                 </h3>
                                                 <div className="flex items-center gap-2 mt-1.5">
                                                     {renderStarSummary(selectedWorkerProfile?.rating_average ?? null)}
-                                                    <span className="text-xs font-bold text-slate-400">
+                                                    <span className="text-xs font-bold text-slate-400 dark:text-slate-500">
                                                         {selectedWorkerProfile?.rating_average != null
                                                             ? `${selectedWorkerProfile.rating_average.toFixed(1)} · ${selectedWorkerProfile.rating_count} reviews`
                                                             : 'New Pro'}
@@ -3189,48 +3189,48 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                             ].map((stat) => (
                                                 <div key={stat.label} className="rounded-xl bg-white/8 border border-white/10 px-3 py-2.5 text-center backdrop-blur-sm">
                                                     <p className="text-base font-black text-white">{stat.value}</p>
-                                                    <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mt-0.5">{stat.label}</p>
+                                                    <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500 mt-0.5">{stat.label}</p>
                                                 </div>
                                             ))}
                                         </div>
                                     </div>
 
                                     {/* Body */}
-                                    <div className="flex-1 overflow-y-auto bg-white">
+                                    <div className="flex-1 overflow-y-auto bg-white dark:bg-slate-900/70">
                                         {workerProfileLoading ? (
                                             <div className="flex items-center justify-center gap-3 py-16">
-                                                <div className="h-5 w-5 rounded-full border-2 border-slate-200 border-t-slate-700 animate-spin" />
-                                                <p className="text-sm font-bold text-slate-500">Loading profile...</p>
+                                                <div className="h-5 w-5 rounded-full border-2 border-slate-200 dark:border-white/10 border-t-slate-700 animate-spin" />
+                                                <p className="text-sm font-bold text-slate-500 dark:text-slate-400">Loading profile...</p>
                                             </div>
                                         ) : (
-                                            <div className="divide-y divide-slate-100">
+                                            <div className="divide-y divide-slate-100 dark:divide-white/5">
                                                 {/* Bio */}
                                                 {selectedWorkerProfile?.bio && (
                                                     <div className="px-6 py-5">
-                                                        <p className="text-[11px] font-black uppercase tracking-widest text-slate-400 mb-2">About</p>
-                                                        <p className="text-sm leading-relaxed text-slate-700">{selectedWorkerProfile.bio}</p>
+                                                        <p className="text-[11px] font-black uppercase tracking-widest text-slate-400 dark:text-slate-500 mb-2">About</p>
+                                                        <p className="text-sm leading-relaxed text-slate-700 dark:text-slate-300">{selectedWorkerProfile.bio}</p>
                                                     </div>
                                                 )}
 
                                                 {/* Info row */}
                                                 <div className="px-6 py-5 grid grid-cols-2 gap-4">
                                                     <div>
-                                                        <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">Phone</p>
-                                                        <p className="text-sm font-bold text-slate-900">{selectedWorkerProfile?.phone_number || 'Hidden'}</p>
+                                                        <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 dark:text-slate-500 mb-1">Phone</p>
+                                                        <p className="text-sm font-bold text-slate-900 dark:text-slate-100">{selectedWorkerProfile?.phone_number || 'Hidden'}</p>
                                                     </div>
                                                     <div>
-                                                        <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">Level</p>
-                                                        <p className="text-sm font-bold text-slate-900">{selectedWorkerProfile?.experience_label || '—'}</p>
+                                                        <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 dark:text-slate-500 mb-1">Level</p>
+                                                        <p className="text-sm font-bold text-slate-900 dark:text-slate-100">{selectedWorkerProfile?.experience_label || '—'}</p>
                                                     </div>
                                                 </div>
 
                                                 {/* Services */}
                                                 {(selectedWorkerProfile?.services_offered || []).length > 0 && (
                                                     <div className="px-6 py-5">
-                                                        <p className="text-[11px] font-black uppercase tracking-widest text-slate-400 mb-3">Services</p>
+                                                        <p className="text-[11px] font-black uppercase tracking-widest text-slate-400 dark:text-slate-500 mb-3">Services</p>
                                                         <div className="flex flex-wrap gap-2">
                                                             {selectedWorkerProfile!.services_offered.map((s) => (
-                                                                <span key={s} className="rounded-xl bg-slate-100 border border-slate-200 px-3 py-1.5 text-xs font-bold text-slate-700">
+                                                                <span key={s} className="rounded-xl bg-slate-100 dark:bg-white/[0.06] border border-slate-200 dark:border-white/10 px-3 py-1.5 text-xs font-bold text-slate-700 dark:text-slate-300">
                                                                     {s}
                                                                 </span>
                                                             ))}
@@ -3241,13 +3241,13 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                                 {/* Portfolio */}
                                                 <div className="px-6 py-5">
                                                     <div className="flex items-center justify-between mb-4">
-                                                        <p className="text-[11px] font-black uppercase tracking-widest text-slate-400">Portfolio</p>
-                                                        <span className="text-[10px] font-bold text-slate-500 bg-slate-100 px-2.5 py-1 rounded-full">{workerPortfolio.length} photos</span>
+                                                        <p className="text-[11px] font-black uppercase tracking-widest text-slate-400 dark:text-slate-500">Portfolio</p>
+                                                        <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-white/[0.06] px-2.5 py-1 rounded-full">{workerPortfolio.length} photos</span>
                                                     </div>
                                                     {workerPortfolio.length === 0 ? (
-                                                        <div className="border-2 border-dashed border-slate-200 rounded-2xl p-8 flex flex-col items-center text-center">
-                                                            <svg className="w-8 h-8 text-slate-300 mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
-                                                            <p className="text-sm font-bold text-slate-500">No portfolio yet</p>
+                                                        <div className="border-2 border-dashed border-slate-200 dark:border-white/10 rounded-2xl p-8 flex flex-col items-center text-center">
+                                                            <svg className="w-8 h-8 text-slate-300 dark:text-slate-400 mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+                                                            <p className="text-sm font-bold text-slate-500 dark:text-slate-400">No portfolio yet</p>
                                                         </div>
                                                     ) : (
                                                         <div className="grid grid-cols-3 gap-2 pb-2">
@@ -3256,7 +3256,7 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                                                     key={item.id_photo}
                                                                     type="button"
                                                                     onClick={() => { setWorkerPortfolioIndex(index); setIsWorkerPortfolioFullscreen(true); }}
-                                                                    className="group relative aspect-square overflow-hidden rounded-xl bg-slate-100 border border-slate-200"
+                                                                    className="group relative aspect-square overflow-hidden rounded-xl bg-slate-100 dark:bg-white/[0.06] border border-slate-200 dark:border-white/10"
                                                                 >
                                                                     {item.image_url && !brokenPortfolioPhotos[item.id_photo] ? (
                                                                         <img
@@ -3266,7 +3266,7 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                                                             className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
                                                                         />
                                                                     ) : (
-                                                                        <div className="w-full h-full flex flex-col items-center justify-center bg-slate-100 text-slate-400">
+                                                                        <div className="w-full h-full flex flex-col items-center justify-center bg-slate-100 dark:bg-white/[0.06] text-slate-400 dark:text-slate-500">
                                                                             <svg className="w-6 h-6 mb-1" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
                                                                             <span className="text-[9px] font-bold uppercase tracking-wider">Unavailable</span>
                                                                         </div>
@@ -3280,7 +3280,7 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                                                 <button
                                                                     type="button"
                                                                     onClick={() => { setWorkerPortfolioIndex(6); setIsWorkerPortfolioFullscreen(true); }}
-                                                                    className="aspect-square rounded-xl bg-slate-900 text-white text-sm font-black flex items-center justify-center hover:bg-black transition-colors"
+                                                                    className="aspect-square rounded-xl bg-slate-900 dark:bg-white text-white dark:text-slate-900 text-sm font-black flex items-center justify-center hover:bg-black transition-colors"
                                                                 >
                                                                     +{workerPortfolio.length - 6}
                                                                 </button>
@@ -3499,23 +3499,23 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                     animate={{ opacity: 1, scale: 1, y: 0 }}
                                     exit={{ opacity: 0, scale: 0.96, y: 12 }}
                                     transition={{ type: 'spring', damping: 24, stiffness: 260 }}
-                                    className="w-full max-w-md overflow-hidden rounded-[28px] border border-gray-200 bg-white shadow-2xl"
+                                    className="w-full max-w-md overflow-hidden rounded-[28px] border border-gray-200 dark:border-white/10 bg-white dark:bg-slate-900/70 shadow-2xl"
                                 >
                                     <div className="bg-gradient-to-r from-amber-400 via-yellow-300 to-bird-blue px-6 py-5">
                                         <div className="flex items-center gap-4">
                                             {renderLocationBadge(pendingDeleteLocation.kind, 'lg')}
-                                            <div className="text-slate-900">
-                                                <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-700">Delete saved place</p>
+                                            <div className="text-slate-900 dark:text-slate-100">
+                                                <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-700 dark:text-slate-300">Delete saved place</p>
                                                 <h3 className="mt-1 text-xl font-black">{pendingDeleteLocation.title}</h3>
                                             </div>
                                         </div>
                                     </div>
 
                                     <div className="p-6">
-                                        <div className="rounded-2xl border border-amber-100 bg-amber-50/70 p-4">
-                                            <p className="text-sm font-bold text-slate-900">Are you sure you want to remove this location?</p>
-                                            <p className="mt-2 text-sm text-slate-600">{pendingDeleteLocation.label}</p>
-                                            <div className="mt-3 inline-flex rounded-full border border-bird-blue/20 bg-bird-blue/10 px-3 py-1 text-[11px] font-bold text-slate-900">
+                                        <div className="rounded-2xl border border-amber-100 dark:border-amber-900/40 bg-amber-50/70 dark:bg-amber-900/40 p-4">
+                                            <p className="text-sm font-bold text-slate-900 dark:text-slate-100">Are you sure you want to remove this location?</p>
+                                            <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">{pendingDeleteLocation.label}</p>
+                                            <div className="mt-3 inline-flex rounded-full border border-bird-blue/20 bg-bird-blue/10 px-3 py-1 text-[11px] font-bold text-slate-900 dark:text-slate-100">
                                                 {pendingDeleteLocation.lat.toFixed(4)}, {pendingDeleteLocation.lng.toFixed(4)}
                                             </div>
                                         </div>
@@ -3526,7 +3526,7 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                                 onClick={() => closeDeleteSavedLocationPrompt(true)}
                                                 whileHover={{ y: -2, scale: 1.01 }}
                                                 whileTap={{ scale: 0.98 }}
-                                                className="inline-flex items-center justify-center gap-2 rounded-2xl border border-bird-blue/20 bg-bird-blue/10 px-4 py-3 text-sm font-black text-slate-900 transition hover:bg-bird-blue hover:text-white"
+                                                className="inline-flex items-center justify-center gap-2 rounded-2xl border border-bird-blue/20 bg-bird-blue/10 px-4 py-3 text-sm font-black text-slate-900 dark:text-slate-100 transition hover:bg-bird-blue hover:text-white"
                                             >
                                                 {renderSavedPlaceActionIcon('use')}
                                                 Keep place
@@ -3536,7 +3536,7 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                                 onClick={() => void confirmDeleteSavedLocation()}
                                                 whileHover={{ y: -2, scale: 1.01 }}
                                                 whileTap={{ scale: 0.98 }}
-                                                className="inline-flex items-center justify-center gap-2 rounded-2xl border border-amber-300 bg-gradient-to-r from-amber-300 to-yellow-300 px-4 py-3 text-sm font-black text-slate-900 transition hover:shadow-[0_12px_28px_rgba(245,158,11,0.28)]"
+                                                className="inline-flex items-center justify-center gap-2 rounded-2xl border border-amber-300 dark:border-amber-900/50 bg-gradient-to-r from-amber-300 to-yellow-300 px-4 py-3 text-sm font-black text-slate-900 dark:text-slate-100 transition hover:shadow-[0_12px_28px_rgba(245,158,11,0.28)]"
                                             >
                                                 {renderSavedPlaceActionIcon('delete')}
                                                 Delete saved place
@@ -3561,20 +3561,20 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                     animate={{ opacity: 1, scale: 1, y: 0 }}
                                     exit={{ opacity: 0, scale: 0.96, y: 12 }}
                                     transition={{ type: 'spring', damping: 24, stiffness: 260 }}
-                                    className="w-full max-w-md overflow-hidden rounded-[28px] border border-gray-200 bg-white shadow-2xl"
+                                    className="w-full max-w-md overflow-hidden rounded-[28px] border border-gray-200 dark:border-white/10 bg-white dark:bg-slate-900/70 shadow-2xl"
                                 >
                                     <div className="bg-gradient-to-r from-bird-blue via-sky-500 to-yellow-300 px-6 py-5">
                                         <div className="flex items-center gap-4">
                                             {renderLocationBadge(pendingRenameLocation.kind, 'lg')}
-                                            <div className="text-slate-900">
-                                                <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-700">Rename saved place</p>
+                                            <div className="text-slate-900 dark:text-slate-100">
+                                                <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-700 dark:text-slate-300">Rename saved place</p>
                                                 <h3 className="mt-1 text-xl font-black">{pendingRenameLocation.title}</h3>
                                             </div>
                                         </div>
                                     </div>
 
                                     <div className="p-6">
-                                        <label className="block text-[11px] font-black uppercase tracking-[0.18em] text-gray-500">
+                                        <label className="block text-[11px] font-black uppercase tracking-[0.18em] text-gray-500 dark:text-slate-400">
                                             New label
                                         </label>
                                         <input
@@ -3582,6 +3582,7 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                             value={pendingRenameTitle}
                                             autoFocus
                                             autoComplete="off"
+                                            maxLength={80}
                                             onChange={(e) => setPendingRenameTitle(e.target.value)}
                                             onKeyDown={(e) => {
                                                 if (e.key === 'Enter') {
@@ -3593,10 +3594,10 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                                     closeRenameSavedLocationPrompt(true);
                                                 }
                                             }}
-                                            className="mt-2 w-full rounded-2xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-900 focus:border-bird-blue focus:bg-white focus:outline-none"
+                                            className="mt-2 w-full rounded-2xl border border-gray-200 dark:border-white/10 bg-gray-50 dark:bg-white/[0.04] px-4 py-3 text-sm text-gray-900 dark:text-slate-100 focus:border-bird-blue focus:bg-white focus:outline-none"
                                             placeholder="Ex: Home, Office, Mom's house"
                                         />
-                                        <p className="mt-3 text-sm text-gray-500">
+                                        <p className="mt-3 text-sm text-gray-500 dark:text-slate-400">
                                             Update the name without touching the saved coordinates.
                                         </p>
 
@@ -3606,7 +3607,7 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                                 onClick={() => closeRenameSavedLocationPrompt(true)}
                                                 whileHover={{ y: -2, scale: 1.01 }}
                                                 whileTap={{ scale: 0.98 }}
-                                                className="inline-flex items-center justify-center gap-2 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-black text-amber-700 transition hover:bg-amber-400 hover:text-white"
+                                                className="inline-flex items-center justify-center gap-2 rounded-2xl border border-amber-200 dark:border-amber-900/50 bg-amber-50 dark:bg-amber-900/40 px-4 py-3 text-sm font-black text-amber-700 dark:text-amber-400 transition hover:bg-amber-400 hover:text-white"
                                             >
                                                 {renderSavedPlaceActionIcon('delete')}
                                                 Cancel
@@ -3640,17 +3641,17 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                 animate={{ opacity: 1, scale: 1, y: 0 }}
                                 exit={{ opacity: 0, scale: 0.96, y: 12 }}
                                 transition={{ type: 'spring', damping: 24, stiffness: 260 }}
-                                className="w-full max-w-md overflow-hidden rounded-[28px] border border-gray-200 bg-white shadow-2xl"
+                                className="w-full max-w-md overflow-hidden rounded-[28px] border border-gray-200 dark:border-white/10 bg-white dark:bg-slate-900/70 shadow-2xl"
                             >
                                 <div className={`px-6 py-5 ${
                                     pendingRequestAction.type === 'cancel'
                                         ? 'bg-gradient-to-r from-amber-400 via-yellow-300 to-orange-300'
                                         : 'bg-gradient-to-r from-bird-blue via-sky-500 to-cyan-400'
                                 }`}>
-                                    <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-700">
+                                    <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-700 dark:text-slate-300">
                                         {pendingRequestAction.type === 'cancel' ? 'Cancel request' : 'Confirm completion'}
                                     </p>
-                                    <h3 className="mt-2 text-xl font-black text-slate-900">
+                                    <h3 className="mt-2 text-xl font-black text-slate-900 dark:text-slate-100">
                                         #{pendingRequestAction.request.id_request} - {pendingRequestAction.request.service_name}
                                     </h3>
                                 </div>
@@ -3658,15 +3659,15 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                 <div className="p-6">
                                     <div className={`rounded-2xl border p-4 ${
                                         pendingRequestAction.type === 'cancel'
-                                            ? 'border-amber-200 bg-amber-50/70'
-                                            : 'border-blue-200 bg-blue-50/70'
+                                            ? 'border-amber-200 dark:border-amber-900/50 bg-amber-50/70 dark:bg-amber-900/40'
+                                            : 'border-blue-200 dark:border-blue-900/50 bg-blue-50/70 dark:bg-blue-900/40'
                                     }`}>
-                                        <p className="text-sm font-bold text-slate-900">
+                                        <p className="text-sm font-bold text-slate-900 dark:text-slate-100">
                                             {pendingRequestAction.type === 'cancel'
                                                 ? 'Are you sure you want to cancel this request?'
                                                 : 'Confirm that the work is completed and release the payment?'}
                                         </p>
-                                        <p className="mt-2 text-sm text-slate-600 line-clamp-3">
+                                        <p className="mt-2 text-sm text-slate-600 dark:text-slate-300 line-clamp-3">
                                             {pendingRequestAction.request.description}
                                         </p>
                                     </div>
@@ -3677,7 +3678,7 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                             onClick={() => closeRequestActionPrompt(true)}
                                             whileHover={{ y: -2, scale: 1.01 }}
                                             whileTap={{ scale: 0.98 }}
-                                            className="inline-flex items-center justify-center gap-2 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-black text-amber-700 transition hover:bg-amber-400 hover:text-white"
+                                            className="inline-flex items-center justify-center gap-2 rounded-2xl border border-amber-200 dark:border-amber-900/50 bg-amber-50 dark:bg-amber-900/40 px-4 py-3 text-sm font-black text-amber-700 dark:text-amber-400 transition hover:bg-amber-400 hover:text-white"
                                         >
                                             {renderSavedPlaceActionIcon('delete')}
                                             Back
@@ -3710,8 +3711,12 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                 paymentMethod={paymentMethod}
                                 paymentForm={paymentForm}
                                 paymentBusyId={paymentBusyId}
+                                paymentError={paymentError}
                                 onClose={() => setPaymentModalRequest(null)}
-                                onSelectMethod={setPaymentMethod}
+                                onSelectMethod={(method) => {
+                                    setPaymentError(null);
+                                    setPaymentMethod(method);
+                                }}
                                 onPaymentFormChange={(patch) => setPaymentForm((prev) => ({ ...prev, ...patch }))}
                                 onConfirmPayment={() => void confirmPaymentThroughModal()}
                             />
@@ -3726,7 +3731,7 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                 initial={{ opacity: 0 }}
                                 animate={{ opacity: 1 }}
                                 exit={{ opacity: 0 }}
-                                className="absolute inset-0 z-30 bg-white/95 backdrop-blur-sm flex flex-col items-center justify-center p-8 text-center"
+                                className="absolute inset-0 z-30 bg-white/95 dark:bg-slate-900/70 backdrop-blur-sm flex flex-col items-center justify-center p-8 text-center"
                             >
                                 <motion.div
                                     animate={{ rotate: 360 }}
@@ -3736,7 +3741,7 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                 <motion.h2
                                     initial={{ opacity: 0, y: 20 }}
                                     animate={{ opacity: 1, y: 0 }}
-                                    className="text-2xl font-bold text-gray-900 mb-2"
+                                    className="text-2xl font-bold text-gray-900 dark:text-slate-100 mb-2"
                                 >
                                     Finding the best pro...
                                 </motion.h2>
@@ -3744,7 +3749,7 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                     initial={{ opacity: 0, y: 20 }}
                                     animate={{ opacity: 1, y: 0 }}
                                     transition={{ delay: 0.1 }}
-                                    className="text-gray-600 mb-8"
+                                    className="text-gray-600 dark:text-slate-300 mb-8"
                                 >
                                     This will only take a moment
                                 </motion.p>
@@ -3752,7 +3757,7 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                     whileHover={{ scale: 1.05 }}
                                     whileTap={{ scale: 0.95 }}
                                     onClick={() => setIsSearching(false)}
-                                    className="px-6 py-2 rounded-full border-2 border-gray-200 text-gray-600 font-bold hover:border-gray-300 hover:bg-gray-50 transition-all"
+                                    className="px-6 py-2 rounded-full border-2 border-gray-200 dark:border-white/10 text-gray-600 dark:text-slate-300 font-bold hover:border-gray-300 dark:hover:border-white/10 hover:bg-gray-50 dark:hover:bg-white/[0.04] transition-all"
                                 >
                                     Cancel
                                 </motion.button>
@@ -3762,7 +3767,7 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
             </ServiceRequestPanelShell>
 
             {/* Map — on desktop takes remaining space, on mobile sits behind the bottom-sheet sidebar */}
-            <div className="absolute inset-0 z-0 bg-gray-100 md:relative md:inset-auto md:flex-1">
+            <div className="absolute inset-0 z-0 bg-gray-100 dark:bg-white/[0.06] md:relative md:inset-auto md:flex-1">
                 <div ref={mapContainerRef} className="absolute inset-0 z-0" />
                 <div
                     className={`pointer-events-none absolute inset-0 z-[1] transition-all duration-300 ${
@@ -3803,22 +3808,22 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                     animate={{ x: 0 }}
                                     exit={{ x: '100%' }}
                                     transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-                                    className="w-full md:w-[500px] lg:w-[600px] h-full bg-white shadow-2xl flex flex-col pointer-events-auto"
+                                    className="w-full md:w-[500px] lg:w-[600px] h-full bg-white dark:bg-slate-900/70 shadow-2xl flex flex-col pointer-events-auto"
                                 >
-                                    <div className="flex items-center justify-between px-6 py-5 border-b border-slate-100 shrink-0">
+                                    <div className="flex items-center justify-between px-6 py-5 border-b border-slate-100 dark:border-white/5 shrink-0">
                                         <div>
-                                            <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">History</p>
-                                            <h2 className="text-xl font-black text-slate-900 mt-1">My Request Story</h2>
+                                            <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400 dark:text-slate-500">History</p>
+                                            <h2 className="text-xl font-black text-slate-900 dark:text-slate-100 mt-1">My Request Story</h2>
                                         </div>
                                         <button
                                             type="button"
                                             onClick={closeHistoryModal}
-                                            className="flex h-10 w-10 items-center justify-center rounded-full bg-slate-100 text-slate-500 hover:bg-slate-200 hover:text-slate-900 transition-colors"
+                                            className="flex h-10 w-10 items-center justify-center rounded-full bg-slate-100 dark:bg-white/[0.06] text-slate-500 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-white/[0.08] hover:text-slate-900 dark:hover:text-slate-100 transition-colors"
                                         >
                                             <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" /></svg>
                                         </button>
                                     </div>
-                                    <div className="flex-1 overflow-y-auto custom-scrollbar p-6 bg-slate-50/50">
+                                    <div className="flex-1 overflow-y-auto custom-scrollbar p-6 bg-slate-50/50 dark:bg-white/[0.04]">
 <ServiceRequestHistorySection
                                     historyStatus={historyStatus}
                                     historyLoading={historyLoading}
@@ -3843,12 +3848,12 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                 >
 
                                             {historyLoading && myRequests.length === 0 ? (
-                                                <div className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-[11px] font-medium uppercase tracking-wider text-slate-500">
+                                                <div className="inline-flex items-center gap-2 rounded-full border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-white/[0.04] px-3 py-1.5 text-[11px] font-medium uppercase tracking-wider text-slate-500 dark:text-slate-400">
                                                     <span className="h-2 w-2 rounded-full bg-blue-500 animate-pulse" />
                                                     Loading requests
                                                 </div>
                                             ) : !historyLoading && myRequests.length === 0 ? (
-                                                <div className="text-sm font-semibold text-slate-500 bg-slate-50 border border-slate-100 rounded-xl p-4 text-center">No requests yet.</div>
+                                                <div className="text-sm font-semibold text-slate-500 dark:text-slate-400 bg-slate-50 dark:bg-white/[0.04] border border-slate-100 dark:border-white/5 rounded-xl p-4 text-center">No requests yet.</div>
                                             ) : (
                                                 <div className="space-y-4 max-h-[600px] overflow-y-auto pr-2 custom-scrollbar">
                                             {myRequests.map((request) => {
@@ -3858,7 +3863,8 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                                 const canUseChat = canUseRequestChat(request);
                                                 const canRate = requestStatus === 'done';
                                                 const canCancel = ['pending', 'payment_pending', 'assigned'].includes(requestStatus);
-                                                const canPayNow = requestStatus === 'payment_pending';
+                                                const isCashReserved = isCashReservedRequest(request);
+                                                const canPayNow = requestStatus === 'payment_pending' && !isCashReserved;
                                                 const canShowPayment = ['payment_pending', 'paid', 'completion_pending', 'done'].includes(requestStatus);
                                                 const canConfirmCompletion = requestStatus === 'awaiting_confirmation';
                                                 const isWorkflowV2 = Number(request.workflow_version || 1) >= 2;
@@ -3887,39 +3893,39 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                                     <div
                                                         key={request.id_request}
                                                         data-history-request-id={request.id_request}
-                                                        className={`rounded-[1.5rem] border bg-white p-5 transition-all shadow-sm hover:shadow-md ${
+                                                        className={`rounded-[1.5rem] border bg-white dark:bg-slate-900/70 p-5 transition-all shadow-sm hover:shadow-md ${
                                                             request.id_request === focusedHistoryRequestId
-                                                                ? 'border-bird-blue ring-4 ring-blue-100'
+                                                                ? 'border-bird-blue ring-4 ring-blue-100 dark:ring-blue-900/40'
                                                                 : isTrackingActive
-                                                                    ? 'border-blue-300 ring-4 ring-blue-50'
-                                                                    : 'border-slate-200'
+                                                                    ? 'border-blue-300 dark:border-blue-900/50 ring-4 ring-blue-50 dark:ring-blue-900/40'
+                                                                    : 'border-slate-200 dark:border-white/10'
                                                         }`}
                                                     >
                                                         <div className="flex items-start justify-between gap-3 mb-4">
                                                             <div className="min-w-0">
                                                                 <div className="flex items-center gap-2 mb-1.5">
-                                                                    <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Req #{request.id_request}</span>
-                                                                    <span className="w-1 h-1 rounded-full bg-slate-300"></span>
-                                                                    <span className="text-[10px] font-bold text-slate-500">{new Date(request.created_at).toLocaleDateString()}</span>
+                                                                    <span className="text-[10px] font-black uppercase tracking-widest text-slate-400 dark:text-slate-500">Req #{request.id_request}</span>
+                                                                    <span className="w-1 h-1 rounded-full bg-slate-300 dark:bg-white/[0.10]"></span>
+                                                                    <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400">{new Date(request.created_at).toLocaleDateString()}</span>
                                                                 </div>
-                                                                <h3 className="text-lg font-black text-slate-900 truncate leading-tight">{request.service_name}</h3>
+                                                                <h3 className="text-lg font-black text-slate-900 dark:text-slate-100 truncate leading-tight">{request.service_name}</h3>
                                                                 <div className="mt-2 flex flex-wrap items-center gap-1.5">
                                                                     <span className={`rounded-full px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.14em] ${
                                                                         isScheduled
-                                                                            ? 'border border-violet-200 bg-violet-50 text-violet-700'
-                                                                            : 'border border-emerald-200 bg-emerald-50 text-emerald-700'
+                                                                            ? 'border border-violet-200 dark:border-violet-900/50 bg-violet-50 dark:bg-violet-900/40 text-violet-700 dark:text-violet-400'
+                                                                            : 'border border-emerald-200 dark:border-emerald-900/50 bg-emerald-50 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-400'
                                                                     }`}>
                                                                         {isScheduled ? 'Scheduled' : 'Express'}
                                                                     </span>
                                                                     {isScheduled && (
-                                                                        <span className="rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[10px] font-bold text-slate-600">
+                                                                        <span className="rounded-full border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900/70 px-2.5 py-1 text-[10px] font-bold text-slate-600 dark:text-slate-300">
                                                                             {scheduledWindow}
                                                                         </span>
                                                                     )}
                                                                 </div>
                                                             </div>
                                                             <div className="flex flex-col items-end gap-1.5 shrink-0">
-                                                                <span className={`text-[10px] font-black uppercase tracking-[0.1em] px-2.5 py-1 rounded-full border ${statusBadgeClasses(request.status)}`}>
+                                                                <span className={`text-[10px] font-black uppercase tracking-[0.1em] px-2.5 py-1 rounded-full border ${statusBadgeClasses(request.status, request)}`}>
                                                                     {statusLabel(request.status, request)}
                                                                 </span>
                                                                 {counterBadge(request)}
@@ -3927,35 +3933,35 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                                         </div>
 
                                                         {isTrackingActive && (
-                                                            <div className="mb-4 rounded-xl bg-blue-50 border border-blue-200/60 p-4">
+                                                            <div className="mb-4 rounded-xl bg-blue-50 dark:bg-blue-900/40 border border-blue-200/60 p-4">
                                                                 <div className="flex items-center gap-3">
                                                                     <div className="relative flex items-center justify-center shrink-0 w-8 h-8">
                                                                         <div className="absolute inset-0 rounded-full bg-blue-400 opacity-20 blur-[2px] animate-pulse"></div>
                                                                         <div className="h-2.5 w-2.5 rounded-full bg-blue-500 relative z-10 animate-ping"></div>
                                                                     </div>
                                                                     <div className="min-w-0 flex-1">
-                                                                        <p className="text-xs font-black text-slate-900">Live Tracking Active</p>
-                                                                        <p className="text-[11px] font-medium text-slate-600 truncate">Check the main map to see your pro's location</p>
+                                                                        <p className="text-xs font-black text-slate-900 dark:text-slate-100">Live Tracking Active</p>
+                                                                        <p className="text-[11px] font-medium text-slate-600 dark:text-slate-300 truncate">Check the main map to see your pro's location</p>
                                                                     </div>
                                                                 </div>
                                                             </div>
                                                         )}
 
-                                                        <p className="text-sm text-slate-600 mb-4 bg-slate-50 p-3 rounded-xl border border-slate-100">
+                                                        <p className="text-sm text-slate-600 dark:text-slate-300 mb-4 bg-slate-50 dark:bg-white/[0.04] p-3 rounded-xl border border-slate-100 dark:border-white/5">
                                                             {request.description}
                                                         </p>
 
                                                         {isWaitingForWorkerResponses && (
-                                                            <div className="mb-4 rounded-2xl border border-blue-100 bg-blue-50 p-4">
+                                                            <div className="mb-4 rounded-2xl border border-blue-100 dark:border-blue-900/40 bg-blue-50 dark:bg-blue-900/40 p-4">
                                                                 <div className="flex items-start gap-3">
-                                                                    <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl bg-white text-bird-blue shadow-sm">
+                                                                    <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl bg-white dark:bg-slate-900/70 text-bird-blue shadow-sm">
                                                                         <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                                                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.4} d="M17 8h2a2 2 0 012 2v7a2 2 0 01-2 2h-6l-4 4v-4H5a2 2 0 01-2-2v-7a2 2 0 012-2h2m2-4h6a2 2 0 012 2v5a2 2 0 01-2 2h-3l-3 3v-3H9a2 2 0 01-2-2V6a2 2 0 012-2z" />
                                                                         </svg>
                                                                     </span>
                                                                     <div className="min-w-0">
-                                                                        <p className="text-sm font-black text-slate-900">Waiting for worker responses</p>
-                                                                        <p className="mt-1 text-xs font-semibold leading-5 text-slate-600">
+                                                                        <p className="text-sm font-black text-slate-900 dark:text-slate-100">Waiting for worker responses</p>
+                                                                        <p className="mt-1 text-xs font-semibold leading-5 text-slate-600 dark:text-slate-300">
                                                                             When a verified Pro accepts, their rating, experience and portfolio will appear here for your approval.
                                                                         </p>
                                                                     </div>
@@ -3963,14 +3969,14 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                                             </div>
                                                         )}
 
-                                                        <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-2 text-xs font-semibold text-slate-500 mb-4">
+                                                        <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-2 text-xs font-semibold text-slate-500 dark:text-slate-400 mb-4">
                                                             <div className="flex items-center gap-1.5">
-                                                                <svg className="w-4 h-4 text-slate-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                                                                <svg className="w-4 h-4 text-slate-400 dark:text-slate-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
                                                                 <span>{new Date(request.created_at).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}</span>
                                                             </div>
                                                             {request.payment?.checkout_reference && (
                                                                 <div className="flex items-center gap-1.5 min-w-0">
-                                                                    <svg className="w-4 h-4 text-slate-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+                                                                    <svg className="w-4 h-4 text-slate-400 dark:text-slate-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
                                                                     <span className="truncate">Ref: {request.payment.checkout_reference}</span>
                                                                 </div>
                                                             )}
@@ -3990,7 +3996,7 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                                                 <button
                                                                     type="button"
                                                                     onClick={() => setReportRequest(request)}
-                                                                    className="mt-3 flex w-full items-center justify-center gap-2 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-black text-red-700 transition hover:bg-red-100"
+                                                                    className="mt-3 flex w-full items-center justify-center gap-2 rounded-2xl border border-red-200 dark:border-red-900/50 bg-red-50 dark:bg-red-900/40 px-4 py-3 text-sm font-black text-red-700 dark:text-red-400 transition hover:bg-red-100"
                                                                 >
                                                                     <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.4} d="M12 9v4m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
@@ -4001,21 +4007,21 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                                         )}
 
                                                         {!request.assigned_worker && (
-                                                            <div className="mt-3 rounded-2xl border border-amber-200 bg-amber-50 p-4">
+                                                            <div className="mt-3 rounded-2xl border border-amber-200 dark:border-amber-900/50 bg-amber-50 dark:bg-amber-900/40 p-4">
                                                                 <div className="flex items-start gap-3">
-                                                                    <span className="mt-0.5 grid h-10 w-10 shrink-0 place-items-center rounded-2xl bg-white text-amber-700 shadow-sm">
+                                                                    <span className="mt-0.5 grid h-10 w-10 shrink-0 place-items-center rounded-2xl bg-white dark:bg-slate-900/70 text-amber-700 dark:text-amber-400 shadow-sm">
                                                                         <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                                                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.4} d="M12 9v4m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
                                                                         </svg>
                                                                     </span>
                                                                     <div className="min-w-0 flex-1">
                                                                         <div className="flex flex-wrap items-center justify-between gap-2">
-                                                                            <p className="text-sm font-black text-amber-950">Need help with this request?</p>
-                                                                            <span className="rounded-full border border-amber-200 bg-white px-3 py-1 text-[10px] font-black uppercase tracking-[0.14em] text-amber-700">
+                                                                            <p className="text-sm font-black text-amber-950 dark:text-amber-200">Need help with this request?</p>
+                                                                            <span className="rounded-full border border-amber-200 dark:border-amber-900/50 bg-white dark:bg-slate-900/70 px-3 py-1 text-[10px] font-black uppercase tracking-[0.14em] text-amber-700 dark:text-amber-400">
                                                                                 Support
                                                                             </span>
                                                                         </div>
-                                                                        <p className="mt-1 text-xs font-semibold leading-5 text-amber-900/80">
+                                                                        <p className="mt-1 text-xs font-semibold leading-5 text-amber-900/80 dark:text-amber-200">
                                                                             If matching is taking too long, the details are wrong, or something feels off, send a request issue to Fixlife support.
                                                                         </p>
                                                                         <button
@@ -4036,37 +4042,37 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                                         {(timelineState.workerAccepted || timelineState.paymentSecured || timelineState.onTheWay || timelineState.arrived || timelineState.workInProgress || timelineState.workFinished || timelineState.completed) && (
                                                             <div className="mt-3 flex flex-wrap gap-2">
                                                                 {timelineState.workerAccepted && (
-                                                                    <span className="rounded-full border border-sky-200 bg-sky-50 px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.14em] text-gray-500">
+                                                                    <span className="rounded-full border border-sky-200 dark:border-sky-900/50 bg-sky-50 dark:bg-sky-900/40 px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.14em] text-gray-500 dark:text-slate-400">
                                                                         Pro approved
                                                                     </span>
                                                                 )}
                                                                 {timelineState.paymentSecured && (
-                                                                    <span className="rounded-full border border-cyan-200 bg-cyan-50 px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.14em] text-cyan-700">
+                                                                    <span className="rounded-full border border-cyan-200 dark:border-cyan-900/50 bg-cyan-50 dark:bg-cyan-900/40 px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.14em] text-cyan-700 dark:text-cyan-400">
                                                                         Paid
                                                                     </span>
                                                                 )}
                                                                 {timelineState.onTheWay && requestStatus === 'route_in_progress' && (
-                                                                    <span className="rounded-full border border-blue-200 bg-blue-50 px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.14em] text-blue-700">
+                                                                    <span className="rounded-full border border-blue-200 dark:border-blue-900/50 bg-blue-50 dark:bg-blue-900/40 px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.14em] text-blue-700 dark:text-blue-400">
                                                                         On route
                                                                     </span>
                                                                 )}
                                                                 {timelineState.arrived && requestStatus !== 'done' && (
-                                                                    <span className="rounded-full border border-violet-200 bg-violet-50 px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.14em] text-violet-700">
+                                                                    <span className="rounded-full border border-violet-200 dark:border-violet-900/50 bg-violet-50 dark:bg-violet-900/40 px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.14em] text-violet-700 dark:text-violet-400">
                                                                         Arrived
                                                                     </span>
                                                                 )}
                                                                 {timelineState.workInProgress && requestStatus !== 'done' && (
-                                                                    <span className="rounded-full border border-indigo-200 bg-indigo-50 px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.14em] text-indigo-700">
+                                                                    <span className="rounded-full border border-indigo-200 dark:border-indigo-900/50 bg-indigo-50 dark:bg-indigo-900/40 px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.14em] text-indigo-700 dark:text-indigo-400">
                                                                         Working
                                                                     </span>
                                                                 )}
                                                                 {timelineState.workFinished && requestStatus !== 'done' && (
-                                                                    <span className="rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.14em] text-amber-700">
+                                                                    <span className="rounded-full border border-amber-200 dark:border-amber-900/50 bg-amber-50 dark:bg-amber-900/40 px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.14em] text-amber-700 dark:text-amber-400">
                                                                         Work finished
                                                                     </span>
                                                                 )}
                                                                 {timelineState.completed && (
-                                                                    <span className="rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.14em] text-emerald-700">
+                                                                    <span className="rounded-full border border-emerald-200 dark:border-emerald-900/50 bg-emerald-50 dark:bg-emerald-900/40 px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.14em] text-emerald-700 dark:text-emerald-400">
                                                                         Completed
                                                                     </span>
                                                                 )}
@@ -4079,7 +4085,7 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                                                     type="button"
                                                                     disabled={cancelBusyId === request.id_request}
                                                                     onClick={() => handleCancelRequest(request)}
-                                                                    className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-[11px] font-bold text-red-600 hover:bg-red-100 disabled:opacity-50"
+                                                                    className="rounded-lg border border-red-200 dark:border-red-900/50 bg-red-50 dark:bg-red-900/40 px-3 py-2 text-[11px] font-bold text-red-600 dark:text-red-400 hover:bg-red-100 disabled:opacity-50"
                                                                 >
                                                                     {cancelBusyId === request.id_request ? 'Cancelling...' : 'Cancel request'}
                                                                 </button>
@@ -4087,9 +4093,9 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                                         )}
 
                                                         {isWorkflowV2 && ['arrived', 'start_pending', 'in_progress', 'finish_pending'].includes(requestStatus) && (
-                                                            <div className="mt-4 rounded-2xl border border-blue-200 bg-blue-50 p-4">
-                                                                <p className="text-[10px] font-black uppercase tracking-[0.18em] text-blue-700">Double approval</p>
-                                                                <p className="mt-2 text-sm font-bold text-slate-900">
+                                                            <div className="mt-4 rounded-2xl border border-blue-200 dark:border-blue-900/50 bg-blue-50 dark:bg-blue-900/40 p-4">
+                                                                <p className="text-[10px] font-black uppercase tracking-[0.18em] text-blue-700 dark:text-blue-400">Double approval</p>
+                                                                <p className="mt-2 text-sm font-bold text-slate-900 dark:text-slate-100">
                                                                     {['arrived', 'start_pending'].includes(requestStatus)
                                                                         ? startApproved ? 'Your start approval is saved. Waiting for worker.' : 'Approve starting work when both are ready.'
                                                                         : finishApproved ? 'Your finish approval is saved. Waiting for worker.' : finishRemainingSeconds > 0
@@ -4110,35 +4116,39 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                                         )}
 
                                                         {canShowPayment && (
-                                                            <div className="mt-4 rounded-2xl border border-slate-100 bg-slate-50 p-4">
+                                                            <div className="mt-4 rounded-2xl border border-slate-100 dark:border-white/5 bg-slate-50 dark:bg-white/[0.04] p-4">
                                                                 <div className="flex items-start justify-between gap-2">
                                                                     <div>
-                                                                        <p className="text-[10px] uppercase tracking-[0.18em] font-black text-slate-400">Payment Status</p>
+                                                                        <p className="text-[10px] uppercase tracking-[0.18em] font-black text-slate-400 dark:text-slate-500">Payment Status</p>
                                                                         <div className="mt-1 flex items-baseline gap-2">
-                                                                            <span className="text-xl font-black text-slate-900">
+                                                                            <span className="text-xl font-black text-slate-900 dark:text-slate-100">
                                                                                 {request.payment?.amount != null ? `$${Number(request.payment.amount).toFixed(2)}` : `$${Number(request.final_budget ?? request.budget ?? 0).toFixed(2)}`}
                                                                             </span>
-                                                                            <span className="text-xs font-bold text-slate-500 uppercase">USD</span>
+                                                                            <span className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase">USD</span>
                                                                         </div>
-                                                                        <p className="text-xs font-medium text-slate-600 mt-2">
+                                                                        <p className="text-xs font-medium text-slate-600 dark:text-slate-300 mt-2">
                                                                             {paymentStatus === 'released'
                                                                                 ? 'Funds released to the worker.'
                                                                                 : paymentStatus === 'paid'
                                                                                     ? 'Payment successful. Final service approval is now available.'
-                                                                                    : canPayNow
-                                                                                        ? 'Both parties finished work. Complete payment to continue.'
-                                                                                        : 'Checkout is ready for this request.'}
+                                                                                    : isCashReserved
+                                                                                        ? 'Cash payment reserved. Pay the professional directly when the job is done — they will confirm collection from their dashboard.'
+                                                                                        : canPayNow
+                                                                                            ? 'Both parties finished work. Complete payment to continue.'
+                                                                                            : 'Checkout is ready for this request.'}
                                                                         </p>
                                                                     </div>
                                                                     {request.payment && (
                                                                         <span className={`text-[10px] font-black uppercase tracking-wider px-3 py-1.5 rounded-full border ${
                                                                             paymentStatus === 'released'
-                                                                                ? 'bg-emerald-100 text-emerald-700 border-emerald-200'
+                                                                                ? 'bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-900/50'
                                                                                 : paymentStatus === 'paid'
-                                                                                    ? 'bg-blue-100 text-blue-700 border-blue-200'
-                                                                                    : 'bg-white text-slate-700 border-slate-200'
+                                                                                    ? 'bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-400 border-blue-200 dark:border-blue-900/50'
+                                                                                    : isCashReserved
+                                                                                        ? 'bg-emerald-50 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-900/50'
+                                                                                        : 'bg-white dark:bg-slate-900/70 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-white/10'
                                                                         }`}>
-                                                                            {paymentStatus || 'pending'}
+                                                                            {isCashReserved ? 'cash reserved' : paymentStatus || 'pending'}
                                                                         </span>
                                                                     )}
                                                                 </div>
@@ -4147,7 +4157,7 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                                                         type="button"
                                                                         onClick={() => handleSecurePayment(request)}
                                                                         disabled={paymentBusyId === request.id_request}
-                                                                        className="mt-4 w-full py-3.5 rounded-xl bg-slate-900 text-white text-[13px] font-bold hover:bg-black disabled:opacity-40 transition-colors shadow-md"
+                                                                        className="mt-4 w-full py-3.5 rounded-xl bg-slate-900 dark:bg-white text-white dark:text-slate-900 text-[13px] font-bold hover:bg-black disabled:opacity-40 transition-colors shadow-md"
                                                                     >
                                                                         {paymentBusyId === request.id_request ? 'Processing...' : 'Pay for completed work'}
                                                                     </button>
@@ -4156,28 +4166,28 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                                         )}
 
                                                         <div className="mt-4 grid grid-cols-3 gap-3">
-                                                            <div className="rounded-xl border border-slate-100 bg-white p-3 shadow-sm">
-                                                                <p className="text-[10px] uppercase font-black tracking-widest text-slate-400">Initial</p>
-                                                                <p className="font-black text-slate-800 mt-0.5">${Number(request.initial_budget ?? request.budget ?? 0).toFixed(2)}</p>
+                                                            <div className="rounded-xl border border-slate-100 dark:border-white/5 bg-white dark:bg-slate-900/70 p-3 shadow-sm">
+                                                                <p className="text-[10px] uppercase font-black tracking-widest text-slate-400 dark:text-slate-500">Initial</p>
+                                                                <p className="font-black text-slate-800 dark:text-slate-100 mt-0.5">${Number(request.initial_budget ?? request.budget ?? 0).toFixed(2)}</p>
                                                             </div>
-                                                            <div className="rounded-xl border border-amber-100 bg-amber-50 p-3 shadow-sm">
-                                                                <p className="text-[10px] uppercase font-black tracking-widest text-amber-600">Counter</p>
-                                                                <p className="font-black text-amber-800 mt-0.5">
+                                                            <div className="rounded-xl border border-amber-100 dark:border-amber-900/40 bg-amber-50 dark:bg-amber-900/40 p-3 shadow-sm">
+                                                                <p className="text-[10px] uppercase font-black tracking-widest text-amber-600 dark:text-amber-400">Counter</p>
+                                                                <p className="font-black text-amber-800 dark:text-amber-400 mt-0.5">
                                                                     {request.proposed_budget != null ? `$${request.proposed_budget.toFixed(2)}` : '--'}
                                                                 </p>
                                                             </div>
-                                                            <div className="rounded-xl border border-emerald-100 bg-emerald-50 p-3 shadow-sm">
-                                                                <p className="text-[10px] uppercase font-black tracking-widest text-emerald-600">Final</p>
-                                                                <p className="font-black text-emerald-800 mt-0.5">
+                                                            <div className="rounded-xl border border-emerald-100 dark:border-emerald-900/40 bg-emerald-50 dark:bg-emerald-900/40 p-3 shadow-sm">
+                                                                <p className="text-[10px] uppercase font-black tracking-widest text-emerald-600 dark:text-emerald-400">Final</p>
+                                                                <p className="font-black text-emerald-800 dark:text-emerald-400 mt-0.5">
                                                                     {request.final_budget != null ? `$${request.final_budget.toFixed(2)}` : '--'}
                                                                 </p>
                                                             </div>
                                                         </div>
 
-                                                        <div className="mt-4 rounded-2xl border border-slate-100 bg-slate-50 p-4">
+                                                        <div className="mt-4 rounded-2xl border border-slate-100 dark:border-white/5 bg-slate-50 dark:bg-white/[0.04] p-4">
                                                             <div className="mb-4 flex items-center justify-between">
-                                                                <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">Service timeline</p>
-                                                                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 bg-white px-2 py-1 rounded-md border border-slate-200">
+                                                                <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400 dark:text-slate-500">Service timeline</p>
+                                                                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 bg-white dark:bg-slate-900/70 px-2 py-1 rounded-md border border-slate-200 dark:border-white/10">
                                                                     {requestStatus === 'pending' ? 'Waiting for pro' : 'Live track'}
                                                                 </span>
                                                             </div>
@@ -4190,12 +4200,12 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                                                             <span className={`flex h-7 w-7 items-center justify-center rounded-full border-2 text-[10px] font-black transition-colors ${
                                                                                 done
                                                                                     ? 'border-blue-500 bg-blue-500 text-white shadow-md'
-                                                                                    : 'border-slate-200 bg-white text-slate-300'
+                                                                                    : 'border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900/70 text-slate-300 dark:text-slate-400'
                                                                             }`}>
                                                                                 {done ? '✓' : ''}
                                                                             </span>
                                                                             <span className={`mt-2 text-[9px] font-bold uppercase tracking-wide leading-tight px-1 ${
-                                                                                done ? 'text-slate-700' : 'text-slate-400'
+                                                                                done ? 'text-slate-700 dark:text-slate-300' : 'text-slate-400 dark:text-slate-500'
                                                                             }`}>
                                                                                 {step.label}
                                                                             </span>
@@ -4206,16 +4216,16 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                                         </div>
 
                                                         {request.proposed_budget != null && (
-                                                            <div className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 p-4">
+                                                            <div className="mt-4 rounded-2xl border border-amber-200 dark:border-amber-900/50 bg-amber-50 dark:bg-amber-900/40 p-4">
                                                                 <div className="flex items-center gap-2 mb-2">
-                                                                    <span className="flex h-5 w-5 items-center justify-center rounded-full bg-amber-200 text-amber-700">
+                                                                    <span className="flex h-5 w-5 items-center justify-center rounded-full bg-amber-200 text-amber-700 dark:text-amber-400">
                                                                         <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
                                                                     </span>
-                                                                    <p className="text-[11px] uppercase tracking-[0.15em] font-black text-amber-700">Counter offer received</p>
+                                                                    <p className="text-[11px] uppercase tracking-[0.15em] font-black text-amber-700 dark:text-amber-400">Counter offer received</p>
                                                                 </div>
-                                                                <p className="text-xl font-black text-amber-900 mt-1">${request.proposed_budget.toFixed(2)}</p>
+                                                                <p className="text-xl font-black text-amber-900 dark:text-amber-200 mt-1">${request.proposed_budget.toFixed(2)}</p>
                                                                 {request.counter_message && (
-                                                                    <p className="text-sm font-medium text-amber-800/80 mt-2 bg-white/50 p-2.5 rounded-lg border border-amber-100">
+                                                                    <p className="text-sm font-medium text-amber-800/80 dark:text-amber-400 mt-2 bg-white/50 dark:bg-slate-900/70 p-2.5 rounded-lg border border-amber-100 dark:border-amber-900/40">
                                                                         "{request.counter_message}"
                                                                     </p>
                                                                 )}
@@ -4226,7 +4236,7 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                                                             type="button"
                                                                             disabled={counterBusyId === request.id_request}
                                                                             onClick={() => handleCounterDecision(request, 'decline')}
-                                                                            className="py-3 rounded-xl bg-white border-2 border-red-200 text-red-600 font-bold text-[13px] hover:bg-red-50 disabled:opacity-50 transition-colors"
+                                                                            className="py-3 rounded-xl bg-white dark:bg-slate-900/70 border-2 border-red-200 dark:border-red-900/50 text-red-600 dark:text-red-400 font-bold text-[13px] hover:bg-red-50 disabled:opacity-50 transition-colors"
                                                                         >
                                                                             Decline Offer
                                                                         </button>
@@ -4234,7 +4244,7 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                                                             type="button"
                                                                             disabled={counterBusyId === request.id_request}
                                                                             onClick={() => handleCounterDecision(request, 'accept')}
-                                                                            className="py-3 rounded-xl bg-slate-900 border-2 border-slate-900 text-white font-bold text-[13px] hover:bg-black disabled:opacity-50 transition-colors shadow-md"
+                                                                            className="py-3 rounded-xl bg-slate-900 dark:bg-white border-2 border-slate-900 dark:border-white text-white dark:text-slate-900 font-bold text-[13px] hover:bg-black disabled:opacity-50 transition-colors shadow-md"
                                                                         >
                                                                             Accept Offer
                                                                         </button>
@@ -4243,13 +4253,13 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                                             </div>
                                                         )}
 
-                                                        <div className="mt-4 pt-4 border-t border-slate-100 flex flex-wrap items-center justify-between gap-3">
+                                                        <div className="mt-4 pt-4 border-t border-slate-100 dark:border-white/5 flex flex-wrap items-center justify-between gap-3">
                                                             {canCancel && (
                                                                 <button
                                                                     type="button"
                                                                     disabled={cancelBusyId === request.id_request}
                                                                     onClick={() => handleCancelRequest(request)}
-                                                                    className="rounded-xl border border-red-100 bg-white px-4 py-2.5 text-xs font-bold text-red-500 hover:bg-red-50 hover:text-red-600 disabled:opacity-50 transition-colors"
+                                                                    className="rounded-xl border border-red-100 dark:border-red-900/40 bg-white dark:bg-slate-900/70 px-4 py-2.5 text-xs font-bold text-red-500 hover:bg-red-50 hover:text-red-600 disabled:opacity-50 transition-colors"
                                                                 >
                                                                     {cancelBusyId === request.id_request ? 'Cancelling...' : 'Cancel Request'}
                                                                 </button>
@@ -4279,13 +4289,13 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                                                 </button>
                                                             )}
                                                             {isWorkflowV2 && ['paid', 'completion_pending'].includes(requestStatus) && completeApproved && (
-                                                                <p className="text-xs font-bold text-emerald-700">Your final approval is saved. Waiting for worker.</p>
+                                                                <p className="text-xs font-bold text-emerald-700 dark:text-emerald-400">Your final approval is saved. Waiting for worker.</p>
                                                             )}
                                                         </div>
 
-                                                        <div className="mt-4 rounded-2xl border-none bg-slate-50 hover:bg-slate-100 transition-colors p-4">
+                                                        <div className="mt-4 rounded-2xl border-none bg-slate-50 dark:bg-white/[0.04] hover:bg-slate-100 dark:hover:bg-white/[0.06] transition-colors p-4">
                                                             <div className="flex items-center justify-between">
-                                                                <p className="text-[11px] uppercase tracking-widest font-black text-slate-500">Chat</p>
+                                                                <p className="text-[11px] uppercase tracking-widest font-black text-slate-500 dark:text-slate-400">Chat</p>
                                                                 <button
                                                                     type="button"
                                                                     onClick={async () => {
@@ -4299,22 +4309,22 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                                                         }
                                                                     }}
                                                                     disabled={!canUseChat}
-                                                                    className="text-xs font-bold px-4 py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors shadow-sm"
+                                                                    className="text-xs font-bold px-4 py-2 rounded-xl border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900/70 hover:bg-slate-50 dark:hover:bg-white/[0.04] disabled:opacity-50 disabled:cursor-not-allowed transition-colors shadow-sm"
                                                                 >
                                                                     {openChatRequestId === request.id_request ? 'Hide Chat' : 'Open Chat'}
                                                                 </button>
                                                             </div>
                                                             {!canUseChat && (
-                                                                <p className="mt-2 text-xs font-semibold text-slate-500">
+                                                                <p className="mt-2 text-xs font-semibold text-slate-500 dark:text-slate-400">
                                                                     Chat unlocks once a pro is assigned to your request.
                                                                 </p>
                                                             )}
 
                                                             {openChatRequestId === request.id_request && (
                                                                 <div className="mt-4 space-y-3">
-                                                                    <div className="max-h-96 min-h-[180px] overflow-y-auto rounded-xl border border-slate-200 bg-white p-4 space-y-4 flex flex-col">
+                                                                    <div className="max-h-96 min-h-[180px] overflow-y-auto rounded-xl border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900/70 p-4 space-y-4 flex flex-col">
                                                                         {(chatByRequest[request.id_request] || []).length === 0 ? (
-                                                                            <p className="text-sm text-slate-500 font-medium text-center py-6">No messages yet. Say hi!</p>
+                                                                            <p className="text-sm text-slate-500 dark:text-slate-400 font-medium text-center py-6">No messages yet. Say hi!</p>
                                                                         ) : (
                                                                             <AnimatePresence>
                                                                                 {(chatByRequest[request.id_request] || []).map((msg) => {
@@ -4324,9 +4334,9 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                                                                             initial={{ opacity: 0, scale: 0.95, y: 10 }}
                                                                                             animate={{ opacity: 1, scale: 1, y: 0 }}
                                                                                             key={msg.id_message}
-                                                                                            className={`max-w-[85%] rounded-[1.25rem] px-4 py-3 text-sm shadow-sm flex flex-col ${isMe ? 'self-end bg-slate-900 text-white rounded-tr-sm' : 'self-start bg-slate-100 text-slate-800 rounded-tl-sm'}`}
+                                                                                            className={`max-w-[85%] rounded-[1.25rem] px-4 py-3 text-sm shadow-sm flex flex-col ${isMe ? 'self-end bg-slate-900 text-white rounded-tr-sm' : 'self-start bg-slate-100 dark:bg-white/[0.06] text-slate-800 dark:text-slate-100 rounded-tl-sm'}`}
                                                                                         >
-                                                                                            <p className={`font-bold text-[10px] uppercase tracking-wider mb-1 ${isMe ? 'text-slate-400' : 'text-slate-500'}`}>
+                                                                                            <p className={`font-bold text-[10px] uppercase tracking-wider mb-1 ${isMe ? 'text-slate-400 dark:text-slate-500' : 'text-slate-500 dark:text-slate-400'}`}>
                                                                                                 {isMe ? 'You' : 'Pro'}
                                                                                             </p>
                                                                                             {msg.message && <p className="leading-relaxed">{msg.message}</p>}
@@ -4335,7 +4345,7 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                                                                                     <img src={msg.image_url} alt="Chat attachment" loading="lazy" className="max-h-40 w-full object-cover hover:scale-105 transition-transform" />
                                                                                                 </a>
                                                                                             )}
-                                                                                            <p className={`text-[10px] text-right mt-1.5 ${isMe ? 'text-slate-400' : 'text-slate-400'}`}>
+                                                                                            <p className={`text-[10px] text-right mt-1.5 ${isMe ? 'text-slate-400 dark:text-slate-500' : 'text-slate-400 dark:text-slate-500'}`}>
                                                                                                 {new Date(msg.created_at).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
                                                                                             </p>
                                                                                         </motion.div>
@@ -4360,9 +4370,9 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                                                                     }
                                                                                 }}
                                                                                 placeholder="Write a message..."
-                                                                                className="w-full pl-4 pr-10 py-3 rounded-xl border border-slate-200 text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 outline-none transition-all shadow-sm"
+                                                                                className="w-full pl-4 pr-10 py-3 rounded-xl border border-slate-200 dark:border-white/10 text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 outline-none transition-all shadow-sm"
                                                                             />
-                                                                            <label className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 cursor-pointer transition-colors">
+                                                                            <label className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 rounded-lg text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-white/[0.06] cursor-pointer transition-colors">
                                                                                 <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
                                                                                 <input
                                                                                     type="file"
@@ -4376,19 +4386,19 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                                                             type="button"
                                                                             onClick={() => sendRequestChat(request.id_request)}
                                                                             disabled={chatBusyId === request.id_request}
-                                                                            className="px-5 py-3 rounded-xl bg-slate-900 text-white text-sm font-bold disabled:opacity-50 hover:bg-black transition-colors shadow-md"
+                                                                            className="px-5 py-3 rounded-xl bg-slate-900 dark:bg-white text-white dark:text-slate-900 text-sm font-bold disabled:opacity-50 hover:bg-black transition-colors shadow-md"
                                                                         >
                                                                             Send
                                                                         </button>
                                                                     </div>
                                                                     {chatImage[request.id_request] && (
-                                                                        <div className="flex items-center gap-2 px-3 py-2 bg-slate-100 rounded-lg text-xs font-semibold text-slate-600">
+                                                                        <div className="flex items-center gap-2 px-3 py-2 bg-slate-100 dark:bg-white/[0.06] rounded-lg text-xs font-semibold text-slate-600 dark:text-slate-300">
                                                                             <svg className="w-4 h-4 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" /></svg>
                                                                             <span className="truncate max-w-[200px]">{chatImage[request.id_request]?.name}</span>
                                                                             <button
                                                                                 type="button"
                                                                                 onClick={() => setChatImage((prev) => ({ ...prev, [request.id_request]: null }))}
-                                                                                className="ml-auto text-slate-400 hover:text-red-500"
+                                                                                className="ml-auto text-slate-400 dark:text-slate-500 hover:text-red-500"
                                                                             >
                                                                                 ×
                                                                             </button>
@@ -4401,8 +4411,8 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                                         <div className="mt-4 rounded-2xl border border-blue-200/50 bg-blue-50/30 p-4">
                                                             <div className="flex items-center justify-between gap-3">
                                                                 <div>
-                                                                    <p className="text-[11px] font-black uppercase tracking-[0.18em] text-blue-600">Fixes & Rating</p>
-                                                                    <p className="mt-1 text-xs font-semibold text-slate-600">
+                                                                    <p className="text-[11px] font-black uppercase tracking-[0.18em] text-blue-600 dark:text-blue-400">Fixes & Rating</p>
+                                                                    <p className="mt-1 text-xs font-semibold text-slate-600 dark:text-slate-300">
                                                                         {canRate
                                                                             ? 'The job is complete. You can now leave your review.'
                                                                             : 'Review unlocks after the job is finished.'}
@@ -4414,8 +4424,8 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                                                     disabled={!canRate}
                                                                     className={`rounded-xl px-4 py-2.5 text-xs font-bold transition-all shadow-sm ${
                                                                         canRate
-                                                                            ? 'border-2 border-blue-600 bg-white text-blue-600 hover:bg-blue-600 hover:text-white'
-                                                                            : 'border border-slate-200 bg-slate-100 text-slate-400 cursor-not-allowed'
+                                                                            ? 'border-2 border-blue-600 bg-white dark:bg-slate-900/70 text-blue-600 dark:text-blue-400 hover:bg-blue-600 hover:text-white'
+                                                                            : 'border border-slate-200 dark:border-white/10 bg-slate-100 dark:bg-white/[0.06] text-slate-400 dark:text-slate-500 cursor-not-allowed'
                                                                     }`}
                                                                 >
                                                                     {canRate ? 'Review Pro' : 'Locked'}
@@ -4425,7 +4435,7 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                                                 {Array.from({ length: 5 }).map((_, index) => (
                                                                     <span
                                                                         key={`fix-preview-${request.id_request}-${index}`}
-                                                                        className={`text-lg ${canRate ? 'text-amber-400 drop-shadow-sm' : 'text-slate-200'}`}
+                                                                        className={`text-lg ${canRate ? 'text-amber-400 drop-shadow-sm' : 'text-slate-200 dark:text-slate-300'}`}
                                                                     >
                                                                         {'★'}
                                                                     </span>

@@ -20,6 +20,19 @@ export const authLimiter = rateLimit({
   },
 });
 
+// Dedicated stricter limiter for account creation (anti mass-signup abuse) —
+// separate from the general authLimiter which also covers OTP resend/verify.
+export const registrationLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  max: 8,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many registration attempts. Try again in an hour.' },
+  handler: (_req: any, res: any) => {
+    res.status(429).json({ error: 'Too many registration attempts. Try again in an hour.' });
+  },
+});
+
 // Dedicated stricter limiter just for password-based login (brute force protection)
 export const loginLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
@@ -70,12 +83,32 @@ export const passwordResetLimiter = rateLimit({
   },
 });
 
+// Sensitive actions performed by authenticated users during a normal service
+// lifecycle (accept, confirm, cancel, workflow approvals, ratings, reports).
+// Keyed by user id when available so multiple users behind the same NAT/office
+// IP do not throttle each other, and so a single user can complete a full
+// service flow without hitting the ceiling.
 export const sensitiveLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 30,
+  max: 120,
   standardHeaders: true,
   legacyHeaders: false,
+  keyGenerator: (req: any) => {
+    const userId = Number(req.user?.user_id || 0);
+    return userId > 0 ? `u:${userId}` : `ip:${req.ip}`;
+  },
   message: { error: 'Too many sensitive operations. Try again later.' },
+});
+
+// Read-only lookup endpoints (geocode, nearby workers) called frequently by
+// the UI (map panning, autocomplete). Separate bucket so they don't drain the
+// sensitive-action budget above.
+export const lookupLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 600,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many lookup requests. Try again later.' },
 });
 
 export const aiChatLimiter = rateLimit({

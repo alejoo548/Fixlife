@@ -1,9 +1,9 @@
 import { API_ENDPOINTS } from '../config/api';
-import { getToken } from '../utils/session';
+import { getActiveAuthToken } from '../utils/session';
 import { SupportThread, SupportMessage, CreateThreadInput, SendMessageInput } from '../types/support';
 
 const getAuthHeaders = () => {
-  const token = getToken();
+  const { token } = getActiveAuthToken();
   return token ? { Authorization: `Bearer ${token}` } : {};
 };
 

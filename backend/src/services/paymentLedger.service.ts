@@ -17,7 +17,12 @@ type LedgerEntryType =
   | 'bonus_payout_paid'
   | 'refund'
   | 'adjustment'
-  | 'dispute_hold';
+  | 'dispute_hold'
+  | 'cash_collected'
+  | 'worker_commission_owed';
+
+const LEDGER_ENTRY_TYPE_SQL =
+  "ENUM('customer_charge', 'platform_fee', 'worker_escrow', 'worker_release', 'worker_payout_paid', 'bonus_payout_paid', 'refund', 'adjustment', 'dispute_hold', 'cash_collected', 'worker_commission_owed')";
 
 let paymentLedgerTablesChecked = false;
 
@@ -152,7 +157,7 @@ export const ensurePaymentLedgerTables = async (executor: SqlExecutor = pool) =>
       id_worker_profile INT NULL,
       id_worker_payout INT NULL,
       entry_key VARCHAR(100) NOT NULL,
-      entry_type ENUM('customer_charge', 'platform_fee', 'worker_escrow', 'worker_release', 'worker_payout_paid', 'bonus_payout_paid', 'refund', 'adjustment', 'dispute_hold') NOT NULL,
+      entry_type ${LEDGER_ENTRY_TYPE_SQL} NOT NULL,
       amount DECIMAL(10,2) NOT NULL DEFAULT 0.00,
       currency_code VARCHAR(8) NOT NULL DEFAULT 'USD',
       entry_status ENUM('posted', 'scheduled', 'cancelled') NOT NULL DEFAULT 'posted',
@@ -179,7 +184,7 @@ export const ensurePaymentLedgerTables = async (executor: SqlExecutor = pool) =>
   await executor.execute(`
     ALTER TABLE service_payment_ledger
     MODIFY COLUMN entry_type
-    ENUM('customer_charge', 'platform_fee', 'worker_escrow', 'worker_release', 'worker_payout_paid', 'bonus_payout_paid', 'refund', 'adjustment', 'dispute_hold')
+    ${LEDGER_ENTRY_TYPE_SQL}
     NOT NULL
   `);
 
@@ -197,7 +202,6 @@ export const recordConfirmedPaymentLedger = async (
     workerPayout: number;
     currencyCode?: string | null;
     checkoutReference?: string | null;
-    promoCode?: string | null;
     commissionSnapshot?: Record<string, any> | null;
   }
 ) => {
@@ -206,7 +210,6 @@ export const recordConfirmedPaymentLedger = async (
   const currencyCode = String(input.currencyCode || 'USD').toUpperCase();
   const metadata = {
     checkout_reference: input.checkoutReference || null,
-    promo_code: input.promoCode || null,
     commission_snapshot: input.commissionSnapshot || null,
   };
 
@@ -247,6 +250,61 @@ export const recordConfirmedPaymentLedger = async (
   });
 };
 
+export const recordCashCollectedLedger = async (
+  executor: SqlExecutor,
+  input: {
+    idRequest: number;
+    idPayment: number;
+    idWorkerProfile?: number | null;
+    amount: number;
+    platformFee: number;
+    currencyCode?: string | null;
+    checkoutReference?: string | null;
+    commissionSnapshot?: Record<string, any> | null;
+  }
+) => {
+  await ensurePaymentLedgerTables(executor);
+
+  const currencyCode = String(input.currencyCode || 'USD').toUpperCase();
+  const metadata = {
+    checkout_reference: input.checkoutReference || null,
+    commission_snapshot: input.commissionSnapshot || null,
+  };
+
+  // Informational only: the worker collected the full amount directly from the
+  // client, so the platform never held these funds (unlike customer_charge/worker_escrow).
+  await insertLedgerEntry(executor, {
+    idRequest: input.idRequest,
+    idPayment: input.idPayment,
+    idWorkerProfile: input.idWorkerProfile ?? null,
+    entryKey: `cash-collected-${input.idRequest}`,
+    entryType: 'cash_collected',
+    amount: input.amount,
+    currencyCode,
+    entryStatus: 'posted',
+    metadata,
+  });
+
+  // The debt: platform commission the worker owes, to be netted from their next scheduled payout.
+  await insertLedgerEntry(executor, {
+    idRequest: input.idRequest,
+    idPayment: input.idPayment,
+    idWorkerProfile: input.idWorkerProfile ?? null,
+    entryKey: `worker-commission-owed-${input.idRequest}`,
+    entryType: 'worker_commission_owed',
+    amount: input.platformFee,
+    currencyCode,
+    entryStatus: 'posted',
+    metadata,
+  });
+};
+
+// Cash jobs have no worker_payout to release (the worker already holds the full
+// amount) — instead the worker owes the platform its commission, netted as a
+// negative payout row against their next scheduled batch.
+export const computeReleaseNetAmount = (input: { provider: string | null | undefined; workerPayout: number; platformFee: number }) =>
+  String(input.provider || '').toLowerCase() === 'cash' ? -Number(input.platformFee || 0) : Number(input.workerPayout || 0);
+
 export const scheduleWorkerPayoutForReleasedRequest = async (
   executor: SqlExecutor,
   input: {
@@ -258,6 +316,7 @@ export const scheduleWorkerPayoutForReleasedRequest = async (
     netAmount: number;
     currencyCode?: string | null;
     releasedAt?: Date;
+    notes?: string | null;
   }
 ) => {
   await ensurePaymentLedgerTables(executor);
@@ -298,7 +357,7 @@ export const scheduleWorkerPayoutForReleasedRequest = async (
       Number(Number(input.platformFee || 0).toFixed(2)),
       Number(Number(input.netAmount || 0).toFixed(2)),
       toSqlDate(scheduledFor),
-      'Base worker payout for released request funds.',
+      input.notes || 'Base worker payout for released request funds.',
     ]
   );
 

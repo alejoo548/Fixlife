@@ -39,10 +39,11 @@ const buildOrigin = (req: Request) => {
 
   const host = String(req.get('host') || '').trim();
   if (!/^[a-zA-Z0-9.-]+(?::\d{1,5})?$/.test(host)) {
-    return 'http://localhost:8000';
+    return 'http://127.0.0.1:8000';
   }
 
-  return `${req.protocol}://${host}`;
+  const normalizedHost = host.toLowerCase() === 'localhost:8000' ? '127.0.0.1:8000' : host;
+  return `${req.protocol}://${normalizedHost}`;
 };
 
 export const buildPublicAssetUrl = (req: Request, fileName: string | null | undefined) => {

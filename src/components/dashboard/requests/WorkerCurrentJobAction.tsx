@@ -9,11 +9,13 @@ interface WorkerCurrentJobActionProps {
   routeReady: boolean;
   busy: boolean;
   scheduledStartTime?: string | null;
+  paymentMethod?: string | null;
   onTravel: () => void;
   onArrive: () => void;
   onStart: () => void;
   onComplete: () => void;
   onFinalize: () => void;
+  onConfirmCash?: () => void;
   approvals?: {
     start_work: { client: boolean; worker: boolean };
     finish_work: { client: boolean; worker: boolean };
@@ -31,11 +33,13 @@ export const WorkerCurrentJobAction = ({
   routeReady,
   busy,
   scheduledStartTime,
+  paymentMethod,
   onTravel,
   onArrive,
   onStart,
   onComplete,
   onFinalize,
+  onConfirmCash,
   approvals,
   workStartedAt,
   clientApproved,
@@ -90,8 +94,17 @@ export const WorkerCurrentJobAction = ({
     icon = <SquareCheckBig className="h-5 w-5" />;
     tone = 'bg-emerald-600 text-white hover:bg-emerald-700';
   } else if (normalized === 'payment_pending') {
-    label = 'Waiting for client payment';
-    hint = 'Both parties finished work. Client checkout is now available.';
+    if (paymentMethod === 'cash') {
+      label = 'Marcar como cobrado en efectivo';
+      hint = 'Confirma que recibiste el pago en efectivo del cliente.';
+      action = onConfirmCash;
+      disabled = busy || !onConfirmCash;
+      icon = <CheckCircle2 className="h-5 w-5" />;
+      tone = 'bg-emerald-600 text-white hover:bg-emerald-700';
+    } else {
+      label = 'Waiting for client payment';
+      hint = 'Both parties finished work. Client checkout is now available.';
+    }
   } else if (normalized === 'paid' || normalized === 'completion_pending') {
     const approved = Boolean(approvals?.complete_service.worker);
     label = approved ? 'Waiting for client final approval' : 'Approve service completion';

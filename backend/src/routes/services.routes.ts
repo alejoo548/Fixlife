@@ -4,6 +4,7 @@ import {
   approveServiceWorkflowAction,
   acceptCounterOffer,
   cancelServiceRequest,
+  confirmCashPayment,
   confirmRequestPayment,
   confirmServiceCompletion,
   createSavedLocation,
@@ -25,6 +26,7 @@ import {
   getRequestAssignedWorkerProfile,
   postRequestChatMessage,
   getPublicServiceCards,
+  handleVirtualWalletWebhook,
   suggestLocations,
   submitRequestRating,
   updateSavedLocation,
@@ -35,6 +37,7 @@ import {
   requestChatReadLimiter,
   requestChatSendLimiter,
   sensitiveLimiter,
+  lookupLimiter,
   globalLimiter,
 } from '../middlewares/security.middleware';
 
@@ -42,11 +45,12 @@ const router = Router();
 
 router.get('/', getActiveServices);
 router.get('/cards', getPublicServiceCards);
-router.get('/geocode', sensitiveLimiter, geocodeLocation);
-router.get('/geocode/suggest', sensitiveLimiter, suggestLocations);
-router.get('/geocode/reverse', sensitiveLimiter, reverseGeocode);
-router.get('/nearby-workers', sensitiveLimiter, getNearbyWorkers);
+router.get('/geocode', lookupLimiter, geocodeLocation);
+router.get('/geocode/suggest', lookupLimiter, suggestLocations);
+router.get('/geocode/reverse', lookupLimiter, reverseGeocode);
+router.get('/nearby-workers', lookupLimiter, getNearbyWorkers);
 router.post('/payments/paypal/webhook', handlePaypalWebhook);
+router.post('/payments/virtual-wallet/webhook', handleVirtualWalletWebhook);
 router.get('/saved-locations', verifyToken, getSavedLocations);
 router.post('/saved-locations', verifyToken, createSavedLocation);
 router.patch('/saved-locations/:idSavedLocation', verifyToken, updateSavedLocation);
@@ -70,6 +74,7 @@ router.post('/requests/:idRequest/counter/accept', verifyToken, sensitiveLimiter
 router.post('/requests/:idRequest/counter/decline', verifyToken, sensitiveLimiter, declineCounterOffer);
 router.post('/requests/:idRequest/payment-checkout', verifyToken, sensitiveLimiter, createRequestPaymentCheckout);
 router.post('/requests/:idRequest/payment-confirm', verifyToken, sensitiveLimiter, confirmRequestPayment);
+router.post('/requests/:idRequest/cash-confirm', verifyToken, sensitiveLimiter, confirmCashPayment);
 router.post('/requests/:idRequest/confirm-completion', verifyToken, sensitiveLimiter, confirmServiceCompletion);
 router.post('/requests/:idRequest/workflow-approval', verifyToken, sensitiveLimiter, approveServiceWorkflowAction);
 router.post(

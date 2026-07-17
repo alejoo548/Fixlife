@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import path from 'path';
-import { authLimiter, loginLimiter, loginEmailLimiter, forgotPasswordLimiter, passwordResetLimiter } from '../middlewares/security.middleware';
+import { authLimiter, registrationLimiter, loginLimiter, loginEmailLimiter, forgotPasswordLimiter, passwordResetLimiter } from '../middlewares/security.middleware';
 import { validate } from '../middlewares/validate.middleware';
 import { AuthSchema } from '../schemas/auth.schema';
 import { verifyToken } from '../middlewares/auth.middleware';
@@ -24,8 +24,8 @@ const {
 
 const router = Router();
 
-router.post('/register/worker', authLimiter, validate(AuthSchema.registerWorker), registerWorker);
-router.post('/register-user', authLimiter, validate(AuthSchema.registerUser), registerUser);
+router.post('/register/worker', registrationLimiter, validate(AuthSchema.registerWorker), registerWorker);
+router.post('/register-user', registrationLimiter, validate(AuthSchema.registerUser), registerUser);
 router.post('/verify-worker-email', authLimiter, validate(AuthSchema.verifyEmail), verifyWorkerEmail);
 router.post('/resend-otp', authLimiter, validate(AuthSchema.emailOnly), resendOtp);
 router.post('/login', loginLimiter, validate(AuthSchema.login), loginEmailLimiter, login);

@@ -50,8 +50,9 @@ services:
       - DB_HOST=mysql
       - DB_PORT=3306
       - DB_NAME=${MYSQL_DATABASE:-fixlife_db}
-      - DB_USER=root
+      - DB_USER=${DB_USER:-fixlife_app}
       - DB_PASSWORD=${DB_PASSWORD}
+      - DB_SSL=${DB_SSL:-true}
       - NODE_ENV=production
       - PORT=8000
       - DB_MIGRATIONS_MODE=${DB_MIGRATIONS_MODE:-auto}
@@ -83,17 +84,57 @@ services:
     cpus: 1.5
     labels:
       - "autoheal=true"
-    command: --innodb-buffer-pool-size=128M --performance-schema=OFF
+    command: >
+      --innodb-buffer-pool-size=128M
+      --performance-schema=OFF
+      --server-id=1
+      --log-bin=mysql-bin
+      --binlog-format=ROW
+      --binlog-expire-logs-seconds=604800
+      --max-binlog-size=100M
     environment:
       - MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD}
       - MYSQL_DATABASE=${MYSQL_DATABASE:-fixlife_db}
+      - DB_USER=${DB_USER:-fixlife_app}
+      - DB_PASSWORD=${DB_PASSWORD}
+      - BACKUP_DB_PASSWORD=${BACKUP_DB_PASSWORD}
     volumes:
       - mysql_data_prod:/var/lib/mysql
+      - ./docker/mysql-init.sh:/docker-entrypoint-initdb.d/01_init.sh
     healthcheck:
       test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
       timeout: 30s
       retries: 5
       interval: 10s
+    networks:
+      - fixlife-network
+
+  mysql-backup:
+    build:
+      context: ./docker
+      dockerfile: Dockerfile.mysql-backup
+    container_name: fixlife_mysql_backup_prod
+    restart: unless-stopped
+    mem_limit: 192m
+    cpus: 0.25
+    environment:
+      - MYSQL_HOST=mysql
+      - MYSQL_PORT=3306
+      - MYSQL_USER=fixlife_backup
+      - MYSQL_PASS=${BACKUP_DB_PASSWORD}
+      - MYSQL_DATABASE=${MYSQL_DATABASE:-fixlife_db}
+      - MAX_BACKUPS=${BACKUP_RETENTION_DAYS:-14}
+      - INIT_BACKUP=1
+      - CRON_TIME=0 3 * * *
+      - GZIP_LEVEL=6
+      - TIMEOUT=60s
+      - MYSQLDUMP_OPTS=--single-transaction --no-tablespaces --routines --triggers --events --master-data=2
+    volumes:
+      - mysql_backups_prod:/backup
+      - mysql_data_prod:/var/lib/mysql:ro
+    depends_on:
+      mysql:
+        condition: service_healthy
     networks:
       - fixlife-network
 
@@ -118,3 +159,4 @@ networks:
 
 volumes:
   mysql_data_prod:
+  mysql_backups_prod:

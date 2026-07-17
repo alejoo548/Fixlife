@@ -4,7 +4,7 @@ import {
   AUTH_SESSION_CHANGED_EVENT,
   getAuthUser,
   getToken,
-  logoutAuthSession,
+  logoutAndReload,
   setAuthSession,
   updateStoredAuthUser,
 } from '../utils/session';
@@ -63,8 +63,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const logout = () => {
-    logoutAuthSession('client');
     setUser(null);
+    logoutAndReload('client');
   };
 
   const updateUser = (nextUser: any) => {

@@ -4,7 +4,7 @@ import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { Activity, Banknote, ChevronLeft, ChevronRight, FileText, Gauge, Headphones, Image, LogOut, Menu, Search, Settings, ShieldCheck, ShieldAlert, Users, Wrench, X } from 'lucide-react';
 import { DashboardThemeToggle } from '../../../components/common/DashboardThemeToggle';
 import { useDashboardTheme } from '../../../hooks/useDashboardTheme';
-import { getAuthUser, logoutAuthSession } from '../../../utils/session';
+import { getAuthUser, logoutAndReload } from '../../../utils/session';
 import { getToken } from '../../../utils/session';
 import { NotificationCenter } from '../../../components/common/NotificationCenter';
 import { adminApi } from '../api/adminApi';
@@ -54,7 +54,7 @@ export const AdminShell = ({ onClose }: { onClose: () => void }) => {
   const user = getAuthUser('admin');
   const section = location.pathname.split('/')[2] || 'overview';
   const [title, subtitle] = titles[section] || titles.overview;
-  const signOut = () => { logoutAuthSession('admin'); onClose(); };
+  const signOut = () => { logoutAndReload('admin'); };
 
   useEffect(() => {
     const query = search.trim();
@@ -101,7 +101,7 @@ export const AdminShell = ({ onClose }: { onClose: () => void }) => {
       <header className="admin-header"><div className="admin-header-title"><button className="admin-icon-button admin-menu" onClick={() => setMobileOpen(true)}><Menu size={20} /></button><div><h1>{title}</h1><p>{subtitle}</p></div></div>
         <div className="admin-header-actions">
           <div className="admin-global-search-wrap" ref={searchRef}>
-            <label className="admin-global-search"><Search size={17} /><input aria-label="Global search" value={search} placeholder="Search users, requests, services..." onFocus={() => setSearchOpen(true)} onChange={(event) => setSearch(event.target.value)} onKeyDown={(event) => { if (event.key === 'Escape') setSearchOpen(false); if (event.key === 'Enter') { if (searchResults[0]) openSearchResult(searchResults[0]); else if (search.trim()) navigate(`/admin-dashboard/requests?search=${encodeURIComponent(search.trim())}`); } }} /></label>
+            <label className="admin-global-search"><Search size={17} /><input aria-label="Global search" value={search} placeholder="Search users, requests, services..." maxLength={120} onFocus={() => setSearchOpen(true)} onChange={(event) => setSearch(event.target.value)} onKeyDown={(event) => { if (event.key === 'Escape') setSearchOpen(false); if (event.key === 'Enter') { if (searchResults[0]) openSearchResult(searchResults[0]); else if (search.trim()) navigate(`/admin-dashboard/requests?search=${encodeURIComponent(search.trim())}`); } }} /></label>
             {searchOpen && search.trim().length >= 2 && <div className="admin-search-results" role="listbox" aria-label="Global search results">
               <div className="admin-search-results__header"><span>Search results</span><small>{searching ? 'Searching...' : `${searchResults.length} found`}</small></div>
               {!searching && searchResults.length === 0 && <p>No matching users, requests or services.</p>}

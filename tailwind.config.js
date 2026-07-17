@@ -1,5 +1,6 @@
 /** @type {import('tailwindcss').Config} */
 export default {
+  darkMode: 'class',
   content: [
     "./index.html",
     "./src/**/*.{js,ts,jsx,tsx}",
@@ -58,6 +59,8 @@ export default {
         'zoom-in': 'zoomIn 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards',
         'blob': 'blob 15s infinite alternate',
         'float': 'float 6s ease-in-out infinite',
+        'drift-slow': 'drift 22s ease-in-out infinite',
+        'drift-slower': 'drift 32s ease-in-out infinite',
       },
       keyframes: {
         fadeIn: {
@@ -93,6 +96,13 @@ export default {
         float: {
           '0%, 100%': { transform: 'translateY(0)' },
           '50%': { transform: 'translateY(-20px)' },
+        },
+        drift: {
+          '0%':   { transform: 'translate3d(0px, 0px, 0) scale(1)' },
+          '25%':  { transform: 'translate3d(40px, -20px, 0) scale(1.05)' },
+          '50%':  { transform: 'translate3d(-25px, 30px, 0) scale(0.95)' },
+          '75%':  { transform: 'translate3d(30px, 15px, 0) scale(1.02)' },
+          '100%': { transform: 'translate3d(0px, 0px, 0) scale(1)' },
         },
       },
     },

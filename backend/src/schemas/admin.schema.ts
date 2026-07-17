@@ -164,21 +164,6 @@ export const AdminSchema = {
       .max(10, 'Too many worker tier adjustments.')
       .optional()
       .default([]),
-    promo_codes: z
-      .array(
-        z.object({
-          promo_code: strictText(40).refine(v => v.length >= 1, 'Promo code is required.'),
-          rate_percent: z
-            .coerce
-            .number()
-            .min(0, 'Promo adjustment must be at least 0%.')
-            .max(50, 'Promo adjustment cannot exceed 50%.'),
-          is_active: z.boolean().optional(),
-        })
-      )
-      .max(100, 'Too many promo codes.')
-      .optional()
-      .default([]),
   }),
 
   workerTierBenefits: z.object({

@@ -1,5 +1,6 @@
 import React from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
+import { useProfanityGuard } from '../../../hooks/useProfanityGuard';
 
 interface CounterOfferModalProps {
   open: boolean;
@@ -30,7 +31,9 @@ export const CounterOfferModal: React.FC<CounterOfferModalProps> = ({
   onNoteChange,
   onClose,
   onConfirm,
-}) => (
+}) => {
+  const { warning: noteWarning, guardValue } = useProfanityGuard();
+  return (
   <AnimatePresence>
     {open && (
       <motion.div
@@ -71,11 +74,14 @@ export const CounterOfferModal: React.FC<CounterOfferModalProps> = ({
           </label>
           <textarea
             value={note}
-            onChange={(event) => onNoteChange(event.target.value)}
+            onChange={(event) => onNoteChange(guardValue(event.target.value))}
             maxLength={255}
             placeholder="Explain why the price changed..."
-            className="w-full bg-gray-50 border-2 border-gray-200 rounded-xl py-3 px-4 resize-none h-24 text-sm focus:outline-none focus:border-amber-500 transition-colors mb-6"
+            className="w-full bg-gray-50 border-2 border-gray-200 rounded-xl py-3 px-4 resize-none h-24 text-sm focus:outline-none focus:border-amber-500 transition-colors"
           />
+          <p className={`mt-1.5 mb-4 text-xs font-medium ${noteWarning ? 'text-red-500' : 'invisible'}`}>
+            {noteWarning || '.'}
+          </p>
 
           <div className="grid grid-cols-2 gap-3">
             <button
@@ -97,4 +103,5 @@ export const CounterOfferModal: React.FC<CounterOfferModalProps> = ({
       </motion.div>
     )}
   </AnimatePresence>
-);
+  );
+};

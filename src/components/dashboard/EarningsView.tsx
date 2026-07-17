@@ -2,13 +2,7 @@ import React from 'react';
 import { motion } from 'framer-motion';
 import { BadgeDollarSign, CalendarClock, TrendingUp } from 'lucide-react';
 import { useWorkerRewardsDashboard } from '../../hooks/useWorkerRewardsDashboard';
-import {
-  formatDate,
-  formatMoney,
-  getBonusProgramLabel,
-  getCalendarBatchSummary,
-  getNextPayoutLabel,
-} from './workerRewardsUi';
+import {formatDate,formatMoney,getBonusProgramLabel,getCalendarBatchSummary,getNextPayoutLabel,} from './workerRewardsUi';
 
 const ProgressBar: React.FC<{ value: number; tone?: 'blue' | 'amber' | 'emerald' }> = ({
   value,

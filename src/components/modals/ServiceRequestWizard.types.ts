@@ -85,7 +85,6 @@ export interface MyServiceRequest {
         platform_fee?: number | null;
         worker_payout?: number | null;
         commission_rate?: number | null;
-        promo_code?: string | null;
         commission_snapshot?: {
             commission_rate?: number | null;
             policy_label?: string | null;
@@ -101,6 +100,15 @@ export interface MyServiceRequest {
         released_at: string | null;
     } | null;
     images: { file_name: string; url: string }[];
+    has_rating?: boolean;
+    rating?: {
+        id_rating: number;
+        punctuality: number;
+        quality: number;
+        price_fairness: number;
+        comment: string | null;
+        created_at: string | null;
+    } | null;
 }
 
 export interface WorkerPortfolioPhoto {

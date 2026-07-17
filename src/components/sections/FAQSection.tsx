@@ -105,17 +105,17 @@ export const FAQSection: React.FC<FAQSectionProps> = ({ onBookService, onNavigat
     <div className="relative">
       <div className="flex flex-col md:flex-row items-start md:items-center justify-between mb-6 px-2 gap-3">
         <div>
-          <h3 className="text-2xl font-black text-gray-900 flex items-center gap-4">
+          <h3 className="text-2xl font-black text-gray-900 flex items-center gap-4 dark:text-slate-100">
             <span className="w-1.5 h-8 rounded-full bg-bird-orange shadow-[0_0_15px_rgba(255,128,0,0.4)]"></span>
             Frequently Asked Questions
           </h3>
-          <p className="text-gray-600 mt-2 ml-6 text-sm font-medium">Everything you need to know about Fixlife</p>
+          <p className="text-gray-600 mt-2 ml-6 text-sm font-medium dark:text-slate-400">Everything you need to know about Fixlife</p>
         </div>
         <div className="ml-6 md:ml-0">
           <button
             type="button"
             onClick={() => onNavigateSection?.('steps')}
-            className="inline-flex items-center gap-2 px-6 py-3 rounded-full bg-gray-100 border border-gray-200 text-gray-900 font-bold text-sm hover:bg-gray-200 transition-all group"
+            className="inline-flex items-center gap-2 px-6 py-3 rounded-full bg-gray-100 border border-gray-200 text-gray-900 font-bold text-sm hover:bg-gray-200 transition-all group dark:bg-white/[0.06] dark:border-white/10 dark:text-slate-100 dark:hover:bg-white/[0.1]"
           >
             <span>See how it works</span>
             <svg className="w-4 h-4 group-hover:translate-x-1 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -129,16 +129,16 @@ export const FAQSection: React.FC<FAQSectionProps> = ({ onBookService, onNavigat
         {faqs.map((faq, index) => (
           <div
             key={faq.id_faq || index}
-            className="bg-white/80 backdrop-blur-sm border border-gray-200 rounded-2xl overflow-hidden shadow-sm hover:shadow-lg transition-all duration-300"
+            className="bg-white/80 backdrop-blur-sm border border-gray-200 rounded-2xl overflow-hidden shadow-sm hover:shadow-lg transition-all duration-300 dark:bg-slate-900/70 dark:border-white/10"
           >
             <button
               onClick={() => toggleFAQ(index)}
-              className="w-full p-4 flex items-start gap-3 text-left hover:bg-gray-50/50 transition-colors group"
+              className="w-full p-4 flex items-start gap-3 text-left hover:bg-gray-50/50 transition-colors group dark:hover:bg-white/[0.04]"
             >
               <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 transition-all duration-300 ${
                 openIndex === index
                   ? 'bg-bird-blue text-white shadow-lg shadow-bird-blue/20'
-                  : 'bg-gray-100 text-gray-600 group-hover:bg-gray-200'
+                  : 'bg-gray-100 text-gray-600 group-hover:bg-gray-200 dark:bg-white/[0.06] dark:text-slate-400 dark:group-hover:bg-white/[0.1]'
               }`}>
                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={faq.icon || DEFAULT_FAQ_ICON} />
@@ -147,7 +147,7 @@ export const FAQSection: React.FC<FAQSectionProps> = ({ onBookService, onNavigat
 
               <div className="flex-1 min-w-0">
                 <h4 className={`text-sm md:text-base font-bold mb-1 transition-colors ${
-                  openIndex === index ? 'text-bird-blue' : 'text-gray-900 group-hover:text-bird-blue'
+                  openIndex === index ? 'text-bird-blue' : 'text-gray-900 group-hover:text-bird-blue dark:text-slate-100'
                 }`}>
                   {faq.question}
                 </h4>
@@ -160,7 +160,7 @@ export const FAQSection: React.FC<FAQSectionProps> = ({ onBookService, onNavigat
                       transition={{ duration: 0.3, ease: "easeInOut" }}
                       className="overflow-hidden"
                     >
-                      <p className="text-gray-600 text-xs md:text-sm leading-relaxed mt-2 font-medium">
+                      <p className="text-gray-600 text-xs md:text-sm leading-relaxed mt-2 font-medium dark:text-slate-400">
                         {faq.answer}
                       </p>
                     </motion.div>
@@ -174,7 +174,7 @@ export const FAQSection: React.FC<FAQSectionProps> = ({ onBookService, onNavigat
                 className="shrink-0"
               >
                 <svg className={`w-5 h-5 transition-colors ${
-                  openIndex === index ? 'text-bird-blue' : 'text-gray-400'
+                  openIndex === index ? 'text-bird-blue' : 'text-gray-400 dark:text-slate-500'
                 }`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                 </svg>

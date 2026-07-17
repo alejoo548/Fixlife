@@ -9,10 +9,12 @@ services:
         VITE_GOOGLE_CLIENT_ID: ${VITE_GOOGLE_CLIENT_ID:-}
         VITE_RECAPTCHA_SITE_KEY: ${VITE_RECAPTCHA_SITE_KEY:-}
         VITE_TOMTOM_TRAFFIC_KEY: ${VITE_TOMTOM_TRAFFIC_KEY:-}
+        VITE_VIRTUAL_WALLET_CLIENT_ID: ${VITE_VIRTUAL_WALLET_CLIENT_ID:-}
+        VITE_VIRTUAL_WALLET_SCRIPT_URL: ${VITE_VIRTUAL_WALLET_SCRIPT_URL:-}
     container_name: fixlife_frontend
     restart: unless-stopped
-    expose:
-      - "3000"
+    ports:
+      - "127.0.0.1:3000:3000"
     depends_on:
       backend:
         condition: service_healthy
@@ -30,7 +32,7 @@ services:
     user: root
     env_file:
       - ./.env
-    command: sh -c "npm install && npm run dev"
+    command: sh -c "npm run dev"
     volumes:
       - ./backend:/app
       - /app/node_modules
@@ -40,8 +42,9 @@ services:
       - DB_HOST=mysql
       - DB_PORT=3306
       - DB_NAME=${MYSQL_DATABASE:-fixlife_db}
-      - DB_USER=root
+      - DB_USER=${DB_USER:-fixlife_app}
       - DB_PASSWORD=${DB_PASSWORD:-Info2026/*-}
+      - DB_SSL=${DB_SSL:-true}
       - NODE_ENV=development
       - PORT=8000
       - DB_MIGRATIONS_MODE=${DB_MIGRATIONS_MODE:-auto}
@@ -55,6 +58,8 @@ services:
       - PAYPAL_CLIENT_ID=${PAYPAL_CLIENT_ID:-}
       - PAYPAL_CLIENT_SECRET=${PAYPAL_CLIENT_SECRET:-}
       - PAYPAL_WEBHOOK_ID=${PAYPAL_WEBHOOK_ID:-}
+      - VIRTUAL_WALLET_CLIENT_ID=${VIRTUAL_WALLET_CLIENT_ID:-}
+      - VIRTUAL_WALLET_SECRET_KEY=${VIRTUAL_WALLET_SECRET_KEY:-}
       - PLATFORM_FEE_RATE=${PLATFORM_FEE_RATE:-0.12}
       - FRONTEND_ORIGIN=${FRONTEND_ORIGIN:-http://127.0.0.1:3000}
       - FRONTEND_URL=${FRONTEND_URL:-http://127.0.0.1:3000}
@@ -76,12 +81,21 @@ services:
     image: mysql:8.0
     container_name: fixlife_mysql
     restart: unless-stopped
+    command: >
+      --server-id=1
+      --log-bin=mysql-bin
+      --binlog-format=ROW
+      --binlog-expire-logs-seconds=604800
+      --max-binlog-size=100M
     environment:
       - MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD:-Info2026/*-}
       - MYSQL_DATABASE=${MYSQL_DATABASE:-fixlife_db}
+      - DB_USER=${DB_USER:-fixlife_app}
+      - DB_PASSWORD=${DB_PASSWORD:-Info2026/*-}
+      - BACKUP_DB_PASSWORD=${BACKUP_DB_PASSWORD:-Info2026/*-}
     volumes:
       - mysql_data:/var/lib/mysql
-      - ./docker/mysql-init.sql:/docker-entrypoint-initdb.d/01_init.sql
+      - ./docker/mysql-init.sh:/docker-entrypoint-initdb.d/01_init.sh
       - ./docker/fixlife_db.sql:/docker-entrypoint-initdb.d/02_schema.sql
     ports:
       - "3307:3306"
@@ -90,6 +104,33 @@ services:
       timeout: 30s
       retries: 5
       interval: 10s
+    networks:
+      - fixlife-network
+
+  mysql-backup:
+    build:
+      context: ./docker
+      dockerfile: Dockerfile.mysql-backup
+    container_name: fixlife_mysql_backup
+    restart: unless-stopped
+    environment:
+      - MYSQL_HOST=mysql
+      - MYSQL_PORT=3306
+      - MYSQL_USER=fixlife_backup
+      - MYSQL_PASS=${BACKUP_DB_PASSWORD:-Info2026/*-}
+      - MYSQL_DATABASE=${MYSQL_DATABASE:-fixlife_db}
+      - MAX_BACKUPS=${BACKUP_RETENTION_DAYS:-14}
+      - INIT_BACKUP=1
+      - CRON_TIME=0 3 * * *
+      - GZIP_LEVEL=6
+      - TIMEOUT=60s
+      - MYSQLDUMP_OPTS=--single-transaction --no-tablespaces --routines --triggers --events --master-data=2
+    volumes:
+      - mysql_backups:/backup
+      - mysql_data:/var/lib/mysql:ro
+    depends_on:
+      mysql:
+        condition: service_healthy
     networks:
       - fixlife-network
 
@@ -102,7 +143,7 @@ services:
       - PMA_PORT=3306
       - PMA_ARBITRARY=0
     ports:
-      - "8081:80"
+      - "127.0.0.1:8081:80"
     depends_on:
       mysql:
         condition: service_healthy
@@ -131,3 +172,4 @@ networks:
 
 volumes:
   mysql_data:
+  mysql_backups:

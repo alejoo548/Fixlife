@@ -4,7 +4,7 @@ const DEFAULT_ALLOWED_REDIRECT_ORIGINS = [
   'http://0.0.0.0:3000',
 ];
 
-export type SupportedPaymentMethod = 'paypal' | 'wompi';
+export type SupportedPaymentMethod = 'paypal' | 'wompi' | 'cash' | 'virtual_wallet';
 
 export const getRequestChargeAmount = (row: any) => {
   if (row?.final_budget != null) return Number(row.final_budget);
@@ -34,6 +34,8 @@ export const parseRequestedPaymentMethod = (value: unknown): SupportedPaymentMet
   if (!method) return null;
   if (method === 'paypal') return 'paypal';
   if (method === 'wompi') return 'wompi';
+  if (method === 'cash') return 'cash';
+  if (method === 'virtual_wallet') return 'virtual_wallet';
   return null;
 };
 

@@ -230,12 +230,52 @@ docker-compose exec backend python manage.py migrate
 docker-compose exec backend python manage.py createsuperuser
 ```
 
-### Backup de MySQL
+### Backups y Recuperación (PITR)
 
+El proyecto corre backups diarios automáticos + binlog de MySQL, para poder
+recuperar datos aunque ya se haya hecho `commit` (rollback por sí solo no
+alcanza para eso — solo protege errores a mitad de una transacción).
+
+**Cómo funciona:**
+- Servicio `mysql-backup` (`docker-compose.yml` / `docker-compose.prod.yml`) hace un `mysqldump` completo todos los días a las 3am, comprimido, guardado en el volumen `mysql_backups` (dev) / `mysql_backups_prod` (prod) — separado del volumen de datos, así `docker-compose down -v` sobre `mysql_data` no se lleva los backups.
+- El servicio `mysql` corre con binlog activado (`--log-bin`, formato `ROW`, retención 7 días) — permite reproducir cambios fila-por-fila desde el último dump hasta un instante exacto.
+- El usuario `fixlife_backup` (creado en `docker/mysql-init.sh`) hace los dumps con privilegios de solo lectura, no con `root`.
+- El backend tampoco usa `root` — se conecta con `fixlife_app`, un usuario acotado a la base `fixlife_db` (sin `GRANT ALL` global). Si el backend se compromete, no toma el servidor MySQL entero.
+- Conexión backend↔MySQL cifrada (`DB_SSL=true` por defecto, usa el certificado autofirmado que MySQL 8 genera solo).
+
+**Backup manual (sin esperar al cron de las 3am):**
 ```bash
-# Exportar base de datos
-docker-compose exec mysql mysqldump -u root -p fixlife_db > backup.sql
-
-# Importar base de datos
-docker-compose exec -T mysql mysql -u root -p fixlife_db < backup.sql
+docker-compose exec mysql-backup /backup.sh
+docker-compose exec mysql-backup ls -la /backup
 ```
+
+**Restaurar (dump completo, sin PITR):**
+```bash
+docker cp fixlife_mysql_backup:/backup/<archivo>.sql.gz ./backup.sql.gz
+export MYSQL_ROOT_PASSWORD=<tu password>
+./docker/restore.sh ./backup.sql.gz
+```
+
+**Restaurar hasta un momento exacto (PITR)** — útil si algo se borró por error y sabés más o menos cuándo:
+```bash
+export MYSQL_ROOT_PASSWORD=<tu password>
+./docker/restore.sh ./backup.sql.gz "2026-07-15 14:32:00"
+```
+Esto restaura el último dump completo y reproduce el binlog hasta ese timestamp (no incluye el borrado si ocurrió después).
+
+**Verificar que el binlog está activo:**
+```bash
+docker-compose exec mysql mysql -u root -p -e "SHOW VARIABLES LIKE 'log_bin'; SHOW BINARY LOGS;"
+```
+
+`docker/mysql-init.sh` ahora se monta tanto en dev como en prod y crea `root`, `fixlife_app` y `fixlife_backup` automáticamente la primera vez que se inicializa el volumen de MySQL — no hace falta ningún paso manual post-deploy. Si el volumen de prod ya existía antes de este cambio (init scripts solo corren en volumen nuevo), hay que crear los usuarios una vez a mano:
+```bash
+docker-compose -f docker-compose.prod.yml exec mysql mysql -u root -p"$MYSQL_ROOT_PASSWORD" -e \
+  "CREATE USER IF NOT EXISTS 'fixlife_app'@'%' IDENTIFIED BY '${DB_PASSWORD}'; \
+   GRANT SELECT, INSERT, UPDATE, DELETE, CREATE, ALTER, INDEX, REFERENCES, CREATE TEMPORARY TABLES ON \`${MYSQL_DATABASE:-fixlife_db}\`.* TO 'fixlife_app'@'%'; \
+   CREATE USER IF NOT EXISTS 'fixlife_backup'@'%' IDENTIFIED BY '${BACKUP_DB_PASSWORD}'; \
+   GRANT SELECT, LOCK TABLES, SHOW VIEW, EVENT, TRIGGER, RELOAD, REPLICATION CLIENT ON *.* TO 'fixlife_backup'@'%'; \
+   FLUSH PRIVILEGES;"
+```
+
+**Recomendación adicional (no automatizada acá):** copiar periódicamente el volumen `mysql_backups_prod` a almacenamiento externo (otro disco, S3, etc.) para sobrevivir a la pérdida total del servidor, no solo del volumen de datos.

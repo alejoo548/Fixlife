@@ -93,6 +93,7 @@ export function ServiceRequestLocationSection({
                         type="text"
                         placeholder="Search your address"
                         autoComplete="off"
+                        maxLength={255}
                         className="w-full rounded-xl border border-slate-200 bg-slate-50 py-3 pl-11 pr-4 text-sm font-bold text-slate-900 outline-none transition focus:border-bird-blue focus:bg-white focus:ring-4 focus:ring-bird-blue/10"
                         value={location}
                         onFocus={onMainInputFocus}
@@ -159,6 +160,7 @@ export function ServiceRequestLocationSection({
                     <input
                         type="text"
                         value={location}
+                        maxLength={255}
                         onFocus={onSavePanelInputFocus}
                         onBlur={onInputBlur}
                         onKeyDown={onLocationKeyDown}
@@ -188,6 +190,7 @@ export function ServiceRequestLocationSection({
                         <input
                             type="text"
                             value={saveLocationTitle}
+                            maxLength={80}
                             onChange={(event) => onSaveLocationTitleChange(event.target.value)}
                             placeholder="Place name"
                             className="mt-3 w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-bold text-slate-900 outline-none focus:border-bird-blue"

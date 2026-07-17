@@ -410,17 +410,17 @@ const ensureHeroSlidesTable = async () => {
   heroSlidesTableChecked = true;
 };
 
-const toSlidesDto = (rows: HeroSlideRow[]) =>
+const toSlidesDto = (req: AuthRequest, rows: HeroSlideRow[]) =>
   rows.map((row) => ({
     id: Number(row.id_slide),
-    image: row.image_url,
+    image: buildPublicAssetUrl(req, row.image_url) || row.image_url,
     tag: row.tag,
     title: row.title,
     description: row.description,
     cta: row.cta,
   }));
 
-export const getHeroSlidesPublic = async (_req: AuthRequest, res: Response): Promise<void> => {
+export const getHeroSlidesPublic = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     await ensureHeroSlidesTable();
     const [rows] = await pool.execute<HeroSlideRow[]>(
@@ -428,7 +428,7 @@ export const getHeroSlidesPublic = async (_req: AuthRequest, res: Response): Pro
        FROM hero_slides
        ORDER BY sort_order ASC`
     );
-    res.json({ success: true, slides: toSlidesDto(rows) });
+    res.json({ success: true, slides: toSlidesDto(req, rows) });
   } catch (error) {
     console.error('Error in getHeroSlidesPublic:', error);
     res.status(500).json({ error: 'Internal server error' });
@@ -2676,7 +2676,7 @@ export const updateHeroSlides = async (req: AuthRequest, res: Response): Promise
       { slides: slides.length }
     );
 
-    res.json({ success: true, slides: toSlidesDto(rows) });
+    res.json({ success: true, slides: toSlidesDto(req, rows) });
   } catch (error: any) {
     console.error('Error in updateHeroSlides:', error);
     res.status(400).json({ error: error?.message || 'Could not update slides' });
@@ -2738,7 +2738,7 @@ export const uploadHeroSlideImage = async (req: AuthRequest, res: Response): Pro
       idSlide
     );
 
-    res.json({ success: true, image: imageUrl, slides: toSlidesDto(rows) });
+    res.json({ success: true, image: imageUrl, slides: toSlidesDto(req, rows) });
   } catch (error: any) {
     console.error('Error in uploadHeroSlideImage:', error);
     res.status(500).json({ error: 'Internal server error' });
@@ -2909,7 +2909,6 @@ export const updateCommissionRulesAdmin = async (req: AuthRequest, res: Response
     const workerTierAdjustments = Array.isArray(req.body?.worker_tier_adjustments)
       ? req.body.worker_tier_adjustments
       : [];
-    const promoCodes = Array.isArray(req.body?.promo_codes) ? req.body.promo_codes : [];
 
     if (!Number.isFinite(globalRatePercent) || globalRatePercent < 0 || globalRatePercent > 50) {
       res.status(400).json({ error: 'Default commission rate must be between 0 and 50.' });
@@ -2921,7 +2920,6 @@ export const updateCommissionRulesAdmin = async (req: AuthRequest, res: Response
       service_overrides: serviceOverrides,
       urgency_adjustments: urgencyAdjustments,
       worker_tier_adjustments: workerTierAdjustments,
-      promo_codes: promoCodes,
     });
     await logAdminActivity(req, 'update', 'commission_rules', 'Updated commission engine rules.', null, {
       before: previousConfig,

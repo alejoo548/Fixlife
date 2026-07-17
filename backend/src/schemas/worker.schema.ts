@@ -8,6 +8,8 @@ const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{8,128}$/;
 
 export const WorkerSchema = {
   settings: z.object({
+    name: nameLikeText(80).nullable().optional(),
+    lastname: nameLikeText(80).nullable().optional(),
     phone_number: z
       .string()
       .trim()

@@ -5,6 +5,7 @@ import {
   resetPassword
 } from "../services/authService";
 import { showSweetToast } from '../utils/sweetAlert';
+import PasswordInput from '../components/common/PasswordInput';
 
 interface ForgotPasswordProps {
   onBack?: () => void;
@@ -119,6 +120,7 @@ const ForgotPassword: React.FC<ForgotPasswordProps> = ({ onBack }) => {
             type="email"
             placeholder="Email address"
             value={email}
+            maxLength={100}
             onChange={(e)=>setEmail(e.target.value)}
             required
             className="w-full px-4 py-3 border border-gray-300 rounded-xl outline-none focus:border-bird-blue"
@@ -144,7 +146,9 @@ const ForgotPassword: React.FC<ForgotPasswordProps> = ({ onBack }) => {
             type="text"
             placeholder="Enter verification code"
             value={token}
-            onChange={(e)=>setToken(e.target.value)}
+            maxLength={6}
+            inputMode="numeric"
+            onChange={(e)=>setToken(e.target.value.replace(/\D/g, ''))}
             required
             className="w-full px-4 py-3 border border-gray-300 rounded-xl outline-none focus:border-bird-blue"
           />
@@ -165,8 +169,7 @@ const ForgotPassword: React.FC<ForgotPasswordProps> = ({ onBack }) => {
       {step === 3 && (
         <form onSubmit={handleResetPassword} className="flex flex-col gap-4">
 
-          <input
-            type="password"
+          <PasswordInput
             placeholder="New password"
             value={password}
             onChange={(e)=>setPassword(e.target.value)}
@@ -174,8 +177,7 @@ const ForgotPassword: React.FC<ForgotPasswordProps> = ({ onBack }) => {
             className="w-full px-4 py-3 border border-gray-300 rounded-xl outline-none focus:border-bird-blue"
           />
 
-          <input
-            type="password"
+          <PasswordInput
             placeholder="Confirm password"
             value={confirmPassword}
             onChange={(e)=>setConfirmPassword(e.target.value)}
