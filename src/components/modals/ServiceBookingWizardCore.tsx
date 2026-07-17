@@ -2441,9 +2441,7 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                                         selection_mode:
                                                             patch.booking_type === 'scheduled'
                                                                 ? 'client_review'
-                                                                : patch.booking_type === 'express'
-                                                                    ? 'auto_assign'
-                                                                    : prev.selection_mode,
+                                                                : prev.selection_mode,
                                                     }))}
                                                 />
                                             </motion.div>
@@ -2499,9 +2497,7 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                                                 Hiring preference
                                                             </p>
                                                             <h3 className="mt-1 text-lg font-black text-slate-950 dark:text-slate-100">
-                                                                {data.booking_type === 'express'
-                                                                    ? 'Express assigns the first available Pro'
-                                                                    : 'How should Fixlife match your Pro?'}
+                                                                How should Fixlife match your Pro?
                                                             </h3>
                                                         </div>
                                                         <span className="rounded-full border border-bird-blue/20 bg-sky-50 dark:bg-sky-900/40 px-3 py-1 text-[10px] font-black uppercase tracking-[0.14em] text-bird-blue">
@@ -2523,20 +2519,15 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                                                 eyebrow: data.booking_type === 'scheduled' ? 'Recommended for scheduled' : 'More control',
                                                                 body: 'Compare Pro profiles, portfolio and experience before approving who can start the route.',
                                                             },
-                                                        ]
-                                                            .filter((option) => data.booking_type !== 'express' || option.mode === 'auto_assign')
-                                                            .map((option) => {
-                                                            const selected =
-                                                                data.booking_type === 'express'
-                                                                    ? option.mode === 'auto_assign'
-                                                                    : data.selection_mode === option.mode;
+                                                        ].map((option) => {
+                                                            const selected = data.selection_mode === option.mode;
                                                             return (
                                                                 <button
                                                                     type="button"
                                                                     key={option.mode}
                                                                     onClick={() => setData((prev) => ({
                                                                         ...prev,
-                                                                        selection_mode: data.booking_type === 'express' ? 'auto_assign' : option.mode,
+                                                                        selection_mode: option.mode,
                                                                     }))}
                                                                     className={`min-h-[150px] rounded-2xl border p-4 text-left transition-all ${
                                                                         selected
@@ -2567,9 +2558,7 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                                     </div>
 
                                                     <p className="mt-3 text-xs font-semibold leading-5 text-slate-500 dark:text-slate-400">
-                                                        {data.booking_type === 'express'
-                                                            ? 'Express is protected: the first verified, available Pro who accepts is assigned automatically.'
-                                                            : 'Fast Match is still protected: unverified, unavailable or conflicting workers are rejected by the backend.'}
+                                                        Fast Match is still protected: unverified, unavailable or conflicting workers are rejected by the backend.
                                                     </p>
                                                 </div>
 

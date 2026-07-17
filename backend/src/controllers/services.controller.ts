@@ -172,10 +172,8 @@ const normalizeBookingType = (value: unknown): 'express' | 'scheduled' => {
 
 const normalizeSelectionMode = (
   value: unknown,
-  bookingType: 'express' | 'scheduled'
+  _bookingType: 'express' | 'scheduled'
 ): 'auto_assign' | 'client_review' => {
-  if (bookingType === 'express') return 'auto_assign';
-
   const normalized = String(value || '').trim().toLowerCase();
   if (normalized === 'auto_assign') return 'auto_assign';
   if (normalized === 'client_review') return 'client_review';
