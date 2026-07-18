@@ -160,6 +160,16 @@ export const API_ENDPOINTS = {
   },
 };
 
+// Virtual Wallet's widget hard-requires data-secret-key on its own <script> tag to
+// function at all (their button handler refuses to open without it) — see
+// virtualWalletLoader.ts. Shipping it client-side is only acceptable because this
+// integration is scoped to a closed LAN sandbox, never public internet.
+export const VIRTUAL_WALLET_CONFIG = {
+  clientId: String(import.meta.env.VITE_VIRTUAL_WALLET_CLIENT_ID || '').trim(),
+  secretKey: String(import.meta.env.VITE_VIRTUAL_WALLET_SECRET_KEY || '').trim(),
+  scriptUrl: String(import.meta.env.VITE_VIRTUAL_WALLET_SCRIPT_URL || '').trim(),
+};
+
 // Shared helpers for Socket.IO clients to reduce duplication and tame reconnection spam
 export const getSocketBaseUrl = (): string => {
   // Prefer explicit support socket, fallback to the resolved API_URL (which already handles local/prod)
