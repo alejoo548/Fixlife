@@ -3461,7 +3461,7 @@ export const createRequestPaymentCheckout = async (req: AuthRequest, res: Respon
         wompiCheckoutUrl = checkout.checkoutUrl;
       } catch (wompiError: any) {
         await connection.rollback();
-        res.status(502).json({ error: wompiError?.message || 'Could not initialize Wompi checkout.' });
+        res.status(422).json({ error: wompiError?.message || 'Could not initialize Wompi checkout.' });
         return;
       }
     }
