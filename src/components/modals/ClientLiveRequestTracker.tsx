@@ -1,9 +1,12 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { showSweetToast } from '../../utils/sweetAlert';
-import { addResilientTileLayer } from '../../utils/leafletLoader';
+import { addResilientTileLayer, loadLeaflet } from '../../utils/leafletLoader';
+import { API_ENDPOINTS } from '../../config/api';
+import { useIsDarkTheme } from '../../hooks/useIsDarkTheme';
 import {
     buildRouteDistanceProfile,
+    durationMinFromDistanceKm,
     focusRouteViewport,
     formatEta,
     getLiveViewportPoints,
@@ -210,6 +213,10 @@ const ClientLiveRequestTracker: React.FC<ClientLiveRequestTrackerProps> = ({ lea
     const previousRequestIdRef = useRef<number | null>(null);
     const lastToastRef = useRef<{ tone: 'success' | 'info'; message: string; at: number } | null>(null);
     const routeOriginRequestIdRef = useRef<number | null>(null);
+    const tileLayerRef = useRef<any>(null);
+    const isDarkMode = useIsDarkTheme();
+    const isDarkModeRef = useRef(isDarkMode);
+    isDarkModeRef.current = isDarkMode;
 
     const [routeLoading, setRouteLoading] = useState(false);
     const [routePreview, setRoutePreview] = useState<{
@@ -223,6 +230,9 @@ const ClientLiveRequestTracker: React.FC<ClientLiveRequestTrackerProps> = ({ lea
     const [metrics, setMetrics] = useState<{ distanceKm: number; durationMin: number } | null>(null);
     const [trackerStage, setTrackerStage] = useState<TrackerStage>(statusToStage(request.status));
     const [isMapExpanded, setIsMapExpanded] = useState(false);
+    const [manualLeafletReady, setManualLeafletReady] = useState(false);
+    const [showLoadFailure, setShowLoadFailure] = useState(false);
+    const effectiveLeafletReady = leafletReady || manualLeafletReady;
     const [cameraMode, setCameraMode] = useState<CameraMode>(() => {
         if (typeof window === 'undefined') return 'close';
         const stored = window.localStorage.getItem(CLIENT_TRACKER_CAMERA_KEY);
@@ -233,6 +243,26 @@ const ClientLiveRequestTracker: React.FC<ClientLiveRequestTrackerProps> = ({ lea
         if (typeof window === 'undefined') return;
         window.localStorage.setItem(CLIENT_TRACKER_CAMERA_KEY, cameraMode);
     }, [cameraMode]);
+
+    // If Leaflet hasn't loaded within a reasonable window (both CDN mirrors
+    // blocked/unreachable), surface an explicit error instead of leaving the
+    // user staring at a blank gray box with no explanation.
+    useEffect(() => {
+        if (effectiveLeafletReady) {
+            setShowLoadFailure(false);
+            return;
+        }
+        const timer = window.setTimeout(() => setShowLoadFailure(true), 9000);
+        return () => window.clearTimeout(timer);
+    }, [effectiveLeafletReady]);
+
+    const retryLeafletLoad = () => {
+        setShowLoadFailure(false);
+        void loadLeaflet('client-tracker-retry').then((ready) => {
+            if (ready) setManualLeafletReady(true);
+            else setShowLoadFailure(true);
+        });
+    };
 
     const destinationCoords = useMemo(() => {
         if (request.latitude == null || request.longitude == null) return null;
@@ -268,11 +298,21 @@ const ClientLiveRequestTracker: React.FC<ClientLiveRequestTrackerProps> = ({ lea
         }
 
         if (!destinationCoords) return null;
+        // No real GPS from the assigned worker yet (backend hasn't received a
+        // presence push). Placeholder point ~1km NE of the destination so the
+        // map has something to draw before real coordinates arrive; replaced
+        // the moment liveWorkerCoords resolves below.
         return {
             lat: Number((destinationCoords.lat + 0.0078).toFixed(7)),
             lng: Number((destinationCoords.lng - 0.0094).toFixed(7)),
         };
     }, [destinationCoords, request.assigned_worker?.latitude, request.assigned_worker?.longitude]);
+
+    // True while workerStartCoords is the fabricated offset above rather than
+    // a real GPS fix reported by the backend.
+    const isPlaceholderWorkerCoords =
+        !!workerStartCoords &&
+        (request.assigned_worker?.latitude == null || request.assigned_worker?.longitude == null);
 
     const liveWorkerCoords = useMemo(() => {
         if (request.assigned_worker?.latitude == null || request.assigned_worker?.longitude == null) return null;
@@ -325,7 +365,7 @@ const ClientLiveRequestTracker: React.FC<ClientLiveRequestTrackerProps> = ({ lea
     }, [cameraMode, displayedWorkerCoords, isLiveRoute, routePreview]);
 
     useEffect(() => {
-        if (!leafletReady || !mapContainerRef.current || !window.L) return;
+        if (!effectiveLeafletReady || !mapContainerRef.current || !window.L) return;
         if (mapInstanceRef.current) return;
 
         let cancelled = false;
@@ -344,7 +384,7 @@ const ClientLiveRequestTracker: React.FC<ClientLiveRequestTrackerProps> = ({ lea
 
             // CARTO tiles with an OSM fallback if CARTO is unreachable/blocked --
             // without this the map stayed permanently blank gray on networks that can't reach CARTO.
-            addResilientTileLayer(L, map);
+            tileLayerRef.current = addResilientTileLayer(L, map, isDarkModeRef.current);
 
             L.control.zoom({ position: 'bottomright' }).addTo(map);
             mapInstanceRef.current = map;
@@ -366,7 +406,20 @@ const ClientLiveRequestTracker: React.FC<ClientLiveRequestTrackerProps> = ({ lea
                 mapInstanceRef.current = null;
             }
         };
-    }, [leafletReady]);
+    }, [effectiveLeafletReady]);
+
+    useEffect(() => {
+        if (!mapInstanceRef.current || !window.L || !tileLayerRef.current) return;
+        const L = window.L;
+        const map = mapInstanceRef.current;
+        try {
+            map.removeLayer(tileLayerRef.current);
+        } catch {
+            // ignore
+        }
+        tileLayerRef.current = addResilientTileLayer(L, map, isDarkMode);
+        tileLayerRef.current.bringToBack();
+    }, [isDarkMode]);
 
     useEffect(() => {
         if (!routeOriginCoords || !destinationCoords) {
@@ -376,27 +429,32 @@ const ClientLiveRequestTracker: React.FC<ClientLiveRequestTrackerProps> = ({ lea
 
         const controller = new AbortController();
 
-        const loadRoute = async () => {
+        const loadRoute = async (isRetry = false) => {
             setRouteLoading(true);
             try {
                 const params = new URLSearchParams({
-                    overview: 'full',
-                    geometries: 'geojson',
-                    steps: 'false',
+                    origin_lat: String(routeOriginCoords.lat),
+                    origin_lng: String(routeOriginCoords.lng),
+                    dest_lat: String(destinationCoords.lat),
+                    dest_lng: String(destinationCoords.lng),
                 });
-                const routeUrl = `https://router.project-osrm.org/route/v1/driving/${routeOriginCoords.lng},${routeOriginCoords.lat};${destinationCoords.lng},${destinationCoords.lat}?${params.toString()}`;
-                const res = await fetch(routeUrl, { signal: controller.signal });
+                const timeout = window.setTimeout(() => controller.abort(), 12000);
+                const res = await fetch(`${API_ENDPOINTS.services.route}?${params.toString()}`, { signal: controller.signal });
+                window.clearTimeout(timeout);
                 const payload = await res.json();
-                const route = payload?.routes?.[0];
-                const coordinates = Array.isArray(route?.geometry?.coordinates)
-                    ? route.geometry.coordinates
+                const route = payload?.route;
+
+                let points: [number, number][] = Array.isArray(route?.points)
+                    ? (route.points as [number, number][]).filter(
+                        (point) => Number.isFinite(point[0]) && Number.isFinite(point[1])
+                    )
                     : [];
 
-                let points: [number, number][] = coordinates
-                    .map((point: [number, number]) => [Number(point[1]), Number(point[0])] as [number, number])
-                    .filter((point) => Number.isFinite(point[0]) && Number.isFinite(point[1]));
-
                 if (points.length < 2) {
+                    if (!isRetry && !controller.signal.aborted) {
+                        await new Promise((r) => setTimeout(r, 1000));
+                        return loadRoute(true);
+                    }
                     points = [
                         [routeOriginCoords.lat, routeOriginCoords.lng],
                         [destinationCoords.lat, destinationCoords.lng],
@@ -424,12 +482,12 @@ const ClientLiveRequestTracker: React.FC<ClientLiveRequestTrackerProps> = ({ lea
                 const fallbackDistanceKm = haversineKm(routeOriginCoords, destinationCoords);
                 const exactDistanceKm = Math.max(
                     profile.totalKm,
-                    Number(route?.distance || 0) / 1000,
+                    Number(route?.distanceKm || 0),
                     fallbackDistanceKm
                 );
                 const exactDurationMin = Math.max(
-                    Number(route?.duration || 0) / 60,
-                    (exactDistanceKm / 22) * 60,
+                    Number(route?.durationMin || 0),
+                    durationMinFromDistanceKm(exactDistanceKm),
                     2
                 );
 
@@ -443,6 +501,10 @@ const ClientLiveRequestTracker: React.FC<ClientLiveRequestTrackerProps> = ({ lea
                 }
             } catch (err) {
                 if ((err as DOMException)?.name === 'AbortError') return;
+                if (!isRetry && !controller.signal.aborted) {
+                    await new Promise((r) => setTimeout(r, 800));
+                    return loadRoute(true);
+                }
                 const fallbackDistanceKm = haversineKm(routeOriginCoords, destinationCoords);
                 const points: [number, number][] = [
                     [routeOriginCoords.lat, routeOriginCoords.lng],
@@ -453,7 +515,7 @@ const ClientLiveRequestTracker: React.FC<ClientLiveRequestTrackerProps> = ({ lea
                     setRoutePreview({
                         points,
                         distanceKm: Number(fallbackDistanceKm.toFixed(2)),
-                        durationMin: Number(Math.max((fallbackDistanceKm / 22) * 60, 2).toFixed(1)),
+                        durationMin: Number(Math.max(durationMinFromDistanceKm(fallbackDistanceKm), 2).toFixed(1)),
                         cumulativeKm: profile.cumulativeKm,
                     });
                 }
@@ -535,7 +597,7 @@ const ClientLiveRequestTracker: React.FC<ClientLiveRequestTrackerProps> = ({ lea
             polylineDistanceKm(remainingPoints),
             haversineKm(currentWorkerCoords, destinationCoords) * 1.35 || routePreview.distanceKm
         );
-        const remainingDurationMin = Math.max((remainingDistanceKm / 22) * 60, remainingDistanceKm > 0.04 ? 1 : 0);
+        const remainingDurationMin = Math.max(durationMinFromDistanceKm(remainingDistanceKm), remainingDistanceKm > 0.04 ? 1 : 0);
         setMetrics({
             distanceKm: Number(remainingDistanceKm.toFixed(2)),
             durationMin: Number(remainingDurationMin.toFixed(1)),
@@ -581,21 +643,20 @@ const ClientLiveRequestTracker: React.FC<ClientLiveRequestTrackerProps> = ({ lea
 
         try {
             routeGlowRef.current = L.polyline(cleanRoutePoints, {
-                color: '#3b82f6',
-                weight: 12,
-                opacity: 0.15,
+                color: '#0090FF',
+                weight: 16,
+                opacity: 0.3,
                 lineCap: 'round',
                 lineJoin: 'round',
                 className: 'worker-route-glow',
             }).addTo(map);
 
             routeLineRef.current = L.polyline(cleanRoutePoints, {
-                color: '#1d4ed8',
-                weight: 4,
-                opacity: 0.8,
+                color: '#38bdf8',
+                weight: 6,
+                opacity: 0.95,
                 lineCap: 'round',
                 lineJoin: 'round',
-                dashArray: '10 8',
                 className: 'worker-route-line worker-route-live',
             }).addTo(map);
 
@@ -629,6 +690,12 @@ const ClientLiveRequestTracker: React.FC<ClientLiveRequestTrackerProps> = ({ lea
                 icon: createTrackerIcon(L, 'client'),
                 zIndexOffset: 900,
             }).addTo(map);
+            clientMarkerRef.current.bindTooltip('Your location', {
+                permanent: true,
+                direction: 'bottom',
+                offset: [0, 8],
+                className: 'client-live-tracker-label',
+            });
         } else {
             clientMarkerRef.current.setLatLng([destinationCoords.lat, destinationCoords.lng]);
         }
@@ -643,17 +710,28 @@ const ClientLiveRequestTracker: React.FC<ClientLiveRequestTrackerProps> = ({ lea
         const L = window.L;
         const map = mapInstanceRef.current;
 
+        const workerLabel = request.assigned_worker?.name || 'Worker';
+
         if (!workerMarkerRef.current) {
             workerMarkerRef.current = L.marker([displayedWorkerCoords.lat, displayedWorkerCoords.lng], {
                 icon: createTrackerIcon(L, 'worker'),
                 zIndexOffset: 1000,
             }).addTo(map);
+            workerMarkerRef.current.bindTooltip(workerLabel, {
+                permanent: true,
+                direction: 'top',
+                offset: [0, -8],
+                className: 'client-live-tracker-label client-live-tracker-label--worker',
+            });
         } else {
             workerMarkerRef.current.setLatLng([displayedWorkerCoords.lat, displayedWorkerCoords.lng]);
+            workerMarkerRef.current.setTooltipContent(workerLabel);
         }
 
-        workerMarkerRef.current.bindPopup(`<b>${request.assigned_worker?.name || 'Worker'}</b><br/>Live position`);
-    }, [displayedWorkerCoords, request.assigned_worker?.name]);
+        workerMarkerRef.current.bindPopup(
+            `<b>${workerLabel}</b><br/>${isPlaceholderWorkerCoords ? 'Waiting for GPS…' : 'Live position'}`
+        );
+    }, [displayedWorkerCoords, isPlaceholderWorkerCoords, request.assigned_worker?.name]);
 
     useEffect(() => {
         if (typeof document === 'undefined') return undefined;
@@ -759,27 +837,44 @@ const ClientLiveRequestTracker: React.FC<ClientLiveRequestTrackerProps> = ({ lea
     const distanceLabel = routeLoading ? 'Updating' : `${(metrics?.distanceKm ?? routePreview?.distanceKm ?? 0).toFixed(1)} km`;
 
     return (
-        <div className={`relative h-full min-h-[600px] w-full overflow-hidden bg-slate-100 ${isMapExpanded ? 'fixed inset-4 z-[70] rounded-[2rem] border border-slate-200/70 shadow-2xl' : 'rounded-[1.5rem]'}`}>
+        <div className={`relative h-full min-h-[620px] w-full overflow-hidden bg-slate-100 dark:bg-slate-900 ${isMapExpanded ? 'fixed inset-4 z-[70] rounded-[2.5rem] border border-slate-200/70 dark:border-white/10 shadow-2xl' : 'rounded-[1.8rem]'}`}>
             {/* Map Background */}
             <div ref={mapContainerRef} className="absolute inset-0 z-0" />
             
             {/* Soft edge overlays keep controls readable without hiding the map. */}
-            <div className="pointer-events-none absolute inset-x-0 top-0 z-10 h-24 bg-gradient-to-b from-white/70 to-transparent" />
-            <div className="pointer-events-none absolute inset-x-0 bottom-0 z-10 h-44 bg-gradient-to-t from-white/80 to-transparent" />
+            <div className="pointer-events-none absolute inset-x-0 top-0 z-10 h-28 bg-gradient-to-b from-white/70 dark:from-slate-950/80 via-white/30 dark:via-slate-950/30 to-transparent" />
+            <div className="pointer-events-none absolute inset-x-0 bottom-0 z-10 h-48 bg-gradient-to-t from-white/85 dark:from-slate-950/90 via-white/40 dark:via-slate-950/40 to-transparent" />
 
-            {!leafletReady && (
-                <div className="absolute right-6 top-6 z-20 h-3 w-3 rounded-full bg-blue-500 animate-pulse shadow-[0_0_12px_rgba(59,130,246,0.8)]" />
+            {!effectiveLeafletReady && !showLoadFailure && (
+                <div className="absolute right-6 top-6 z-20 h-3.5 w-3.5 rounded-full bg-blue-500 animate-pulse shadow-[0_0_15px_rgba(59,130,246,0.9)]" />
+            )}
+
+            {showLoadFailure && !effectiveLeafletReady && (
+                <div className="absolute inset-0 z-30 flex items-center justify-center bg-slate-100 dark:bg-slate-900 p-8 text-center">
+                    <div>
+                        <div className="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-2xl bg-white dark:bg-slate-800 text-3xl shadow-sm">🗺️</div>
+                        <p className="text-base font-black text-slate-800 dark:text-slate-100">Map failed to load</p>
+                        <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">Check your connection and try again.</p>
+                        <button
+                            type="button"
+                            onClick={retryLeafletLoad}
+                            className="mt-4 rounded-full bg-slate-900 dark:bg-slate-700 px-6 py-2.5 text-xs font-black text-white shadow-md transition-colors hover:bg-slate-800 dark:hover:bg-slate-600"
+                        >
+                            Retry
+                        </button>
+                    </div>
+                </div>
             )}
 
             {/* Top Floating Header */}
-            <div className="absolute left-4 right-4 top-4 z-20 flex flex-col justify-between gap-3 pointer-events-none sm:flex-row sm:items-start">
+            <div className="absolute left-5 right-5 top-5 z-20 flex flex-col justify-between gap-3 pointer-events-none sm:flex-row sm:items-center">
                 <div className="flex items-center justify-between w-full sm:w-auto gap-3">
                     {onClose && (
                         <motion.button
                             initial={{ y: -20, opacity: 0 }}
                             animate={{ y: 0, opacity: 1 }}
                             onClick={onClose}
-                            className="pointer-events-auto flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-slate-200 bg-white/95 text-slate-700 shadow-[0_10px_28px_rgba(15,23,42,0.14)] backdrop-blur-md transition-colors hover:text-slate-950 sm:h-11 sm:w-11"
+                            className="pointer-events-auto flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-slate-200/80 dark:border-white/10 bg-white/95 dark:bg-slate-900/95 text-slate-700 dark:text-slate-200 shadow-[0_10px_28px_rgba(15,23,42,0.14)] backdrop-blur-md transition-all hover:scale-105 active:scale-95 hover:text-slate-950 dark:hover:text-white"
                         >
                             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M15 19l-7-7 7-7" />
@@ -791,83 +886,84 @@ const ClientLiveRequestTracker: React.FC<ClientLiveRequestTrackerProps> = ({ lea
                     <motion.div 
                         initial={{ y: -20, opacity: 0 }}
                         animate={{ y: 0, opacity: 1 }}
-                        className="pointer-events-auto flex flex-1 items-center gap-3 rounded-full border border-slate-200 bg-white/95 px-4 py-2.5 shadow-[0_10px_28px_rgba(15,23,42,0.12)] backdrop-blur-md sm:flex-none"
+                        className="pointer-events-auto flex flex-1 items-center gap-3 rounded-full border border-slate-200/80 dark:border-white/10 bg-white/95 dark:bg-slate-900/95 px-5 py-3 shadow-[0_10px_28px_rgba(15,23,42,0.12)] backdrop-blur-md sm:flex-none"
                     >
                         <div className="relative flex items-center justify-center shrink-0">
-                            <div className={`absolute inset-0 rounded-full blur-md opacity-40 ${displayedVisual.toneClass.includes('emerald') || displayedVisual.toneClass.includes('green') ? 'bg-emerald-500' : 'bg-blue-500'}`}></div>
-                            <div className="h-2 w-2 sm:h-2.5 sm:w-2.5 rounded-full bg-blue-500 relative z-10 animate-pulse"></div>
+                            <div className={`absolute inset-0 rounded-full blur-md opacity-50 ${displayedVisual.toneClass.includes('emerald') || displayedVisual.toneClass.includes('green') ? 'bg-emerald-500' : 'bg-bird-blue'}`}></div>
+                            <div className="h-3 w-3 rounded-full bg-bird-blue relative z-10 animate-pulse"></div>
                         </div>
                         <div className="min-w-0">
-                            <p className="text-[9px] sm:text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 leading-none mb-1 sm:mb-1.5">Status</p>
-                            <p className="text-xs sm:text-sm font-black text-slate-900 leading-none truncate">{displayedVisual.label}</p>
+                            <p className="text-[9px] sm:text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 dark:text-slate-500 leading-none mb-1">Status</p>
+                            <p className="text-xs sm:text-sm font-black text-slate-950 dark:text-slate-100 leading-none truncate">{displayedVisual.label}</p>
                         </div>
                     </motion.div>
                 </div>
 
-                {/* Right controls (e.g. Expand Map if needed, or Request ID) */}
+                {/* Right controls */}
                 <motion.div 
                     initial={{ y: -20, opacity: 0 }}
                     animate={{ y: 0, opacity: 1 }}
-                    className="pointer-events-auto self-end rounded-2xl border border-slate-200 bg-white/95 px-4 py-2.5 text-right shadow-[0_10px_28px_rgba(15,23,42,0.12)] backdrop-blur-md sm:self-auto"
+                    className="pointer-events-auto self-end rounded-full border border-slate-200/80 dark:border-white/10 bg-white/95 dark:bg-slate-900/95 px-5 py-3 text-right shadow-[0_10px_28px_rgba(15,23,42,0.12)] backdrop-blur-md sm:self-auto"
                 >
-                    <p className="text-[9px] sm:text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 leading-none mb-1 sm:mb-1.5">Request</p>
-                    <p className="text-xs sm:text-sm font-black text-slate-900 leading-none">#{request.id_request}</p>
+                    <p className="text-[9px] sm:text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 dark:text-slate-500 leading-none mb-1">Request</p>
+                    <p className="text-xs sm:text-sm font-black text-slate-950 dark:text-slate-100 leading-none">#{request.id_request}</p>
                 </motion.div>
             </div>
 
-            {/* Bottom Floating Card (Uber Style) */}
-            <div className="pointer-events-none absolute bottom-4 left-4 right-4 z-20 flex justify-center sm:bottom-5">
+            {/* Bottom Floating Card (Uber / Lyft Style - Spacious & Wide) */}
+            <div className="pointer-events-none absolute bottom-5 left-5 right-5 z-20 flex justify-center">
                 <motion.div 
                     initial={{ y: 40, opacity: 0 }}
                     animate={{ y: 0, opacity: 1 }}
-                    className="pointer-events-auto relative w-full max-w-2xl overflow-hidden rounded-[1.6rem] border border-slate-200/90 bg-white/96 p-4 shadow-[0_18px_50px_rgba(15,23,42,0.16)] backdrop-blur-xl sm:p-5"
+                    className="pointer-events-auto relative w-full max-w-3xl overflow-hidden rounded-[2rem] border border-white/80 dark:border-white/10 bg-white/95 dark:bg-slate-900/95 p-5 sm:p-6 shadow-[0_20px_60px_rgba(15,23,42,0.22)] backdrop-blur-2xl"
                 >
                     {/* Drag handle decoration */}
-                    <div className="absolute left-1/2 top-2.5 h-1 w-12 -translate-x-1/2 rounded-full bg-slate-200" />
+                    <div className="absolute left-1/2 top-3 h-1.5 w-14 -translate-x-1/2 rounded-full bg-slate-200/80 dark:bg-slate-700/80" />
                     
                     {/* Main Worker Info & ETA */}
                     <div className="mt-2 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-                        <div className="flex min-w-0 items-center gap-3">
-                            <div className="h-12 w-12 shrink-0 rounded-full bg-bird-blue p-[2px] shadow-[0_12px_28px_rgba(0,144,255,0.24)]">
-                                <div className="flex h-full w-full items-center justify-center overflow-hidden rounded-full border-2 border-white bg-white">
-                                    <span className="text-lg font-black text-bird-blue">
+                        <div className="flex min-w-0 items-center gap-4">
+                            <div className="h-14 w-14 shrink-0 rounded-full bg-gradient-to-tr from-bird-blue to-indigo-500 p-[2.5px] shadow-[0_12px_28px_rgba(0,144,255,0.28)]">
+                                <div className="flex h-full w-full items-center justify-center overflow-hidden rounded-full border-2 border-white dark:border-slate-800 bg-white dark:bg-slate-800">
+                                    <span className="text-xl font-black text-bird-blue">
                                         {workerName.charAt(0).toUpperCase()}
                                     </span>
                                 </div>
                             </div>
                             <div className="min-w-0">
-                                <h3 className="truncate text-base font-black text-slate-950 sm:text-lg">{workerName}</h3>
-                                <p className="truncate text-sm font-semibold text-slate-500">{request.service_name}</p>
+                                <h3 className="truncate text-lg sm:text-xl font-black text-slate-950 dark:text-slate-100 tracking-tight">{workerName}</h3>
+                                <p className="truncate text-sm font-bold text-slate-500 dark:text-slate-400 mt-0.5">{request.service_name}</p>
                                 {isScheduledRequest(request) && scheduledWindow && (
-                                    <p className="mt-0.5 truncate text-xs font-bold text-bird-blue">{scheduledWindow}</p>
+                                    <p className="mt-1 truncate text-xs font-black text-bird-blue">{scheduledWindow}</p>
                                 )}
                             </div>
                         </div>
-                        <div className="flex shrink-0 items-center justify-between gap-4 rounded-2xl bg-sky-50 px-4 py-3 text-left sm:min-w-[135px] sm:text-right">
+
+                        <div className="flex shrink-0 items-center justify-between gap-5 rounded-2xl bg-sky-50/90 dark:bg-slate-800/90 border border-sky-100 dark:border-white/10 px-5 py-3.5 text-left sm:min-w-[160px] sm:text-right shadow-sm">
                             <div className="sm:hidden">
-                                <p className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">{etaMetaLabel}</p>
+                                <p className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400 dark:text-slate-500">{etaMetaLabel}</p>
                             </div>
                             <div>
-                                <div className={`${isScheduledFuture ? 'max-w-[150px] text-sm leading-tight' : 'text-2xl'} font-black tracking-tight text-slate-950`}>{etaLabel}</div>
-                                <div className="mt-0.5 hidden text-[10px] font-black uppercase tracking-widest text-slate-400 sm:block">{etaMetaLabel}</div>
+                                <div className={`${isScheduledFuture ? 'max-w-[160px] text-sm leading-tight' : 'text-3xl'} font-black tracking-tight text-slate-950 dark:text-slate-100`}>{etaLabel}</div>
+                                <div className="mt-0.5 hidden text-[10px] font-black uppercase tracking-widest text-slate-400 dark:text-slate-400 sm:block">{etaMetaLabel}</div>
                             </div>
                         </div>
                     </div>
 
-                    <div className="mt-4 grid grid-cols-2 gap-3">
-                        <div className="rounded-2xl border border-slate-100 bg-slate-50 p-3">
-                            <div className="flex items-center gap-2 mb-1">
-                                <svg className="w-4 h-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" /></svg>
-                                <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Distance</p>
+                    <div className="mt-5 grid grid-cols-2 gap-3.5">
+                        <div className="rounded-2xl border border-slate-200/70 dark:border-white/10 bg-slate-50/80 dark:bg-slate-800/60 p-3.5">
+                            <div className="flex items-center gap-2 mb-1.5">
+                                <svg className="w-4 h-4 text-bird-blue" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" /></svg>
+                                <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 dark:text-slate-500">Distance</p>
                             </div>
-                            <p className="text-sm font-black text-slate-950">{distanceLabel}</p>
+                            <p className="text-base font-black text-slate-950 dark:text-slate-100">{distanceLabel}</p>
                         </div>
-                        <div className="rounded-2xl border border-slate-100 bg-slate-50 p-3">
-                            <div className="flex items-center gap-2 mb-1">
-                                <svg className="w-4 h-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.243-4.243a8 8 0 1111.314 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
-                                <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Dest.</p>
+                        <div className="rounded-2xl border border-slate-200/70 dark:border-white/10 bg-slate-50/80 dark:bg-slate-800/60 p-3.5">
+                            <div className="flex items-center gap-2 mb-1.5">
+                                <svg className="w-4 h-4 text-bird-blue" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.243-4.243a8 8 0 1111.314 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+                                <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 dark:text-slate-500">Destination</p>
                             </div>
-                            <p className="truncate text-xs font-black text-slate-950">{request.location_text.split(',')[0]}</p>
+                            <p className="truncate text-xs sm:text-sm font-black text-slate-950 dark:text-slate-100">{request.location_text.split(',')[0]}</p>
                         </div>
                     </div>
 
@@ -875,10 +971,10 @@ const ClientLiveRequestTracker: React.FC<ClientLiveRequestTrackerProps> = ({ lea
                         <button
                             type="button"
                             onClick={() => setCameraMode(prev => prev === 'close' ? 'balanced' : 'close')}
-                            className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-slate-950 py-3 text-sm font-black text-white shadow-md transition-colors hover:bg-black"
+                            className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-slate-950 dark:bg-bird-blue hover:bg-black dark:hover:bg-bird-darkBlue py-3.5 text-sm font-black text-white shadow-md transition-all active:scale-[0.98]"
                         >
-                            <svg className="w-4 h-4 opacity-70" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
-                            {cameraMode === 'close' ? 'View Route' : 'Follow Worker'}
+                            <svg className="w-4 h-4 opacity-80" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
+                            {cameraMode === 'close' ? 'View Full Route' : 'Follow Worker'}
                         </button>
                     </div>
                 </motion.div>

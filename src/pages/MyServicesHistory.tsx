@@ -7,6 +7,7 @@ import {
     Loader2,
     MapPin,
     Receipt,
+    ShieldAlert,
     ShieldCheck,
     Sparkles,
     Star,
@@ -17,7 +18,9 @@ import {
 import { API_ENDPOINTS } from '../config/api';
 import { getToken } from '../utils/session';
 import { showSweetToast, showSweetConfirm } from '../utils/sweetAlert';
+import { normalizeImageUrl } from '../utils/imageUrls';
 import WorkerRatingModal from '../components/modals/WorkerRatingModal';
+import { ServiceReportModal } from '../components/shared/ServiceReportModal';
 
 type RequestStatus =
     | 'pending'
@@ -144,6 +147,41 @@ const MyServicesHistory: React.FC<Props> = ({ onOpenReview, onGoHome }) => {
     const [filter, setFilter] = useState<FilterKey>('all');
     const [cancelBusy, setCancelBusy] = useState<number | null>(null);
     const [ratingRequest, setRatingRequest] = useState<MyServiceRequest | null>(null);
+    const [reportRequest, setReportRequest] = useState<MyServiceRequest | null>(null);
+    const [selectedWorkerProfile, setSelectedWorkerProfile] = useState<{
+        worker: any;
+        portfolio: any[];
+        requestId: number;
+    } | null>(null);
+    const [workerProfileLoading, setWorkerProfileLoading] = useState(false);
+    const [fetchingWorkerId, setFetchingWorkerId] = useState<number | null>(null);
+
+    const handleOpenWorkerProfile = async (idRequest: number) => {
+        const token = getToken();
+        if (!token) return;
+        setWorkerProfileLoading(true);
+        setFetchingWorkerId(idRequest);
+        try {
+            const res = await fetch(API_ENDPOINTS.services.requestWorkerProfile(idRequest), {
+                headers: { Authorization: `Bearer ${token}` },
+            });
+            const payload = await res.json().catch(() => ({}));
+            if (res.ok && payload.success && payload.worker) {
+                setSelectedWorkerProfile({
+                    worker: payload.worker,
+                    portfolio: Array.isArray(payload.portfolio) ? payload.portfolio : [],
+                    requestId: idRequest,
+                });
+            } else {
+                showSweetToast({ tone: 'error', message: payload?.error || 'Could not load worker profile.' });
+            }
+        } catch {
+            showSweetToast({ tone: 'error', message: 'Error loading worker profile.' });
+        } finally {
+            setWorkerProfileLoading(false);
+            setFetchingWorkerId(null);
+        }
+    };
 
     const loadRequests = async (silent = false) => {
         const token = getToken();
@@ -359,6 +397,8 @@ const MyServicesHistory: React.FC<Props> = ({ onOpenReview, onGoHome }) => {
                                         <RequestCard
                                             request={r}
                                             cancelBusy={cancelBusy === r.id_request}
+                                            fetchingWorkerId={fetchingWorkerId}
+                                            onOpenWorkerProfile={(id) => void handleOpenWorkerProfile(id)}
                                             onCancel={() => void handleCancel(r)}
                                             onReview={() => {
                                                 if (r.has_rating) {
@@ -368,6 +408,7 @@ const MyServicesHistory: React.FC<Props> = ({ onOpenReview, onGoHome }) => {
                                                 onOpenReview?.(r);
                                                 setRatingRequest(r);
                                             }}
+                                            onReport={() => setReportRequest(r)}
                                         />
                                     </motion.li>
                                 ))}
@@ -386,6 +427,220 @@ const MyServicesHistory: React.FC<Props> = ({ onOpenReview, onGoHome }) => {
                     showSweetToast({ tone: 'success', message: 'Review submitted. Thanks!' });
                 }}
             />
+
+            <ServiceReportModal
+                open={!!reportRequest}
+                idRequest={reportRequest?.id_request || null}
+                reporterRole="client"
+                counterpartName={reportRequest?.assigned_worker?.name || null}
+                onClose={() => setReportRequest(null)}
+                onSubmitted={() => void loadRequests(true)}
+            />
+
+            {/* Worker Profile Modal */}
+            <AnimatePresence>
+                {selectedWorkerProfile && (
+                    <motion.div
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 p-4 backdrop-blur-md"
+                    >
+                        <motion.div
+                            initial={{ opacity: 0, scale: 0.94, y: 20 }}
+                            animate={{ opacity: 1, scale: 1, y: 0 }}
+                            exit={{ opacity: 0, scale: 0.95, y: 15 }}
+                            className="max-h-[90vh] w-full max-w-4xl overflow-y-auto rounded-[2rem] bg-white dark:bg-slate-900 shadow-2xl border border-slate-200 dark:border-white/10"
+                        >
+                            {/* Sticky Header */}
+                            <div className="sticky top-0 z-20 flex items-center justify-between border-b border-slate-100 dark:border-white/10 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md px-6 py-4">
+                                <div className="flex items-center gap-3">
+                                    <span className="flex h-3 w-3 rounded-full bg-emerald-500 ring-4 ring-emerald-500/20 animate-pulse" />
+                                    <div>
+                                        <p className="text-[10px] font-black uppercase tracking-[0.2em] text-bird-blue">Verified Fixlife Pro</p>
+                                        <h3 className="text-xl font-black text-slate-950 dark:text-slate-100">Professional Profile &amp; Portfolio</h3>
+                                    </div>
+                                </div>
+                                <button
+                                    type="button"
+                                    onClick={() => setSelectedWorkerProfile(null)}
+                                    className="flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 dark:border-white/10 text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-white/10 hover:text-slate-950 dark:hover:text-white transition-all"
+                                    aria-label="Close worker profile"
+                                >
+                                    <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.4} d="M6 18L18 6M6 6l12 12" />
+                                    </svg>
+                                </button>
+                            </div>
+
+                            <div className="p-6 sm:p-8 space-y-6">
+                                {/* Top Hero Card */}
+                                <div className="relative overflow-hidden rounded-3xl border border-slate-200/80 dark:border-white/10 bg-gradient-to-br from-slate-900 via-slate-950 to-indigo-950 p-6 text-white shadow-xl">
+                                    <div className="pointer-events-none absolute -right-16 -top-16 h-56 w-56 rounded-full bg-bird-blue/20 blur-3xl" />
+                                    <div className="relative flex flex-col sm:flex-row items-center sm:items-start gap-5">
+                                        <div className="relative shrink-0">
+                                            {selectedWorkerProfile.worker.profile_image_url ? (
+                                                <img
+                                                    src={normalizeImageUrl(selectedWorkerProfile.worker.profile_image_url)}
+                                                    alt={selectedWorkerProfile.worker.name}
+                                                    className="h-24 w-24 rounded-2xl object-cover ring-4 ring-bird-blue/30 shadow-lg"
+                                                />
+                                            ) : (
+                                                <div className="flex h-24 w-24 items-center justify-center rounded-2xl bg-bird-blue text-3xl font-black text-white ring-4 ring-bird-blue/30 shadow-lg">
+                                                    {selectedWorkerProfile.worker.name.charAt(0).toUpperCase()}
+                                                </div>
+                                            )}
+                                            <span className="absolute -bottom-1 -right-1 flex h-6 w-6 items-center justify-center rounded-full bg-emerald-500 text-white text-xs font-bold ring-2 ring-slate-950" title="Verified Professional">
+                                                ✓
+                                            </span>
+                                        </div>
+
+                                        <div className="min-w-0 text-center sm:text-left flex-1">
+                                            <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2">
+                                                <h2 className="text-2xl font-black tracking-tight text-white">{selectedWorkerProfile.worker.name}</h2>
+                                                <span className="rounded-full bg-emerald-500/20 border border-emerald-500/30 px-3 py-0.5 text-[10px] font-black uppercase tracking-wider text-emerald-300">
+                                                    Verified Identity
+                                                </span>
+                                            </div>
+                                            <p className="mt-1 text-xs font-semibold text-slate-300">
+                                                Fixlife Partner Pro • {selectedWorkerProfile.worker.experience_label || 'Expert Service Provider'}
+                                            </p>
+
+                                            {/* Phone contact if available */}
+                                            {selectedWorkerProfile.worker.phone_number && (
+                                                <a
+                                                    href={`tel:${selectedWorkerProfile.worker.phone_number}`}
+                                                    className="mt-3 inline-flex items-center gap-2 rounded-xl bg-white/10 hover:bg-white/20 border border-white/15 px-3.5 py-1.5 text-xs font-bold text-slate-200 transition"
+                                                >
+                                                    <svg className="h-3.5 w-3.5 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
+                                                    </svg>
+                                                    {selectedWorkerProfile.worker.phone_number}
+                                                </a>
+                                            )}
+                                        </div>
+
+                                        <div className="shrink-0">
+                                            <button
+                                                type="button"
+                                                onClick={() => {
+                                                    const reqId = selectedWorkerProfile.requestId;
+                                                    setSelectedWorkerProfile(null);
+                                                    navigate(`/?request=${reqId}`);
+                                                }}
+                                                className="inline-flex items-center gap-2 rounded-xl bg-bird-blue hover:bg-bird-darkBlue px-4 py-2.5 text-xs font-black uppercase tracking-wider text-white shadow-lg transition active:scale-95"
+                                            >
+                                                <Sparkles className="h-4 w-4" />
+                                                Open Live Tracker Map
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    {/* Quick Stats Grid */}
+                                    <div className="mt-6 grid grid-cols-2 sm:grid-cols-4 gap-3 border-t border-white/10 pt-5">
+                                        <div className="rounded-2xl border border-white/10 bg-white/5 p-3 text-center sm:text-left">
+                                            <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">Rating</p>
+                                            <p className="mt-1 text-xl font-black text-amber-300 flex items-center justify-center sm:justify-start gap-1">
+                                                <span>★</span>
+                                                <span>{selectedWorkerProfile.worker.rating_average != null ? Number(selectedWorkerProfile.worker.rating_average).toFixed(1) : '5.0'}</span>
+                                            </p>
+                                            <p className="text-[10px] text-slate-400 font-semibold mt-0.5">{selectedWorkerProfile.worker.rating_count || 0} client reviews</p>
+                                        </div>
+
+                                        <div className="rounded-2xl border border-white/10 bg-white/5 p-3 text-center sm:text-left">
+                                            <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">Completed Jobs</p>
+                                            <p className="mt-1 text-xl font-black text-emerald-400">{selectedWorkerProfile.worker.completed_jobs || 0}</p>
+                                            <p className="text-[10px] text-slate-400 font-semibold mt-0.5">on Fixlife platform</p>
+                                        </div>
+
+                                        <div className="rounded-2xl border border-white/10 bg-white/5 p-3 text-center sm:text-left">
+                                            <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">Experience</p>
+                                            <p className="mt-1 text-base font-black text-sky-300 truncate">{selectedWorkerProfile.worker.experience_label || 'Verified Level'}</p>
+                                            <p className="text-[10px] text-slate-400 font-semibold mt-0.5">background checked</p>
+                                        </div>
+
+                                        <div className="rounded-2xl border border-white/10 bg-white/5 p-3 text-center sm:text-left">
+                                            <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">Portfolio</p>
+                                            <p className="mt-1 text-xl font-black text-indigo-300">{Array.isArray(selectedWorkerProfile.portfolio) ? selectedWorkerProfile.portfolio.length : 0}</p>
+                                            <p className="text-[10px] text-slate-400 font-semibold mt-0.5">project samples</p>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Services Offered Badges */}
+                                {Array.isArray(selectedWorkerProfile.worker.services_offered) && selectedWorkerProfile.worker.services_offered.length > 0 && (
+                                    <div>
+                                        <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 dark:text-slate-500 mb-2">Specialized Services</p>
+                                        <div className="flex flex-wrap gap-2">
+                                            {selectedWorkerProfile.worker.services_offered.map((svc: string, i: number) => (
+                                                <span key={i} className="rounded-xl border border-bird-blue/20 bg-bird-blue/10 dark:bg-bird-blue/20 px-3 py-1.5 text-xs font-bold text-bird-blue dark:text-sky-300">
+                                                    🛠️ {svc}
+                                                </span>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* Biography */}
+                                <div className="rounded-2xl border border-slate-200 dark:border-white/10 bg-slate-50/80 dark:bg-slate-800/50 p-5">
+                                    <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 dark:text-slate-500 mb-2">About {selectedWorkerProfile.worker.name}</p>
+                                    <p className="text-sm font-medium leading-relaxed text-slate-700 dark:text-slate-300 italic">
+                                        "{selectedWorkerProfile.worker.bio || 'This professional is a verified Fixlife partner committed to quality craftsmanship and prompt communication.'}"
+                                    </p>
+                                </div>
+
+                                {/* Portfolio & Work Samples Gallery */}
+                                <div className="space-y-4">
+                                    <div className="flex items-center justify-between">
+                                        <h4 className="text-base font-black text-slate-950 dark:text-slate-100 flex items-center gap-2">
+                                            <span>📸</span>
+                                            Work Portfolio &amp; Photos
+                                        </h4>
+                                        <span className="text-xs font-bold text-slate-400">
+                                            {Array.isArray(selectedWorkerProfile.portfolio) ? selectedWorkerProfile.portfolio.length : 0} photos
+                                        </span>
+                                    </div>
+
+                                    {Array.isArray(selectedWorkerProfile.portfolio) && selectedWorkerProfile.portfolio.length > 0 ? (
+                                        <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-3">
+                                            {selectedWorkerProfile.portfolio.map((photo: any, index: number) => (
+                                                <figure
+                                                    key={photo.id_portfolio || photo.id_photo || index}
+                                                    className="group overflow-hidden rounded-2xl border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-800 shadow-sm transition hover:shadow-lg hover:border-bird-blue/40"
+                                                >
+                                                    {photo.image_url ? (
+                                                        <div className="relative h-44 w-full overflow-hidden bg-slate-100 dark:bg-slate-900">
+                                                            <img
+                                                                src={normalizeImageUrl(photo.image_url)}
+                                                                alt={photo.description || 'Portfolio sample'}
+                                                                className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
+                                                            />
+                                                        </div>
+                                                    ) : (
+                                                        <div className="grid h-44 place-items-center bg-slate-100 dark:bg-slate-900 text-xs font-bold text-slate-400">No image</div>
+                                                    )}
+                                                    {photo.description && (
+                                                        <figcaption className="line-clamp-2 p-3 text-xs font-semibold text-slate-700 dark:text-slate-300 border-t border-slate-100 dark:border-white/5">
+                                                            {photo.description}
+                                                        </figcaption>
+                                                    )}
+                                                </figure>
+                                            ))}
+                                        </div>
+                                    ) : (
+                                        <div className="rounded-2xl border border-dashed border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-950/50 p-8 text-center">
+                                            <p className="text-sm font-black text-slate-700 dark:text-slate-300">No portfolio photos uploaded yet</p>
+                                            <p className="mt-1 text-xs font-semibold text-slate-500 dark:text-slate-400">
+                                                Rating score and completed jobs verify this professional's quality.
+                                            </p>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        </motion.div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
         </div>
     );
 };
@@ -404,9 +659,13 @@ const HeroStat: React.FC<{ label: string; value: string; accent?: boolean }> = (
 const RequestCard: React.FC<{
     request: MyServiceRequest;
     cancelBusy: boolean;
+    fetchingWorkerId: number | null;
+    onOpenWorkerProfile: (idRequest: number) => void;
     onCancel: () => void;
     onReview: () => void;
-}> = ({ request, cancelBusy, onCancel, onReview }) => {
+    onReport: () => void;
+}> = ({ request, cancelBusy, fetchingWorkerId, onOpenWorkerProfile, onCancel, onReview, onReport }) => {
+    const navigate = useNavigate();
     const status = String(request.status || '').toLowerCase();
     const amount = paymentDisplayAmount(request);
     const currency = request.payment?.currency_code || 'USD';
@@ -447,6 +706,8 @@ const RequestCard: React.FC<{
                         icon={<User2 className="h-4 w-4" />}
                         label="Professional"
                         value={request.assigned_worker?.name || 'Unassigned'}
+                        onClick={request.assigned_worker ? () => onOpenWorkerProfile(request.id_request) : undefined}
+                        isClickable={!!request.assigned_worker}
                     />
                     <InfoTile
                         icon={<MapPin className="h-4 w-4" />}
@@ -485,6 +746,27 @@ const RequestCard: React.FC<{
                         )}
                     </div>
                     <div className="flex flex-wrap items-center gap-2">
+                        {!['done', 'cancelled'].includes(status) && (
+                            <button
+                                type="button"
+                                disabled={fetchingWorkerId === request.id_request}
+                                onClick={() => {
+                                    if (request.assigned_worker) {
+                                        onOpenWorkerProfile(request.id_request);
+                                    } else {
+                                        navigate(`/?request=${request.id_request}`);
+                                    }
+                                }}
+                                className="inline-flex items-center gap-1.5 rounded-2xl bg-bird-blue hover:bg-bird-darkBlue px-4 py-2.5 text-xs font-black uppercase tracking-[0.14em] text-white shadow-md shadow-bird-blue/20 transition active:scale-95 disabled:opacity-50"
+                            >
+                                {fetchingWorkerId === request.id_request ? (
+                                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                ) : (
+                                    <Sparkles className="h-3.5 w-3.5" />
+                                )}
+                                Live Tracker &amp; Pro Details
+                            </button>
+                        )}
                         {canReview && (
                             <button
                                 type="button"
@@ -510,6 +792,14 @@ const RequestCard: React.FC<{
                                 {cancelBusy ? 'Cancelling' : 'Cancel'}
                             </button>
                         )}
+                        <button
+                            type="button"
+                            onClick={onReport}
+                            className="inline-flex items-center gap-1.5 rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-xs font-black uppercase tracking-[0.14em] text-slate-500 transition hover:border-amber-300 hover:bg-amber-50 hover:text-amber-700 dark:border-white/10 dark:bg-white/[0.04] dark:text-slate-400 dark:hover:border-amber-900/50 dark:hover:bg-amber-900/30 dark:hover:text-amber-300"
+                        >
+                            <ShieldAlert className="h-3.5 w-3.5" />
+                            Report
+                        </button>
                     </div>
                 </div>
             </div>
@@ -517,13 +807,31 @@ const RequestCard: React.FC<{
     );
 };
 
-const InfoTile: React.FC<{ icon: React.ReactNode; label: string; value: string }> = ({ icon, label, value }) => (
-    <div className="flex items-start gap-2.5 rounded-2xl border border-slate-100 bg-slate-50/50 px-3.5 py-3 dark:border-white/5 dark:bg-white/[0.03]">
+const InfoTile: React.FC<{
+    icon: React.ReactNode;
+    label: string;
+    value: string;
+    onClick?: () => void;
+    isClickable?: boolean;
+}> = ({ icon, label, value, onClick, isClickable = false }) => (
+    <div
+        onClick={onClick}
+        className={`flex items-start gap-2.5 rounded-2xl border px-3.5 py-3 transition ${
+            isClickable
+                ? 'cursor-pointer border-bird-blue/30 bg-bird-blue/5 hover:border-bird-blue hover:bg-bird-blue/10 dark:border-bird-blue/20 dark:bg-bird-blue/10 dark:hover:border-bird-blue'
+                : 'border-slate-100 bg-slate-50/50 dark:border-white/5 dark:bg-white/[0.03]'
+        }`}
+    >
         <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-xl bg-white text-slate-500 shadow-sm dark:bg-slate-800 dark:text-slate-300">
             {icon}
         </span>
-        <div className="min-w-0">
-            <p className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-400 dark:text-slate-500">{label}</p>
+        <div className="min-w-0 flex-1">
+            <div className="flex items-center justify-between gap-1">
+                <p className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-400 dark:text-slate-500">{label}</p>
+                {isClickable && (
+                    <span className="text-[9px] font-black text-bird-blue uppercase tracking-wider">View Profile →</span>
+                )}
+            </div>
             <p className="mt-0.5 truncate text-sm font-bold text-slate-800 dark:text-slate-100">{value}</p>
         </div>
     </div>

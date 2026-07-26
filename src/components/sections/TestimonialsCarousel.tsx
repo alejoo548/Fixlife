@@ -116,13 +116,30 @@ const toDisplayTestimonial = (r: LiveReview, idx: number): DisplayTestimonial =>
   text: r.review_text,
   service: r.service_category ?? 'Platform Review',
 });
+const CATEGORY_THEMES: Record<string, { bg: string; text: string; iconBg: string }> = {
+  plumbing: { bg: 'bg-sky-500/10 text-sky-600 dark:text-sky-400', text: 'text-sky-600 dark:text-sky-400', iconBg: 'bg-sky-500' },
+  electrical: { bg: 'bg-amber-500/10 text-amber-600 dark:text-amber-400', text: 'text-amber-600 dark:text-amber-400', iconBg: 'bg-amber-500' },
+  cleaning: { bg: 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400', text: 'text-emerald-600 dark:text-emerald-400', iconBg: 'bg-emerald-500' },
+  carpentry: { bg: 'bg-orange-500/10 text-orange-600 dark:text-orange-400', text: 'text-orange-600 dark:text-orange-400', iconBg: 'bg-orange-500' },
+  painting: { bg: 'bg-rose-500/10 text-rose-600 dark:text-rose-400', text: 'text-rose-600 dark:text-rose-400', iconBg: 'bg-rose-500' },
+  default: { bg: 'bg-indigo-500/10 text-indigo-600 dark:text-indigo-400', text: 'text-indigo-600 dark:text-indigo-400', iconBg: 'bg-indigo-500' },
+};
+
+const getCategoryTheme = (service: string) => {
+  const norm = service.toLowerCase();
+  if (norm.includes('plumb')) return CATEGORY_THEMES.plumbing;
+  if (norm.includes('elect')) return CATEGORY_THEMES.electrical;
+  if (norm.includes('clean')) return CATEGORY_THEMES.cleaning;
+  if (norm.includes('carpen')) return CATEGORY_THEMES.carpentry;
+  if (norm.includes('paint')) return CATEGORY_THEMES.painting;
+  return CATEGORY_THEMES.default;
+};
 
 export const TestimonialsCarousel: React.FC = () => {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isAutoPlaying, setIsAutoPlaying] = useState(true);
   const [animating, setAnimating] = useState(false);
   const [displayItems, setDisplayItems] = useState<DisplayTestimonial[]>(testimonials);
-  const [reviewStats, setReviewStats] = useState<ReviewStats>(defaultStats);
   const resumeTimerRef = useRef<number | null>(null);
 
   const fetchLiveReviews = useCallback(async () => {
@@ -131,7 +148,6 @@ export const TestimonialsCarousel: React.FC = () => {
       const data = await res.json() as {
         success: boolean;
         reviews?: LiveReview[];
-        stats?: Partial<ReviewStats>;
       };
 
       if (!data.success) return;
@@ -139,15 +155,6 @@ export const TestimonialsCarousel: React.FC = () => {
       if (Array.isArray(data.reviews) && data.reviews.length > 0) {
         setDisplayItems(data.reviews.map(toDisplayTestimonial));
         setCurrentIndex(0);
-      }
-
-      if (data.stats) {
-        setReviewStats({
-          total_reviews: Number(data.stats.total_reviews || defaultStats.total_reviews),
-          average_rating: Number(data.stats.average_rating || defaultStats.average_rating),
-          completed_jobs: Number(data.stats.completed_jobs || defaultStats.completed_jobs),
-          satisfaction_rate: Number(data.stats.satisfaction_rate || defaultStats.satisfaction_rate),
-        });
       }
     } catch {
       // keep static fallback
@@ -158,13 +165,24 @@ export const TestimonialsCarousel: React.FC = () => {
     void fetchLiveReviews();
   }, [fetchLiveReviews]);
 
+  // Combine displayItems with fallbacks to avoid duplicates and ensure >= 3 items
+  const itemsToRender = useMemo(() => {
+    const combined = [...displayItems];
+    for (const fb of testimonials) {
+      if (!combined.some(item => item.name.toLowerCase() === fb.name.toLowerCase())) {
+        combined.push(fb);
+      }
+    }
+    return combined;
+  }, [displayItems]);
+
   useEffect(() => {
-    if (!isAutoPlaying || displayItems.length <= 1) return;
+    if (!isAutoPlaying || itemsToRender.length <= 1) return;
     const interval = window.setInterval(() => {
-      setCurrentIndex((prev) => (prev + 1) % displayItems.length);
-    }, 5000);
+      setCurrentIndex((prev) => (prev + 1) % itemsToRender.length);
+    }, 5500);
     return () => window.clearInterval(interval);
-  }, [isAutoPlaying, displayItems.length]);
+  }, [isAutoPlaying, itemsToRender.length]);
 
   useEffect(() => () => {
     if (resumeTimerRef.current) window.clearTimeout(resumeTimerRef.current);
@@ -173,186 +191,146 @@ export const TestimonialsCarousel: React.FC = () => {
   const pauseAutoplay = () => {
     setIsAutoPlaying(false);
     if (resumeTimerRef.current) window.clearTimeout(resumeTimerRef.current);
-    resumeTimerRef.current = window.setTimeout(() => setIsAutoPlaying(true), 10000);
+    resumeTimerRef.current = window.setTimeout(() => setIsAutoPlaying(true), 12000);
   };
 
   const goToSlide = (index: number) => {
-    if (animating || index === currentIndex || displayItems.length <= 1) return;
+    if (animating || index === currentIndex || itemsToRender.length <= 1) return;
     setAnimating(true);
     setCurrentIndex(index);
     pauseAutoplay();
     window.setTimeout(() => setAnimating(false), 400);
   };
 
-  const nextSlide = () => goToSlide((currentIndex + 1) % displayItems.length);
-  const prevSlide = () => goToSlide((currentIndex - 1 + displayItems.length) % displayItems.length);
+  const nextSlide = () => goToSlide((currentIndex + 1) % itemsToRender.length);
+  const prevSlide = () => goToSlide((currentIndex - 1 + itemsToRender.length) % itemsToRender.length);
 
-  const t = displayItems[currentIndex] ?? displayItems[0];
+  const card1 = itemsToRender[currentIndex] ?? itemsToRender[0];
+  const card2 = itemsToRender[(currentIndex + 1) % itemsToRender.length] ?? itemsToRender[1];
+  const card3 = itemsToRender[(currentIndex + 2) % itemsToRender.length] ?? itemsToRender[2];
 
-  const stats = useMemo(() => ([
-    {
-      value: `${formatCompact(reviewStats.total_reviews)}+`,
-      label: 'Verified reviews',
-      detail: 'From real clients and pros',
-      accent: 'from-sky-500/20 to-cyan-400/10',
-      valueClass: 'text-sky-600 dark:text-sky-400',
-    },
-    {
-      value: reviewStats.average_rating.toFixed(1),
-      label: 'Average rating',
-      detail: 'Platform-wide trust signal',
-      accent: 'from-amber-400/20 to-orange-400/10',
-      valueClass: 'text-amber-500 dark:text-amber-400',
-    },
-    {
-      value: `${formatCompact(reviewStats.completed_jobs)}+`,
-      label: 'Jobs completed',
-      detail: 'Successful services delivered',
-      accent: 'from-emerald-500/20 to-teal-400/10',
-      valueClass: 'text-emerald-600 dark:text-emerald-400',
-    },
-    {
-      value: `${Math.min(100, Math.max(0, reviewStats.satisfaction_rate))}%`,
-      label: '5-star satisfaction',
-      detail: 'Share of top-rated reviews',
-      accent: 'from-fuchsia-500/20 to-violet-400/10',
-      valueClass: 'text-fuchsia-600 dark:text-fuchsia-400',
-    },
-  ]), [reviewStats]);
+  if (!card1) return null;
 
-  if (!t) return null;
-
-  return (
-    <div className="relative">
-      <div className="mb-6 px-1">
-        <p className="mb-2 text-xs font-semibold uppercase tracking-[0.2em] text-bird-blue">
-          Client Reviews
-        </p>
-        <h3 className="text-2xl font-black text-slate-900 md:text-3xl dark:text-slate-100">
-          What customers say
-        </h3>
-      </div>
-
-      <div className="relative overflow-hidden rounded-3xl bg-slate-900 p-6 shadow-[0_24px_60px_rgba(15,23,42,0.18)] md:p-8">
-        <div className="absolute right-0 top-0 h-64 w-64 rounded-full bg-bird-blue/10 blur-3xl pointer-events-none" />
-        <div className="absolute bottom-0 left-0 h-40 w-40 rounded-full bg-bird-yellow/10 blur-3xl pointer-events-none" />
+  const renderTestimonialCard = (item: DisplayTestimonial, isExtraClasses: string) => {
+    if (!item) return null;
+    const theme = getCategoryTheme(item.service);
+    return (
+      <div 
+        className={`flex-1 flex flex-col justify-between bg-white/70 dark:bg-slate-900/60 border border-slate-100 dark:border-white/5 rounded-3xl p-6 shadow-[0_15px_35px_rgba(0,0,0,0.015)] dark:shadow-[0_15px_35px_rgba(0,0,0,0.2)] hover:shadow-[0_20px_45px_rgba(0,144,255,0.06)] hover:border-bird-blue/20 dark:hover:border-white/10 transition-all duration-350 relative group min-h-[290px] backdrop-blur-sm overflow-hidden ${isExtraClasses}`}
+        style={{ opacity: animating ? 0.35 : 1 }}
+      >
+        {/* Giant decorative quote mark in card background */}
+        <span className="absolute right-4 top-2 text-7xl font-serif text-slate-100/50 dark:text-slate-800/20 select-none pointer-events-none">
+          ”
+        </span>
 
         <div className="relative z-10">
-          <div className="mb-4 flex items-center justify-between gap-4">
-            <div className="flex items-center gap-3">
-              <div className="flex gap-1">
-                {[...Array(t.rating)].map((_, i) => (
-                  <svg key={i} className="h-4 w-4 fill-current text-amber-400" viewBox="0 0 20 20">
-                    <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
-                  </svg>
-                ))}
-              </div>
-
-              <span className="inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/10 px-2.5 py-1 text-[11px] font-semibold text-slate-300">
-                <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
-                {t.service}
-              </span>
-            </div>
-
-            <div className="hidden items-center gap-2 sm:flex">
-              <button
-                onClick={prevSlide}
-                className="flex h-9 w-9 items-center justify-center rounded-full border border-white/15 text-white/70 transition hover:bg-white hover:text-slate-900 disabled:cursor-not-allowed disabled:opacity-40"
-                aria-label="Previous testimonial"
-                disabled={displayItems.length <= 1}
-              >
-                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
+          {/* Card Top Row: Rating and Category Badge */}
+          <div className="flex items-center justify-between mb-5">
+            {/* Rating Stars */}
+            <div className="flex gap-0.5">
+              {[...Array(5)].map((_, i) => (
+                <svg key={i} className={`h-4 w-4 fill-current ${i < item.rating ? 'text-amber-400' : 'text-slate-200 dark:text-slate-700'}`} viewBox="0 0 20 20">
+                  <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
                 </svg>
-              </button>
-              <button
-                onClick={nextSlide}
-                className="flex h-9 w-9 items-center justify-center rounded-full bg-white text-slate-900 transition hover:bg-bird-blue hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
-                aria-label="Next testimonial"
-                disabled={displayItems.length <= 1}
-              >
-                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
-                </svg>
-              </button>
-            </div>
-          </div>
-
-          <blockquote
-            className="min-h-[88px] text-lg leading-8 text-white/90 transition-opacity duration-300 md:text-xl"
-            style={{ opacity: animating ? 0.35 : 1 }}
-          >
-            “{t.text}”
-          </blockquote>
-
-          <div className="mt-6 flex items-center justify-between gap-4 border-t border-white/10 pt-5">
-            <div className="flex items-center gap-3">
-              <div className="h-12 w-12 overflow-hidden rounded-full ring-2 ring-white/10">
-                <img src={t.image} alt={t.name} className="h-full w-full object-cover" />
-              </div>
-              <div>
-                <p className="text-sm font-bold text-white md:text-base">{t.name}</p>
-                <div className="flex items-center gap-2">
-                  <p className="text-xs text-slate-400 md:text-sm">{t.role}</p>
-                  {t.authorRole === 'worker' && (
-                    <span className="rounded-full border border-bird-blue/30 bg-bird-blue/15 px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.16em] text-bird-blue">
-                      Pro
-                    </span>
-                  )}
-                </div>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-1.5">
-              {displayItems.map((item, index) => (
-                <button
-                  key={item.id}
-                  onClick={() => goToSlide(index)}
-                  aria-label={`Go to testimonial ${index + 1}`}
-                  className={`transition-all duration-300 ${
-                    index === currentIndex
-                      ? 'h-2 w-6 rounded-full bg-white'
-                      : 'h-2 w-2 rounded-full bg-white/25 hover:bg-white/50'
-                  }`}
-                />
               ))}
             </div>
+            
+            {/* Category Pill Tag */}
+            <span className={`inline-block px-2.5 py-0.5 rounded-full text-[9px] font-extrabold tracking-wide uppercase ${theme.bg}`}>
+              {item.service}
+            </span>
           </div>
 
-          <div className="mt-4 flex items-center justify-end gap-2 sm:hidden">
-            <button
-              onClick={prevSlide}
-              className="flex h-9 w-9 items-center justify-center rounded-full border border-white/15 text-white/70 transition hover:bg-white hover:text-slate-900 disabled:cursor-not-allowed disabled:opacity-40"
-              aria-label="Previous testimonial"
-              disabled={displayItems.length <= 1}
-            >
-              <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
-              </svg>
-            </button>
-            <button
-              onClick={nextSlide}
-              className="flex h-9 w-9 items-center justify-center rounded-full bg-white text-slate-900 transition hover:bg-bird-blue hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
-              aria-label="Next testimonial"
-              disabled={displayItems.length <= 1}
-            >
-              <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
-              </svg>
-            </button>
+          {/* Testimonial Quote */}
+          <blockquote className="text-slate-750 dark:text-slate-200 text-sm sm:text-[15px] font-semibold leading-relaxed italic mb-6 font-sans">
+            “{item.text}”
+          </blockquote>
+        </div>
+
+        {/* Author Info & Avatar */}
+        <div className="flex items-center gap-3 border-t border-slate-100 dark:border-white/5 pt-4 mt-auto relative z-10">
+          <img 
+            src={item.image} 
+            alt={item.name} 
+            className="w-10 h-10 rounded-full object-cover ring-2 ring-bird-blue/50 dark:ring-slate-800 shadow-sm" 
+          />
+          <div className="text-left">
+            <p className="text-sm font-black text-slate-900 dark:text-white leading-none">{item.name}</p>
+            <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 mt-1 uppercase tracking-wider">{item.role}</p>
           </div>
         </div>
       </div>
+    );
+  };
 
-      <div className="mt-4 grid grid-cols-2 gap-3 md:grid-cols-4">
-        {stats.map((stat) => (
-          <div
-            key={stat.label}
-            className="rounded-2xl border border-slate-200 bg-white px-4 py-4 shadow-sm dark:border-white/10 dark:bg-slate-900/70"
-          >
-            <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-slate-400 dark:text-slate-500">{stat.label}</p>
-            <p className={`mt-2 text-2xl font-black ${stat.valueClass}`}>{stat.value}</p>
-          </div>
+  return (
+    <div className="relative w-full py-6 max-w-[1400px] mx-auto overflow-hidden">
+      {/* Animated glowing gradient background blob behind the cards */}
+      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-80 h-80 rounded-full bg-gradient-to-tr from-bird-blue/10 via-indigo-500/5 to-bird-yellow/10 blur-3xl pointer-events-none select-none" />
+
+      {/* Centered section header */}
+      <div className="text-center mb-10 relative z-10">
+        <span className="px-3.5 py-1.5 rounded-full bg-bird-blue/10 dark:bg-bird-blue/20 border border-bird-blue/20 text-[10px] font-black uppercase tracking-widest text-bird-blue mb-4 inline-block">
+          Client Testimonials
+        </span>
+        <h3 className="text-3xl sm:text-4xl md:text-5xl font-sans font-black text-slate-900 dark:text-white tracking-tight leading-none mb-3">
+          Trusted by homeowners, <br />
+          <span className="text-transparent bg-clip-text bg-gradient-to-r from-bird-blue via-indigo-500 to-bird-orange">
+            loved by everyone.
+          </span>
+        </h3>
+        <p className="text-slate-500 dark:text-slate-400 text-sm sm:text-base font-medium max-w-xl mx-auto mt-3">
+          See how Fixlife is helping people simplify their daily tasks and keep their homes in perfect condition.
+        </p>
+      </div>
+
+      {/* Cards container with side navigation buttons */}
+      <div className="relative px-2 sm:px-10 mt-12 z-10">
+        {/* Left Arrow */}
+        <button
+          onClick={prevSlide}
+          className="absolute -left-2 sm:left-0 top-1/2 -translate-y-1/2 z-20 flex h-10 w-10 items-center justify-center rounded-full border border-slate-200/60 bg-white text-slate-500 shadow-md transition hover:bg-slate-50 hover:text-slate-800 hover:scale-105 active:scale-95 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-400 dark:hover:bg-slate-900 dark:hover:text-white disabled:opacity-30"
+          aria-label="Previous testimonial"
+          disabled={itemsToRender.length <= 1}
+        >
+          <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
+          </svg>
+        </button>
+
+        {/* Right Arrow */}
+        <button
+          onClick={nextSlide}
+          className="absolute -right-2 sm:right-0 top-1/2 -translate-y-1/2 z-20 flex h-10 w-10 items-center justify-center rounded-full border border-slate-200/60 bg-white text-slate-500 shadow-md transition hover:bg-slate-50 hover:text-slate-800 hover:scale-105 active:scale-95 dark:border-slate-800 dark:bg-slate-955 dark:text-slate-400 dark:hover:bg-slate-900 dark:hover:text-white disabled:opacity-30"
+          aria-label="Next testimonial"
+          disabled={itemsToRender.length <= 1}
+        >
+          <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+          </svg>
+        </button>
+
+        <div className="flex gap-6 items-stretch">
+          {renderTestimonialCard(card1, "w-full")}
+          {renderTestimonialCard(card2, "hidden md:flex w-full")}
+          {renderTestimonialCard(card3, "hidden lg:flex w-full")}
+        </div>
+      </div>
+
+      {/* Pagination dots at the bottom center */}
+      <div className="flex items-center justify-center gap-1.5 mt-8 relative z-10">
+        {itemsToRender.map((item, index) => (
+          <button
+            key={item.id}
+            onClick={() => goToSlide(index)}
+            aria-label={`Go to testimonial ${index + 1}`}
+            className={`transition-all duration-300 ${
+              index === currentIndex
+                ? 'h-1.5 w-5 rounded-full bg-bird-blue shadow-[0_2px_8px_rgba(0,144,255,0.3)]'
+                : 'h-1.5 w-1.5 rounded-full bg-slate-200 dark:bg-slate-800 hover:bg-slate-350 dark:hover:bg-slate-700'
+            }`}
+          />
         ))}
       </div>
     </div>

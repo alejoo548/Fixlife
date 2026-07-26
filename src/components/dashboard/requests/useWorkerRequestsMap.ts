@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { addResilientTileLayer, loadLeaflet } from '../../../utils/leafletLoader';
+import { API_ENDPOINTS } from '../../../config/api';
 import type {
   RouteAlert,
   SimulatedTrafficSummary,
@@ -8,6 +9,7 @@ import type {
 import {
   buildSimulatedTraffic,
   createDestinationPinIcon,
+  durationMinFromDistanceKm,
   focusRouteViewport,
   getRemainingRoutePoints,
   haversineKm,
@@ -27,6 +29,7 @@ type RoutePreview = {
 
 interface UseWorkerRequestsMapOptions {
   active: boolean;
+  isDarkMode?: boolean;
   activeRouteRequestId: number | null;
   mobileView: 'list' | 'map';
   requests: WorkerRequest[];
@@ -48,6 +51,7 @@ const nearestRouteDistanceKm = (position: Coordinates, points: [number, number][
 
 export const useWorkerRequestsMap = ({
   active,
+  isDarkMode = false,
   activeRouteRequestId,
   mobileView,
   requests,
@@ -59,6 +63,7 @@ export const useWorkerRequestsMap = ({
   onSelectRequest,
 }: UseWorkerRequestsMapOptions) => {
   const [leafletReady, setLeafletReady] = useState(false);
+  const [leafletLoadFailed, setLeafletLoadFailed] = useState(false);
   const [mapReady, setMapReady] = useState(false);
   const [routePreview, setRoutePreview] = useState<RoutePreview | null>(null);
   const [routeLoading, setRouteLoading] = useState(false);
@@ -82,6 +87,9 @@ export const useWorkerRequestsMap = ({
   const arrivalSoonRef = useRef<Set<number>>(new Set());
   const arrivedRef = useRef<Set<number>>(new Set());
   const hasCenteredOnWorkerRef = useRef(false);
+  const tileLayerRef = useRef<any>(null);
+  const isDarkModeRef = useRef(isDarkMode);
+  isDarkModeRef.current = isDarkMode;
 
   const selectedRequestCoords = useMemo(() => {
     const lat = toFiniteNumber(selectedRequest?.latitude);
@@ -123,8 +131,21 @@ export const useWorkerRequestsMap = ({
     alertTimerRef.current = window.setTimeout(() => setRouteAlert(null), 4800);
   };
 
+  const attemptLeafletLoad = () => {
+    setLeafletLoadFailed(false);
+    void loadLeaflet('worker-requests')
+      .then((ready) => {
+        setLeafletReady(ready);
+        if (!ready) setLeafletLoadFailed(true);
+      })
+      .catch((err) => {
+        console.error(err);
+        setLeafletLoadFailed(true);
+      });
+  };
+
   useEffect(() => {
-    void loadLeaflet('worker-requests').then(setLeafletReady).catch(console.error);
+    attemptLeafletLoad();
   }, []);
 
   useEffect(() => {
@@ -140,7 +161,7 @@ export const useWorkerRequestsMap = ({
         preferCanvas: true,
         maxZoom: 17,
       }).setView(FALLBACK_CENTER, 12);
-      addResilientTileLayer(L, map);
+      tileLayerRef.current = addResilientTileLayer(L, map, isDarkModeRef.current);
       L.control.zoom({ position: 'bottomright' }).addTo(map);
       mapInstanceRef.current = map;
       // Flip state so marker/route/request effects re-run now that the map
@@ -163,6 +184,19 @@ export const useWorkerRequestsMap = ({
       setMapReady(false);
     };
   }, [leafletReady]);
+
+  useEffect(() => {
+    if (!mapInstanceRef.current || !window.L || !tileLayerRef.current) return;
+    const L = window.L;
+    const map = mapInstanceRef.current;
+    try {
+      map.removeLayer(tileLayerRef.current);
+    } catch {
+      // ignore
+    }
+    tileLayerRef.current = addResilientTileLayer(L, map, isDarkMode);
+    tileLayerRef.current.bringToBack();
+  }, [isDarkMode]);
 
   useEffect(() => {
     if (active) return;
@@ -211,32 +245,34 @@ export const useWorkerRequestsMap = ({
           [selectedRequestCoords.lat, selectedRequestCoords.lng],
         ],
         distanceKm,
-        durationMin: distanceKm * 2.4,
+        durationMin: durationMinFromDistanceKm(distanceKm),
       };
     };
 
-    const loadRoute = async () => {
+    const loadRoute = async (isRetry = false) => {
       setRouteLoading(true);
       setRouteError(null);
       try {
         const params = new URLSearchParams({
-          overview: 'full',
-          geometries: 'geojson',
-          steps: 'false',
+          origin_lat: String(workerCoords.lat),
+          origin_lng: String(workerCoords.lng),
+          dest_lat: String(selectedRequestCoords.lat),
+          dest_lng: String(selectedRequestCoords.lng),
         });
-        const url = `https://router.project-osrm.org/route/v1/driving/${workerCoords.lng},${workerCoords.lat};${selectedRequestCoords.lng},${selectedRequestCoords.lat}?${params}`;
-        const timeout = window.setTimeout(() => controller.abort(), 6000);
-        const response = await fetch(url, { signal: controller.signal });
+        const timeout = window.setTimeout(() => controller.abort(), 12000);
+        const response = await fetch(`${API_ENDPOINTS.services.route}?${params}`, { signal: controller.signal });
         window.clearTimeout(timeout);
         const payload = await response.json().catch(() => null);
-        const route = payload?.routes?.[0];
-        if (!response.ok || !route?.geometry?.coordinates?.length) {
+        const route = payload?.route;
+        if (!response.ok || !route?.points?.length) {
+          if (!isRetry && !controller.signal.aborted) {
+            await new Promise((r) => setTimeout(r, 1000));
+            return loadRoute(true);
+          }
           setRoutePreview(fallback());
           return;
         }
-        const points = route.geometry.coordinates
-          .map(([lng, lat]: [number, number]) => [Number(lat), Number(lng)] as [number, number])
-          .filter(isValidLatLngTuple);
+        const points = (route.points as [number, number][]).filter(isValidLatLngTuple);
         if (points.length < 2) {
           setRoutePreview(fallback());
           return;
@@ -248,9 +284,9 @@ export const useWorkerRequestsMap = ({
         if (haversineKm(selectedRequestCoords, { lat: end[0], lng: end[1] }) > 0.02) {
           points.push([selectedRequestCoords.lat, selectedRequestCoords.lng]);
         }
-        const routedDistanceKm = Number(route.distance || 0) / 1000;
+        const routedDistanceKm = Number(route.distanceKm || 0);
         const distanceKm = Math.max(polylineDistanceKm(points), routedDistanceKm);
-        const routedDurationMin = Number(route.duration || 0) / 60;
+        const routedDurationMin = Number(route.durationMin || 0);
         setRoutePreview({
           points,
           distanceKm,
@@ -260,6 +296,10 @@ export const useWorkerRequestsMap = ({
               : routedDurationMin,
         });
       } catch {
+        if (!isRetry && !controller.signal.aborted) {
+          await new Promise((r) => setTimeout(r, 800));
+          return loadRoute(true);
+        }
         if (!controller.signal.aborted || routeAbortRef.current === controller) {
           setRoutePreview(fallback());
         }
@@ -279,12 +319,18 @@ export const useWorkerRequestsMap = ({
   ]);
 
   useEffect(() => {
+    // Build the (fake/demo) traffic overlay from the same points currently
+    // drawn as the route line (remainingPoints), not the full original
+    // routePreview.points. Re-trimming each traffic segment independently
+    // against workerCoords below used to project a "nearest point" inside
+    // small, already-passed segments, producing diagonal shortcut lines that
+    // didn't match the real route as the worker moved.
     setSimulatedTraffic(
-      routePreview && selectedRequest
-        ? buildSimulatedTraffic(selectedRequest.id_request, routePreview.points, routePreview.distanceKm)
+      remainingPoints && remainingPoints.length >= 2 && selectedRequest
+        ? buildSimulatedTraffic(selectedRequest.id_request, remainingPoints, polylineDistanceKm(remainingPoints))
         : null
     );
-  }, [routePreview, selectedRequest?.id_request]);
+  }, [remainingPoints, selectedRequest?.id_request]);
 
   useEffect(() => {
     if (!mapInstanceRef.current || !window.L) return;
@@ -299,29 +345,25 @@ export const useWorkerRequestsMap = ({
     if (!isValidLatLngList(remainingPoints) || !selectedRequestCoords) return;
 
     const glow = L.polyline(remainingPoints, {
-      color: '#60a5fa',
-      weight: 12,
-      opacity: 0.2,
+      color: '#3b82f6',
+      weight: 14,
+      opacity: 0.25,
       lineCap: 'round',
       lineJoin: 'round',
     }).addTo(map);
     const line = L.polyline(remainingPoints, {
-      color: '#2563eb',
-      weight: 6,
+      color: '#60a5fa',
+      weight: 5,
       opacity: 0.95,
       lineCap: 'round',
       lineJoin: 'round',
-      dashArray: routeActive ? '20 14' : '14 10',
     }).addTo(map);
     routeLayersRef.current.push(glow, line);
 
     if (trafficEnabled) {
       simulatedTraffic?.segments.forEach((segment) => {
-        const points = routeActive
-          ? getRemainingRoutePoints(segment.points, workerCoords)
-          : segment.points;
-        if (points.length < 2) return;
-        const layer = L.polyline(points, {
+        if (segment.points.length < 2) return;
+        const layer = L.polyline(segment.points, {
           color: segment.color,
           weight: 4,
           opacity: 0.92,
@@ -464,6 +506,8 @@ export const useWorkerRequestsMap = ({
     centerRoute,
     displayedRouteMetrics,
     leafletReady,
+    leafletLoadFailed,
+    retryLeafletLoad: attemptLeafletLoad,
     mapContainerRef,
     mapInstanceRef,
     routeActive,

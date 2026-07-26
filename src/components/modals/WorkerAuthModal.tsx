@@ -350,7 +350,7 @@ export const WorkerAuthModal: React.FC<WorkerAuthModalProps> = ({ isOpen, onClos
           onClick={onClose}
         />
 
-        <div className="relative bg-white rounded-3xl shadow-2xl p-8 w-full max-w-md animate-zoom-in">
+        <div className="relative bg-white dark:bg-slate-900 border border-transparent dark:border-white/10 rounded-3xl shadow-2xl p-8 w-full max-w-md animate-zoom-in">
           <WorkerForgotPassword onBack={() => setView('signin')} />
         </div>
       </div>
@@ -366,7 +366,7 @@ export const WorkerAuthModal: React.FC<WorkerAuthModalProps> = ({ isOpen, onClos
       />
 
       {/* DESKTOP VERSION */}
-      <div className="hidden md:flex relative w-full max-w-[850px] h-[580px] bg-white rounded-3xl shadow-2xl overflow-hidden text-gray-900 ring-1 ring-gray-200 animate-zoom-in">
+      <div className="hidden md:flex relative w-full max-w-[850px] h-[580px] bg-white dark:bg-slate-900 rounded-3xl shadow-2xl overflow-hidden text-gray-900 dark:text-slate-100 ring-1 ring-gray-200 dark:ring-white/10 animate-zoom-in">
 
         <div
           className={`absolute top-0 bottom-0 left-0 w-1/2 bg-gradient-to-br from-bird-orange to-bird-gold z-20 ${transitionClass}`}
@@ -407,38 +407,38 @@ export const WorkerAuthModal: React.FC<WorkerAuthModalProps> = ({ isOpen, onClos
                 className="w-full"
               >
                 <div className="flex flex-col items-center text-center w-full">
-                  <h2 className="text-3xl font-bold mb-2 text-bird-orange">Join as a Pro</h2>
-                  <p className="text-xs text-gray-500 mb-4">Start earning by offering your services</p>
+                  <h2 className="text-3xl font-bold mb-2 text-bird-orange dark:text-amber-400">Join as a Pro</h2>
+                  <p className="text-xs text-gray-500 dark:text-slate-400 mb-4">Start earning by offering your services</p>
 
                   <form className="w-full flex flex-col gap-2.5" onSubmit={handleSignupSubmit}>
                     <div className="grid grid-cols-2 gap-2.5">
-                      <div className="bg-gray-50 rounded-lg p-1 border border-gray-200 focus-within:border-bird-orange/50 transition-colors">
-                        <input required value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} type="text" maxLength={50} placeholder="First Name" className="w-full bg-transparent px-3 py-2 text-sm text-gray-900 outline-none placeholder-gray-500" />
+                      <div className="bg-gray-50 dark:bg-slate-800 rounded-lg p-1 border border-gray-200 dark:border-white/10 focus-within:border-bird-orange/50 transition-colors">
+                        <input required value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} type="text" maxLength={50} placeholder="First Name" className="w-full bg-transparent px-3 py-2 text-sm text-gray-900 dark:text-slate-100 outline-none placeholder-gray-500 dark:placeholder-slate-400" />
                       </div>
-                      <div className="bg-gray-50 rounded-lg p-1 border border-gray-200 focus-within:border-bird-orange/50 transition-colors">
-                        <input required value={formData.lastname} onChange={e => setFormData({...formData, lastname: e.target.value})} type="text" maxLength={50} placeholder="Last Name" className="w-full bg-transparent px-3 py-2 text-sm text-gray-900 outline-none placeholder-gray-500" />
+                      <div className="bg-gray-50 dark:bg-slate-800 rounded-lg p-1 border border-gray-200 dark:border-white/10 focus-within:border-bird-orange/50 transition-colors">
+                        <input required value={formData.lastname} onChange={e => setFormData({...formData, lastname: e.target.value})} type="text" maxLength={50} placeholder="Last Name" className="w-full bg-transparent px-3 py-2 text-sm text-gray-900 dark:text-slate-100 outline-none placeholder-gray-500 dark:placeholder-slate-400" />
                       </div>
                     </div>
 
                     <div className="grid grid-cols-2 gap-2.5">
-                      <div className="bg-gray-50 rounded-lg p-1 border border-gray-200 focus-within:border-bird-orange/50 transition-colors">
-                        <input value={formData.username} onChange={e => setFormData({...formData, username: e.target.value})} type="text" maxLength={30} placeholder="Username (Optional)" className="w-full bg-transparent px-3 py-2 text-sm text-gray-900 outline-none placeholder-gray-500" />
+                      <div className="bg-gray-50 dark:bg-slate-800 rounded-lg p-1 border border-gray-200 dark:border-white/10 focus-within:border-bird-orange/50 transition-colors">
+                        <input value={formData.username} onChange={e => setFormData({...formData, username: e.target.value})} type="text" maxLength={30} placeholder="Username (Optional)" className="w-full bg-transparent px-3 py-2 text-sm text-gray-900 dark:text-slate-100 outline-none placeholder-gray-500 dark:placeholder-slate-400" />
                       </div>
-                      <div className="bg-gray-50 rounded-lg p-1 border border-gray-200 focus-within:border-bird-orange/50 transition-colors">
-                        <input required value={formData.phone_number} onChange={e => setFormData({...formData, phone_number: e.target.value})} type="tel" maxLength={15} placeholder="Phone Number" className="w-full bg-transparent px-3 py-2 text-sm text-gray-900 outline-none placeholder-gray-500" />
+                      <div className="bg-gray-50 dark:bg-slate-800 rounded-lg p-1 border border-gray-200 dark:border-white/10 focus-within:border-bird-orange/50 transition-colors">
+                        <input required value={formData.phone_number} onChange={e => setFormData({...formData, phone_number: e.target.value})} type="tel" maxLength={15} placeholder="Phone Number" className="w-full bg-transparent px-3 py-2 text-sm text-gray-900 dark:text-slate-100 outline-none placeholder-gray-500 dark:placeholder-slate-400" />
                       </div>
                     </div>
 
-                    <div className="bg-gray-50 rounded-lg p-1 border border-gray-200 focus-within:border-bird-orange/50 transition-colors">
-                      <input required value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} type="email" maxLength={100} placeholder="Email Address" className="w-full bg-transparent px-3 py-2 text-sm text-gray-900 outline-none placeholder-gray-500" />
+                    <div className="bg-gray-50 dark:bg-slate-800 rounded-lg p-1 border border-gray-200 dark:border-white/10 focus-within:border-bird-orange/50 transition-colors">
+                      <input required value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} type="email" maxLength={100} placeholder="Email Address" className="w-full bg-transparent px-3 py-2 text-sm text-gray-900 dark:text-slate-100 outline-none placeholder-gray-500 dark:placeholder-slate-400" />
                     </div>
 
                     <div className="grid grid-cols-2 gap-2.5">
-                      <div className="bg-gray-50 rounded-lg p-1 border border-gray-200 focus-within:border-bird-orange/50 transition-colors">
-                        <PasswordInput required value={formData.password} onChange={e => setFormData({...formData, password: e.target.value})}  maxLength={128} placeholder="Password" className="w-full bg-transparent px-3 py-2 text-sm text-gray-900 outline-none placeholder-gray-500" />
+                      <div className="bg-gray-50 dark:bg-slate-800 rounded-lg p-1 border border-gray-200 dark:border-white/10 focus-within:border-bird-orange/50 transition-colors">
+                        <PasswordInput required value={formData.password} onChange={e => setFormData({...formData, password: e.target.value})}  maxLength={128} placeholder="Password" className="w-full bg-transparent px-3 py-2 text-sm text-gray-900 dark:text-slate-100 outline-none placeholder-gray-500 dark:placeholder-slate-400" />
                       </div>
-                      <div className="bg-gray-50 rounded-lg p-1 border border-gray-200 focus-within:border-bird-orange/50 transition-colors">
-                        <PasswordInput required value={formData.confirmPassword} onChange={e => setFormData({...formData, confirmPassword: e.target.value})}  maxLength={128} placeholder="Confirm Password" className="w-full bg-transparent px-3 py-2 text-sm text-gray-900 outline-none placeholder-gray-500" />
+                      <div className="bg-gray-50 dark:bg-slate-800 rounded-lg p-1 border border-gray-200 dark:border-white/10 focus-within:border-bird-orange/50 transition-colors">
+                        <PasswordInput required value={formData.confirmPassword} onChange={e => setFormData({...formData, confirmPassword: e.target.value})}  maxLength={128} placeholder="Confirm Password" className="w-full bg-transparent px-3 py-2 text-sm text-gray-900 dark:text-slate-100 outline-none placeholder-gray-500 dark:placeholder-slate-400" />
                       </div>
                     </div>
 
@@ -463,8 +463,8 @@ export const WorkerAuthModal: React.FC<WorkerAuthModalProps> = ({ isOpen, onClos
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19.428 15.428a2 2 0 00-1.022-.547l-2.384-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" />
                   </svg>
                 </div>
-                <h2 className="text-3xl font-bold mb-2 text-bird-orange">Your Specialties</h2>
-                <p className="text-sm text-gray-600 mb-5">Select the services you specialize in</p>
+                <h2 className="text-3xl font-bold mb-2 text-bird-orange dark:text-amber-400">Your Specialties</h2>
+                <p className="text-sm text-gray-600 dark:text-slate-400 mb-5">Select the services you specialize in</p>
 
                 <div className="w-full grid grid-cols-2 gap-2 max-h-[220px] overflow-y-auto custom-scrollbar mb-4 px-1">
                   {availableServices.length === 0 ? (
@@ -481,7 +481,7 @@ export const WorkerAuthModal: React.FC<WorkerAuthModalProps> = ({ isOpen, onClos
                         className={`flex items-center gap-2 px-3 py-2.5 rounded-xl border text-sm font-semibold transition-all duration-200 ${
                           isSelected
                             ? 'bg-bird-orange/10 border-bird-orange text-bird-orange shadow-sm'
-                            : 'bg-gray-50 border-gray-200 text-gray-600 hover:border-gray-300'
+                            : 'bg-gray-50 dark:bg-slate-800 border-gray-200 dark:border-white/10 text-gray-600 dark:text-slate-300 hover:border-gray-300 dark:hover:border-white/20'
                         }`}
                       >
                         <span className="text-base">{svc.icon && svc.icon.length <= 2 ? svc.icon : '⚙️'}</span>
@@ -503,7 +503,7 @@ export const WorkerAuthModal: React.FC<WorkerAuthModalProps> = ({ isOpen, onClos
                 >
                   {loading ? 'CREATING ACCOUNT...' : 'CONTINUE'}
                 </button>
-                <button onClick={() => setView('signup')} className="mt-3 text-sm text-gray-500 hover:text-gray-700 font-semibold transition-colors">
+                <button onClick={() => setView('signup')} className="mt-3 text-sm text-gray-500 dark:text-slate-400 hover:text-gray-700 dark:hover:text-slate-200 font-semibold transition-colors">
                   ← Go Back
                 </button>
               </motion.div>
@@ -522,20 +522,20 @@ export const WorkerAuthModal: React.FC<WorkerAuthModalProps> = ({ isOpen, onClos
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
                   </svg>
                 </div>
-                <h2 className="text-3xl font-bold mb-2 text-bird-orange">Check your email</h2>
-                <p className="text-sm text-gray-600 mb-6">
-                  We've sent a 6-digit verification code to <br/><span className="font-semibold text-gray-900">{registeredEmail}</span>
+                <h2 className="text-3xl font-bold mb-2 text-bird-orange dark:text-amber-400">Check your email</h2>
+                <p className="text-sm text-gray-600 dark:text-slate-400 mb-6">
+                  We've sent a 6-digit verification code to <br/><span className="font-semibold text-gray-900 dark:text-slate-100">{registeredEmail}</span>
                 </p>
 
                 <form className="w-full flex flex-col gap-4 max-w-[280px]" onSubmit={handleVerifySubmit}>
-                  <div className="bg-gray-50 rounded-lg p-1 border border-gray-200 focus-within:border-bird-orange/50 transition-colors">
+                  <div className="bg-gray-50 dark:bg-slate-800 rounded-lg p-1 border border-gray-200 dark:border-white/10 focus-within:border-bird-orange/50 transition-colors">
                     <input 
                       required 
                       value={otp} 
                       onChange={e => setOtp(e.target.value.replace(/[^0-9]/g, '').slice(0, 6))} 
                       type="text" 
                       placeholder="Enter 6-digit code" 
-                      className="w-full bg-transparent px-3 py-3 text-center text-xl tracking-[0.5em] font-bold text-gray-900 outline-none placeholder-gray-400" 
+                      className="w-full bg-transparent px-3 py-3 text-center text-xl tracking-[0.5em] font-bold text-gray-900 dark:text-slate-100 outline-none placeholder-gray-400" 
                     />
                   </div>
                   <button disabled={loading || otp.length !== 6} type="submit" className="w-full py-4 rounded-full bg-gradient-to-r from-bird-orange to-bird-gold text-white font-bold text-sm tracking-wide shadow-lg shadow-bird-orange/20 hover:scale-[1.02] transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed">
@@ -544,7 +544,7 @@ export const WorkerAuthModal: React.FC<WorkerAuthModalProps> = ({ isOpen, onClos
                 </form>
 
                 <div className="flex items-center gap-4 mt-4">
-                  <button onClick={() => { setView('signup'); setOtp(''); }} className="text-sm text-gray-500 hover:text-gray-700 font-semibold transition-colors">
+                  <button onClick={() => { setView('signup'); setOtp(''); }} className="text-sm text-gray-500 dark:text-slate-400 hover:text-gray-700 dark:hover:text-slate-200 font-semibold transition-colors">
                     ← Go Back
                   </button>
                   <button 
@@ -589,27 +589,27 @@ export const WorkerAuthModal: React.FC<WorkerAuthModalProps> = ({ isOpen, onClos
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                   </svg>
                 </div>
-                <h2 className="text-3xl font-bold mb-2 text-gray-900">Upload Documents</h2>
-                <p className="text-sm text-gray-600 mb-4 px-4">
+                <h2 className="text-3xl font-bold mb-2 text-gray-900 dark:text-slate-100">Upload Documents</h2>
+                <p className="text-sm text-gray-600 dark:text-slate-400 mb-4 px-4">
                   Upload your ID (DUI) to get verified by our team.
                 </p>
 
-                <label className="w-full border-2 border-dashed border-gray-300 rounded-2xl p-6 mb-3 bg-gray-50 flex flex-col items-center justify-center hover:bg-gray-100 transition-colors cursor-pointer group">
+                <label className="w-full border-2 border-dashed border-gray-300 dark:border-white/10 rounded-2xl p-6 mb-3 bg-gray-50 dark:bg-slate-800 flex flex-col items-center justify-center hover:bg-gray-100 dark:hover:bg-slate-750 transition-colors cursor-pointer group">
                   <svg className="w-10 h-10 text-gray-400 group-hover:text-bird-orange transition-colors mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
                   </svg>
-                  <span className="text-sm font-semibold text-gray-700">{duiFile ? duiFile.name : 'ID Document (Required)'}</span>
-                  <span className="text-xs text-gray-500 mt-1">PDF, JPG, PNG (Max 10MB)</span>
+                  <span className="text-sm font-semibold text-gray-700 dark:text-slate-200">{duiFile ? duiFile.name : 'ID Document (Required)'}</span>
+                  <span className="text-xs text-gray-500 dark:text-slate-400 mt-1">PDF, JPG, PNG (Max 10MB)</span>
                   <input type="file" className="hidden" accept="image/*,.pdf" onChange={(e) => setDuiFile(e.target.files?.[0] || null)} />
                 </label>
 
-                <label className="w-full border-2 border-dashed border-gray-200 rounded-2xl p-4 mb-4 bg-gray-50 flex flex-col items-center justify-center hover:bg-gray-100 transition-colors cursor-pointer">
-                  <span className="text-sm font-semibold text-gray-600">{certFile ? certFile.name : 'Certifications (Required)'}</span>
+                <label className="w-full border-2 border-dashed border-gray-200 dark:border-white/10 rounded-2xl p-4 mb-4 bg-gray-50 dark:bg-slate-800 flex flex-col items-center justify-center hover:bg-gray-100 dark:hover:bg-slate-750 transition-colors cursor-pointer">
+                  <span className="text-sm font-semibold text-gray-600 dark:text-slate-300">{certFile ? certFile.name : 'Certifications (Required)'}</span>
                   <input type="file" className="hidden" accept="image/*,.pdf" onChange={(e) => setCertFile(e.target.files?.[0] || null)} />
                 </label>
 
                 <div className="w-full flex gap-3">
-                  <button onClick={handleFinishUpload} className="flex-1 py-3 rounded-full border border-gray-200 text-gray-600 font-bold text-sm tracking-wide hover:bg-gray-50 transition-all duration-300">
+                  <button onClick={handleFinishUpload} className="flex-1 py-3 rounded-full border border-gray-200 dark:border-white/10 text-gray-600 dark:text-slate-300 font-bold text-sm tracking-wide hover:bg-gray-50 dark:hover:bg-slate-800 transition-all duration-300">
                     SKIP FOR NOW
                   </button>
                   <button disabled={loading || !duiFile || !certFile} onClick={handleUploadDocuments} className="flex-1 py-3 rounded-full bg-gradient-to-r from-bird-orange to-bird-gold text-white font-bold text-sm tracking-wide shadow-lg shadow-bird-orange/20 hover:scale-[1.02] transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed">
@@ -638,21 +638,21 @@ export const WorkerAuthModal: React.FC<WorkerAuthModalProps> = ({ isOpen, onClos
           className={`absolute top-0 left-0 w-1/2 h-full z-10 flex flex-col items-center justify-center px-14 ${transitionClass}
            ${!isSignup ? 'translate-x-0 opacity-100 z-10' : '-translate-x-[20%] opacity-0 z-0'}`}
         >
-          <h2 className="text-3xl font-bold mb-2 text-bird-orange">Pro Sign In</h2>
-          <p className="text-xs text-gray-500 mb-6">Welcome back to your dashboard</p>
+          <h2 className="text-3xl font-bold mb-2 text-bird-orange dark:text-amber-400">Pro Sign In</h2>
+          <p className="text-xs text-gray-500 dark:text-slate-400 mb-6">Welcome back to your dashboard</p>
 
           <form className="w-full flex flex-col gap-4" onSubmit={handleSigninSubmit}>
-            <div className="bg-gray-50 rounded-lg p-1 border border-gray-200 focus-within:border-bird-orange/50 transition-colors">
-              <input required value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} type="email" maxLength={100} placeholder="Email Address" className="w-full bg-transparent px-3 py-3 text-sm text-gray-900 outline-none placeholder-gray-500" />
+            <div className="bg-gray-50 dark:bg-slate-800 rounded-lg p-1 border border-gray-200 dark:border-white/10 focus-within:border-bird-orange/50 transition-colors">
+              <input required value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} type="email" maxLength={100} placeholder="Email Address" className="w-full bg-transparent px-3 py-3 text-sm text-gray-900 dark:text-slate-100 outline-none placeholder-gray-500 dark:placeholder-slate-400" />
             </div>
-            <div className="bg-gray-50 rounded-lg p-1 border border-gray-200 focus-within:border-bird-orange/50 transition-colors">
-              <PasswordInput required value={formData.password} onChange={e => setFormData({...formData, password: e.target.value})}  maxLength={128} placeholder="Password" className="w-full bg-transparent px-3 py-3 text-sm text-gray-900 outline-none placeholder-gray-500" />
+            <div className="bg-gray-50 dark:bg-slate-800 rounded-lg p-1 border border-gray-200 dark:border-white/10 focus-within:border-bird-orange/50 transition-colors">
+              <PasswordInput required value={formData.password} onChange={e => setFormData({...formData, password: e.target.value})}  maxLength={128} placeholder="Password" className="w-full bg-transparent px-3 py-3 text-sm text-gray-900 dark:text-slate-100 outline-none placeholder-gray-500 dark:placeholder-slate-400" />
             </div>
             
             <button
               type="button"
               onClick={() => setView('forgot')}
-              className="text-xs text-gray-500 hover:text-bird-orange transition-colors self-end my-1"
+              className="text-xs text-gray-500 dark:text-slate-400 hover:text-bird-orange transition-colors self-end my-1"
             >
               Forgot your password?
             </button>
@@ -665,7 +665,7 @@ export const WorkerAuthModal: React.FC<WorkerAuthModalProps> = ({ isOpen, onClos
       </div>
 
       {/* MOBILE VERSION REDACTED FOR BREVITY - FULL IMPLEMENTATION SHOULD KEEP MOBILE TOO, adding it below */}
-      <div className="md:hidden relative w-full max-w-[380px] bg-white/95 backdrop-blur-xl border border-gray-200 rounded-3xl shadow-2xl overflow-hidden flex flex-col min-h-[620px] animate-zoom-in">
+      <div className="md:hidden relative w-full max-w-[380px] bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl border border-gray-200 dark:border-white/10 rounded-3xl shadow-2xl overflow-hidden flex flex-col min-h-[620px] animate-zoom-in">
 
         <div className="absolute inset-0 pointer-events-none">
           <div className={`absolute top-[-20%] left-[-20%] w-[300px] h-[300px] rounded-full blur-[80px] transition-all duration-700 
@@ -679,7 +679,7 @@ export const WorkerAuthModal: React.FC<WorkerAuthModalProps> = ({ isOpen, onClos
         <div className="relative z-10 flex flex-col h-full p-6 overflow-y-auto custom-scrollbar">
 
           {(view === 'signin' || view === 'signup') && (
-            <div className="w-full h-12 bg-gray-100 rounded-full p-1 flex relative mb-6 shrink-0 backdrop-blur-sm border border-gray-200">
+            <div className="w-full h-12 bg-gray-100 dark:bg-slate-800 rounded-full p-1 flex relative mb-6 shrink-0 backdrop-blur-sm border border-gray-200 dark:border-white/10">
               <div className={`absolute top-1 bottom-1 w-[calc(50%-4px)] rounded-full shadow-lg transition-all duration-500 ease-[cubic-bezier(0.23,1,0.32,1)]
                      ${isSignup
                   ? 'left-[50%] bg-bird-gold'
@@ -689,14 +689,14 @@ export const WorkerAuthModal: React.FC<WorkerAuthModalProps> = ({ isOpen, onClos
               <button
                 onClick={() => { setView('signin'); setError(''); }}
                 className={`flex-1 relative z-10 text-xs font-bold tracking-wide transition-colors duration-300 flex items-center justify-center
-                    ${!isSignup ? 'text-white' : 'text-gray-600 hover:text-gray-900'}`}
+                    ${!isSignup ? 'text-white' : 'text-gray-600 dark:text-slate-300 hover:text-gray-900 dark:hover:text-slate-100'}`}
               >
                 SIGN IN
               </button>
               <button
                 onClick={() => { setView('signup'); setError(''); }}
                 className={`flex-1 relative z-10 text-xs font-bold tracking-wide transition-colors duration-300 flex items-center justify-center
-                    ${isSignup ? 'text-white' : 'text-gray-600 hover:text-gray-900'}`}
+                    ${isSignup ? 'text-white' : 'text-gray-600 dark:text-slate-300 hover:text-gray-900 dark:hover:text-slate-100'}`}
               >
                 SIGN UP
               </button>
@@ -714,33 +714,33 @@ export const WorkerAuthModal: React.FC<WorkerAuthModalProps> = ({ isOpen, onClos
                   className="flex flex-col gap-3"
                 >
                   <div className="text-center mb-6">
-                    <h2 className="text-2xl font-bold text-gray-900 mb-2">Join as a Pro</h2>
-                    <p className="text-xs text-gray-600 px-4">Start earning by offering your services.</p>
+                    <h2 className="text-2xl font-bold text-gray-900 dark:text-slate-100 mb-2">Join as a Pro</h2>
+                    <p className="text-xs text-gray-600 dark:text-slate-400 px-4">Start earning by offering your services.</p>
                   </div>
                   <form className="flex flex-col gap-3" onSubmit={handleSignupSubmit}>
                     <div className="grid grid-cols-2 gap-3">
-                      <div className="bg-white rounded-xl px-4 py-3 border border-gray-200 focus-within:border-bird-orange/50 transition-colors shadow-sm">
-                        <input required value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} type="text" maxLength={50} placeholder="First Name" className="w-full bg-transparent text-sm text-gray-900 outline-none placeholder-gray-500" />
+                      <div className="bg-white dark:bg-slate-800 rounded-xl px-4 py-3 border border-gray-200 dark:border-white/10 focus-within:border-bird-orange/50 transition-colors shadow-sm">
+                        <input required value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} type="text" maxLength={50} placeholder="First Name" className="w-full bg-transparent text-sm text-gray-900 dark:text-slate-100 outline-none placeholder-gray-500 dark:placeholder-slate-400" />
                       </div>
-                      <div className="bg-white rounded-xl px-4 py-3 border border-gray-200 focus-within:border-bird-orange/50 transition-colors shadow-sm">
-                        <input required value={formData.lastname} onChange={e => setFormData({...formData, lastname: e.target.value})} type="text" maxLength={50} placeholder="Last Name" className="w-full bg-transparent text-sm text-gray-900 outline-none placeholder-gray-500" />
+                      <div className="bg-white dark:bg-slate-800 rounded-xl px-4 py-3 border border-gray-200 dark:border-white/10 focus-within:border-bird-orange/50 transition-colors shadow-sm">
+                        <input required value={formData.lastname} onChange={e => setFormData({...formData, lastname: e.target.value})} type="text" maxLength={50} placeholder="Last Name" className="w-full bg-transparent text-sm text-gray-900 dark:text-slate-100 outline-none placeholder-gray-500 dark:placeholder-slate-400" />
                       </div>
                     </div>
-                    <div className="bg-white rounded-xl px-4 py-3 border border-gray-200 focus-within:border-bird-orange/50 transition-colors shadow-sm">
-                      <input value={formData.username} onChange={e => setFormData({...formData, username: e.target.value})} type="text" maxLength={30} placeholder="Username (Optional)" className="w-full bg-transparent text-sm text-gray-900 outline-none placeholder-gray-500" />
+                    <div className="bg-white dark:bg-slate-800 rounded-xl px-4 py-3 border border-gray-200 dark:border-white/10 focus-within:border-bird-orange/50 transition-colors shadow-sm">
+                      <input value={formData.username} onChange={e => setFormData({...formData, username: e.target.value})} type="text" maxLength={30} placeholder="Username (Optional)" className="w-full bg-transparent text-sm text-gray-900 dark:text-slate-100 outline-none placeholder-gray-500 dark:placeholder-slate-400" />
                     </div>
-                    <div className="bg-white rounded-xl px-4 py-3 border border-gray-200 focus-within:border-bird-orange/50 transition-colors shadow-sm">
-                      <input required value={formData.phone_number} onChange={e => setFormData({...formData, phone_number: e.target.value})} type="tel" maxLength={15} placeholder="Phone Number" className="w-full bg-transparent text-sm text-gray-900 outline-none placeholder-gray-500" />
+                    <div className="bg-white dark:bg-slate-800 rounded-xl px-4 py-3 border border-gray-200 dark:border-white/10 focus-within:border-bird-orange/50 transition-colors shadow-sm">
+                      <input required value={formData.phone_number} onChange={e => setFormData({...formData, phone_number: e.target.value})} type="tel" maxLength={15} placeholder="Phone Number" className="w-full bg-transparent text-sm text-gray-900 dark:text-slate-100 outline-none placeholder-gray-500 dark:placeholder-slate-400" />
                     </div>
-                    <div className="bg-white rounded-xl px-4 py-3 border border-gray-200 focus-within:border-bird-orange/50 transition-colors shadow-sm">
-                      <input required value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} type="email" maxLength={100} placeholder="Email Address" className="w-full bg-transparent text-sm text-gray-900 outline-none placeholder-gray-500" />
+                    <div className="bg-white dark:bg-slate-800 rounded-xl px-4 py-3 border border-gray-200 dark:border-white/10 focus-within:border-bird-orange/50 transition-colors shadow-sm">
+                      <input required value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} type="email" maxLength={100} placeholder="Email Address" className="w-full bg-transparent text-sm text-gray-900 dark:text-slate-100 outline-none placeholder-gray-500 dark:placeholder-slate-400" />
                     </div>
                     <div className="grid grid-cols-1 gap-3">
-                      <div className="bg-white rounded-xl px-4 py-3 border border-gray-200 focus-within:border-bird-orange/50 transition-colors shadow-sm">
-                        <PasswordInput required value={formData.password} onChange={e => setFormData({...formData, password: e.target.value})}  maxLength={128} placeholder="Password" className="w-full bg-transparent text-sm text-gray-900 outline-none placeholder-gray-500" />
+                      <div className="bg-white dark:bg-slate-800 rounded-xl px-4 py-3 border border-gray-200 dark:border-white/10 focus-within:border-bird-orange/50 transition-colors shadow-sm">
+                        <PasswordInput required value={formData.password} onChange={e => setFormData({...formData, password: e.target.value})}  maxLength={128} placeholder="Password" className="w-full bg-transparent text-sm text-gray-900 dark:text-slate-100 outline-none placeholder-gray-500 dark:placeholder-slate-400" />
                       </div>
-                      <div className="bg-white rounded-xl px-4 py-3 border border-gray-200 focus-within:border-bird-orange/50 transition-colors shadow-sm animate-fade-in-up">
-                        <PasswordInput required value={formData.confirmPassword} onChange={e => setFormData({...formData, confirmPassword: e.target.value})}  maxLength={128} placeholder="Confirm Password" className="w-full bg-transparent text-sm text-gray-900 outline-none placeholder-gray-500" />
+                      <div className="bg-white dark:bg-slate-800 rounded-xl px-4 py-3 border border-gray-200 dark:border-white/10 focus-within:border-bird-orange/50 transition-colors shadow-sm animate-fade-in-up">
+                        <PasswordInput required value={formData.confirmPassword} onChange={e => setFormData({...formData, confirmPassword: e.target.value})}  maxLength={128} placeholder="Confirm Password" className="w-full bg-transparent text-sm text-gray-900 dark:text-slate-100 outline-none placeholder-gray-500 dark:placeholder-slate-400" />
                       </div>
                     </div>
                     <button disabled={loading} type="submit" className="mt-4 w-full py-4 rounded-xl font-bold text-sm tracking-wide shadow-lg active:scale-[0.98] transition-all duration-300 bg-gradient-to-r from-bird-yellow to-bird-gold text-gray-900 shadow-bird-yellow/20 disabled:opacity-50 disabled:cursor-not-allowed">

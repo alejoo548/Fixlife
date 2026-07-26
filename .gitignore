@@ -1,6 +1,7 @@
 # Logs
 logs
 *.log
+.wompi-tunnel/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
@@ -67,3 +68,6 @@ backend/dist/
 
 # Local database backups
 backups/
+
+# OSRM routing data (downloaded .osm.pbf + generated .osrm graph files)
+docker/osrm/data/

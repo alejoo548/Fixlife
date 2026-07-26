@@ -30,6 +30,7 @@ export const Footer: React.FC<FooterProps> = ({
     { label: 'Reviews', target: 'testimonials' },
     { label: 'Leave a Review', onClick: () => navigate('/leave-review') },
     { label: 'Become a Pro', onClick: onOpenPro },
+    { label: 'Map Style Demo', onClick: () => navigate('/map-style-demo') },
   ];
 
   return (
@@ -140,10 +141,10 @@ export const Footer: React.FC<FooterProps> = ({
         </div>
 
         <div className="pt-8 border-t border-slate-800 flex flex-col md:flex-row items-center justify-between gap-4 text-xs text-slate-500 text-center md:text-left dark:border-white/10">
-          <div className="flex items-center gap-2 text-slate-500">
-            <p>(c) 2024 Fixlife Inc. All rights reserved.</p>
-            <span className="hidden md:inline">|</span>
-            <p className="hidden md:inline">Built for your home.</p>
+          <div className="flex flex-wrap items-center justify-center md:justify-start gap-2 text-slate-400 dark:text-slate-500 font-medium">
+            <p>© 2026 Fixlife Inc. All rights reserved.</p>
+            <span className="hidden md:inline">•</span>
+            <p className="text-bird-blue font-bold">Semana de juventud 2026</p>
           </div>
           <div className="flex flex-wrap justify-center gap-6 md:gap-8 items-center">
             <button

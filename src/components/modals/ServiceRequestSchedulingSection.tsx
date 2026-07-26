@@ -219,18 +219,18 @@ export const ServiceRequestSchedulingSection: React.FC<ServiceRequestSchedulingS
     const selectedWindow = availableWindows.find((item) => item.value === scheduledTime);
 
     return (
-        <section className="rounded-[26px] border border-slate-200 bg-white p-4 shadow-sm">
+        <section className="rounded-[26px] border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900 p-4 shadow-sm">
             <div className="flex items-center justify-between gap-3">
                 <div>
-                    <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">Service mode</p>
-                    <h3 className="mt-1 text-lg font-black text-slate-900">Choose when we visit</h3>
-                    <p className="mt-1 text-xs font-semibold text-slate-500">Book anytime, 24/7. We only show it to pros who are free for that window.</p>
+                    <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400 dark:text-slate-500">Service mode</p>
+                    <h3 className="mt-1 text-lg font-black text-slate-900 dark:text-slate-100">Choose when we visit</h3>
+                    <p className="mt-1 text-xs font-semibold text-slate-500 dark:text-slate-400">Book anytime, 24/7. We only show it to pros who are free for that window.</p>
                 </div>
                 <div className="flex shrink-0 flex-col items-end gap-2">
-                    <span className="rounded-full border border-emerald-100 bg-emerald-50 px-3 py-1 text-[11px] font-black uppercase tracking-[0.14em] text-emerald-700">
+                    <span className="rounded-full border border-emerald-100 dark:border-emerald-900/40 bg-emerald-50 dark:bg-emerald-950/40 px-3 py-1 text-[11px] font-black uppercase tracking-[0.14em] text-emerald-700 dark:text-emerald-300">
                         24/7
                     </span>
-                    <span className="rounded-full border border-sky-100 bg-sky-50 px-3 py-1 text-[11px] font-black uppercase tracking-[0.14em] text-bird-blue">
+                    <span className="rounded-full border border-sky-100 dark:border-sky-900/40 bg-sky-50 dark:bg-sky-950/40 px-3 py-1 text-[11px] font-black uppercase tracking-[0.14em] text-bird-blue">
                         {isScheduled ? 'Scheduled' : 'Express'}
                     </span>
                 </div>
@@ -242,12 +242,12 @@ export const ServiceRequestSchedulingSection: React.FC<ServiceRequestSchedulingS
                     onClick={() => onChange({ booking_type: 'express', scheduled_date: '', scheduled_time: '' })}
                     className={`rounded-2xl border p-4 text-left transition ${
                         !isScheduled
-                            ? 'border-bird-blue bg-sky-50 shadow-[0_14px_30px_rgba(0,144,255,0.12)]'
-                            : 'border-slate-200 bg-white hover:border-slate-300'
+                            ? 'border-bird-blue bg-sky-50 dark:bg-slate-800 shadow-[0_14px_30px_rgba(0,144,255,0.12)]'
+                            : 'border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900 hover:border-slate-300 dark:hover:border-white/20'
                     }`}
                 >
-                    <p className="text-sm font-black text-slate-900">Express service</p>
-                    <p className="mt-1 text-xs font-semibold leading-5 text-slate-500">Find an available pro to help as soon as possible.</p>
+                    <p className="text-sm font-black text-slate-900 dark:text-slate-100">Express service</p>
+                    <p className="mt-1 text-xs font-semibold leading-5 text-slate-500 dark:text-slate-400">Find an available pro to help as soon as possible.</p>
                 </button>
 
                 <button
@@ -263,24 +263,24 @@ export const ServiceRequestSchedulingSection: React.FC<ServiceRequestSchedulingS
                     }}
                     className={`rounded-2xl border p-4 text-left transition ${
                         isScheduled
-                            ? 'border-bird-blue bg-sky-50 shadow-[0_14px_30px_rgba(0,144,255,0.12)]'
-                            : 'border-slate-200 bg-white hover:border-slate-300'
+                            ? 'border-bird-blue bg-sky-50 dark:bg-slate-800 shadow-[0_14px_30px_rgba(0,144,255,0.12)]'
+                            : 'border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900 hover:border-slate-300 dark:hover:border-white/20'
                     }`}
                 >
-                    <p className="text-sm font-black text-slate-900">Schedule visit</p>
-                    <p className="mt-1 text-xs font-semibold leading-5 text-slate-500">Pick any day and start time. The pro is blocked for this window only.</p>
+                    <p className="text-sm font-black text-slate-900 dark:text-slate-100">Schedule visit</p>
+                    <p className="mt-1 text-xs font-semibold leading-5 text-slate-500 dark:text-slate-400">Pick any day and start time. The pro is blocked for this window only.</p>
                 </button>
             </div>
 
             {isScheduled && (
                 <div className="mt-4 space-y-3">
-                    <div className="overflow-hidden rounded-[22px] border border-slate-200 bg-slate-50">
-                        <div className="flex items-center justify-between gap-3 border-b border-slate-200 bg-white px-4 py-3">
+                    <div className="overflow-hidden rounded-[22px] border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-slate-950/50">
+                        <div className="flex items-center justify-between gap-3 border-b border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900 px-4 py-3">
                             <button
                                 type="button"
                                 onClick={() => moveMonth(-1)}
                                 disabled={!canGoPreviousMonth}
-                                className="grid h-9 w-9 place-items-center rounded-full border border-slate-200 bg-white text-slate-600 transition hover:border-bird-blue hover:text-bird-blue disabled:cursor-not-allowed disabled:opacity-35"
+                                className="grid h-9 w-9 place-items-center rounded-full border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 transition hover:border-bird-blue hover:text-bird-blue disabled:cursor-not-allowed disabled:opacity-35"
                                 aria-label="Previous month"
                             >
                                 <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -289,15 +289,15 @@ export const ServiceRequestSchedulingSection: React.FC<ServiceRequestSchedulingS
                             </button>
 
                             <div className="text-center">
-                                <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">Date</p>
-                                <p className="text-sm font-black capitalize text-slate-900">{monthLabel(visibleMonth)}</p>
+                                <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400 dark:text-slate-500">Date</p>
+                                <p className="text-sm font-black capitalize text-slate-900 dark:text-slate-100">{monthLabel(visibleMonth)}</p>
                             </div>
 
                             <button
                                 type="button"
                                 onClick={() => moveMonth(1)}
                                 disabled={!canGoNextMonth}
-                                className="grid h-9 w-9 place-items-center rounded-full border border-slate-200 bg-white text-slate-600 transition hover:border-bird-blue hover:text-bird-blue disabled:cursor-not-allowed disabled:opacity-35"
+                                className="grid h-9 w-9 place-items-center rounded-full border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 transition hover:border-bird-blue hover:text-bird-blue disabled:cursor-not-allowed disabled:opacity-35"
                                 aria-label="Next month"
                             >
                                 <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -306,7 +306,7 @@ export const ServiceRequestSchedulingSection: React.FC<ServiceRequestSchedulingS
                             </button>
                         </div>
 
-                        <div className="grid grid-cols-7 gap-1 px-3 pt-3 text-center text-[10px] font-black uppercase text-slate-400">
+                        <div className="grid grid-cols-7 gap-1 px-3 pt-3 text-center text-[10px] font-black uppercase text-slate-400 dark:text-slate-500">
                             {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((day, index) => (
                                 <span key={`${day}-${index}`} className="py-1">{day}</span>
                             ))}
@@ -325,10 +325,10 @@ export const ServiceRequestSchedulingSection: React.FC<ServiceRequestSchedulingS
                                             isSelected
                                                 ? 'bg-bird-blue text-white shadow-lg shadow-bird-blue/20'
                                                 : day.disabled
-                                                    ? 'cursor-not-allowed bg-transparent text-slate-300 line-through'
+                                                    ? 'cursor-not-allowed bg-transparent text-slate-300 dark:text-slate-600 line-through'
                                                     : day.inCurrentMonth
-                                                        ? 'bg-white text-slate-800 hover:bg-sky-50 hover:text-bird-blue'
-                                                        : 'bg-transparent text-slate-300 hover:bg-white/70'
+                                                        ? 'bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-200 hover:bg-sky-50 dark:hover:bg-slate-700 hover:text-bird-blue'
+                                                        : 'bg-transparent text-slate-300 dark:text-slate-600 hover:bg-white/70'
                                         }`}
                                     >
                                         {day.label}
@@ -341,13 +341,13 @@ export const ServiceRequestSchedulingSection: React.FC<ServiceRequestSchedulingS
                         </div>
                     </div>
 
-                    <div className="rounded-[22px] border border-slate-200 bg-white p-3">
+                    <div className="rounded-[22px] border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900 p-3">
                         <div className="mb-3 flex items-center justify-between gap-3">
                             <div>
-                                <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">Estimated duration</p>
-                                <p className="mt-1 text-xs font-bold text-slate-600">Pick how long you think the visit may take. Max 7 hours.</p>
+                                <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400 dark:text-slate-500">Estimated duration</p>
+                                <p className="mt-1 text-xs font-bold text-slate-600 dark:text-slate-400">Pick how long you think the visit may take. Max 7 hours.</p>
                             </div>
-                            <span className="rounded-full bg-sky-50 px-2.5 py-1 text-[10px] font-black text-bird-blue">
+                            <span className="rounded-full bg-sky-50 dark:bg-slate-800 px-2.5 py-1 text-[10px] font-black text-bird-blue">
                                 {formatDurationLabel(durationMinutes)}
                             </span>
                         </div>
@@ -362,8 +362,8 @@ export const ServiceRequestSchedulingSection: React.FC<ServiceRequestSchedulingS
                                         onClick={() => onChange({ scheduled_duration_minutes: option.minutes })}
                                         className={`rounded-xl border px-2 py-3 text-center transition ${
                                             isSelected
-                                                ? 'border-bird-blue bg-sky-50 text-bird-blue shadow-[0_10px_22px_rgba(0,144,255,0.12)]'
-                                                : 'border-slate-200 bg-white text-slate-700 hover:border-bird-blue/40 hover:text-bird-blue'
+                                                ? 'border-bird-blue bg-sky-50 dark:bg-slate-800 text-bird-blue shadow-[0_10px_22px_rgba(0,144,255,0.12)]'
+                                                : 'border-slate-200 dark:border-white/10 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:border-bird-blue/40 hover:text-bird-blue'
                                         }`}
                                     >
                                         <span className="block text-sm font-black">{option.label}</span>
@@ -373,27 +373,27 @@ export const ServiceRequestSchedulingSection: React.FC<ServiceRequestSchedulingS
                         </div>
                     </div>
 
-                    <div className="rounded-[22px] border border-slate-200 bg-white p-3">
+                    <div className="rounded-[22px] border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900 p-3">
                         <div className="mb-3 flex items-center justify-between gap-3">
                             <div>
-                                <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">Start time</p>
-                                <p className="mt-1 text-xs font-bold text-slate-600">
+                                <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400 dark:text-slate-500">Start time</p>
+                                <p className="mt-1 text-xs font-bold text-slate-600 dark:text-slate-400">
                                     {selectedWindow ? selectedWindow.label : 'Choose a start time'}
                                 </p>
                             </div>
                             <div className="text-right">
-                                <span className="block rounded-full bg-slate-100 px-2.5 py-1 text-[10px] font-black text-slate-500">
+                                <span className="block rounded-full bg-slate-100 dark:bg-slate-800 px-2.5 py-1 text-[10px] font-black text-slate-500 dark:text-slate-400">
                                     {formatDurationLabel(durationMinutes)}
                                 </span>
                                 {selectedDate === minDate && (
-                                    <span className="mt-1.5 block text-[9px] font-black uppercase tracking-[0.12em] text-emerald-600">
+                                    <span className="mt-1.5 block text-[9px] font-black uppercase tracking-[0.12em] text-emerald-600 dark:text-emerald-400">
                                         Available from now
                                     </span>
                                 )}
                             </div>
                         </div>
 
-                        <div className="mb-3 grid grid-cols-4 gap-1 rounded-xl bg-slate-100 p-1">
+                        <div className="mb-3 grid grid-cols-4 gap-1 rounded-xl bg-slate-100 dark:bg-slate-800 p-1">
                             {TIME_PERIODS.map((period) => (
                                 <button
                                     key={period.id}
@@ -401,8 +401,8 @@ export const ServiceRequestSchedulingSection: React.FC<ServiceRequestSchedulingS
                                     onClick={() => setTimePeriod(period.id)}
                                     className={`rounded-lg px-2 py-2 text-[10px] font-black transition ${
                                         timePeriod === period.id
-                                            ? 'bg-white text-slate-950 shadow-sm'
-                                            : 'text-slate-500 hover:text-slate-800'
+                                            ? 'bg-white dark:bg-slate-700 text-slate-950 dark:text-slate-100 shadow-sm'
+                                            : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'
                                     }`}
                                 >
                                     {period.label}
@@ -420,8 +420,8 @@ export const ServiceRequestSchedulingSection: React.FC<ServiceRequestSchedulingS
                                         onClick={() => onChange({ scheduled_time: item.value })}
                                         className={`rounded-2xl border px-3 py-2.5 text-left text-xs font-black transition ${
                                             isSelected
-                                                ? 'border-bird-blue bg-sky-50 text-bird-blue shadow-[0_10px_22px_rgba(0,144,255,0.12)]'
-                                                : 'border-slate-200 bg-white text-slate-700 hover:border-bird-blue/40 hover:text-bird-blue'
+                                                ? 'border-bird-blue bg-sky-50 dark:bg-slate-800 text-bird-blue shadow-[0_10px_22px_rgba(0,144,255,0.12)]'
+                                                : 'border-slate-200 dark:border-white/10 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:border-bird-blue/40 hover:text-bird-blue'
                                         }`}
                                     >
                                         {item.label}
@@ -430,16 +430,16 @@ export const ServiceRequestSchedulingSection: React.FC<ServiceRequestSchedulingS
                             })}
                         </div>
                         {periodWindows.length === 0 && (
-                            <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 px-4 py-5 text-center text-xs font-bold text-slate-500">
+                            <div className="rounded-xl border border-dashed border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-slate-800/50 px-4 py-5 text-center text-xs font-bold text-slate-500 dark:text-slate-400">
                                 No more times are available in this period today. Choose another period or date.
                             </div>
                         )}
                     </div>
 
-                    <div className="rounded-2xl border border-sky-100 bg-sky-50/70 p-3">
+                    <div className="rounded-2xl border border-sky-100 dark:border-sky-900/40 bg-sky-50/70 dark:bg-slate-800/80 p-3">
                         <div className="flex gap-3">
                             <div className="mt-1 h-2.5 w-2.5 shrink-0 rounded-full bg-bird-blue shadow-[0_0_0_6px_rgba(0,144,255,0.12)]" />
-                            <p className="text-xs font-semibold leading-5 text-slate-600">
+                            <p className="text-xs font-semibold leading-5 text-slate-600 dark:text-slate-300">
                                 You can create more requests on the same day. Each worker is only blocked during the exact estimated time they accept.
                             </p>
                         </div>

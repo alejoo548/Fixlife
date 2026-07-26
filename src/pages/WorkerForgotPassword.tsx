@@ -107,7 +107,7 @@ const WorkerForgotPassword: React.FC<WorkerForgotPasswordProps> = ({ onBack }) =
   return (
     <div className="flex flex-col gap-6">
 
-      <h2 className="text-2xl font-bold text-gray-900 text-center">
+      <h2 className="text-2xl font-bold text-gray-900 dark:text-slate-100 text-center">
         Recover password
       </h2>
 
@@ -121,7 +121,7 @@ const WorkerForgotPassword: React.FC<WorkerForgotPasswordProps> = ({ onBack }) =
             maxLength={100}
             onChange={(e)=>setEmail(e.target.value)}
             required
-            className="w-full px-4 py-3 border border-gray-300 rounded-xl outline-none focus:border-bird-orange"
+            className="w-full px-4 py-3 border border-gray-300 dark:border-white/10 bg-white dark:bg-slate-800 text-gray-900 dark:text-slate-100 rounded-xl outline-none focus:border-bird-orange placeholder-gray-400 dark:placeholder-slate-500"
           />
 
           <button
@@ -146,7 +146,7 @@ const WorkerForgotPassword: React.FC<WorkerForgotPasswordProps> = ({ onBack }) =
             inputMode="numeric"
             onChange={(e)=>setToken(e.target.value.replace(/\D/g, ''))}
             required
-            className="w-full px-4 py-3 border border-gray-300 rounded-xl outline-none focus:border-bird-orange"
+            className="w-full px-4 py-3 border border-gray-300 dark:border-white/10 bg-white dark:bg-slate-800 text-gray-900 dark:text-slate-100 rounded-xl outline-none focus:border-bird-orange placeholder-gray-400 dark:placeholder-slate-500"
           />
 
           <button
@@ -168,7 +168,7 @@ const WorkerForgotPassword: React.FC<WorkerForgotPasswordProps> = ({ onBack }) =
             value={password}
             onChange={(e)=>setPassword(e.target.value)}
             required
-            className="w-full px-4 py-3 border border-gray-300 rounded-xl outline-none focus:border-bird-orange"
+            className="w-full px-4 py-3 border border-gray-300 dark:border-white/10 bg-white dark:bg-slate-800 text-gray-900 dark:text-slate-100 rounded-xl outline-none focus:border-bird-orange placeholder-gray-400 dark:placeholder-slate-500"
           />
 
           <PasswordInput
@@ -176,7 +176,7 @@ const WorkerForgotPassword: React.FC<WorkerForgotPasswordProps> = ({ onBack }) =
             value={confirmPassword}
             onChange={(e)=>setConfirmPassword(e.target.value)}
             required
-            className="w-full px-4 py-3 border border-gray-300 rounded-xl outline-none focus:border-bird-orange"
+            className="w-full px-4 py-3 border border-gray-300 dark:border-white/10 bg-white dark:bg-slate-800 text-gray-900 dark:text-slate-100 rounded-xl outline-none focus:border-bird-orange placeholder-gray-400 dark:placeholder-slate-500"
           />
 
           <button
@@ -193,7 +193,7 @@ const WorkerForgotPassword: React.FC<WorkerForgotPasswordProps> = ({ onBack }) =
       {onBack && (
         <button
           onClick={onBack}
-          className="text-sm text-gray-500 hover:text-bird-orange transition-colors self-center"
+          className="text-sm text-gray-500 dark:text-slate-400 hover:text-bird-orange transition-colors self-center"
         >
           &larr; Back to login
         </button>

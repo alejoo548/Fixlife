@@ -94,6 +94,14 @@ export const formatScheduledWindow = (
   return endLabel ? `${dateLabel} · ${startLabel} - ${endLabel}` : `${dateLabel} · ${startLabel}`;
 };
 
+// Shared fallback average speed used whenever OSRM routing is unavailable
+// and duration must be estimated from straight-line distance. Keep this the
+// single source of truth so client and worker views never disagree on ETA.
+export const FALLBACK_AVG_SPEED_KMH = 22;
+
+export const durationMinFromDistanceKm = (distanceKm: number) =>
+  (distanceKm / FALLBACK_AVG_SPEED_KMH) * 60;
+
 export const haversineKm = (
   pointA: { lat: number; lng: number },
   pointB: { lat: number; lng: number }

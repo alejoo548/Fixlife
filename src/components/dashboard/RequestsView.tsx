@@ -175,6 +175,8 @@ export const RequestsView: React.FC<RequestsViewProps> = ({
     centerRoute,
     displayedRouteMetrics,
     leafletReady,
+    leafletLoadFailed,
+    retryLeafletLoad,
     mapContainerRef,
     routeAlert,
     routeCameraMode,
@@ -189,6 +191,7 @@ export const RequestsView: React.FC<RequestsViewProps> = ({
     trafficEnabled,
   } = useWorkerRequestsMap({
     active: isWorkerActive,
+    isDarkMode: isDark,
     activeRouteRequestId,
     mobileView,
     requests: visibleRequests,
@@ -888,8 +891,24 @@ export const RequestsView: React.FC<RequestsViewProps> = ({
         }`}
       >
         <div ref={mapContainerRef} className="absolute inset-0 z-0 bg-gray-100" />
-        {!leafletReady && (
+        {!leafletReady && !leafletLoadFailed && (
           <div className="absolute right-4 top-4 z-20 h-3 w-3 animate-pulse rounded-full bg-bird-blue" />
+        )}
+        {leafletLoadFailed && (
+          <div className="absolute inset-0 z-30 flex items-center justify-center bg-slate-100 p-8 text-center">
+            <div>
+              <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-white text-2xl">🗺️</div>
+              <p className="text-sm font-bold text-slate-700">Map failed to load</p>
+              <p className="mt-1 text-[11px] text-slate-500">Check your connection and try again.</p>
+              <button
+                type="button"
+                onClick={retryLeafletLoad}
+                className="mt-4 rounded-full bg-slate-900 px-5 py-2 text-xs font-bold text-white shadow-sm transition-colors hover:bg-slate-700"
+              >
+                Retry
+              </button>
+            </div>
+          </div>
         )}
         <div className="absolute left-4 top-4 z-30 flex max-w-[calc(100%-7rem)] items-start gap-3">
           <div className="rounded-2xl border border-white/80 bg-white/92 p-3 text-slate-900 shadow-[0_18px_40px_rgba(15,23,42,0.24)] backdrop-blur-xl">

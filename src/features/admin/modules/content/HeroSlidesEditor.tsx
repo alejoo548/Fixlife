@@ -64,7 +64,7 @@ export function HeroSlidesEditor() {
       <div className="admin-section-heading">
         <div>
           <p className="admin-section-title">Homepage hero carousel</p>
-          <p className="admin-muted">Each slide stays collapsed until edited. Display order follows list order.</p>
+          <p className="admin-muted">Slide images and texts (Tag, Title, Description) will be displayed in the homepage background carousel and captions.</p>
         </div>
         <button
           className="admin-button admin-button--secondary admin-button--small"

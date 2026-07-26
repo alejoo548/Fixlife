@@ -78,9 +78,9 @@ export function ServiceRequestLocationSection({
 }: ServiceRequestLocationSectionProps) {
     return (
         <div className="space-y-4">
-            <div className="rounded-2xl border border-slate-200 bg-white p-4">
-                <label className="block text-sm font-black text-slate-900">Service address</label>
-                <p className="mt-1 text-xs font-semibold text-slate-500">
+            <div className="rounded-2xl border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900 p-4">
+                <label className="block text-sm font-black text-slate-900 dark:text-slate-100">Service address</label>
+                <p className="mt-1 text-xs font-semibold text-slate-500 dark:text-slate-400">
                     Search an address, landmark or use your current location.
                 </p>
 
@@ -94,7 +94,7 @@ export function ServiceRequestLocationSection({
                         placeholder="Search your address"
                         autoComplete="off"
                         maxLength={255}
-                        className="w-full rounded-xl border border-slate-200 bg-slate-50 py-3 pl-11 pr-4 text-sm font-bold text-slate-900 outline-none transition focus:border-bird-blue focus:bg-white focus:ring-4 focus:ring-bird-blue/10"
+                        className="w-full rounded-xl border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-slate-800 py-3 pl-11 pr-4 text-sm font-bold text-slate-900 dark:text-slate-100 outline-none transition focus:border-bird-blue focus:bg-white dark:focus:bg-slate-800 focus:ring-4 focus:ring-bird-blue/10"
                         value={location}
                         onFocus={onMainInputFocus}
                         onBlur={onInputBlur}
@@ -109,7 +109,7 @@ export function ServiceRequestLocationSection({
                         type="button"
                         onClick={onDetectCurrentLocation}
                         disabled={geoLoading}
-                        className="rounded-xl border border-slate-200 bg-white px-3 py-3 text-xs font-black text-slate-700 transition hover:border-bird-blue hover:text-bird-blue disabled:opacity-50"
+                        className="rounded-xl border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-800 px-3 py-3 text-xs font-black text-slate-700 dark:text-slate-200 transition hover:border-bird-blue hover:text-bird-blue disabled:opacity-50"
                     >
                         {geoLoading ? 'Detecting...' : 'Use my location'}
                     </button>
@@ -125,34 +125,34 @@ export function ServiceRequestLocationSection({
             </div>
 
             {currentCoords ? (
-                <div className="flex items-center justify-between gap-3 rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
+                <div className="flex items-center justify-between gap-3 rounded-2xl border border-emerald-200 dark:border-emerald-900/40 bg-emerald-50 dark:bg-emerald-950/30 p-4">
                     <div className="min-w-0">
-                        <p className="text-sm font-black text-emerald-900">Pin confirmed on the map</p>
-                        <p className="mt-1 truncate text-xs font-semibold text-emerald-700">{location}</p>
+                        <p className="text-sm font-black text-emerald-900 dark:text-emerald-300">Pin confirmed on the map</p>
+                        <p className="mt-1 truncate text-xs font-semibold text-emerald-700 dark:text-emerald-400">{location}</p>
                     </div>
                     <button
                         type="button"
                         onClick={onOpenSaveLocationPanel}
                         disabled={resolvingLocation || geoLoading}
-                        className="shrink-0 rounded-xl border border-emerald-200 bg-white px-3 py-2 text-xs font-black text-emerald-700"
+                        className="shrink-0 rounded-xl border border-emerald-200 dark:border-emerald-800 bg-white dark:bg-slate-800 px-3 py-2 text-xs font-black text-emerald-700 dark:text-emerald-300"
                     >
                         Save place
                     </button>
                 </div>
             ) : (
-                <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-4 text-xs font-semibold text-slate-500">
+                <div className="rounded-2xl border border-dashed border-slate-300 dark:border-white/10 bg-slate-50 dark:bg-slate-800/50 p-4 text-xs font-semibold text-slate-500 dark:text-slate-400">
                     Confirm an address to place the pin and see nearby professionals on the map.
                 </div>
             )}
 
             {showSaveLocationPanel && currentCoords && (
-                <div className="rounded-2xl border border-bird-blue/20 bg-sky-50 p-4">
+                <div className="rounded-2xl border border-bird-blue/20 bg-sky-50 dark:bg-slate-800/80 p-4">
                     <div className="flex items-center justify-between gap-3">
                         <div>
-                            <p className="text-sm font-black text-slate-900">Save this place</p>
-                            <p className="mt-1 text-xs font-semibold text-slate-500">Reuse it on your next request.</p>
+                            <p className="text-sm font-black text-slate-900 dark:text-slate-100">Save this place</p>
+                            <p className="mt-1 text-xs font-semibold text-slate-500 dark:text-slate-400">Reuse it on your next request.</p>
                         </div>
-                        <button type="button" onClick={onCloseSaveLocationPanel} className="text-xs font-black text-slate-500">
+                        <button type="button" onClick={onCloseSaveLocationPanel} className="text-xs font-black text-slate-500 dark:text-slate-400">
                             Close
                         </button>
                     </div>
@@ -165,7 +165,7 @@ export function ServiceRequestLocationSection({
                         onBlur={onInputBlur}
                         onKeyDown={onLocationKeyDown}
                         onChange={(event) => onLocationChange(event.target.value)}
-                        className="mt-3 w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-bold text-slate-900 outline-none focus:border-bird-blue"
+                        className="mt-3 w-full rounded-xl border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900 px-4 py-3 text-sm font-bold text-slate-900 dark:text-slate-100 outline-none focus:border-bird-blue"
                     />
                     {locationInputContext === 'save-panel' && saveSuggestionsDropdown}
 
@@ -177,8 +177,8 @@ export function ServiceRequestLocationSection({
                                 onClick={() => onSelectSaveLocationKind(kind)}
                                 className={`rounded-xl border px-2 py-2 text-xs font-black ${
                                     saveLocationKind === kind
-                                        ? 'border-bird-blue bg-white text-bird-blue'
-                                        : 'border-slate-200 bg-white text-slate-600'
+                                        ? 'border-bird-blue bg-white dark:bg-slate-800 text-bird-blue'
+                                        : 'border-slate-200 dark:border-white/10 bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300'
                                 }`}
                             >
                                 {kind === 'home' ? 'Home' : kind === 'work' ? 'Work' : 'Favorite'}
@@ -193,25 +193,25 @@ export function ServiceRequestLocationSection({
                             maxLength={80}
                             onChange={(event) => onSaveLocationTitleChange(event.target.value)}
                             placeholder="Place name"
-                            className="mt-3 w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-bold text-slate-900 outline-none focus:border-bird-blue"
+                            className="mt-3 w-full rounded-xl border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900 px-4 py-3 text-sm font-bold text-slate-900 dark:text-slate-100 outline-none focus:border-bird-blue"
                         />
                     )}
 
-                    <button type="button" onClick={onSaveLocation} className="mt-3 w-full rounded-xl bg-slate-950 px-4 py-3 text-sm font-black text-white">
+                    <button type="button" onClick={onSaveLocation} className="mt-3 w-full rounded-xl bg-slate-950 dark:bg-slate-800 px-4 py-3 text-sm font-black text-white">
                         Save place
                     </button>
                 </div>
             )}
 
-            {geoError && <p className="rounded-xl bg-red-50 px-3 py-2 text-xs font-bold text-red-600">{geoError}</p>}
+            {geoError && <p className="rounded-xl bg-red-50 dark:bg-red-950/40 px-3 py-2 text-xs font-bold text-red-600 dark:text-red-300">{geoError}</p>}
 
-            <div className="rounded-2xl border border-slate-200 bg-white p-4">
+            <div className="rounded-2xl border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900 p-4">
                 <div className="flex items-center justify-between gap-3">
                     <div>
-                        <p className="text-sm font-black text-slate-900">Saved places</p>
-                        <p className="mt-1 text-xs font-semibold text-slate-500">Choose one without typing again.</p>
+                        <p className="text-sm font-black text-slate-900 dark:text-slate-100">Saved places</p>
+                        <p className="mt-1 text-xs font-semibold text-slate-500 dark:text-slate-400">Choose one without typing again.</p>
                     </div>
-                    <button type="button" onClick={onOpenSavedPlacesModal} className="rounded-xl bg-slate-100 px-3 py-2 text-xs font-black text-slate-700">
+                    <button type="button" onClick={onOpenSavedPlacesModal} className="rounded-xl bg-slate-100 dark:bg-slate-800 px-3 py-2 text-xs font-black text-slate-700 dark:text-slate-200">
                         View all
                     </button>
                 </div>
@@ -231,13 +231,13 @@ export function ServiceRequestLocationSection({
                         ))}
                     </div>
                 ) : (
-                    <p className="mt-3 text-xs font-semibold text-slate-400">You do not have saved places yet.</p>
+                    <p className="mt-3 text-xs font-semibold text-slate-400 dark:text-slate-500">You do not have saved places yet.</p>
                 )}
             </div>
 
-            <div className="rounded-2xl border border-slate-200 bg-white p-4">
-                <p className="text-sm font-black text-slate-900">Search distance</p>
-                <p className="mt-1 text-xs font-semibold text-slate-500">A wider radius may find more professionals.</p>
+            <div className="rounded-2xl border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900 p-4">
+                <p className="text-sm font-black text-slate-900 dark:text-slate-100">Search distance</p>
+                <p className="mt-1 text-xs font-semibold text-slate-500 dark:text-slate-400">A wider radius may find more professionals.</p>
                 <div className="mt-3 grid grid-cols-5 gap-2">
                     {[3, 5, 8, 12, 15].map((value) => (
                         <button
@@ -246,8 +246,8 @@ export function ServiceRequestLocationSection({
                             onClick={() => onRadiusChange(value)}
                             className={`rounded-xl border px-2 py-2.5 text-xs font-black transition ${
                                 radiusKm === value
-                                    ? 'border-bird-blue bg-sky-50 text-bird-blue'
-                                    : 'border-slate-200 bg-white text-slate-600 hover:border-bird-blue/40'
+                                    ? 'border-bird-blue bg-sky-50 dark:bg-slate-800 text-bird-blue'
+                                    : 'border-slate-200 dark:border-white/10 bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:border-bird-blue/40'
                             }`}
                         >
                             {value} km

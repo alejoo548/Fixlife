@@ -1,4 +1,5 @@
 import React from 'react';
+import { normalizeImageUrl } from '../../utils/imageUrls';
 
 interface AssignedWorker {
     name: string;
@@ -51,7 +52,7 @@ export function ServiceRequestAssignedWorkerCard({
                 <div className="flex items-start gap-3 min-w-0 w-full sm:w-auto">
                     {worker.profile_image_url ? (
                         <img
-                            src={worker.profile_image_url}
+                            src={normalizeImageUrl(worker.profile_image_url)}
                             alt={worker.name}
                             className="h-12 w-12 shrink-0 rounded-2xl object-cover ring-2 ring-white shadow-sm"
                         />

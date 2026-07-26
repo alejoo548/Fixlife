@@ -23,7 +23,7 @@ import {
   ensureUsersPhoneNumberNullable,
 } from '../utils/users';
 import { ensureWorkerRewardsTables } from '../utils/workerRewards';
-import { ensurePublicFaqItemsTable } from '../controllers/admin.controller';
+import { ensurePublicFaqItemsTable, ensureHeroTextTable } from '../controllers/admin.controller';
 
 type MigrationDefinition = {
   id: string;
@@ -176,6 +176,20 @@ const MIGRATIONS: MigrationDefinition[] = [
     description: 'Virtual Wallet webhook raw event logging table',
     run: async () => {
       await ensureVirtualWalletWebhookTables();
+    },
+  },
+  {
+    id: '20260719_001_wompi_webhook_token',
+    description: 'Wompi payment webhook anti-spoof token column',
+    run: async () => {
+      await ensureServiceRequestTables();
+    },
+  },
+  {
+    id: '20260725_001_hero_text_settings',
+    description: 'Homepage hero text settings table',
+    run: async () => {
+      await ensureHeroTextTable();
     },
   },
 ];

@@ -16,9 +16,11 @@ import {
   declineCounterOffer,
   declineAssignedWorker,
   geocodeLocation,
+  getDrivingRouteHandler,
   getSavedLocations,
   reverseGeocode,
   handlePaypalWebhook,
+  handleWompiWebhook,
   getRequestChat,
   getActiveServices,
   getMyServiceRequests,
@@ -48,8 +50,10 @@ router.get('/cards', getPublicServiceCards);
 router.get('/geocode', lookupLimiter, geocodeLocation);
 router.get('/geocode/suggest', lookupLimiter, suggestLocations);
 router.get('/geocode/reverse', lookupLimiter, reverseGeocode);
+router.get('/route', lookupLimiter, getDrivingRouteHandler);
 router.get('/nearby-workers', lookupLimiter, getNearbyWorkers);
 router.post('/payments/paypal/webhook', handlePaypalWebhook);
+router.post('/payments/wompi/webhook/:token', handleWompiWebhook);
 router.post('/payments/virtual-wallet/webhook', handleVirtualWalletWebhook);
 router.get('/saved-locations', verifyToken, getSavedLocations);
 router.post('/saved-locations', verifyToken, createSavedLocation);

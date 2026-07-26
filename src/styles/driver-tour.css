@@ -1,0 +1,171 @@
+/* Fixlife onboarding tour — driver.js theme, matches brand colors (bird-blue / bird-yellow) */
+
+.driver-popover.fixlife-tour-popover {
+  background: var(--dashboard-surface, #ffffff);
+  color: var(--dashboard-text, #0f172a);
+  border: 1px solid var(--dashboard-border, #e2e8f0);
+  border-radius: 16px;
+  box-shadow: var(--dashboard-shadow, 0 22px 50px rgba(15, 23, 42, 0.1));
+  max-width: 320px;
+  padding: 18px;
+}
+
+.fixlife-tour-popover .driver-popover-title {
+  color: var(--dashboard-text, #0f172a);
+  font-size: 16px;
+  font-weight: 800;
+  margin-bottom: 6px;
+}
+
+.fixlife-tour-popover .driver-popover-description {
+  color: var(--dashboard-text-muted, #475569);
+  font-size: 14px;
+  line-height: 1.45;
+}
+
+.fixlife-tour-popover .driver-popover-progress-text {
+  color: var(--dashboard-text-soft, #64748b);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.fixlife-tour-popover .driver-popover-close-btn {
+  color: var(--dashboard-text-soft, #64748b);
+}
+
+.fixlife-tour-popover .driver-popover-close-btn:hover {
+  color: var(--dashboard-text, #0f172a);
+}
+
+.fixlife-tour-popover .driver-popover-footer {
+  gap: 8px;
+}
+
+.fixlife-tour-popover .driver-popover-footer button {
+  text-shadow: none;
+  border-radius: 10px;
+  font-weight: 700;
+  font-size: 13px;
+  padding: 8px 14px;
+  transition: background-color 0.2s ease, border-color 0.2s ease, transform 0.15s ease;
+}
+
+.fixlife-tour-popover .driver-popover-next-btn,
+.fixlife-tour-popover .driver-popover-done-btn {
+  background: #0090ff;
+  color: #ffffff;
+  border: none;
+}
+
+.fixlife-tour-popover .driver-popover-next-btn:hover,
+.fixlife-tour-popover .driver-popover-done-btn:hover {
+  background: #0055d4;
+  transform: translateY(-1px);
+}
+
+.fixlife-tour-popover .driver-popover-prev-btn {
+  background: transparent;
+  color: var(--dashboard-text, #0f172a);
+  border: 1px solid var(--dashboard-border-strong, #cbd5e1);
+}
+
+.fixlife-tour-popover .driver-popover-prev-btn:hover {
+  background: var(--dashboard-surface-muted, #f1f5f9);
+}
+
+.fixlife-tour-popover .driver-popover-progress-text {
+  margin-right: auto;
+}
+
+.fixlife-tour-popover .driver-popover-arrow-side-bottom.driver-popover-arrow {
+  border-bottom-color: var(--dashboard-surface, #ffffff);
+}
+.fixlife-tour-popover .driver-popover-arrow-side-top.driver-popover-arrow {
+  border-top-color: var(--dashboard-surface, #ffffff);
+}
+.fixlife-tour-popover .driver-popover-arrow-side-left.driver-popover-arrow {
+  border-left-color: var(--dashboard-surface, #ffffff);
+}
+.fixlife-tour-popover .driver-popover-arrow-side-right.driver-popover-arrow {
+  border-right-color: var(--dashboard-surface, #ffffff);
+}
+
+.driver-active-element {
+  border-radius: 12px !important;
+}
+
+.driver-overlay {
+  fill: rgba(2, 6, 23, 0.65) !important;
+}
+
+/* Welcome step: dark card with looping muted video */
+.driver-popover.fixlife-tour-welcome {
+  background: #1e293b;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 18px;
+  max-width: 360px;
+  padding: 0;
+  overflow: hidden;
+}
+
+.fixlife-tour-welcome .driver-popover-title {
+  color: #ffffff;
+  font-size: 17px;
+  padding: 16px 18px 12px;
+  margin-bottom: 0;
+}
+
+.fixlife-tour-welcome .driver-popover-close-btn {
+  color: rgba(255, 255, 255, 0.65);
+}
+
+.fixlife-tour-welcome .driver-popover-close-btn:hover {
+  color: #ffffff;
+}
+
+.fixlife-tour-welcome .driver-popover-description {
+  color: rgba(255, 255, 255, 0.75);
+  padding: 0;
+  margin: 0;
+}
+
+.fixlife-tour-welcome .driver-popover-footer {
+  padding: 12px 18px 16px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  margin-top: 12px;
+}
+
+.fixlife-tour-welcome .driver-popover-progress-text {
+  color: rgba(255, 255, 255, 0.55);
+}
+
+.fixlife-tour-welcome .driver-popover-prev-btn {
+  color: rgba(255, 255, 255, 0.85);
+  border-color: rgba(255, 255, 255, 0.2);
+  background: transparent;
+}
+
+.fixlife-tour-welcome .driver-popover-prev-btn:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.fixlife-tour-welcome-video {
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  overflow: hidden;
+  background: #0f172a;
+}
+
+.fixlife-tour-welcome-video video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  pointer-events: none;
+}
+
+.fixlife-tour-welcome-text {
+  margin: 10px 18px 0;
+  color: rgba(255, 255, 255, 0.75);
+  font-size: 14px;
+}

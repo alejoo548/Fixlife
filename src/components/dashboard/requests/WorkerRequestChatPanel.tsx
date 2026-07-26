@@ -11,6 +11,7 @@ import {
   X,
 } from 'lucide-react';
 import { showSweetToast } from '../../../utils/sweetAlert';
+import { normalizeImageUrl } from '../../../utils/imageUrls';
 import type { ChatMessage, WorkerRequest } from './workerRequestTypes';
 
 const CHAT_IMAGE_TYPES = new Set(['image/png', 'image/jpeg', 'image/webp']);
@@ -114,7 +115,7 @@ export const WorkerRequestChatPanel: React.FC<WorkerRequestChatPanelProps> = ({
                 <div className="relative shrink-0">
                   {request.client?.profile_image_url ? (
                     <img
-                      src={request.client.profile_image_url}
+                      src={normalizeImageUrl(request.client.profile_image_url)}
                       alt=""
                       loading="lazy"
                       decoding="async"
@@ -203,7 +204,7 @@ export const WorkerRequestChatPanel: React.FC<WorkerRequestChatPanelProps> = ({
                           >
                             {message.image_url && (
                               <a
-                                href={message.image_url}
+                                href={normalizeImageUrl(message.image_url)}
                                 target="_blank"
                                 rel="noreferrer"
                                 className={`block overflow-hidden rounded-xl ${
@@ -211,7 +212,7 @@ export const WorkerRequestChatPanel: React.FC<WorkerRequestChatPanelProps> = ({
                                 }`}
                               >
                                 <img
-                                  src={message.image_url}
+                                  src={normalizeImageUrl(message.image_url)}
                                   alt="Chat attachment"
                                   loading="lazy"
                                   decoding="async"

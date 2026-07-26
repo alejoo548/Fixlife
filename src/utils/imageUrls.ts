@@ -6,15 +6,17 @@ export const normalizeImageUrl = (value?: string | null): string => {
   const raw = (value || '').trim();
   if (!raw) return '';
 
-  if (/^https?:\/\/localhost:8000\/uploads\//i.test(raw)) {
-    return raw.replace(/^https?:\/\/localhost:8000/i, 'http://127.0.0.1:8000');
+  // Backend bakes an absolute origin (from the request's Host header) into
+  // asset URLs. That origin can differ from what the browser can actually
+  // reach (LAN IP, docker service name, tunnel domain), so re-anchor any
+  // /uploads/ (or protected /api/uploads/) path to the frontend's own
+  // resolved API origin instead of trusting the backend's host.
+  const uploadsMatch = raw.match(/^https?:\/\/[^/]+(\/(?:api\/)?uploads\/.*)$/i);
+  if (uploadsMatch) {
+    return `${API_PUBLIC_URL}${uploadsMatch[1]}`;
   }
 
-  if (/^https?:\/\/127\.0\.0\.1:8000\/uploads\//i.test(raw)) {
-    return raw;
-  }
-
-  if (raw.startsWith('/uploads/')) {
+  if (raw.startsWith('/uploads/') || raw.startsWith('/api/uploads/')) {
     return `${API_PUBLIC_URL}${raw}`;
   }
 

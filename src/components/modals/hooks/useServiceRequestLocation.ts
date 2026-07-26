@@ -230,16 +230,18 @@ export function useServiceRequestLocation({
       { enableHighAccuracy: true, timeout: GEOLOCATION_TIMEOUT_MS, maximumAge: 0 }
     );
 
+    // Intermediate checkpoint: if we already have a usable fix, use it now
+    // instead of waiting for the full accuracy target. Otherwise just inform
+    // the user we're still searching — do NOT give up here, the real
+    // deadline is the watchPosition `timeout` above (GEOLOCATION_TIMEOUT_MS),
+    // which invokes the error callback below on its own.
     geolocationTimerRef.current = window.setTimeout(() => {
-      if (sessionId !== geolocationSessionRef.current) return;
+      if (sessionId !== geolocationSessionRef.current || settled) return;
       if (bestPosition) {
         applyPosition(bestPosition);
         return;
       }
-      clearWatch();
-      setGeoError('Still looking for GPS signal. Try outdoors, enable precise location, or enter the address.');
-      showToast('info', 'Still looking for a precise GPS signal. You can enter and confirm the address instead.');
-      setGeoLoading(false);
+      showToast('info', 'Still looking for a precise GPS signal…');
     }, GEOLOCATION_SAMPLE_MS);
   };
 

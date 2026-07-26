@@ -3633,3 +3633,99 @@ export const uploadHeroImageAsset = async (req: AuthRequest, res: Response): Pro
     res.status(500).json({ error: 'Internal server error' });
   }
 };
+
+// ─── Hero Text Settings ──────────────────────────────────────────────────────
+
+const DEFAULT_HERO_ROLES = [
+  'personal assistant.',
+  'trusted plumber.',
+  'expert electrician.',
+  'reliable cleaner.',
+  'local handyman.',
+];
+const DEFAULT_HERO_HEADLINE = 'Meet Fixlife, your';
+const DEFAULT_HERO_DESCRIPTION =
+  'Fixlife is a personal assistant that helps you stay organized, find trusted home professionals, and get chores done. All through messages.';
+
+let heroTextTableChecked = false;
+
+export const ensureHeroTextTable = async () => {
+  if (heroTextTableChecked) return;
+  if (!shouldRunRuntimeSchemaSync()) {
+    heroTextTableChecked = true;
+    return;
+  }
+  await pool.execute(`
+    CREATE TABLE IF NOT EXISTS hero_text_settings (
+      id INT NOT NULL DEFAULT 1,
+      headline_prefix VARCHAR(120) NOT NULL DEFAULT 'Meet Fixlife, your',
+      description TEXT NOT NULL,
+      roles JSON NOT NULL,
+      updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      PRIMARY KEY (id)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+  `);
+  const [rows] = await pool.execute<RowDataPacket[]>(`SELECT COUNT(*) AS total FROM hero_text_settings`);
+  if (Number(rows[0]?.total || 0) === 0) {
+    await pool.execute(
+      `INSERT INTO hero_text_settings (id, headline_prefix, description, roles) VALUES (1, ?, ?, ?)`,
+      [DEFAULT_HERO_HEADLINE, DEFAULT_HERO_DESCRIPTION, JSON.stringify(DEFAULT_HERO_ROLES)]
+    );
+  }
+  heroTextTableChecked = true;
+};
+
+export const getHeroTextPublic = async (_req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    await ensureHeroTextTable();
+    const [rows] = await pool.execute<RowDataPacket[]>(
+      `SELECT headline_prefix, description, roles FROM hero_text_settings WHERE id = 1 LIMIT 1`
+    );
+    if (rows.length === 0) {
+      res.json({ success: true, headline_prefix: DEFAULT_HERO_HEADLINE, description: DEFAULT_HERO_DESCRIPTION, roles: DEFAULT_HERO_ROLES });
+      return;
+    }
+    const row = rows[0];
+    let roles: string[] = DEFAULT_HERO_ROLES;
+    try {
+      const parsed = typeof row.roles === 'string' ? JSON.parse(row.roles) : row.roles;
+      if (Array.isArray(parsed) && parsed.length > 0) roles = parsed.map(String);
+    } catch { roles = DEFAULT_HERO_ROLES; }
+    res.json({ success: true, headline_prefix: String(row.headline_prefix || DEFAULT_HERO_HEADLINE), description: String(row.description || DEFAULT_HERO_DESCRIPTION), roles });
+  } catch (error) {
+    console.error('Error in getHeroTextPublic:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
+export const updateHeroText = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const { headline_prefix, description, roles } = req.body;
+    if (!headline_prefix || typeof headline_prefix !== 'string' || !headline_prefix.trim()) {
+      res.status(400).json({ error: 'headline_prefix is required.' }); return;
+    }
+    if (!description || typeof description !== 'string' || !description.trim()) {
+      res.status(400).json({ error: 'description is required.' }); return;
+    }
+    if (!Array.isArray(roles) || roles.length === 0) {
+      res.status(400).json({ error: 'roles must be a non-empty array.' }); return;
+    }
+    const safeHeadline = sanitizeText(headline_prefix, 120);
+    const safeDescription = sanitizeText(description, 500);
+    const safeRoles = roles.map((r: unknown) => sanitizeText(String(r || ''), 80)).filter((r) => r.length > 0).slice(0, 20);
+    if (safeRoles.length === 0) { res.status(400).json({ error: 'At least one non-empty role is required.' }); return; }
+    await ensureHeroTextTable();
+    await pool.execute(
+      `INSERT INTO hero_text_settings (id, headline_prefix, description, roles) VALUES (1, ?, ?, ?)
+       ON DUPLICATE KEY UPDATE headline_prefix = VALUES(headline_prefix), description = VALUES(description), roles = VALUES(roles)`,
+      [safeHeadline, safeDescription, JSON.stringify(safeRoles)]
+    );
+    await logAdminActivity(req, 'update', 'hero_text', 'Updated hero text settings', null, { headline_prefix: safeHeadline, roles_count: safeRoles.length });
+    res.json({ success: true, message: 'Hero text updated successfully.', data: { headline_prefix: safeHeadline, description: safeDescription, roles: safeRoles } });
+  } catch (error: any) {
+    console.error('Error in updateHeroText:', error);
+    if (typeof error?.message === 'string' && error.message.toLowerCase().includes('invalid')) { res.status(400).json({ error: error.message }); return; }
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+

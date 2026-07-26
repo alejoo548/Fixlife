@@ -340,23 +340,29 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({
   };
 
   const buildNotificationTarget = (item: NotificationItem) => {
-    if (!item.action_url) return '';
-    if (!item.id_request) return item.action_url;
+    if (!item.action_url && !item.id_request) return '';
+    if (item.id_request) {
+      return `/?request=${item.id_request}`;
+    }
+
+    if (item.action_url === '/mis-servicios') {
+      return '/?openRequests=true';
+    }
 
     try {
-      const url = new URL(item.action_url, window.location.origin);
-      if (url.pathname === '/app') {
-        url.searchParams.set('request', String(item.id_request));
+      const url = new URL(item.action_url!, window.location.origin);
+      if (url.pathname === '/app' || url.pathname === '/mis-servicios') {
+        return `/?openRequests=true`;
       }
       if (url.pathname === '/pro-dashboard') {
-        url.searchParams.set('request', String(item.id_request));
+        url.searchParams.set('request', String(item.id_request || ''));
         if (item.event_type === 'chat_new_message') {
           url.searchParams.set('chat', '1');
         }
       }
       return `${url.pathname}${url.search}${url.hash}`;
     } catch {
-      return item.action_url;
+      return item.action_url === '/mis-servicios' ? '/?openRequests=true' : item.action_url || '';
     }
   };
 

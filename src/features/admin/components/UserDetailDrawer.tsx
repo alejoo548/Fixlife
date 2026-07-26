@@ -2,6 +2,7 @@ import { Activity, BadgeDollarSign, BriefcaseBusiness, CheckCircle2, FileText, M
 import { Link } from 'react-router-dom';
 import type { AdminUserDetail } from '../types';
 import { AdminCard, DetailDrawer, FormSection, Skeleton, StatusBadge } from './AdminUI';
+import { normalizeImageUrl } from '../../../utils/imageUrls';
 
 const money = (value: number) => value.toLocaleString('en-US', { style: 'currency', currency: 'USD' });
 
@@ -11,7 +12,7 @@ export function UserDetailDrawer({ detail, loading, open, onClose }: { detail: A
       {loading || !detail ? <Skeleton rows={7} /> : (
         <div className="admin-detail-stack">
           <div className="admin-profile-hero">
-            <div className="admin-profile-avatar">{detail.profile_image ? <img src={detail.profile_image} alt="" /> : <span>{detail.name.split(' ').map((part) => part[0]).slice(0, 2).join('')}</span>}</div>
+            <div className="admin-profile-avatar">{detail.profile_image ? <img src={normalizeImageUrl(detail.profile_image)} alt="" /> : <span>{detail.name.split(' ').map((part) => part[0]).slice(0, 2).join('')}</span>}</div>
             <div><h3>{detail.name}</h3><div className="admin-action-row"><StatusBadge status={detail.role} /><StatusBadge status={detail.is_active ? 'active' : 'inactive'} />{detail.professional && <StatusBadge status={detail.professional.membership_tier} />}</div></div>
           </div>
 

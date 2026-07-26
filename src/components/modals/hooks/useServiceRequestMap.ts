@@ -29,6 +29,7 @@ interface NearbyWorkerLike {
 
 interface UseServiceRequestMapOptions {
   isOpen: boolean;
+  isDarkMode?: boolean;
   currentCoords: CoordinatesLike | null;
   radiusKm: number;
   activeLocationKind: PinKind;
@@ -44,6 +45,7 @@ interface UseServiceRequestMapOptions {
 
 export function useServiceRequestMap({
   isOpen,
+  isDarkMode = false,
   currentCoords,
   radiusKm,
   activeLocationKind,
@@ -54,6 +56,7 @@ export function useServiceRequestMap({
   getLocationVisual,
 }: UseServiceRequestMapOptions) {
   const [leafletReady, setLeafletReady] = useState(false);
+  const [leafletLoadFailed, setLeafletLoadFailed] = useState(false);
   const mapContainerRef = useRef<HTMLDivElement | null>(null);
   const mapInstanceRef = useRef<any>(null);
   const currentMarkerRef = useRef<any>(null);
@@ -61,9 +64,25 @@ export function useServiceRequestMap({
   const savedPlaceMarkersRef = useRef<any[]>([]);
   const nearbyWorkerMarkersRef = useRef<any[]>([]);
   const lastCenteredCoordsRef = useRef<CoordinatesLike | null>(null);
+  const tileLayerRef = useRef<any>(null);
+  const isDarkModeRef = useRef(isDarkMode);
+  isDarkModeRef.current = isDarkMode;
+
+  const attemptLeafletLoad = () => {
+    setLeafletLoadFailed(false);
+    loadLeaflet('service-request')
+      .then((ready) => {
+        setLeafletReady(ready);
+        if (!ready) setLeafletLoadFailed(true);
+      })
+      .catch((err) => {
+        console.error(err);
+        setLeafletLoadFailed(true);
+      });
+  };
 
   useEffect(() => {
-    loadLeaflet('service-request').then(setLeafletReady).catch((err) => console.error(err));
+    attemptLeafletLoad();
   }, []);
 
   useEffect(() => {
@@ -84,7 +103,7 @@ export function useServiceRequestMap({
         maxZoom: 17,
       }).setView([13.6929, -89.2182], 12);
 
-      addResilientTileLayer(L, map);
+      tileLayerRef.current = addResilientTileLayer(L, map, isDarkModeRef.current);
       L.control.zoom({ position: 'bottomright' }).addTo(map);
       mapInstanceRef.current = map;
 
@@ -111,6 +130,19 @@ export function useServiceRequestMap({
       }
     };
   }, [isOpen, leafletReady]);
+
+  useEffect(() => {
+    if (!mapInstanceRef.current || !window.L || !tileLayerRef.current) return;
+    const L = window.L;
+    const map = mapInstanceRef.current;
+    try {
+      map.removeLayer(tileLayerRef.current);
+    } catch {
+      // ignore
+    }
+    tileLayerRef.current = addResilientTileLayer(L, map, isDarkMode);
+    tileLayerRef.current.bringToBack();
+  }, [isDarkMode]);
 
   useEffect(() => {
     if (!mapInstanceRef.current || !window.L) return;
@@ -260,6 +292,8 @@ export function useServiceRequestMap({
 
   return {
     leafletReady,
+    leafletLoadFailed,
+    retryLeafletLoad: attemptLeafletLoad,
     mapContainerRef,
   };
 }

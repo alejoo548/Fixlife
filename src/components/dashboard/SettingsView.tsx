@@ -21,6 +21,7 @@ import { showSweetToast } from '../../utils/sweetAlert';
 import { API_URL } from '../../config/api';
 import { getAuthUser, getToken as getSessionToken, logoutAndReload, updateStoredAuthUser } from '../../utils/session';
 import { WorkerAvailabilitySection } from './WorkerAvailabilitySection';
+import { normalizeImageUrl } from '../../utils/imageUrls';
 
 type PortfolioItem = {
   id_photo: number;
@@ -89,8 +90,7 @@ export const SettingsView: React.FC = () => {
 
   const toPublicUrl = (imagePath?: string | null) => {
     if (!imagePath) return null;
-    if (imagePath.startsWith('http://') || imagePath.startsWith('https://')) return imagePath;
-    return `${API_URL}/uploads/${encodeURIComponent(imagePath)}`;
+    return normalizeImageUrl(imagePath) || null;
   };
 
   const loadData = async () => {
@@ -114,7 +114,7 @@ export const SettingsView: React.FC = () => {
       setPortfolio(
         portfolioItems.map((item: PortfolioItem) => ({
           ...item,
-          image_full_url: item.image_full_url || toPublicUrl(item.image_url) || undefined,
+          image_full_url: toPublicUrl(item.image_full_url) || toPublicUrl(item.image_url) || undefined,
         }))
       );
     } catch (error: any) {
@@ -359,7 +359,7 @@ export const SettingsView: React.FC = () => {
       setPortfolio(
         nextPortfolio.map((item: PortfolioItem) => ({
           ...item,
-          image_full_url: item.image_full_url || toPublicUrl(item.image_url) || undefined,
+          image_full_url: toPublicUrl(item.image_full_url) || toPublicUrl(item.image_url) || undefined,
         }))
       );
       setPortfolioFiles([]);

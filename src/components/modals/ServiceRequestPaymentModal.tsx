@@ -111,7 +111,7 @@ export function ServiceRequestPaymentModal({
                 animate={{ opacity: 1, scale: 1, y: 0 }}
                 exit={{ opacity: 0, scale: 0.96, y: 16 }}
                 transition={{ type: 'spring', damping: 24, stiffness: 220 }}
-                className="my-auto w-full max-w-5xl overflow-hidden rounded-[28px] border border-gray-200 bg-white shadow-2xl"
+                className="my-auto w-full max-w-5xl overflow-hidden rounded-[28px] border border-gray-200 dark:border-white/10 bg-white dark:bg-slate-900 shadow-2xl"
             >
                 <div className="grid grid-cols-1 lg:grid-cols-[1.05fr_0.95fr]">
                     <div className="relative overflow-hidden bg-gradient-to-br from-slate-900 via-slate-800 to-cyan-700 p-6 text-white sm:p-8">
@@ -154,16 +154,16 @@ export function ServiceRequestPaymentModal({
                         </div>
                     </div>
 
-                    <div className="max-h-[85vh] overflow-y-auto p-6 sm:p-8">
+                    <div className="max-h-[85vh] overflow-y-auto p-6 sm:p-8 bg-white dark:bg-slate-900 text-gray-900 dark:text-slate-100 custom-scrollbar">
                         <div className="flex items-start justify-between gap-4">
                             <div>
-                                <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-gray-400">Checkout</p>
-                                <h3 className="mt-1 text-2xl font-black text-gray-900">Elige tu metodo de pago</h3>
+                                <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-gray-400 dark:text-slate-400">Checkout</p>
+                                <h3 className="mt-1 text-2xl font-black text-gray-900 dark:text-slate-100">Elige tu metodo de pago</h3>
                             </div>
                             <button
                                 type="button"
                                 onClick={onClose}
-                                className="rounded-2xl border-none bg-gray-50/80 px-3 py-2 text-xs font-bold text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-700"
+                                className="rounded-2xl border-none bg-gray-50/80 dark:bg-slate-800 px-3 py-2 text-xs font-bold text-gray-500 dark:text-slate-400 transition-colors hover:bg-gray-100 dark:hover:bg-slate-700 hover:text-gray-700 dark:hover:text-slate-200"
                             >
                                 Cerrar
                             </button>
@@ -179,15 +179,15 @@ export function ServiceRequestPaymentModal({
                                         onClick={() => onSelectMethod(id)}
                                         aria-pressed={selected}
                                         className={`flex w-full items-center gap-4 rounded-2xl border px-4 py-3.5 text-left transition ${
-                                            selected ? ACCENT_RING[accent] : 'border-gray-200 bg-white hover:border-gray-300'
+                                            selected ? ACCENT_RING[accent] : 'border-gray-200 dark:border-white/10 bg-white dark:bg-slate-800/80 hover:border-gray-300 dark:hover:border-white/20'
                                         }`}
                                     >
-                                        <span className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl ${selected ? ACCENT_ICON[accent] : 'bg-gray-100 text-gray-500'}`}>
+                                        <span className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl ${selected ? ACCENT_ICON[accent] : 'bg-gray-100 dark:bg-slate-700 text-gray-500 dark:text-slate-400'}`}>
                                             <Icon className="h-5 w-5" />
                                         </span>
                                         <span className="min-w-0 flex-1">
-                                            <span className="block truncate text-sm font-black text-gray-900">{title}</span>
-                                            <span className="mt-0.5 block truncate text-xs font-semibold text-gray-500">{subtitle}</span>
+                                            <span className="block truncate text-sm font-black text-gray-900 dark:text-slate-100">{title}</span>
+                                            <span className="mt-0.5 block truncate text-xs font-semibold text-gray-500 dark:text-slate-400">{subtitle}</span>
                                         </span>
                                         <span className={`shrink-0 rounded-full px-2.5 py-1 text-[10px] font-black uppercase tracking-wide ${badge.tone}`}>
                                             {badge.label}
@@ -198,16 +198,16 @@ export function ServiceRequestPaymentModal({
                         </div>
 
                         {paymentError ? (
-                            <div className="mt-5 flex items-start gap-2.5 rounded-2xl border border-red-200 bg-red-50 px-4 py-3">
+                            <div className="mt-5 flex items-start gap-2.5 rounded-2xl border border-red-200 dark:border-red-900/40 bg-red-50 dark:bg-red-950/40 px-4 py-3">
                                 <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-red-500" />
-                                <p className="text-sm font-semibold text-red-700">{paymentError}</p>
+                                <p className="text-sm font-semibold text-red-700 dark:text-red-300">{paymentError}</p>
                             </div>
                         ) : null}
 
                         {paymentMethod === 'paypal' ? (
-                            <div className="mt-5 rounded-3xl border border-blue-200 bg-blue-50 p-6">
-                                <p className="text-sm font-black text-[#003087]">PayPal proximamente</p>
-                                <p className="mt-2 text-sm text-slate-600">
+                            <div className="mt-5 rounded-3xl border border-blue-200 dark:border-blue-900/40 bg-blue-50 dark:bg-blue-950/30 p-6">
+                                <p className="text-sm font-black text-[#003087] dark:text-blue-300">PayPal proximamente</p>
+                                <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">
                                     Ya dejamos visible la opcion de PayPal en la UI, pero la integracion real todavia no esta configurada.
                                 </p>
                                 <button
@@ -219,14 +219,14 @@ export function ServiceRequestPaymentModal({
                                 </button>
                             </div>
                         ) : paymentMethod === 'cash' ? (
-                            <div className="mt-5 rounded-3xl border border-emerald-200 bg-emerald-50 p-6">
-                                <p className="text-sm font-black text-emerald-800">Pago en efectivo</p>
-                                <p className="mt-2 text-sm text-slate-600">
+                            <div className="mt-5 rounded-3xl border border-emerald-200 dark:border-emerald-900/40 bg-emerald-50 dark:bg-emerald-950/30 p-6">
+                                <p className="text-sm font-black text-emerald-800 dark:text-emerald-300">Pago en efectivo</p>
+                                <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">
                                     Pagaras en efectivo directamente al profesional cuando finalice el trabajo. Fixlife reserva tu cupo pero no procesa ningun cobro; el profesional confirmara el cobro desde su panel.
                                 </p>
-                                <div className="mt-5 rounded-2xl border border-emerald-100 bg-white p-4">
-                                    <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-gray-400">Monto a pagar en efectivo</p>
-                                    <p className="mt-2 text-3xl font-black text-gray-900">${amount}</p>
+                                <div className="mt-5 rounded-2xl border border-emerald-100 dark:border-emerald-900/50 bg-white dark:bg-slate-800 p-4">
+                                    <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-gray-400 dark:text-slate-400">Monto a pagar en efectivo</p>
+                                    <p className="mt-2 text-3xl font-black text-gray-900 dark:text-slate-100">${amount}</p>
                                 </div>
                                 <button
                                     type="button"
@@ -239,65 +239,65 @@ export function ServiceRequestPaymentModal({
                             </div>
                         ) : (
                             <div className="mt-5 space-y-4">
-                                <div className="rounded-2xl border border-gray-200 bg-gray-50 p-4">
-                                    <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-gray-400">Resumen del cobro</p>
-                                    <p className="mt-2 text-3xl font-black text-gray-900">${amount}</p>
-                                    <p className="mt-1 text-sm text-gray-500">El cobro se asegura para este trabajo en modo demo.</p>
+                                <div className="rounded-2xl border border-gray-200 dark:border-white/10 bg-gray-50 dark:bg-slate-800 p-4">
+                                    <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-gray-400 dark:text-slate-400">Resumen del cobro</p>
+                                    <p className="mt-2 text-3xl font-black text-gray-900 dark:text-slate-100">${amount}</p>
+                                    <p className="mt-1 text-sm text-gray-500 dark:text-slate-400">El cobro se asegura para este trabajo en modo demo.</p>
                                 </div>
 
                                 <div className="grid gap-4 sm:grid-cols-2">
-                                    <label className="text-xs font-bold text-gray-600">
+                                    <label className="text-xs font-bold text-gray-600 dark:text-slate-300">
                                         Nombre
                                         <input
                                             type="text"
                                             value={paymentForm.fullName}
                                             maxLength={100}
                                             onChange={(e) => onPaymentFormChange({ fullName: e.target.value })}
-                                            className="mt-1 w-full rounded-xl border border-gray-200 px-4 py-3 text-sm text-gray-900 focus:border-bird-blue focus:outline-none"
+                                            className="mt-1 w-full rounded-xl border border-gray-200 dark:border-white/10 bg-white dark:bg-slate-800 px-4 py-3 text-sm text-gray-900 dark:text-slate-100 focus:border-bird-blue focus:outline-none"
                                             placeholder="Juan Perez"
                                         />
                                     </label>
-                                    <label className="text-xs font-bold text-gray-600">
+                                    <label className="text-xs font-bold text-gray-600 dark:text-slate-300">
                                         Correo electronico
                                         <input
                                             type="email"
                                             value={paymentForm.email}
                                             maxLength={100}
                                             onChange={(e) => onPaymentFormChange({ email: e.target.value })}
-                                            className="mt-1 w-full rounded-xl border border-gray-200 px-4 py-3 text-sm text-gray-900 focus:border-bird-blue focus:outline-none"
+                                            className="mt-1 w-full rounded-xl border border-gray-200 dark:border-white/10 bg-white dark:bg-slate-800 px-4 py-3 text-sm text-gray-900 dark:text-slate-100 focus:border-bird-blue focus:outline-none"
                                             placeholder="john@doe.com"
                                         />
                                     </label>
-                                    <label className="text-xs font-bold text-gray-600">
+                                    <label className="text-xs font-bold text-gray-600 dark:text-slate-300">
                                         Telefono
                                         <input
                                             type="text"
                                             value={paymentForm.phone}
                                             maxLength={20}
                                             onChange={(e) => onPaymentFormChange({ phone: e.target.value.replace(/[^\d+\s]/g, '') })}
-                                            className="mt-1 w-full rounded-xl border border-gray-200 px-4 py-3 text-sm text-gray-900 focus:border-bird-blue focus:outline-none"
+                                            className="mt-1 w-full rounded-xl border border-gray-200 dark:border-white/10 bg-white dark:bg-slate-800 px-4 py-3 text-sm text-gray-900 dark:text-slate-100 focus:border-bird-blue focus:outline-none"
                                             placeholder="+503 7000 0000"
                                         />
                                     </label>
-                                    <label className="text-xs font-bold text-gray-600">
+                                    <label className="text-xs font-bold text-gray-600 dark:text-slate-300">
                                         Ciudad
                                         <input
                                             type="text"
                                             value={paymentForm.city}
                                             maxLength={60}
                                             onChange={(e) => onPaymentFormChange({ city: e.target.value })}
-                                            className="mt-1 w-full rounded-xl border border-gray-200 px-4 py-3 text-sm text-gray-900 focus:border-bird-blue focus:outline-none"
+                                            className="mt-1 w-full rounded-xl border border-gray-200 dark:border-white/10 bg-white dark:bg-slate-800 px-4 py-3 text-sm text-gray-900 dark:text-slate-100 focus:border-bird-blue focus:outline-none"
                                             placeholder="Santa Tecla"
                                         />
                                     </label>
                                 </div>
 
-                                <label className="text-xs font-bold text-gray-600">
+                                <label className="text-xs font-bold text-gray-600 dark:text-slate-300">
                                     Pais
                                     <select
                                         value={paymentForm.country}
                                         onChange={(e) => onPaymentFormChange({ country: e.target.value })}
-                                        className="mt-1 w-full rounded-xl border border-gray-200 px-4 py-3 text-sm text-gray-900 focus:border-bird-blue focus:outline-none"
+                                        className="mt-1 w-full rounded-xl border border-gray-200 dark:border-white/10 bg-white dark:bg-slate-800 px-4 py-3 text-sm text-gray-900 dark:text-slate-100 focus:border-bird-blue focus:outline-none"
                                     >
                                         <option value="Guatemala">Guatemala</option>
                                         <option value="El Salvador">El Salvador</option>
@@ -306,7 +306,7 @@ export function ServiceRequestPaymentModal({
                                     </select>
                                 </label>
 
-                                <label className="text-xs font-bold text-gray-600">
+                                <label className="text-xs font-bold text-gray-600 dark:text-slate-300">
                                     Tarjeta de credito o debito
                                     <input
                                         type="text"
@@ -314,13 +314,13 @@ export function ServiceRequestPaymentModal({
                                         value={paymentForm.cardNumber}
                                         maxLength={19}
                                         onChange={(e) => onPaymentFormChange({ cardNumber: e.target.value.replace(/[^\d\s]/g, '') })}
-                                        className="mt-1 w-full rounded-xl border border-gray-200 px-4 py-3 text-sm text-gray-900 focus:border-bird-blue focus:outline-none"
+                                        className="mt-1 w-full rounded-xl border border-gray-200 dark:border-white/10 bg-white dark:bg-slate-800 px-4 py-3 text-sm text-gray-900 dark:text-slate-100 focus:border-bird-blue focus:outline-none"
                                         placeholder="4242 4242 4242 4242"
                                     />
                                 </label>
 
                                 <div className="grid gap-4 sm:grid-cols-2">
-                                    <label className="text-xs font-bold text-gray-600">
+                                    <label className="text-xs font-bold text-gray-600 dark:text-slate-300">
                                         MM / AA
                                         <input
                                             type="text"
@@ -328,17 +328,17 @@ export function ServiceRequestPaymentModal({
                                             value={paymentForm.expiry}
                                             maxLength={7}
                                             onChange={(e) => onPaymentFormChange({ expiry: e.target.value.replace(/[^\d/\s]/g, '') })}
-                                            className="mt-1 w-full rounded-xl border border-gray-200 px-4 py-3 text-sm text-gray-900 focus:border-bird-blue focus:outline-none"
+                                            className="mt-1 w-full rounded-xl border border-gray-200 dark:border-white/10 bg-white dark:bg-slate-800 px-4 py-3 text-sm text-gray-900 dark:text-slate-100 focus:border-bird-blue focus:outline-none"
                                             placeholder="MM / YY"
                                         />
                                     </label>
-                                    <label className="text-xs font-bold text-gray-600">
+                                    <label className="text-xs font-bold text-gray-600 dark:text-slate-300">
                                         CVV
                                         <PasswordInput
                                             value={paymentForm.cvv}
                                             maxLength={4}
                                             onChange={(e) => onPaymentFormChange({ cvv: e.target.value.replace(/\D/g, '') })}
-                                            className="mt-1 w-full rounded-xl border border-gray-200 px-4 py-3 text-sm text-gray-900 focus:border-bird-blue focus:outline-none"
+                                            className="mt-1 w-full rounded-xl border border-gray-200 dark:border-white/10 bg-white dark:bg-slate-800 px-4 py-3 text-sm text-gray-900 dark:text-slate-100 focus:border-bird-blue focus:outline-none"
                                             placeholder="123"
                                         />
                                     </label>

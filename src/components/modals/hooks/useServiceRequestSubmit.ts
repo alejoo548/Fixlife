@@ -115,12 +115,7 @@ export const useServiceRequestSubmit = ({
       showToast('error', 'Estimated visit duration must be between 1 and 7 hours.');
       return;
     }
-    const selectionMode =
-      data.booking_type === 'express'
-        ? 'auto_assign'
-        : data.selection_mode === 'client_review'
-          ? 'client_review'
-          : 'auto_assign';
+    const selectionMode = data.selection_mode === 'client_review' ? 'client_review' : 'auto_assign';
 
     try {
       setIsSubmittingRequest(true);

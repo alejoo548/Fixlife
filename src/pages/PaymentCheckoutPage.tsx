@@ -55,7 +55,7 @@ interface MyServiceRequest {
     } | null;
 }
 
-type CheckoutStage = 'form' | 'success' | 'error';
+type CheckoutStage = 'form' | 'success' | 'error' | 'pending';
 type CheckoutPaymentMethod = 'paypal' | 'wompi' | 'cash' | 'virtual_wallet';
 
 const notyf = {
@@ -132,10 +132,10 @@ const isAllowedPaymentRedirect = (value: string) => {
     try {
         const url = new URL(value);
         const hostname = url.hostname.toLowerCase();
-        return (
-            url.protocol === 'https:' &&
-            (hostname === 'paypal.com' || hostname === 'www.paypal.com' || hostname.endsWith('.paypal.com'))
-        );
+        if (url.protocol !== 'https:') return false;
+        if (hostname === 'paypal.com' || hostname === 'www.paypal.com' || hostname.endsWith('.paypal.com')) return true;
+        if (hostname === 'wompi.sv' || hostname.endsWith('.wompi.sv')) return true;
+        return false;
     } catch {
         return false;
     }
@@ -171,7 +171,23 @@ const renderStageIcon = (stage: CheckoutStage) => {
                     </motion.svg>
                 </motion.div>
             </div>
-        );``
+        );
+    }
+
+    if (stage === 'pending') {
+        return (
+            <div className="relative mx-auto flex h-24 w-24 items-center justify-center">
+                <motion.div
+                    initial={{ scale: 0.75, opacity: 0 }}
+                    animate={{ scale: 1.15, opacity: 0.16 }}
+                    transition={{ duration: 0.7, ease: 'easeOut' }}
+                    className="absolute inset-0 rounded-full bg-blue-300"
+                />
+                <div className="relative flex h-20 w-20 items-center justify-center rounded-full bg-blue-100 text-blue-600 shadow-[0_18px_42px_rgba(29,78,216,0.2)]">
+                    <div className="h-9 w-9 rounded-full border-4 border-blue-200 border-t-blue-600 animate-spin" />
+                </div>
+            </div>
+        );
     }
 
     return (
@@ -407,6 +423,105 @@ const PaymentCheckoutPage: React.FC<PaymentCheckoutPageProps> = ({ requestId, on
         }
     };
 
+    // Wompi confirms asynchronously via webhook, which only fires once the
+    // customer actually finishes entering card details on Wompi's page — that
+    // can take minutes, not seconds. Poll patiently instead of giving up fast.
+    const checkWompiPaymentOnce = async (): Promise<'paid' | 'pending' | 'failed'> => {
+        const token = getToken();
+        if (!token || !request) return 'failed';
+
+        const payRes = await fetch(API_ENDPOINTS.services.confirmPayment(request.id_request), {
+            method: 'POST',
+            headers: {
+                Authorization: `Bearer ${token}`,
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ payment_method: 'wompi' }),
+        });
+        const payPayload = await payRes.json();
+        if (!payRes.ok || !payPayload?.success) {
+            notyf.error(payPayload?.error || 'Could not check Wompi payment status.');
+            return 'failed';
+        }
+
+        if (payPayload?.payment?.status === 'paid') {
+            setRequest((prev) =>
+                prev
+                    ? {
+                          ...prev,
+                          status: 'paid',
+                          payment: {
+                              provider: 'wompi',
+                              checkout_reference: payPayload?.payment?.checkout_reference || prev.payment?.checkout_reference || null,
+                              currency_code: payPayload?.payment?.currency_code || prev.payment?.currency_code || displayCurrency,
+                              amount: Number(payPayload?.payment?.amount ?? amount),
+                              platform_fee: Number(payPayload?.payment?.platform_fee ?? prev.payment?.platform_fee ?? platformFee),
+                              worker_payout: Number(payPayload?.payment?.worker_payout ?? prev.payment?.worker_payout ?? workerPayout),
+                              commission_rate: Number(payPayload?.payment?.commission_rate ?? prev.payment?.commission_rate ?? commissionRate),
+                              commission_snapshot: payPayload?.payment?.commission_snapshot ?? prev.payment?.commission_snapshot ?? null,
+                              status: 'paid',
+                              paid_at: new Date().toISOString(),
+                          },
+                      }
+                    : prev
+            );
+
+            navigate(`/checkout/${request.id_request}`, { replace: true });
+            setCheckoutStage('success');
+            setCheckoutMessage('Wompi payment secured successfully. Your electronic invoice was sent to your email.');
+            notyf.success('Wompi payment confirmed. Your pro can now start the job.');
+            return 'paid';
+        }
+
+        return 'pending';
+    };
+
+    const handleWompiReturnConfirmation = async () => {
+        if (!request) {
+            moveToErrorStage('Your session expired before Wompi confirmation could finish.');
+            return;
+        }
+
+        setPaymentMethod('wompi');
+        setCheckoutStage('pending');
+        setCheckoutMessage("Confirming your Wompi payment. This can take a couple of minutes — don't close this page.");
+        setIsPaying(true);
+        try {
+            const maxAttempts = 45; // ~3 minutes at 4s apart
+            for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+                const outcome = await checkWompiPaymentOnce();
+                if (outcome === 'paid') return;
+                if (outcome === 'failed') {
+                    moveToErrorStage('Could not confirm the Wompi payment. You can check again from here.');
+                    return;
+                }
+                await new Promise((resolve) => window.setTimeout(resolve, 4000));
+            }
+
+            setCheckoutMessage(
+                "Wompi hasn't confirmed the payment yet. If you finished paying, it'll be marked automatically in a moment — tap \"Check again\" or come back to My Requests shortly."
+            );
+        } catch {
+            notyf.error('Network error confirming Wompi payment.');
+            setCheckoutMessage('The connection dropped while confirming your Wompi payment. Tap "Check again" to retry.');
+        } finally {
+            setIsPaying(false);
+        }
+    };
+
+    const handleWompiCheckAgain = async () => {
+        if (isPaying) return;
+        setIsPaying(true);
+        try {
+            const outcome = await checkWompiPaymentOnce();
+            if (outcome === 'pending') {
+                setCheckoutMessage("Still waiting on Wompi's confirmation. Tap \"Check again\" in a bit, or check My Requests later.");
+            }
+        } finally {
+            setIsPaying(false);
+        }
+    };
+
     useEffect(() => {
         if (!vwCheckout) return;
         setVwMounting(true);
@@ -532,14 +647,17 @@ const PaymentCheckoutPage: React.FC<PaymentCheckoutPageProps> = ({ requestId, on
         if (loading || !requestId || !request) return;
 
         const params = new URLSearchParams(location.search);
-        const paypalState = readString(params.get('paypal')).toLowerCase();
-        if (!paypalState) return;
+        // `payment`/`method` is the current scheme for both providers; `paypal` is
+        // kept for any already-issued PayPal return URLs from before this existed.
+        const paymentState = (readString(params.get('payment')) || readString(params.get('paypal'))).toLowerCase();
+        const methodFromUrl = readString(params.get('method')).toLowerCase() || 'paypal';
+        if (!paymentState) return;
 
-        if (paypalState === 'cancel') {
+        if (paymentState === 'cancel') {
             if (!paypalReturnHandledRef.current) {
                 notyf.open({
                     type: 'info',
-                    message: 'PayPal payment was cancelled. You can retry when ready.',
+                    message: `${methodFromUrl === 'wompi' ? 'Wompi' : 'PayPal'} payment was cancelled. You can retry when ready.`,
                     background: '#1d4ed8',
                 });
             }
@@ -548,14 +666,34 @@ const PaymentCheckoutPage: React.FC<PaymentCheckoutPageProps> = ({ requestId, on
             return;
         }
 
-        if (paypalState === 'success') {
+        if (paymentState === 'success') {
+            if (paypalReturnHandledRef.current) return;
+
+            // The webhook (Wompi) or an earlier tab (PayPal) may have already
+            // confirmed this by the time the redirect lands here — show the
+            // success screen instead of silently doing nothing, which used to
+            // leave the payment buttons active and let the client "retry" an
+            // already-paid request into a confusing 409.
+            if (isAlreadyPaid) {
+                paypalReturnHandledRef.current = true;
+                navigate(`/checkout/${request.id_request}`, { replace: true });
+                setCheckoutStage('success');
+                setCheckoutMessage('Payment already confirmed. Your electronic invoice was sent to your email.');
+                return;
+            }
+
+            if (methodFromUrl === 'wompi') {
+                paypalReturnHandledRef.current = true;
+                void handleWompiReturnConfirmation();
+                return;
+            }
+
             const tokenFromUrl = readString(params.get('token'));
             if (!tokenFromUrl) {
                 moveToErrorStage('PayPal returned without an order token. Please try payment again.');
                 navigate(`/checkout/${request.id_request}`, { replace: true });
                 return;
             }
-            if (paypalReturnHandledRef.current || isAlreadyPaid) return;
             paypalReturnHandledRef.current = true;
             void handlePaypalReturnConfirmation(tokenFromUrl);
         }
@@ -567,14 +705,6 @@ const PaymentCheckoutPage: React.FC<PaymentCheckoutPageProps> = ({ requestId, on
         if (!token || !request) {
             notyf.error('Login required.');
             moveToErrorStage('Your session expired before checkout could start.');
-            return;
-        }
-        if (selectedMethod === 'wompi') {
-            notyf.open({
-                type: 'info',
-                message: 'Wompi will be available soon. Please use PayPal for now.',
-                background: '#1d4ed8',
-            });
             return;
         }
         if (selectedMethod === 'cash') {
@@ -662,8 +792,8 @@ const PaymentCheckoutPage: React.FC<PaymentCheckoutPageProps> = ({ requestId, on
                 },
                 body: JSON.stringify({
                     payment_method: selectedMethod,
-                    return_url: `${window.location.origin}/checkout/${request.id_request}?paypal=success`,
-                    cancel_url: `${window.location.origin}/checkout/${request.id_request}?paypal=cancel`,
+                    return_url: `${window.location.origin}/checkout/${request.id_request}?payment=success&method=${selectedMethod}`,
+                    cancel_url: `${window.location.origin}/checkout/${request.id_request}?payment=cancel&method=${selectedMethod}`,
                     payer: {
                         full_name: authName || '',
                         email: authEmail || '',
@@ -679,7 +809,7 @@ const PaymentCheckoutPage: React.FC<PaymentCheckoutPageProps> = ({ requestId, on
             }
             const approvalUrl = readString(checkoutPayload?.checkout?.approval_url);
             if (!approvalUrl) {
-                moveToErrorStage('PayPal did not return an approval link. Please try again.');
+                moveToErrorStage('The payment provider did not return an approval link. Please try again.');
                 return;
             }
             if (!isAllowedPaymentRedirect(approvalUrl)) {
@@ -700,6 +830,8 @@ const PaymentCheckoutPage: React.FC<PaymentCheckoutPageProps> = ({ requestId, on
     const stageAccentClass =
         checkoutStage === 'success'
             ? 'from-emerald-500/18 via-cyan-400/10 to-transparent'
+            : checkoutStage === 'pending'
+            ? 'from-blue-500/18 via-sky-400/10 to-transparent'
             : 'from-amber-400/18 via-orange-400/10 to-transparent';
 
     const renderFinalStage = () => (
@@ -712,11 +844,11 @@ const PaymentCheckoutPage: React.FC<PaymentCheckoutPageProps> = ({ requestId, on
             <div className="pointer-events-none absolute -right-20 -top-24 h-56 w-56 rounded-full bg-white/45 blur-3xl" />
             <div className="relative">
             {renderStageIcon(checkoutStage)}
-            <p className={`mt-6 text-[11px] font-black uppercase tracking-[0.24em] ${checkoutStage === 'success' ? 'text-emerald-500' : 'text-amber-500'}`}>
-                {checkoutStage === 'success' ? 'Payment complete' : 'Checkout issue'}
+            <p className={`mt-6 text-[11px] font-black uppercase tracking-[0.24em] ${checkoutStage === 'success' ? 'text-emerald-500' : checkoutStage === 'pending' ? 'text-blue-500' : 'text-amber-500'}`}>
+                {checkoutStage === 'success' ? 'Payment complete' : checkoutStage === 'pending' ? 'Confirming payment' : 'Checkout issue'}
             </p>
             <h2 className="mt-3 text-3xl font-black text-slate-950">
-                {checkoutStage === 'success' ? 'Booking secured' : 'Payment needs one more try'}
+                {checkoutStage === 'success' ? 'Booking secured' : checkoutStage === 'pending' ? 'Almost there' : 'Payment needs one more try'}
             </h2>
             <p className="mx-auto mt-3 max-w-xl text-sm leading-6 text-slate-500">
                 {checkoutMessage}
@@ -750,11 +882,13 @@ const PaymentCheckoutPage: React.FC<PaymentCheckoutPageProps> = ({ requestId, on
                 <div className="rounded-[24px] border border-slate-200 bg-white/85 p-4 text-left shadow-sm">
                     <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">Status</p>
                     <p className="mt-2 text-base font-black text-slate-950">
-                        {checkoutStage === 'success' ? 'Funds secured' : 'Retry available'}
+                        {checkoutStage === 'success' ? 'Funds secured' : checkoutStage === 'pending' ? 'Waiting on Wompi' : 'Retry available'}
                     </p>
                     <p className="mt-1 text-xs text-slate-500">
                         {checkoutStage === 'success'
                             ? 'The request can now continue into the active job flow.'
+                            : checkoutStage === 'pending'
+                            ? 'Your booking is safe. This confirms automatically once Wompi notifies us.'
                             : 'Your booking is still safe. You can retry the payment from here.'}
                     </p>
                 </div>
@@ -768,6 +902,16 @@ const PaymentCheckoutPage: React.FC<PaymentCheckoutPageProps> = ({ requestId, on
                         className="rounded-2xl bg-bird-blue px-6 py-3 text-sm font-black text-slate-900 shadow-[0_16px_34px_rgba(29,78,216,0.24)] hover:bg-bird-darkBlue"
                     >
                         Try again
+                    </button>
+                )}
+                {checkoutStage === 'pending' && (
+                    <button
+                        type="button"
+                        onClick={() => void handleWompiCheckAgain()}
+                        disabled={isPaying}
+                        className="rounded-2xl bg-bird-blue px-6 py-3 text-sm font-black text-slate-900 shadow-[0_16px_34px_rgba(29,78,216,0.24)] hover:bg-bird-darkBlue disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                        {isPaying ? 'Checking...' : 'Check again'}
                     </button>
                 )}
                 <button
@@ -902,17 +1046,29 @@ const PaymentCheckoutPage: React.FC<PaymentCheckoutPageProps> = ({ requestId, on
                                         void handleSecurePayment('wompi');
                                     }}
                                     disabled={isPaying || isAlreadyPaid}
-                                    className="w-full flex items-center gap-4 rounded-2xl border border-slate-200 bg-white px-5 py-4 text-left transition hover:border-slate-300 disabled:cursor-not-allowed disabled:opacity-50"
+                                    aria-pressed={paymentMethod === 'wompi'}
+                                    className={`w-full flex items-center gap-4 rounded-2xl border px-5 py-4 text-left transition disabled:cursor-not-allowed disabled:opacity-50 ${
+                                        paymentMethod === 'wompi' && isPaying
+                                            ? 'border-[#4353FF]/60 bg-[#4353FF]/5 ring-1 ring-[#4353FF]/20'
+                                            : 'border-slate-200 bg-white hover:border-slate-300'
+                                    }`}
                                 >
-                                    <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-black">
-                                        <span className="text-xs font-black text-white tracking-tight">wompi.</span>
+                                    <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[#4353FF]">
+                                        {isPaying && paymentMethod === 'wompi' ? (
+                                            <div className="h-4 w-4 rounded-full border-2 border-white/30 border-t-white animate-spin" />
+                                        ) : (
+                                            <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="white" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+                                                <path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z" />
+                                                <path d="m9 12 2 2 4-4" />
+                                            </svg>
+                                        )}
                                     </span>
                                     <span className="min-w-0 flex-1">
-                                        <span className="block text-sm font-black text-slate-900">Wompi</span>
-                                        <span className="mt-0.5 block text-xs font-semibold text-slate-500">Coming soon.</span>
+                                        <span className="block text-sm font-black text-slate-900">Pay with Wompi</span>
+                                        <span className="mt-0.5 block text-xs font-semibold text-slate-500">Redirects to Wompi's secure checkout.</span>
                                     </span>
-                                    <span className="shrink-0 rounded-full bg-amber-100 px-2.5 py-1 text-[10px] font-black uppercase tracking-wide text-amber-700">
-                                        Soon
+                                    <span className="shrink-0 rounded-full bg-emerald-100 px-2.5 py-1 text-[10px] font-black uppercase tracking-wide text-emerald-700">
+                                        Active
                                     </span>
                                 </button>
 
@@ -934,9 +1090,10 @@ const PaymentCheckoutPage: React.FC<PaymentCheckoutPageProps> = ({ requestId, on
                                         {isPaying && paymentMethod === 'cash' ? (
                                             <div className="h-4 w-4 rounded-full border-2 border-white/30 border-t-white animate-spin" />
                                         ) : (
-                                            <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth={2}>
+                                            <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
                                                 <rect x="2" y="6" width="20" height="12" rx="2" />
-                                                <circle cx="12" cy="12" r="2.5" />
+                                                <circle cx="12" cy="12" r="2" />
+                                                <path d="M6 12h.01M18 12h.01" />
                                             </svg>
                                         )}
                                     </span>

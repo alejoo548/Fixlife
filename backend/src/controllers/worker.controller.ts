@@ -2378,7 +2378,7 @@ export const updateWorkerPresence = async (req: AuthRequest, res: Response): Pro
         `SELECT sr.id_request, sr.id_user, sr.status
          FROM service_requests sr
          WHERE sr.assigned_worker_profile = ?
-           AND sr.status = 'in_progress'
+           AND sr.status IN ('route_in_progress', 'in_progress')
          ORDER BY sr.updated_at DESC
          LIMIT 1`,
         [profileId]

@@ -28,14 +28,15 @@ const resolveApiUrl = () => {
 
   const runtimeIsLocal = isLocalHost(runtime.hostname);
 
-  if (envApiUrl && (!isLocalApiUrl(envApiUrl) || runtimeIsLocal)) {
-    return stripApiSuffix(envApiUrl);
-  }
-
-  // Local Docker/Vite keeps frontend and backend on separate ports; deployed/proxied
-  // environments default to same-origin so CDN/proxy hostnames do not break API calls.
+  // Accessing via localhost always talks to the local backend, even if
+  // VITE_API_URL points at a (possibly stale) tunnel — the tunnel is only
+  // used when the frontend itself is reached through a non-local host.
   if (runtimeIsLocal) {
     return `${runtime.protocol}//${runtime.hostname}:8000`;
+  }
+
+  if (envApiUrl && !isLocalApiUrl(envApiUrl)) {
+    return stripApiSuffix(envApiUrl);
   }
 
   return stripApiSuffix(runtime.origin);
@@ -65,6 +66,7 @@ export const API_ENDPOINTS = {
     geocode: `${API_URL}/api/services/geocode`,
     geocodeSuggest: `${API_URL}/api/services/geocode/suggest`,
     geocodeReverse: `${API_URL}/api/services/geocode/reverse`,
+    route: `${API_URL}/api/services/route`,
     nearbyWorkers: `${API_URL}/api/services/nearby-workers`,
     savedLocations: `${API_URL}/api/services/saved-locations`,
     savedLocation: (idSavedLocation: number) => `${API_URL}/api/services/saved-locations/${idSavedLocation}`,
@@ -101,6 +103,8 @@ export const API_ENDPOINTS = {
     faqItem: (idFaq: number) => `${API_URL}/api/admin/faq-items/${idFaq}`,
     uploadImageAsset: `${API_URL}/api/admin/hero-slides/image-upload`,
     heroSlides: `${API_URL}/api/admin/hero-slides`,
+    heroText: `${API_URL}/api/admin/hero-text`,
+    heroTextPublic: `${API_URL}/api/admin/hero-text/public`,
     pendingWorkers: `${API_URL}/api/admin/pending-workers`,
     approveWorker: (id: number) => `${API_URL}/api/admin/workers/${id}/approve`,
     rejectWorker: (id: number) => `${API_URL}/api/admin/workers/${id}/reject`,

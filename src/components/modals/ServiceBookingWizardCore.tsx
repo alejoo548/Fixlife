@@ -19,6 +19,7 @@ import { ServiceRequestPaymentModal } from './ServiceRequestPaymentModal';
 import { ServiceRequestFixesSuccessModal } from './ServiceRequestFixesSuccessModal';
 import { ServiceReportModal } from '../shared/ServiceReportModal';
 import { showSweetAlert, showSweetToast } from '../../utils/sweetAlert';
+import { normalizeImageUrl } from '../../utils/imageUrls';
 import { sanitizeLettersOnly, sanitizeMessageText, sanitizeStrictText } from '../../utils/textSanitize';
 import { useProfanityGuard } from '../../hooks/useProfanityGuard';
 import { useResponsiveSheet } from '../../hooks/useResponsiveSheet';
@@ -28,6 +29,7 @@ import { useNearbyProsSearch } from './hooks/useNearbyProsSearch';
 import { useServiceRequestHistory } from './hooks/useServiceRequestHistory';
 import { useServiceRequestLocation } from './hooks/useServiceRequestLocation';
 import { useServiceRequestMap } from './hooks/useServiceRequestMap';
+import { useIsDarkTheme } from '../../hooks/useIsDarkTheme';
 import { useServiceRequestPayment } from './hooks/useServiceRequestPayment';
 import { useServiceRequestSubmit } from './hooks/useServiceRequestSubmit';
 import {
@@ -1163,8 +1165,10 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
         if (recentMatch) return 'recent';
         return 'current';
     }, [currentCoords, savedHome, savedWork, favoriteLocations, recentLocations]);
-    const { leafletReady, mapContainerRef } = useServiceRequestMap({
+    const isDarkMode = useIsDarkTheme();
+    const { leafletReady, leafletLoadFailed, retryLeafletLoad, mapContainerRef } = useServiceRequestMap({
         isOpen,
+        isDarkMode,
         currentCoords,
         radiusKm,
         activeLocationKind,
@@ -3146,7 +3150,7 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                         <div className="relative z-10 flex items-center gap-4">
                                             {selectedWorkerProfile?.profile_image_url && !workerAvatarBroken ? (
                                                 <img
-                                                    src={selectedWorkerProfile.profile_image_url}
+                                                    src={normalizeImageUrl(selectedWorkerProfile.profile_image_url)}
                                                     alt={selectedWorkerProfile.name}
                                                     onError={() => setWorkerAvatarBroken(true)}
                                                     className="h-16 w-16 shrink-0 rounded-2xl object-cover ring-2 ring-white/20 shadow-lg"
@@ -3260,7 +3264,7 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                                                 >
                                                                     {item.image_url && !brokenPortfolioPhotos[item.id_photo] ? (
                                                                         <img
-                                                                            src={item.image_url}
+                                                                            src={normalizeImageUrl(item.image_url)}
                                                                             alt=""
                                                                             onError={() => setBrokenPortfolioPhotos((prev) => ({ ...prev, [item.id_photo]: true }))}
                                                                             className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
@@ -3362,7 +3366,7 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                             >
                                                 <motion.img
                                                     key={`${activeWorkerPortfolioPhoto.id_photo}`}
-                                                    src={activeWorkerPortfolioPhoto.image_url}
+                                                    src={normalizeImageUrl(activeWorkerPortfolioPhoto.image_url)}
                                                     alt={activeWorkerPortfolioPhoto.description || 'Portfolio work'}
                                                     initial={{ opacity: 0.45, scale: 0.96 }}
                                                     animate={{ opacity: 1, scale: workerPortfolioScale }}
@@ -3384,7 +3388,7 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                                     <div className="flex items-center gap-3 rounded-[24px] border border-white/12 bg-white/10 px-4 py-3 backdrop-blur-md">
                                                         {selectedWorkerProfile?.profile_image_url ? (
                                                             <img
-                                                                src={selectedWorkerProfile.profile_image_url}
+                                                                src={normalizeImageUrl(selectedWorkerProfile.profile_image_url)}
                                                                 alt={selectedWorkerProfile.name || 'Worker'}
                                                                 className="h-14 w-14 rounded-2xl object-cover ring-2 ring-white/10"
                                                             />
@@ -3469,7 +3473,7 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                                         >
                                                             {item.image_url ? (
                                                                 <img
-                                                                    src={item.image_url}
+                                                                    src={normalizeImageUrl(item.image_url)}
                                                                     alt={item.description || 'Portfolio thumbnail'}
                                                                     className="aspect-square w-full object-cover transition duration-300 group-hover:scale-[1.04]"
                                                                 />
@@ -3776,6 +3780,22 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                             : 'bg-slate-950/15 backdrop-blur-[1px]'
                     }`}
                 />
+                {leafletLoadFailed && (
+                    <div className="absolute inset-0 z-[2] flex items-center justify-center bg-slate-100 p-8 text-center dark:bg-slate-900">
+                        <div>
+                            <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-white text-2xl dark:bg-slate-800">🗺️</div>
+                            <p className="text-sm font-bold text-slate-700 dark:text-slate-200">Map failed to load</p>
+                            <p className="mt-1 text-[11px] text-slate-500 dark:text-slate-400">Check your connection and try again.</p>
+                            <button
+                                type="button"
+                                onClick={retryLeafletLoad}
+                                className="mt-4 rounded-full bg-slate-900 px-5 py-2 text-xs font-bold text-white shadow-sm transition-colors hover:bg-slate-700"
+                            >
+                                Retry
+                            </button>
+                        </div>
+                    </div>
+                )}
                 <ServiceRequestMapOverlays
                     leafletReady={leafletReady}
                     // This whole component is the "create a new request" modal (service list = step 0,
@@ -4341,8 +4361,8 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                                                                             </p>
                                                                                             {msg.message && <p className="leading-relaxed">{msg.message}</p>}
                                                                                             {msg.image_url && (
-                                                                                                <a href={msg.image_url} target="_blank" rel="noreferrer" className="mt-2 block rounded-xl overflow-hidden border border-black/10 shadow-sm">
-                                                                                                    <img src={msg.image_url} alt="Chat attachment" loading="lazy" className="max-h-40 w-full object-cover hover:scale-105 transition-transform" />
+                                                                                                <a href={normalizeImageUrl(msg.image_url)} target="_blank" rel="noreferrer" className="mt-2 block rounded-xl overflow-hidden border border-black/10 shadow-sm">
+                                                                                                    <img src={normalizeImageUrl(msg.image_url)} alt="Chat attachment" loading="lazy" className="max-h-40 w-full object-cover hover:scale-105 transition-transform" />
                                                                                                 </a>
                                                                                             )}
                                                                                             <p className={`text-[10px] text-right mt-1.5 ${isMe ? 'text-slate-400 dark:text-slate-500' : 'text-slate-400 dark:text-slate-500'}`}>

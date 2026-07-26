@@ -34,12 +34,18 @@ export const isImageFileName = (fileName: string | null | undefined) => {
   return !!cleanName && IMAGE_EXTENSIONS.has(path.extname(cleanName).toLowerCase());
 };
 
+// Asset URLs must reflect whichever origin the current request actually came
+// in on (localhost:8000 for local dev, the tunnel's public domain when
+// accessed through cloudflared) so images work on both without one breaking
+// the other. PUBLIC_API_ORIGIN is only a last-resort fallback for the rare
+// case the Host header itself is missing/malformed — it must never override
+// a valid request host, or every asset URL gets pinned to whatever domain
+// happened to be configured at the time (e.g. a since-rotated tunnel URL),
+// breaking image loading on every other origin.
 const buildOrigin = (req: Request) => {
-  if (configuredPublicApiOrigin) return configuredPublicApiOrigin;
-
   const host = String(req.get('host') || '').trim();
   if (!/^[a-zA-Z0-9.-]+(?::\d{1,5})?$/.test(host)) {
-    return 'http://127.0.0.1:8000';
+    return configuredPublicApiOrigin || 'http://127.0.0.1:8000';
   }
 
   const normalizedHost = host.toLowerCase() === 'localhost:8000' ? '127.0.0.1:8000' : host;

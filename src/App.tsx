@@ -1,5 +1,5 @@
 import React, { useState, useEffect, Suspense, lazy } from 'react';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { Navigate, Route, Routes, useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { Navbar } from './components/layout/Navbar';
 import { NavItemType, AuthMode } from './types';
@@ -21,6 +21,7 @@ import { SupportChatWidget } from './components/support/SupportChatWidget';
 import { showSweetToast } from './utils/sweetAlert';
 import { API_ENDPOINTS } from './config/api';
 import { isExternalStockImage, normalizeImageUrl } from './utils/imageUrls';
+import { getHeroSlides, fetchHeroSlides, HeroSlideContent } from './utils/heroSlides';
 import { ProtectedRoute } from './routes/ProtectedRoute';
 import UserAmbientBackground from './components/common/UserAmbientBackground';
 
@@ -236,9 +237,80 @@ const buildBookingPath = (service?: { id: number; name: string } | null) => {
   return query ? `/app?${query}` : '/app';
 };
 
+
+const DEFAULT_HERO_TEXT = {
+  headline_prefix: 'Meet Fixlife, your',
+  description: 'Fixlife is a personal assistant that helps you stay organized, find trusted home professionals, and get chores done. All through messages.',
+  roles: ['personal assistant.', 'trusted plumber.', 'expert electrician.', 'reliable cleaner.', 'local handyman.'],
+};
+
+const HERO_TEXT_CACHE_KEY = 'fixlife_hero_text_v1';
+
+const getHeroText = () => {
+  try {
+    const cached = localStorage.getItem(HERO_TEXT_CACHE_KEY);
+    if (cached) return JSON.parse(cached) as typeof DEFAULT_HERO_TEXT;
+  } catch { /* noop */ }
+  return DEFAULT_HERO_TEXT;
+};
+
+const fetchHeroText = async (): Promise<typeof DEFAULT_HERO_TEXT> => {
+  try {
+    const res = await fetch(API_ENDPOINTS.admin.heroTextPublic);
+    const data = await res.json();
+    if (res.ok && data.success && data.roles && data.headline_prefix) {
+      const result = { headline_prefix: String(data.headline_prefix), description: String(data.description || DEFAULT_HERO_TEXT.description), roles: Array.isArray(data.roles) ? data.roles.map(String) : DEFAULT_HERO_TEXT.roles };
+      try { localStorage.setItem(HERO_TEXT_CACHE_KEY, JSON.stringify(result)); } catch { /* noop */ }
+      return result;
+    }
+  } catch { /* noop */ }
+  return getHeroText();
+};
+
 const App: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
+  const [roleIndex, setRoleIndex] = useState(0);
+  const [heroText, setHeroText] = useState<typeof DEFAULT_HERO_TEXT>(() => getHeroText());
+
+  useEffect(() => {
+    fetchHeroText().then((data) => setHeroText(data));
+  }, []);
+
+  useEffect(() => {
+    if (!heroText.roles.length) return;
+    const interval = setInterval(() => {
+      setRoleIndex((prev) => (prev + 1) % heroText.roles.length);
+    }, 2800);
+    return () => clearInterval(interval);
+  }, [heroText.roles.length]);
+
+  const [heroSlides, setHeroSlides] = useState<HeroSlideContent[]>(() => getHeroSlides());
+  const [currentHeroSlide, setCurrentHeroSlide] = useState(0);
+
+  useEffect(() => {
+    fetchHeroSlides().then((fetched) => {
+      if (Array.isArray(fetched) && fetched.length > 0) {
+        setHeroSlides(fetched);
+      }
+    });
+  }, []);
+
+  useEffect(() => {
+    if (heroSlides.length <= 1) return;
+    const interval = setInterval(() => {
+      setCurrentHeroSlide((prev) => (prev + 1) % heroSlides.length);
+    }, 6000);
+    return () => clearInterval(interval);
+  }, [heroSlides.length]);
+
+  useEffect(() => {
+    heroSlides.forEach((slide) => {
+      if (!slide.image) return;
+      const img = new Image();
+      img.src = slide.image;
+    });
+  }, [heroSlides]);
   const [isAuthOpen, setIsAuthOpen] = useState(false);
   const [authMode, setAuthMode] = useState<AuthMode>('signin');
   const [isWorkerAuthOpen, setIsWorkerAuthOpen] = useState(false);
@@ -616,134 +688,166 @@ const App: React.FC = () => {
           />
 
 
-          <main className="relative z-10 pt-24 lg:pt-36 px-4 lg:px-8 max-w-[1400px] mx-auto pb-32 flex-grow w-full">
-
-
-            <section className="mb-16 md:mb-24 grid grid-cols-1 lg:grid-cols-12 gap-6 md:gap-10">
-              <motion.div
-                initial={{ opacity: 0, x: -50 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ duration: 0.6 }}
-                className="lg:col-span-8 w-full h-full min-h-[400px] md:min-h-[450px] lg:h-[580px]"
-              >
-                <HeroSlider onStartBooking={handleStartBooking} />
-              </motion.div>
-
-              <motion.div
-                initial={{ opacity: 0, x: 50 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ duration: 0.6, delay: 0.2 }}
-                className="lg:col-span-4 flex flex-col justify-center p-6 md:p-10 rounded-3xl bg-white/80 backdrop-blur-xl border border-gray-200/50 shadow-2xl relative overflow-hidden group hover:border-bird-blue/30 transition-all duration-500 dark:bg-slate-900/70 dark:border-white/10"
-              >
-                <motion.div
-                  animate={{
-                    scale: [1, 1.2, 1],
-                    opacity: [0.3, 0.5, 0.3],
-                  }}
-                  transition={{
-                    duration: 8,
-                    repeat: Infinity,
-                    ease: "easeInOut"
-                  }}
-                  className="absolute top-0 right-0 w-80 h-80 bg-bird-yellow/20 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2 pointer-events-none"
-                />
-
-                <div className="relative z-10 flex flex-col justify-center h-full">
-                  <div>
+          {/* Full-width Hero Section with Background Image Carousel */}
+          <section className="relative w-full overflow-hidden min-h-[580px] md:min-h-[680px] flex items-center justify-center pt-28 pb-16 px-4 md:px-8 border-b border-slate-200/50 dark:border-white/10 shadow-sm bg-slate-950">
+            {/* Background Carousel */}
+            <div className="absolute inset-0 z-0 select-none pointer-events-none">
+              <AnimatePresence mode="wait">
+                {heroSlides.map((slide, index) => {
+                  if (index !== currentHeroSlide) return null;
+                  return (
                     <motion.div
-                      initial={{ opacity: 0, scale: 0.8 }}
-                      animate={{ opacity: 1, scale: 1 }}
-                      transition={{ delay: 0.4, type: "spring" }}
-                      className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-green-50 border border-green-200 w-fit mb-8 shadow-sm dark:bg-emerald-900/40 dark:border-emerald-900/50"
+                      key={slide.id}
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      exit={{ opacity: 0 }}
+                      transition={{ duration: 1.2, ease: "easeInOut" }}
+                      className="absolute inset-0"
                     >
-                      <motion.span
-                        animate={{ scale: [1, 1.3, 1] }}
-                        transition={{ duration: 2, repeat: Infinity }}
-                        className="w-2 h-2 rounded-full bg-green-500"
+                      <motion.img
+                        initial={{ scale: 1 }}
+                        animate={{ scale: 1.05 }}
+                        transition={{ duration: 6, ease: "easeOut" }}
+                        src={slide.image}
+                        alt={slide.title}
+                        className="w-full h-full object-cover"
+                        onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
                       />
-                      <span className="text-xs font-bold text-green-700 tracking-wider uppercase dark:text-emerald-400">Verified local pros</span>
                     </motion.div>
+                  );
+                })}
+              </AnimatePresence>
+              {/* Visual overlay for contrast and premium feel - Adaptive for light/dark mode */}
+              <div className="absolute inset-0 bg-slate-950/45 dark:bg-slate-950/75 backdrop-blur-[2px] z-10" />
+            </div>
 
-                    <motion.h1
-                      initial={{ opacity: 0, y: 20 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ delay: 0.5, duration: 0.6 }}
-                      className="text-3xl md:text-4xl xl:text-5xl font-black mb-4 md:mb-6 leading-tight tracking-tight text-gray-900 dark:text-slate-100"
-                    >
-                      Book trusted home help <br />
+            {/* Centered Hero Content */}
+            <div className="relative z-20 w-full max-w-[1400px] mx-auto px-4 lg:px-8 flex flex-col items-center">
+              <div className="max-w-4xl text-center flex flex-col items-center w-full">
+                <motion.div
+                  initial={{ opacity: 0, y: -20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.5 }}
+                  className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-white/10 border border-white/20 text-xs font-semibold text-white mb-8 backdrop-blur-md"
+                >
+                  <span className="px-2 py-0.5 rounded-full bg-white text-[10px] font-black text-slate-900 uppercase tracking-wider">NEW</span>
+                  <span className="font-semibold tracking-tight">Fixlife Assist</span>
+                </motion.div>
+
+                <motion.h1
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.6, delay: 0.1 }}
+                  className="text-4xl sm:text-5xl md:text-7xl font-sans font-black tracking-tight text-white leading-[1.08] mb-6 flex flex-col items-center justify-center drop-shadow-md text-center w-full"
+                >
+                  <span className="w-full break-words">{heroText.headline_prefix}</span>
+                  <span className="relative flex items-center justify-center w-full min-h-[1.25em] mt-1 px-2 overflow-hidden">
+                    <AnimatePresence mode="wait">
                       <motion.span
+                        key={roleIndex}
+                        initial={{ opacity: 0, y: 25, filter: "blur(6px)" }}
                         animate={{
-                          backgroundPosition: ["0% 50%", "100% 50%", "0% 50%"],
+                          opacity: 1,
+                          y: 0,
+                          filter: "blur(0px)",
+                          backgroundPosition: ["0% 50%", "100% 50%", "0% 50%"]
                         }}
+                        exit={{ opacity: 0, y: -25, filter: "blur(6px)" }}
                         transition={{
-                          duration: 5,
-                          repeat: Infinity,
-                          ease: "linear"
+                          duration: 0.5,
+                          ease: [0.22, 1, 0.36, 1],
+                          backgroundPosition: {
+                            duration: 5,
+                            repeat: Infinity,
+                            ease: "linear"
+                          }
                         }}
-                        className="text-transparent bg-clip-text bg-gradient-to-r from-bird-blue via-bird-yellow to-bird-orange"
+                        className="block w-full max-w-full text-center font-sans font-black text-transparent bg-clip-text bg-gradient-to-r from-bird-blue via-bird-yellow to-bird-orange leading-[1.08] text-[clamp(1.6rem,6vw,4.5rem)]"
                         style={{ backgroundSize: "200% 200%" }}
                       >
-                        with Fixlife
+                        {heroText.roles[roleIndex % heroText.roles.length]}
                       </motion.span>
-                    </motion.h1>
+                    </AnimatePresence>
+                  </span>
+                </motion.h1>
 
-                    <motion.p
-                      initial={{ opacity: 0, y: 20 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ delay: 0.6, duration: 0.6 }}
-                      className="text-gray-600 text-base md:text-lg leading-relaxed mb-6 md:mb-8 max-w-md font-medium dark:text-slate-400"
-                    >
-                      Describe the problem, review nearby professionals, and chat before accepting a quote. <span className="text-gray-900 font-bold dark:text-slate-100">Cleaner booking, less guesswork.</span>
-                    </motion.p>
-                  </div>
+                <motion.p
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.6, delay: 0.2 }}
+                  className="text-slate-200 text-lg md:text-xl max-w-2xl mx-auto leading-relaxed mb-8 font-medium drop-shadow-md text-center"
+                >
+                   {heroText.description}
+                </motion.p>
 
-                  <motion.div
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: 0.7, duration: 0.6 }}
-                    className="flex flex-col gap-3 md:gap-4"
+                <motion.div
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.6, delay: 0.3 }}
+                >
+                  <button
+                    onClick={() => handleStartBooking()}
+                    className="relative inline-flex items-center gap-3.5 px-10 py-5 rounded-full bg-gradient-to-r from-bird-blue via-indigo-600 to-bird-orange text-white font-black text-sm tracking-wider uppercase active:scale-95 duration-300 group overflow-hidden shadow-[0_12px_30px_rgba(0,144,255,0.35)] hover:shadow-[0_15px_40px_rgba(99,102,241,0.55)] transition-all"
                   >
-                    <Button
-                      onClick={() => handleStartBooking()}
-                      variant="primary"
-                      size="lg"
-                      fullWidth
-                      rightIcon={
-                        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" />
-                        </svg>
-                      }
+                    {/* Inner dark glass mask to create the liquid border effect */}
+                    <span className="absolute inset-[1.5px] rounded-full bg-slate-950/90 group-hover:bg-slate-950/80 transition-colors duration-300 backdrop-blur-2xl z-0" />
+                    
+                    {/* Liquid glass light sheen */}
+                    <span className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000 ease-out z-10 pointer-events-none" />
+                    
+                    {/* Pulsing glow background in hover */}
+                    <span className="absolute inset-0 bg-gradient-to-r from-bird-blue/20 via-indigo-600/20 to-bird-orange/20 opacity-0 group-hover:opacity-100 transition-opacity duration-300 z-0" />
+                    
+                    <svg className="relative z-20 w-5 h-5 text-bird-yellow shrink-0 fill-current drop-shadow-[0_2px_5px_rgba(0,0,0,0.3)] group-hover:scale-110 group-hover:rotate-6 transition-all duration-300" viewBox="0 0 24 24">
+                      <path d="M20 2H4c-1.1 0-1.99.9-1.99 2L2 22l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zM6 9h12v2H6V9zm8 5H6v-2h8v2zm4-6H6V6h12v2z" />
+                    </svg>
+                    <span className="relative z-20 text-white tracking-widest text-xs font-black drop-shadow-[0_2px_5px_rgba(0,0,0,0.3)]">Get Started</span>
+                  </button>
+                </motion.div>
+              </div>
+            </div>
+
+            {/* Slide Text Caption (Bottom Left) */}
+            <div className="absolute bottom-6 left-6 md:bottom-8 md:left-8 z-20 max-w-[280px] sm:max-w-md pointer-events-none select-none">
+              <AnimatePresence mode="wait">
+                {heroSlides.map((slide, index) => {
+                  if (index !== currentHeroSlide) return null;
+                  return (
+                    <motion.div
+                      key={slide.id}
+                      initial={{ opacity: 0, x: -20 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      exit={{ opacity: 0, x: 20 }}
+                      transition={{ duration: 0.6 }}
+                      className="p-4 md:p-5 rounded-2xl bg-slate-950/60 border border-white/10 backdrop-blur-md text-white shadow-xl"
                     >
-                      Book a service
-                    </Button>
+                      <span className="inline-block px-2.5 py-0.5 mb-2 text-[10px] font-black tracking-wider text-black bg-bird-yellow rounded-full uppercase">
+                        {slide.tag || "FIXLIFE"}
+                      </span>
+                      <h3 className="text-sm md:text-base font-bold text-white mb-1">
+                        {slide.title}
+                      </h3>
+                      <p className="text-xs text-slate-300 line-clamp-2">
+                        {slide.description}
+                      </p>
+                    </motion.div>
+                  );
+                })}
+              </AnimatePresence>
+            </div>
+          </section>
 
-                    <Button
-                      onClick={() => handleNavigateSection('steps')}
-                      variant="outline"
-                      size="lg"
-                      fullWidth
-                    >
-                      See how it works
-                    </Button>
+          <main className="relative z-10 pt-16 px-4 lg:px-8 max-w-[1400px] mx-auto pb-32 flex-grow w-full">
 
-                    <p className="pt-2 text-sm leading-relaxed text-gray-500 dark:text-slate-400">
-                      Share the problem, add photos, and we help you connect with nearby pros.
-                    </p>
-                  </motion.div>
-                </div>
-              </motion.div>
-            </section>
-
-
-            <section id={LANDING_SECTION_IDS.services} className="mb-24">
+            <section id={LANDING_SECTION_IDS.services} className="mb-28 md:mb-36">
               <ScrollReveal>
                 <div className="flex items-center justify-between mb-10 px-2">
                   <div>
-                    <h3 className="text-3xl md:text-4xl font-black text-gray-900 flex items-center gap-4 dark:text-slate-100">
+                    <h3 className="text-3xl md:text-4xl font-black text-slate-900 flex items-center gap-4 dark:text-slate-100">
                       <span className="w-1.5 h-8 rounded-full bg-bird-blue shadow-[0_0_15px_rgba(0,144,255,0.4)] origin-bottom" />
                       Professional Services
                     </h3>
-                    <p className="text-gray-600 mt-2 ml-6 text-sm font-medium dark:text-slate-400">
+                    <p className="text-slate-600 mt-2 ml-6 text-sm font-medium dark:text-slate-400">
                       Expert solutions for every home need
                     </p>
                   </div>
@@ -793,15 +897,15 @@ const App: React.FC = () => {
                             e.stopPropagation();
                             handleStartBooking({ id: item.id_service, name: item.service_name });
                           }}
-                          className="absolute top-4 right-4 z-20 w-12 h-12 bg-white/95 backdrop-blur-md rounded-xl border border-gray-200 flex items-center justify-center shadow-lg group-hover:bg-bird-blue group-hover:border-bird-blue group-hover:text-white transition-all duration-300 text-gray-700 dark:bg-slate-900/80 dark:border-white/10 dark:text-slate-300"
+                          className="absolute top-4 right-4 z-20 w-12 h-12 bg-white/95 backdrop-blur-md rounded-xl border border-gray-200 flex items-center justify-center shadow-lg group-hover:bg-bird-blue group-hover:border-bird-blue group-hover:text-white transition-all duration-300 text-slate-700 dark:bg-slate-900/80 dark:border-white/10 dark:text-slate-300"
                         >
                           <span className="text-xl">{item.service_icon && item.service_icon.length <= 2 ? item.service_icon : 'FX'}</span>
                         </motion.div>
                       </div>
                       <div className="p-6 flex-1 flex flex-col relative z-20">
                         <div className="flex-1">
-                          <h4 className="text-xl font-bold text-gray-900 group-hover:text-bird-blue transition-colors mb-2 dark:text-slate-100">{item.headline}</h4>
-                          <p className="text-gray-600 text-sm leading-relaxed mb-4 line-clamp-3 font-medium dark:text-slate-400">{item.summary}</p>
+                          <h4 className="text-xl font-bold text-slate-900 group-hover:text-bird-blue transition-colors mb-2 dark:text-slate-100">{item.headline}</h4>
+                          <p className="text-slate-600 text-sm leading-relaxed mb-4 line-clamp-3 font-medium dark:text-slate-400">{item.summary}</p>
                         </div>
                         <motion.div
                           initial={{ x: 0 }}
@@ -826,17 +930,17 @@ const App: React.FC = () => {
             </section>
 
             <ScrollReveal>
-              <section id={LANDING_SECTION_IDS.steps} className="mb-14"><StepsSection /></section>
-            </ScrollReveal>
-
-            <ScrollReveal>
-              <section id={LANDING_SECTION_IDS.testimonials} className="mb-14">
+              <section id={LANDING_SECTION_IDS.testimonials} className="mb-28 md:mb-36">
                 <TestimonialsCarousel />
               </section>
             </ScrollReveal>
 
             <ScrollReveal>
-              <section id={LANDING_SECTION_IDS.faq} className="mb-14">
+              <section id={LANDING_SECTION_IDS.steps} className="mb-28 md:mb-36"><StepsSection /></section>
+            </ScrollReveal>
+
+            <ScrollReveal>
+              <section id={LANDING_SECTION_IDS.faq} className="mb-28 md:mb-36">
                 <FAQSection
                   onBookService={() => handleStartBooking()}
                   onNavigateSection={(target) => handleNavigateSection(target)}

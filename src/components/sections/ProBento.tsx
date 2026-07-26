@@ -106,14 +106,14 @@ export const ProBento: React.FC<ProBentoProps> = ({ onOpenPro, onOpenWorkerAuth 
             FOR PROFESSIONALS
           </div>
 
-          <h2 className="text-4xl md:text-5xl lg:text-6xl font-black text-gray-900 mb-6 leading-[1.1] tracking-tight">
+          <h2 className="text-4xl md:text-5xl lg:text-6xl font-black text-slate-900 dark:text-slate-100 mb-6 leading-[1.1] tracking-tight">
             Your work.<br />
             <span className="text-transparent bg-clip-text bg-gradient-to-r from-bird-blue via-bird-lightBlue to-bird-blue animate-gradient">
               Your rules.
             </span>
           </h2>
 
-          <p className="text-gray-600 text-base md:text-lg mb-8 leading-relaxed font-medium">
+          <p className="text-slate-600 dark:text-slate-300 text-base md:text-lg mb-8 leading-relaxed font-medium">
             Join the platform that values your craft. No bosses, manage your own schedule and get paid securely every week.
           </p>
 
@@ -133,7 +133,7 @@ export const ProBento: React.FC<ProBentoProps> = ({ onOpenPro, onOpenWorkerAuth 
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={benefit.icon} />
                   </svg>
                 </div>
-                <span className="text-gray-700 font-medium">{benefit.text}</span>
+                <span className="text-slate-700 dark:text-slate-300 font-medium">{benefit.text}</span>
               </div>
             ))}
           </div>
@@ -155,7 +155,7 @@ export const ProBento: React.FC<ProBentoProps> = ({ onOpenPro, onOpenWorkerAuth 
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
               onClick={() => onOpenWorkerAuth?.('signin')}
-              className="w-full sm:w-auto px-8 py-4 rounded-xl bg-white border-2 border-gray-200 text-gray-900 font-bold hover:border-bird-blue hover:text-bird-blue transition-all"
+              className="w-full sm:w-auto px-8 py-4 rounded-xl bg-white dark:bg-slate-900 border-2 border-gray-200 dark:border-white/10 text-slate-900 dark:text-slate-100 font-bold hover:border-bird-blue hover:text-bird-blue dark:hover:text-bird-blue transition-all"
             >
               Pro Sign In
             </motion.button>
@@ -178,13 +178,13 @@ export const ProBento: React.FC<ProBentoProps> = ({ onOpenPro, onOpenWorkerAuth 
                 <motion.div
                   animate={{ y: [0, -10, 0] }}
                   transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
-                  className="relative flex flex-col sm:flex-row items-center bg-white/90 backdrop-blur-2xl border-2 border-gray-200 rounded-[32px] p-6 sm:pr-8 shadow-2xl hover:shadow-3xl transition-all"
+                  className="relative flex flex-col sm:flex-row items-center bg-white/90 dark:bg-slate-900/90 backdrop-blur-2xl border-2 border-gray-200 dark:border-white/10 rounded-[32px] p-6 sm:pr-8 shadow-2xl hover:shadow-3xl transition-all"
                 >
                   {/* Profile image */}
                   <div className="relative flex-shrink-0 mb-6 sm:mb-0">
                     <motion.div
                       whileHover={{ scale: 1.05, rotate: 2 }}
-                      className="-mt-12 sm:mt-0 sm:-ml-12 w-48 h-48 sm:w-[220px] sm:h-[280px] rounded-2xl overflow-hidden shadow-[0_20px_60px_rgba(0,0,0,0.3)] border-4 border-white relative z-20 group cursor-pointer"
+                      className="-mt-12 sm:mt-0 sm:-ml-12 w-48 h-48 sm:w-[220px] sm:h-[280px] rounded-2xl overflow-hidden shadow-[0_20px_60px_rgba(0,0,0,0.3)] border-4 border-white dark:border-slate-800 relative z-20 group cursor-pointer"
                     >
                       <img
                         src={profile.image}
@@ -222,7 +222,7 @@ export const ProBento: React.FC<ProBentoProps> = ({ onOpenPro, onOpenWorkerAuth 
                       initial={{ scale: 0, rotate: -180 }}
                       animate={{ scale: 1, rotate: 0 }}
                       transition={{ delay: 0.3, type: "spring" }}
-                      className="absolute -bottom-4 -right-4 sm:-bottom-4 sm:-right-8 z-30 bg-gradient-to-br from-bird-blue to-bird-lightBlue border-4 border-white p-4 rounded-2xl shadow-xl flex flex-col items-center min-w-[100px]"
+                      className="absolute -bottom-4 -right-4 sm:-bottom-4 sm:-right-8 z-30 bg-gradient-to-br from-bird-blue to-bird-lightBlue border-4 border-white dark:border-slate-800 p-4 rounded-2xl shadow-xl flex flex-col items-center min-w-[100px]"
                     >
                       <span className="text-[10px] text-white/80 uppercase tracking-widest font-bold">JOBS</span>
                       <span className="text-2xl font-black text-white">{profile.jobs}</span>
@@ -235,7 +235,7 @@ export const ProBento: React.FC<ProBentoProps> = ({ onOpenPro, onOpenWorkerAuth 
                       initial={{ opacity: 0, y: 10 }}
                       animate={{ opacity: 1, y: 0 }}
                       transition={{ delay: 0.2 }}
-                      className="text-2xl md:text-3xl font-black text-gray-900 mb-1"
+                      className="text-2xl md:text-3xl font-black text-slate-900 dark:text-slate-100 mb-1"
                     >
                       {profile.name}
                     </motion.h3>
@@ -252,7 +252,7 @@ export const ProBento: React.FC<ProBentoProps> = ({ onOpenPro, onOpenWorkerAuth 
                       initial={{ opacity: 0, y: 10 }}
                       animate={{ opacity: 1, y: 0 }}
                       transition={{ delay: 0.4 }}
-                      className="text-gray-600 text-sm leading-relaxed mb-6 font-medium"
+                      className="text-slate-600 dark:text-slate-300 text-sm leading-relaxed mb-6 font-medium"
                     >
                       {profile.bio}
                     </motion.p>

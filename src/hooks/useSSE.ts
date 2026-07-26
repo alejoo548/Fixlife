@@ -10,14 +10,20 @@ interface UseSSEOptions {
   enabled?: boolean;
 }
 
-// socket.io-client returns the same Socket instance for the same URL+token.
-// We ref-count so the socket only disconnects when the last useSSE unmounts.
-const socketRefCounts = new Map<string, number>();
+// We keep one real Socket instance per URL+token and ref-count consumers so
+// the socket only disconnects when the last useSSE unmounts. Previously this
+// created a brand-new `io()` connection on every acquire while only sharing
+// the counter, leaking duplicate sockets that kept pushing stale/duplicate
+// live-location events (map markers jumping around from two live connections).
+const sharedSockets = new Map<string, { socket: Socket; count: number }>();
 
 function acquireSocket(socketUrl: string, token: string): Socket {
   const key = `${socketUrl}|${token}`;
-  const count = socketRefCounts.get(key) ?? 0;
-  socketRefCounts.set(key, count + 1);
+  const existing = sharedSockets.get(key);
+  if (existing) {
+    existing.count += 1;
+    return existing.socket;
+  }
 
   const opts = getDefaultSocketOptions(token);
   const socket = io(socketUrl, opts);
@@ -27,17 +33,18 @@ function acquireSocket(socketUrl: string, token: string): Socket {
     // intentionally silent (consumers can react via their own state if needed)
   });
 
+  sharedSockets.set(key, { socket, count: 1 });
   return socket;
 }
 
 function releaseSocket(socketUrl: string, token: string, socket: Socket): void {
   const key = `${socketUrl}|${token}`;
-  const count = (socketRefCounts.get(key) ?? 1) - 1;
-  if (count <= 0) {
-    socketRefCounts.delete(key);
+  const entry = sharedSockets.get(key);
+  if (!entry || entry.socket !== socket) return;
+  entry.count -= 1;
+  if (entry.count <= 0) {
+    sharedSockets.delete(key);
     socket.disconnect();
-  } else {
-    socketRefCounts.set(key, count);
   }
 }
 

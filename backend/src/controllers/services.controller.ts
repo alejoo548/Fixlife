@@ -1,11 +1,12 @@
 import { Request, Response } from 'express';
+import { randomBytes } from 'crypto';
 import { ResultSetHeader, RowDataPacket } from 'mysql2';
 import pool from '../config/db';
 import { AuthRequest } from '../middlewares/auth.middleware';
 import { createUserNotification, notifyAdmins } from '../utils/notifications';
 import { emitChatMessage, emitToUser, emitToWorkers } from '../services/socketManager';
 import { getWorkerBonusPayouts, getWorkerRewardsSettings, syncWorkerBonusPayouts } from '../utils/workerRewards';
-import { resolveRequestLocation, reverseGeocodeLocation, suggestLocationTexts } from '../services/geocoding.service';
+import { resolveRequestLocation, reverseGeocodeLocation, suggestLocationTexts, getDrivingRoute } from '../services/geocoding.service';
 import { getProximityBounds, getWorkerBoundsFilter } from '../services/nearbyWorkers.service';
 import { buildProtectedAssetUrl, buildPublicAssetUrl, deleteUploadIfExists } from '../utils/assets';
 import { shouldRunRuntimeSchemaSync } from '../config/schemaSync';
@@ -15,6 +16,7 @@ import {
   buildInvoiceNumber,
   capturePaypalOrder,
   createPaypalOrder,
+  getDefaultApiOrigin,
   getDefaultFrontendUrl,
   getRequestChargeAmount,
   parseRequestedPaymentMethod,
@@ -22,6 +24,7 @@ import {
   sanitizeRedirectUrl,
   type SupportedPaymentMethod,
 } from '../services/requestPayments.service';
+import { createWompiCheckout } from '../services/wompi.service';
 import {
   calculateCommissionBreakdown,
   ensureCommissionEngineTables,
@@ -998,6 +1001,36 @@ export const reverseGeocode = async (req: Request, res: Response): Promise<void>
   }
 };
 
+export const getDrivingRouteHandler = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const originLat = Number(req.query.origin_lat);
+    const originLng = Number(req.query.origin_lng);
+    const destLat = Number(req.query.dest_lat);
+    const destLng = Number(req.query.dest_lng);
+
+    if (
+      !Number.isFinite(originLat) || originLat < -90 || originLat > 90 ||
+      !Number.isFinite(originLng) || originLng < -180 || originLng > 180 ||
+      !Number.isFinite(destLat) || destLat < -90 || destLat > 90 ||
+      !Number.isFinite(destLng) || destLng < -180 || destLng > 180
+    ) {
+      res.status(400).json({ error: 'Valid origin_lat, origin_lng, dest_lat and dest_lng are required.' });
+      return;
+    }
+
+    const route = await getDrivingRoute({ lat: originLat, lng: originLng }, { lat: destLat, lng: destLng });
+    if (!route) {
+      res.status(404).json({ error: 'Could not compute a route between those points.' });
+      return;
+    }
+
+    res.json({ success: true, route });
+  } catch (error: any) {
+    console.error('Error in getDrivingRouteHandler:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
 export const getSavedLocations = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const userId = req.user?.user_id;
@@ -1671,6 +1704,27 @@ export const ensureServiceRequestTables = async () => {
       CONSTRAINT fk_sr_payment_request FOREIGN KEY (id_request) REFERENCES service_requests(id_request) ON DELETE CASCADE
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
   `);
+
+  const [wompiTokenCols] = await pool.execute<RowDataPacket[]>(
+    `SELECT COLUMN_NAME
+     FROM information_schema.columns
+     WHERE table_schema = DATABASE()
+       AND table_name = 'service_request_payments'
+       AND column_name = 'wompi_webhook_token'`
+  );
+  if (wompiTokenCols.length === 0) {
+    // Never sent to the client — provider_payment_id (Wompi's idEnlace) IS
+    // echoed back in the checkout creation response, so it can't double as an
+    // anti-spoof secret. This token, embedded only in the per-checkout
+    // webhook URL we give Wompi, is the actual gate that stops a client from
+    // forging their own "paid" webhook against their own pending checkout.
+    await pool.execute(
+      `ALTER TABLE service_request_payments ADD COLUMN wompi_webhook_token VARCHAR(64) NULL AFTER provider_capture_id`
+    );
+    await pool.execute(
+      `ALTER TABLE service_request_payments ADD UNIQUE KEY uniq_sr_payment_wompi_token (wompi_webhook_token)`
+    );
+  }
 
   const [workerCols] = await pool.execute<RowDataPacket[]>(
     `SELECT COLUMN_NAME
@@ -3280,10 +3334,6 @@ export const createRequestPaymentCheckout = async (req: AuthRequest, res: Respon
       res.status(400).json({ error: 'Invalid request id.' });
       return;
     }
-    if (paymentMethod === 'wompi') {
-      res.status(409).json({ error: 'Wompi will be enabled soon. Please use PayPal for now.' });
-      return;
-    }
 
     await connection.beginTransaction();
 
@@ -3348,7 +3398,14 @@ export const createRequestPaymentCheckout = async (req: AuthRequest, res: Respon
         return;
       }
 
-      if (existingProvider && existingProvider !== paymentMethod && existingProvider !== 'sandbox') {
+      // virtual_wallet checkout is disabled client-side; a stale/incomplete attempt
+      // must never block the client from paying with PayPal or cash instead.
+      if (
+        existingProvider &&
+        existingProvider !== paymentMethod &&
+        existingProvider !== 'sandbox' &&
+        existingProvider !== 'virtual_wallet'
+      ) {
         await connection.rollback();
         res.status(409).json({
           error: `Checkout already started with ${existingProvider}. Cancel or finish it before switching methods.`,
@@ -3369,13 +3426,16 @@ export const createRequestPaymentCheckout = async (req: AuthRequest, res: Respon
     const commissionSnapshotJson = JSON.stringify(commission.snapshot);
     const checkoutReference = buildCheckoutReference(idRequest);
     const frontendUrl = getDefaultFrontendUrl();
-    const defaultReturnUrl = `${frontendUrl}/checkout/${idRequest}?paypal=success`;
-    const defaultCancelUrl = `${frontendUrl}/checkout/${idRequest}?paypal=cancel`;
+    const defaultReturnUrl = `${frontendUrl}/checkout/${idRequest}?payment=success&method=${paymentMethod}`;
+    const defaultCancelUrl = `${frontendUrl}/checkout/${idRequest}?payment=cancel&method=${paymentMethod}`;
     const returnUrl = sanitizeRedirectUrl(returnUrlInput, defaultReturnUrl);
     const cancelUrl = sanitizeRedirectUrl(cancelUrlInput, defaultCancelUrl);
 
     let paypalOrderId: string | null = null;
     let paypalApproveUrl: string | null = null;
+    let wompiLinkId: string | null = null;
+    let wompiCheckoutUrl: string | null = null;
+    let wompiWebhookToken: string | null = null;
 
     if (paymentMethod === 'paypal') {
       try {
@@ -3396,17 +3456,43 @@ export const createRequestPaymentCheckout = async (req: AuthRequest, res: Respon
       }
     }
 
+    if (paymentMethod === 'wompi') {
+      try {
+        // Never exposed to the client (unlike provider_payment_id, which the
+        // JSON response below echoes back) — this token in the webhook URL
+        // is the only thing that gates a webhook request into actually
+        // marking this checkout paid. See handleWompiWebhook.
+        wompiWebhookToken = randomBytes(24).toString('hex');
+        const checkout = await createWompiCheckout({
+          amount,
+          checkoutReference,
+          productName: `Fixlife service request #${idRequest}`,
+          redirectUrl: returnUrl,
+          webhookUrl: `${getDefaultApiOrigin()}/api/services/payments/wompi/webhook/${wompiWebhookToken}`,
+        });
+        wompiLinkId = checkout.linkId;
+        wompiCheckoutUrl = checkout.checkoutUrl;
+      } catch (wompiError: any) {
+        await connection.rollback();
+        res.status(502).json({ error: wompiError?.message || 'Could not initialize Wompi checkout.' });
+        return;
+      }
+    }
+
+    const providerPaymentId = paypalOrderId || wompiLinkId;
+    const approvalUrl = paypalApproveUrl || wompiCheckoutUrl;
     const initialPaymentStatus = paymentMethod === 'cash' ? 'paid' : 'pending';
 
     await connection.execute(
       `INSERT INTO service_request_payments
-       (id_request, provider, checkout_reference, provider_payment_id, provider_capture_id, currency_code, amount, platform_fee, worker_payout, commission_rate, commission_snapshot_json, payment_status, paid_at)
-       VALUES (?, ?, ?, ?, NULL, 'USD', ?, ?, ?, ?, ?, ?, ${paymentMethod === 'cash' ? 'CURRENT_TIMESTAMP' : 'NULL'})
+       (id_request, provider, checkout_reference, provider_payment_id, provider_capture_id, wompi_webhook_token, currency_code, amount, platform_fee, worker_payout, commission_rate, commission_snapshot_json, payment_status, paid_at)
+       VALUES (?, ?, ?, ?, NULL, ?, 'USD', ?, ?, ?, ?, ?, ?, ${paymentMethod === 'cash' ? 'CURRENT_TIMESTAMP' : 'NULL'})
        ON DUPLICATE KEY UPDATE
          provider = VALUES(provider),
          checkout_reference = VALUES(checkout_reference),
          provider_payment_id = VALUES(provider_payment_id),
          provider_capture_id = VALUES(provider_capture_id),
+         wompi_webhook_token = VALUES(wompi_webhook_token),
          currency_code = VALUES(currency_code),
          amount = VALUES(amount),
          platform_fee = VALUES(platform_fee),
@@ -3424,7 +3510,7 @@ export const createRequestPaymentCheckout = async (req: AuthRequest, res: Respon
            ELSE paid_at
          END,
          updated_at = CURRENT_TIMESTAMP`,
-      [idRequest, paymentMethod, checkoutReference, paypalOrderId, amount, platformFee, workerPayout, commission.commissionRate, commissionSnapshotJson, initialPaymentStatus]
+      [idRequest, paymentMethod, checkoutReference, providerPaymentId, wompiWebhookToken, amount, platformFee, workerPayout, commission.commissionRate, commissionSnapshotJson, initialPaymentStatus]
     );
 
     let cashInvoiceContext: {
@@ -3635,8 +3721,11 @@ export const createRequestPaymentCheckout = async (req: AuthRequest, res: Respon
       checkout: {
         id_request: idRequest,
         provider: paymentMethod,
-        provider_payment_id: paypalOrderId,
-        approval_url: paypalApproveUrl,
+        // Only PayPal's client-side capture step needs this back. Wompi's
+        // idEnlace must stay server-only — it's part of how handleWompiWebhook
+        // tells a real Wompi callback apart from a forged one.
+        provider_payment_id: paymentMethod === 'paypal' ? providerPaymentId : null,
+        approval_url: approvalUrl,
         checkout_reference: checkoutReference,
         amount,
         platform_fee: platformFee,
@@ -3655,6 +3744,240 @@ export const createRequestPaymentCheckout = async (req: AuthRequest, res: Respon
   } finally {
     connection.release();
   }
+};
+
+type ConfirmedPaymentContext = {
+  idRequest: number;
+  paymentMethod: SupportedPaymentMethod;
+  providerPaymentId: string | null;
+  providerCaptureId: string | null;
+  requestRow: any;
+  paymentRows: RowDataPacket[];
+  expectedAmount: number;
+  expectedPlatformFee: number;
+  expectedWorkerPayout: number;
+  expectedCommissionRate: number;
+  expectedCommissionSnapshot: string;
+  resolvedCommissionSnapshot: any;
+  expectedCurrencyCode: string;
+  checkoutReferenceForPayment: string;
+};
+
+// Shared by the client-facing confirmRequestPayment (PayPal capture) and
+// handleWompiWebhook (server-to-server) so both providers write the same
+// service_request_payments / service_requests / ledger rows on success.
+const persistPaidPayment = async (
+  connection: any,
+  ctx: ConfirmedPaymentContext
+): Promise<{ alreadyPaid: boolean }> => {
+  const {
+    idRequest,
+    paymentMethod,
+    providerPaymentId,
+    providerCaptureId,
+    requestRow,
+    paymentRows,
+    expectedAmount,
+    expectedPlatformFee,
+    expectedWorkerPayout,
+    expectedCommissionRate,
+    expectedCommissionSnapshot,
+    resolvedCommissionSnapshot,
+    expectedCurrencyCode,
+    checkoutReferenceForPayment,
+  } = ctx;
+
+  if (paymentRows.length === 0) {
+    await connection.execute(
+      `INSERT INTO service_request_payments
+       (id_request, provider, checkout_reference, provider_payment_id, provider_capture_id, currency_code, amount, platform_fee, worker_payout, commission_rate, commission_snapshot_json, payment_status, paid_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'paid', CURRENT_TIMESTAMP)`,
+      [idRequest, paymentMethod, checkoutReferenceForPayment, providerPaymentId || null, providerCaptureId, expectedCurrencyCode, expectedAmount, expectedPlatformFee, expectedWorkerPayout, expectedCommissionRate, expectedCommissionSnapshot]
+    );
+  } else {
+    if (String(paymentRows[0].payment_status || '').toLowerCase() === 'paid') {
+      return { alreadyPaid: true };
+    }
+
+    await connection.execute(
+      `UPDATE service_request_payments
+       SET provider = ?,
+           provider_payment_id = COALESCE(?, provider_payment_id),
+           provider_capture_id = COALESCE(?, provider_capture_id),
+           currency_code = ?,
+           amount = ?,
+           platform_fee = ?,
+           worker_payout = ?,
+           commission_rate = ?,
+           commission_snapshot_json = ?,
+           payment_status = 'paid',
+           paid_at = CURRENT_TIMESTAMP,
+           updated_at = CURRENT_TIMESTAMP
+       WHERE id_request = ?`,
+      [paymentMethod, providerPaymentId || null, providerCaptureId, expectedCurrencyCode, expectedAmount, expectedPlatformFee, expectedWorkerPayout, expectedCommissionRate, expectedCommissionSnapshot, idRequest]
+    );
+  }
+
+  await connection.execute(
+    `UPDATE service_requests
+     SET status = 'paid',
+         final_budget = COALESCE(final_budget, budget),
+         updated_at = CURRENT_TIMESTAMP
+     WHERE id_request = ?`,
+    [idRequest]
+  );
+
+  const [persistedPaymentRows] = (await connection.execute(
+    `SELECT id_payment
+     FROM service_request_payments
+     WHERE id_request = ?
+     LIMIT 1`,
+    [idRequest]
+  )) as [RowDataPacket[], unknown];
+  const persistedPaymentId = persistedPaymentRows[0]?.id_payment != null ? Number(persistedPaymentRows[0].id_payment) : null;
+  if (persistedPaymentId) {
+    await recordConfirmedPaymentLedger(connection, {
+      idRequest,
+      idPayment: persistedPaymentId,
+      idWorkerProfile: requestRow.assigned_worker_profile != null ? Number(requestRow.assigned_worker_profile) : null,
+      amount: expectedAmount,
+      platformFee: expectedPlatformFee,
+      workerPayout: expectedWorkerPayout,
+      currencyCode: expectedCurrencyCode,
+      checkoutReference: checkoutReferenceForPayment,
+      commissionSnapshot: resolvedCommissionSnapshot,
+    });
+  }
+
+  return { alreadyPaid: false };
+};
+
+// Post-commit side effects (notifications/emails/system event) for a payment
+// that persistPaidPayment just marked as paid. Must run after connection.commit().
+const notifyPaymentConfirmed = async (
+  ctx: Omit<ConfirmedPaymentContext, 'providerPaymentId' | 'providerCaptureId' | 'paymentRows' | 'expectedCommissionSnapshot'> & {
+    userId: number;
+    payerEmail?: string;
+    payerFullName?: string;
+  }
+): Promise<{ invoiceNumber: string }> => {
+  const {
+    idRequest,
+    userId,
+    paymentMethod,
+    requestRow,
+    expectedAmount,
+    expectedPlatformFee,
+    expectedWorkerPayout,
+    expectedCommissionRate,
+    resolvedCommissionSnapshot,
+    expectedCurrencyCode,
+    checkoutReferenceForPayment,
+    payerEmail,
+    payerFullName,
+  } = ctx;
+
+  const workerUserId = await getWorkerUserIdByProfileId(
+    requestRow.assigned_worker_profile != null ? Number(requestRow.assigned_worker_profile) : null
+  );
+  const serviceName = sanitizePaymentValue(requestRow.service_name, 150) || 'Fixlife service';
+  const checkoutReference = checkoutReferenceForPayment;
+  const invoiceNumber = buildInvoiceNumber(idRequest);
+  const clientFirstName = sanitizePaymentValue(requestRow.client_name, 80);
+  const clientLastName = sanitizePaymentValue(requestRow.client_lastname, 80);
+  const workerFirstName = sanitizePaymentValue(requestRow.worker_name, 80);
+  const workerLastName = sanitizePaymentValue(requestRow.worker_lastname, 80);
+  const clientEmail = sanitizePaymentValue(requestRow.client_email, 140) || payerEmail;
+  const workerEmail = sanitizePaymentValue(requestRow.worker_email, 140);
+  const paidAt = new Date();
+  const customerName = [clientFirstName, clientLastName].filter(Boolean).join(' ').trim() || payerFullName || 'Fixlife customer';
+  const workerName = [workerFirstName, workerLastName].filter(Boolean).join(' ').trim() || 'Pro worker';
+
+  await createUserNotification({
+    userId,
+    eventType: 'payment_secured',
+    title: 'Payment secured',
+    message: `Payment completed for request #${idRequest}. Final service approval is now available.`,
+    tone: 'success',
+    requestId: idRequest,
+    actionUrl: '/app',
+    dedupeKey: `request-${idRequest}-payment-secured-client`,
+    metadata: { request_status: 'paid' },
+  });
+
+  if (workerUserId) {
+    await createUserNotification({
+      userId: workerUserId,
+      eventType: 'payment_secured',
+      title: 'Client payment completed',
+      message: `The payment of your recent service was completed successfully for request #${idRequest}.`,
+      tone: 'success',
+      requestId: idRequest,
+      actionUrl: '/pro-dashboard',
+      dedupeKey: `request-${idRequest}-payment-secured-worker`,
+      metadata: { request_status: 'paid' },
+    });
+  }
+
+  await notifyAdmins({
+    eventType: 'admin_payment_secured',
+    title: 'Request payment secured',
+    message: `${expectedAmount.toLocaleString('en-US', { style: 'currency', currency: expectedCurrencyCode })} was secured for request #${idRequest}.`,
+    tone: 'success',
+    actionUrl: `/admin-dashboard/requests?request=${idRequest}`,
+    dedupeKey: `admin-payment-secured-${idRequest}`,
+    metadata: { requestId: idRequest, amount: expectedAmount, currency: expectedCurrencyCode },
+  });
+
+  if (clientEmail) {
+    await enqueueBackgroundJob({
+      jobType: 'send_payment_invoice_email',
+      jobKey: `invoice-email-${idRequest}-${checkoutReference}`,
+      payload: {
+        to: clientEmail,
+        customerName,
+        requestId: idRequest,
+        serviceName,
+        amount: expectedAmount,
+        platformFee: expectedPlatformFee,
+        workerPayout: expectedWorkerPayout,
+        checkoutReference,
+        invoiceNumber,
+        provider: paymentMethod,
+        currencyCode: expectedCurrencyCode,
+        locationText: sanitizePaymentValue(requestRow.location_text, 180) || null,
+        urgencyLevel: sanitizePaymentValue(requestRow.urgency_level, 40) || 'standard',
+        commissionRatePercent: Number((expectedCommissionRate * 100).toFixed(2)),
+        policyLabel: resolvedCommissionSnapshot?.policy_label || null,
+        paidAt,
+      },
+    });
+  }
+
+  if (workerEmail) {
+    await enqueueBackgroundJob({
+      jobType: 'send_worker_payment_secured_email',
+      jobKey: `worker-secured-email-${idRequest}-${checkoutReference}`,
+      payload: {
+        to: workerEmail,
+        workerName,
+        requestId: idRequest,
+        serviceName,
+        amount: expectedWorkerPayout,
+        checkoutReference,
+      },
+    });
+  }
+
+  await recordSystemEvent({
+    level: 'info',
+    component: 'services',
+    eventType: 'payment_confirmed',
+    message: 'Service request payment confirmed.',
+    metadata: { requestId: idRequest, userId, amount: expectedAmount },
+  }).catch(() => undefined);
+
+  return { invoiceNumber };
 };
 
 export const confirmRequestPayment = async (req: AuthRequest, res: Response): Promise<void> => {
@@ -3677,10 +4000,6 @@ export const confirmRequestPayment = async (req: AuthRequest, res: Response): Pr
     const payerFullName = sanitizePaymentValue(req.body?.payer?.full_name, 120);
     const payerEmail = sanitizePaymentValue(req.body?.payer?.email, 140);
     const paypalOrderIdFromBody = sanitizePaymentValue(req.body?.paypal_order_id, 120);
-    if (requestedPaymentMethod === 'wompi') {
-      res.status(409).json({ error: 'Wompi checkout will be available soon. Please complete this payment with PayPal.' });
-      return;
-    }
     if (!idRequest) {
       res.status(400).json({ error: 'Invalid request id.' });
       return;
@@ -3770,6 +4089,68 @@ export const confirmRequestPayment = async (req: AuthRequest, res: Response): Pr
       storedPaymentRow && storedPaymentRow.checkout_reference
         ? String(storedPaymentRow.checkout_reference)
         : buildCheckoutReference(idRequest);
+
+    // Wompi is redirect + server-to-server webhook only (there is no client-side
+    // capture step). The client can never self-declare a Wompi payment as paid —
+    // only handleWompiWebhook (verified against the stored provider_payment_id
+    // and amount) is allowed to flip payment_status to 'paid'. This endpoint just
+    // reports whatever the webhook has already recorded so the frontend can poll it.
+    if (paymentMethod === 'wompi') {
+      await connection.rollback();
+      const currentStatus = storedPaymentRow ? String(storedPaymentRow.payment_status || 'pending').toLowerCase() : 'pending';
+      res.json({
+        success: true,
+        message: currentStatus === 'paid' ? 'Payment confirmed by Wompi.' : 'Waiting for Wompi payment confirmation.',
+        id_request: idRequest,
+        payment: storedPaymentRow
+          ? {
+              provider: 'wompi',
+              amount: storedPaymentRow.amount != null ? Number(storedPaymentRow.amount) : amount,
+              platform_fee: storedPaymentRow.platform_fee != null ? Number(storedPaymentRow.platform_fee) : platformFee,
+              worker_payout: storedPaymentRow.worker_payout != null ? Number(storedPaymentRow.worker_payout) : workerPayout,
+              commission_rate:
+                storedPaymentRow.commission_rate != null ? Number(storedPaymentRow.commission_rate) : commission.commissionRate,
+              commission_snapshot: parseCommissionSnapshot(storedPaymentRow.commission_snapshot_json) || commission.snapshot,
+              status: currentStatus,
+              checkout_reference: checkoutReferenceForPayment,
+              currency_code: storedPaymentRow.currency_code ? String(storedPaymentRow.currency_code) : 'USD',
+            }
+          : null,
+        request_status: currentStatus === 'paid' ? 'paid' : 'payment_pending',
+      });
+      return;
+    }
+
+    // Virtual Wallet has no client-side capture step yet — same rule as Wompi:
+    // the client can never self-declare a Virtual Wallet payment as paid. Only a
+    // verified server-to-server webhook may flip payment_status to 'paid'. This
+    // endpoint just reports whatever has already been recorded.
+    if (paymentMethod === 'virtual_wallet') {
+      await connection.rollback();
+      const currentPaymentStatus = storedPaymentRow ? String(storedPaymentRow.payment_status || 'pending').toLowerCase() : 'pending';
+      res.json({
+        success: true,
+        message: currentPaymentStatus === 'paid' ? 'Payment confirmed by Virtual Wallet.' : 'Waiting for Virtual Wallet payment confirmation.',
+        id_request: idRequest,
+        payment: storedPaymentRow
+          ? {
+              provider: 'virtual_wallet',
+              amount: storedPaymentRow.amount != null ? Number(storedPaymentRow.amount) : amount,
+              platform_fee: storedPaymentRow.platform_fee != null ? Number(storedPaymentRow.platform_fee) : platformFee,
+              worker_payout: storedPaymentRow.worker_payout != null ? Number(storedPaymentRow.worker_payout) : workerPayout,
+              commission_rate:
+                storedPaymentRow.commission_rate != null ? Number(storedPaymentRow.commission_rate) : commission.commissionRate,
+              commission_snapshot: parseCommissionSnapshot(storedPaymentRow.commission_snapshot_json) || commission.snapshot,
+              status: currentPaymentStatus,
+              checkout_reference: checkoutReferenceForPayment,
+              currency_code: storedPaymentRow.currency_code ? String(storedPaymentRow.currency_code) : 'USD',
+            }
+          : null,
+        request_status: currentPaymentStatus === 'paid' ? 'paid' : 'payment_pending',
+      });
+      return;
+    }
+
     const storedPaypalOrderId =
       storedPaymentRow && storedPaymentRow.provider_payment_id
         ? String(storedPaymentRow.provider_payment_id)
@@ -3839,171 +4220,46 @@ export const confirmRequestPayment = async (req: AuthRequest, res: Response): Pr
       }
     }
 
-    if (paymentRows.length === 0) {
-      await connection.execute(
-        `INSERT INTO service_request_payments
-         (id_request, provider, checkout_reference, provider_payment_id, provider_capture_id, currency_code, amount, platform_fee, worker_payout, commission_rate, commission_snapshot_json, payment_status, paid_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'paid', CURRENT_TIMESTAMP)`,
-        [idRequest, paymentMethod, checkoutReferenceForPayment, paypalOrderId || null, providerCaptureId, expectedCurrencyCode, expectedAmount, expectedPlatformFee, expectedWorkerPayout, expectedCommissionRate, expectedCommissionSnapshot]
-      );
-    } else {
-      if (String(paymentRows[0].payment_status || '').toLowerCase() === 'paid') {
-        await connection.rollback();
-        res.status(409).json({ error: 'This request is already paid.' });
-        return;
-      }
+    const persistOutcome = await persistPaidPayment(connection, {
+      idRequest,
+      paymentMethod,
+      providerPaymentId: paypalOrderId,
+      providerCaptureId,
+      requestRow,
+      paymentRows,
+      expectedAmount,
+      expectedPlatformFee,
+      expectedWorkerPayout,
+      expectedCommissionRate,
+      expectedCommissionSnapshot,
+      resolvedCommissionSnapshot,
+      expectedCurrencyCode,
+      checkoutReferenceForPayment,
+    });
 
-      await connection.execute(
-        `UPDATE service_request_payments
-         SET provider = ?,
-             provider_payment_id = COALESCE(?, provider_payment_id),
-             provider_capture_id = COALESCE(?, provider_capture_id),
-             currency_code = ?,
-             amount = ?,
-             platform_fee = ?,
-             worker_payout = ?,
-             commission_rate = ?,
-             commission_snapshot_json = ?,
-             payment_status = 'paid',
-             paid_at = CURRENT_TIMESTAMP,
-             updated_at = CURRENT_TIMESTAMP
-         WHERE id_request = ?`,
-        [paymentMethod, paypalOrderId || null, providerCaptureId, expectedCurrencyCode, expectedAmount, expectedPlatformFee, expectedWorkerPayout, expectedCommissionRate, expectedCommissionSnapshot, idRequest]
-      );
-    }
-
-    await connection.execute(
-      `UPDATE service_requests
-       SET status = 'paid',
-           final_budget = COALESCE(final_budget, budget),
-           updated_at = CURRENT_TIMESTAMP
-       WHERE id_request = ?`,
-      [idRequest]
-    );
-
-    const [persistedPaymentRows] = await connection.execute<RowDataPacket[]>(
-      `SELECT id_payment
-       FROM service_request_payments
-       WHERE id_request = ?
-       LIMIT 1`,
-      [idRequest]
-    );
-    const persistedPaymentId = persistedPaymentRows[0]?.id_payment != null ? Number(persistedPaymentRows[0].id_payment) : null;
-    if (persistedPaymentId) {
-      await recordConfirmedPaymentLedger(connection, {
-        idRequest,
-        idPayment: persistedPaymentId,
-        idWorkerProfile: requestRow.assigned_worker_profile != null ? Number(requestRow.assigned_worker_profile) : null,
-        amount: expectedAmount,
-        platformFee: expectedPlatformFee,
-        workerPayout: expectedWorkerPayout,
-        currencyCode: expectedCurrencyCode,
-        checkoutReference: checkoutReferenceForPayment,
-        commissionSnapshot: resolvedCommissionSnapshot,
-      });
+    if (persistOutcome.alreadyPaid) {
+      await connection.rollback();
+      res.status(409).json({ error: 'This request is already paid.' });
+      return;
     }
 
     await connection.commit();
 
-    const workerUserId = await getWorkerUserIdByProfileId(
-      requestRow.assigned_worker_profile != null ? Number(requestRow.assigned_worker_profile) : null
-    );
-    const serviceName = sanitizePaymentValue(requestRow.service_name, 150) || 'Fixlife service';
-    const checkoutReference = checkoutReferenceForPayment;
-    const invoiceNumber = buildInvoiceNumber(idRequest);
-    const clientFirstName = sanitizePaymentValue(requestRow.client_name, 80);
-    const clientLastName = sanitizePaymentValue(requestRow.client_lastname, 80);
-    const workerFirstName = sanitizePaymentValue(requestRow.worker_name, 80);
-    const workerLastName = sanitizePaymentValue(requestRow.worker_lastname, 80);
-    const clientEmail = sanitizePaymentValue(requestRow.client_email, 140) || payerEmail;
-    const workerEmail = sanitizePaymentValue(requestRow.worker_email, 140);
-    const paidAt = new Date();
-    const customerName = [clientFirstName, clientLastName].filter(Boolean).join(' ').trim() || payerFullName || 'Fixlife customer';
-    const workerName = [workerFirstName, workerLastName].filter(Boolean).join(' ').trim() || 'Pro worker';
-
-    await createUserNotification({
+    const { invoiceNumber } = await notifyPaymentConfirmed({
+      idRequest,
       userId,
-      eventType: 'payment_secured',
-      title: 'Payment secured',
-      message: `Payment completed for request #${idRequest}. Final service approval is now available.`,
-      tone: 'success',
-      requestId: idRequest,
-      actionUrl: '/app',
-      dedupeKey: `request-${idRequest}-payment-secured-client`,
-      metadata: { request_status: 'paid' },
+      paymentMethod,
+      requestRow,
+      expectedAmount,
+      expectedPlatformFee,
+      expectedWorkerPayout,
+      expectedCommissionRate,
+      resolvedCommissionSnapshot,
+      expectedCurrencyCode,
+      checkoutReferenceForPayment,
+      payerEmail,
+      payerFullName,
     });
-
-    if (workerUserId) {
-      await createUserNotification({
-        userId: workerUserId,
-        eventType: 'payment_secured',
-        title: 'Client payment completed',
-        message: `The payment of your recent service was completed successfully for request #${idRequest}.`,
-        tone: 'success',
-        requestId: idRequest,
-        actionUrl: '/pro-dashboard',
-        dedupeKey: `request-${idRequest}-payment-secured-worker`,
-        metadata: { request_status: 'paid' },
-      });
-    }
-
-    await notifyAdmins({
-      eventType: 'admin_payment_secured',
-      title: 'Request payment secured',
-      message: `${expectedAmount.toLocaleString('en-US', { style: 'currency', currency: expectedCurrencyCode })} was secured for request #${idRequest}.`,
-      tone: 'success',
-      actionUrl: `/admin-dashboard/requests?request=${idRequest}`,
-      dedupeKey: `admin-payment-secured-${idRequest}`,
-      metadata: { requestId: idRequest, amount: expectedAmount, currency: expectedCurrencyCode },
-    });
-
-    if (clientEmail) {
-      await enqueueBackgroundJob({
-        jobType: 'send_payment_invoice_email',
-        jobKey: `invoice-email-${idRequest}-${checkoutReference}`,
-        payload: {
-          to: clientEmail,
-          customerName,
-          requestId: idRequest,
-          serviceName,
-          amount: expectedAmount,
-          platformFee: expectedPlatformFee,
-          workerPayout: expectedWorkerPayout,
-          checkoutReference,
-          invoiceNumber,
-          provider: paymentMethod,
-          currencyCode: expectedCurrencyCode,
-          locationText: sanitizePaymentValue(requestRow.location_text, 180) || null,
-          urgencyLevel: sanitizePaymentValue(requestRow.urgency_level, 40) || 'standard',
-          commissionRatePercent: Number((expectedCommissionRate * 100).toFixed(2)),
-          policyLabel: resolvedCommissionSnapshot?.policy_label || null,
-          paidAt,
-        },
-      });
-    }
-
-    if (workerEmail) {
-      await enqueueBackgroundJob({
-        jobType: 'send_worker_payment_secured_email',
-        jobKey: `worker-secured-email-${idRequest}-${checkoutReference}`,
-        payload: {
-          to: workerEmail,
-          workerName,
-          requestId: idRequest,
-          serviceName,
-          amount: expectedWorkerPayout,
-          checkoutReference,
-        },
-      });
-    }
-
-    await recordSystemEvent({
-      level: 'info',
-      component: 'services',
-      eventType: 'payment_confirmed',
-      message: 'Service request payment confirmed.',
-      metadata: { requestId: idRequest, userId, amount: expectedAmount },
-    }).catch(() => undefined);
 
     res.json({
       success: true,
@@ -4017,7 +4273,7 @@ export const confirmRequestPayment = async (req: AuthRequest, res: Response): Pr
         commission_rate: expectedCommissionRate,
         commission_snapshot: resolvedCommissionSnapshot,
         status: 'paid',
-        checkout_reference: checkoutReference,
+        checkout_reference: checkoutReferenceForPayment,
         currency_code: expectedCurrencyCode,
         invoice_number: invoiceNumber,
       },
@@ -4374,6 +4630,217 @@ export const handleVirtualWalletWebhook = async (req: Request, res: Response): P
   }
 };
 
+// Wompi has no documented webhook signature scheme (unlike PayPal's
+// verify-webhook-signature endpoint). The real anti-spoof gate is the
+// per-checkout `token` in the URL itself: a random value generated server-side
+// and never sent to the client (unlike provider_payment_id / checkout_reference,
+// which the checkout-creation response and the redirect URL both expose to the
+// browser, so neither is safe to use alone as a secret). EnlacePago.Id and the
+// amount are still cross-checked below as defense in depth.
+export const handleWompiWebhook = async (req: Request, res: Response): Promise<void> => {
+  const connection = await pool.getConnection();
+  try {
+    await ensureServiceRequestTables();
+
+    const payload = req.body || {};
+    const webhookToken = sanitizePaymentValue(req.params?.token, 64);
+    const resultado = String(payload?.ResultadoTransaccion || '').trim();
+    const checkoutReference = sanitizePaymentValue(payload?.EnlacePago?.IdentificadorEnlaceComercio, 64);
+    const wompiLinkId = payload?.EnlacePago?.Id != null ? String(payload.EnlacePago.Id) : '';
+    const wompiTransactionId = sanitizePaymentValue(payload?.IdTransaccion, 120);
+    const webhookAmount = Number(payload?.Monto);
+
+    await recordSystemEvent({
+      level: 'info',
+      component: 'wompi_webhook',
+      eventType: 'webhook_received',
+      message: 'Wompi webhook received.',
+      metadata: { checkoutReference, wompiTransactionId, resultado, esProductiva: payload?.EsProductiva ?? null },
+    }).catch(() => undefined);
+
+    if (!webhookToken) {
+      res.status(404).json({ error: 'Not found.' });
+      return;
+    }
+
+    await connection.beginTransaction();
+
+    const [rows] = await connection.execute<RowDataPacket[]>(
+      `SELECT
+         sr.id_request,
+         sr.id_user,
+         sr.urgency_level,
+         sr.status,
+         sr.budget,
+         sr.final_budget,
+         sr.location_text,
+         sr.assigned_worker_profile,
+         s.name AS service_name,
+         cu.name AS client_name,
+         cu.lastname AS client_lastname,
+         cu.email AS client_email,
+         wu.name AS worker_name,
+         wu.lastname AS worker_lastname,
+         wu.email AS worker_email,
+         srp.id_payment,
+         srp.provider,
+         srp.checkout_reference,
+         srp.provider_payment_id,
+         srp.payment_status,
+         srp.amount,
+         srp.platform_fee,
+         srp.worker_payout,
+         srp.commission_rate,
+         srp.commission_snapshot_json,
+         srp.currency_code
+       FROM service_request_payments srp
+       INNER JOIN service_requests sr ON sr.id_request = srp.id_request
+       INNER JOIN services s ON s.id_service = sr.id_service
+       INNER JOIN users cu ON cu.id_user = sr.id_user
+       LEFT JOIN worker_profiles wp ON wp.id_worker_profile = sr.assigned_worker_profile
+       LEFT JOIN users wu ON wu.id_user = wp.id_user
+       WHERE srp.wompi_webhook_token = ?
+       LIMIT 1
+       FOR UPDATE`,
+      [webhookToken]
+    );
+
+    if (rows.length === 0) {
+      await recordSystemEvent({
+        level: 'warning',
+        component: 'wompi_webhook',
+        eventType: 'unknown_token',
+        message: 'Rejected Wompi webhook with an unrecognized token.',
+        metadata: { checkoutReference },
+      }).catch(() => undefined);
+      await connection.rollback();
+      res.status(404).json({ error: 'Not found.' });
+      return;
+    }
+
+    const row = rows[0];
+    const idRequest = Number(row.id_request);
+
+    if (String(row.provider || '').toLowerCase() !== 'wompi') {
+      await connection.rollback();
+      res.json({ success: true, ignored: true });
+      return;
+    }
+
+    if (checkoutReference && String(row.checkout_reference || '') !== checkoutReference) {
+      await recordSystemEvent({
+        level: 'warning',
+        component: 'wompi_webhook',
+        eventType: 'reference_mismatch',
+        message: 'Rejected Wompi webhook with mismatched checkout reference.',
+        metadata: { expected: row.checkout_reference, received: checkoutReference },
+      }).catch(() => undefined);
+      await connection.rollback();
+      res.status(409).json({ error: 'Checkout reference mismatch.' });
+      return;
+    }
+
+    if (!wompiLinkId || String(row.provider_payment_id || '') !== wompiLinkId) {
+      await recordSystemEvent({
+        level: 'warning',
+        component: 'wompi_webhook',
+        eventType: 'link_id_mismatch',
+        message: 'Rejected Wompi webhook with mismatched EnlacePago.Id.',
+        metadata: { checkoutReference, expected: row.provider_payment_id, received: wompiLinkId },
+      }).catch(() => undefined);
+      await connection.rollback();
+      res.status(401).json({ error: 'Payment link mismatch.' });
+      return;
+    }
+
+    if (String(row.payment_status || '').toLowerCase() === 'paid') {
+      await connection.rollback();
+      res.json({ success: true, already_paid: true });
+      return;
+    }
+
+    if (resultado !== 'ExitosaAprobada') {
+      await connection.rollback();
+      res.json({ success: true, acknowledged: true, result: resultado || 'unknown' });
+      return;
+    }
+
+    const storedAmount = Number(row.amount || 0);
+    if (!Number.isFinite(webhookAmount) || Math.abs(webhookAmount - storedAmount) >= 0.01) {
+      await recordSystemEvent({
+        level: 'warning',
+        component: 'wompi_webhook',
+        eventType: 'amount_mismatch',
+        message: 'Rejected Wompi webhook with amount mismatch.',
+        metadata: { checkoutReference, expected: storedAmount, received: webhookAmount },
+      }).catch(() => undefined);
+      await connection.rollback();
+      res.status(409).json({ error: 'Amount mismatch.' });
+      return;
+    }
+
+    const resolvedCommissionSnapshot = parseCommissionSnapshot(row.commission_snapshot_json) || {};
+    const expectedPlatformFee = Number(row.platform_fee || 0);
+    const expectedWorkerPayout = Number(row.worker_payout || 0);
+    const expectedCommissionRate = Number(row.commission_rate || 0);
+    const expectedCurrencyCode = row.currency_code ? String(row.currency_code) : 'USD';
+
+    const persistOutcome = await persistPaidPayment(connection, {
+      idRequest,
+      paymentMethod: 'wompi',
+      providerPaymentId: wompiLinkId,
+      providerCaptureId: wompiTransactionId || null,
+      requestRow: row,
+      paymentRows: rows,
+      expectedAmount: storedAmount,
+      expectedPlatformFee,
+      expectedWorkerPayout,
+      expectedCommissionRate,
+      expectedCommissionSnapshot: row.commission_snapshot_json || JSON.stringify(resolvedCommissionSnapshot),
+      resolvedCommissionSnapshot,
+      expectedCurrencyCode,
+      checkoutReferenceForPayment: String(row.checkout_reference || checkoutReference),
+    });
+
+    if (persistOutcome.alreadyPaid) {
+      await connection.rollback();
+      res.json({ success: true, already_paid: true });
+      return;
+    }
+
+    await connection.commit();
+
+    await notifyPaymentConfirmed({
+      idRequest,
+      userId: Number(row.id_user),
+      paymentMethod: 'wompi',
+      requestRow: row,
+      expectedAmount: storedAmount,
+      expectedPlatformFee,
+      expectedWorkerPayout,
+      expectedCommissionRate,
+      resolvedCommissionSnapshot,
+      expectedCurrencyCode,
+      checkoutReferenceForPayment: String(row.checkout_reference || checkoutReference),
+    });
+
+    res.json({ success: true, confirmed: true, id_request: idRequest });
+  } catch (error: any) {
+    await connection.rollback();
+    console.error('Error in handleWompiWebhook:', error);
+    await recordSystemEvent({
+      level: 'error',
+      component: 'wompi_webhook',
+      eventType: 'webhook_error',
+      message: 'Wompi webhook handler failed.',
+      metadata: { error: String(error?.message || 'Unknown webhook error.').slice(0, 600) },
+    }).catch(() => undefined);
+    res.status(500).json({ error: 'Internal server error' });
+  } finally {
+    connection.release();
+  }
+};
+
 export const confirmServiceCompletion = async (req: AuthRequest, res: Response): Promise<void> => {
   const connection = await pool.getConnection();
   try {
@@ -4486,7 +4953,7 @@ export const confirmServiceCompletion = async (req: AuthRequest, res: Response):
       message: `Request #${idRequest} is complete and your review is now unlocked.`,
       tone: 'success',
       requestId: idRequest,
-      actionUrl: '/app',
+      actionUrl: '/mis-servicios',
       dedupeKey: `request-${idRequest}-completed-client`,
       metadata: { request_status: 'done' },
     });

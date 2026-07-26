@@ -112,17 +112,17 @@ export const EarningsView: React.FC = () => {
     {
       label: 'Base earnings still scheduled',
       value: formatMoney(summary.pending_worker_payout),
-      tone: 'text-slate-900',
+      tone: 'text-slate-900 dark:text-white',
     },
     {
       label: 'Bonuses already paid',
       value: formatMoney(summary.paid_bonus_payout),
-      tone: 'text-emerald-700',
+      tone: 'text-emerald-700 dark:text-emerald-400',
     },
     {
       label: 'Bonuses still scheduled',
       value: formatMoney(summary.scheduled_bonus_payout),
-      tone: 'text-amber-700',
+      tone: 'text-amber-700 dark:text-amber-400',
     },
   ];
 
@@ -205,35 +205,35 @@ export const EarningsView: React.FC = () => {
           initial={{ opacity: 0, y: 16 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.1 }}
-          className="rounded-[28px] border border-gray-200 bg-white p-5 shadow-sm md:p-6"
+          className="rounded-[28px] border border-slate-200/70 bg-white p-5 shadow-sm dark:border-white/10 dark:bg-slate-900 md:p-6"
         >
           <div className="flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
             <div>
               <p className="text-xs font-black uppercase tracking-[0.18em] text-bird-blue">Bonus progress</p>
-              <h3 className="mt-2 text-xl font-black text-slate-900 sm:text-2xl">Track the two bonus rules clearly</h3>
+              <h3 className="mt-2 text-xl font-black text-slate-900 dark:text-white sm:text-2xl">Track the two bonus rules clearly</h3>
             </div>
-            <div className="rounded-full border border-slate-200 bg-slate-50 px-4 py-2 text-xs font-bold text-slate-600">
+            <div className="rounded-full border border-slate-200 bg-slate-50 px-4 py-2 text-xs font-bold text-slate-600 dark:border-white/10 dark:bg-slate-800 dark:text-slate-300">
               Payout day: every {program.payout_day_label}
             </div>
           </div>
 
           <div className="mt-6 grid gap-4 lg:grid-cols-2">
-            <div className="rounded-3xl border border-slate-200 bg-slate-50 p-4">
+            <div className="rounded-3xl border border-slate-200 bg-slate-50 p-4 dark:border-white/10 dark:bg-slate-800/60">
               <div className="flex items-center justify-between gap-3">
                 <div>
-                  <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">Commission bonus</p>
-                  <p className="mt-2 text-lg font-black text-slate-900 sm:text-xl">
+                  <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400 dark:text-slate-500">Commission bonus</p>
+                  <p className="mt-2 text-lg font-black text-slate-900 dark:text-white sm:text-xl">
                     {summary.trial_unlocked ? 'Unlocked' : `${progress.jobs_until_trial} lifetime job(s) left`}
                   </p>
-                  <p className="mt-2 text-sm text-slate-500">
+                  <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
                     After {program.trial_min_completed_jobs} lifetime completed jobs, each eligible job can add a {Math.round(program.commission_rate * 100)}% commission bonus.
                   </p>
                 </div>
                 <span
                   className={`rounded-full px-3 py-1 text-[11px] font-black uppercase tracking-[0.18em] ${
                     summary.trial_unlocked
-                      ? 'border border-emerald-200 bg-emerald-50 text-emerald-700'
-                      : 'border border-amber-200 bg-amber-50 text-amber-700'
+                      ? 'border border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-400'
+                      : 'border border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-400'
                   }`}
                 >
                   {summary.trial_unlocked ? 'Active' : 'Locked'}
@@ -242,30 +242,30 @@ export const EarningsView: React.FC = () => {
               <div className="mt-4">
                 <ProgressBar value={progress.trial_progress_percent} tone="blue" />
               </div>
-              <div className="mt-3 flex items-center justify-between text-sm text-slate-500">
+              <div className="mt-3 flex items-center justify-between text-sm text-slate-500 dark:text-slate-400">
                 <span>{summary.lifetime_completed_jobs} lifetime jobs counted</span>
                 <span>{progress.trial_progress_percent}%</span>
               </div>
             </div>
 
-            <div className="rounded-3xl border border-slate-200 bg-slate-50 p-4">
+            <div className="rounded-3xl border border-slate-200 bg-slate-50 p-4 dark:border-white/10 dark:bg-slate-800/60">
               <div className="flex items-center justify-between gap-3">
                 <div>
-                  <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">Monthly performance bonus</p>
-                  <p className="mt-2 text-xl font-black text-slate-900">
+                  <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400 dark:text-slate-500">Monthly performance bonus</p>
+                  <p className="mt-2 text-xl font-black text-slate-900 dark:text-white">
                     {summary.royalty_unlocked
                       ? 'Unlocked this cycle'
                       : `${progress.jobs_until_royalty} job(s) + ${progress.completion_rate_gap}% left`}
                   </p>
-                  <p className="mt-2 text-sm text-slate-500">
+                  <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
                     Hit {program.royalty_min_jobs} jobs in the current cycle and keep at least {program.royalty_min_completion_rate}% completion to add a {Math.round(program.royalty_rate * 100)}% monthly bonus.
                   </p>
                 </div>
                 <span
                   className={`rounded-full px-3 py-1 text-[11px] font-black uppercase tracking-[0.18em] ${
                     summary.royalty_unlocked
-                      ? 'border border-emerald-200 bg-emerald-50 text-emerald-700'
-                      : 'border border-bird-blue/15 bg-bird-blue/10 text-bird-blue'
+                      ? 'border border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-400'
+                      : 'border border-bird-blue/15 bg-bird-blue/10 text-bird-blue dark:border-bird-blue/25 dark:bg-bird-blue/15'
                   }`}
                 >
                   {summary.royalty_unlocked ? 'Ready' : 'In progress'}
@@ -274,7 +274,7 @@ export const EarningsView: React.FC = () => {
 
               <div className="mt-4 space-y-3">
                 <div>
-                  <div className="mb-2 flex items-center justify-between text-sm font-semibold text-slate-500">
+                  <div className="mb-2 flex items-center justify-between text-sm font-semibold text-slate-500 dark:text-slate-400">
                     <span>Jobs in this cycle</span>
                     <span>
                       {summary.current_cycle_completed_jobs} / {program.royalty_min_jobs}
@@ -283,7 +283,7 @@ export const EarningsView: React.FC = () => {
                   <ProgressBar value={progress.royalty_jobs_progress_percent} tone="amber" />
                 </div>
                 <div>
-                  <div className="mb-2 flex items-center justify-between text-sm font-semibold text-slate-500">
+                  <div className="mb-2 flex items-center justify-between text-sm font-semibold text-slate-500 dark:text-slate-400">
                     <span>Completion rate</span>
                     <span>
                       {summary.completion_rate}% / {program.royalty_min_completion_rate}%
@@ -295,17 +295,17 @@ export const EarningsView: React.FC = () => {
             </div>
           </div>
 
-          <div className="mt-6 rounded-3xl border border-slate-200 bg-slate-50 p-4">
+          <div className="mt-6 rounded-3xl border border-slate-200 bg-slate-50 p-4 dark:border-white/10 dark:bg-slate-800/60">
             <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
               <div className="max-w-3xl">
                 <p className="text-[11px] font-black uppercase tracking-[0.18em] text-bird-blue">Payout policy</p>
-                <p className="mt-2 text-sm font-semibold text-slate-700">
+                <p className="mt-2 text-sm font-semibold text-slate-700 dark:text-slate-300">
                   Base earnings are scheduled into payout batches first. Commission bonuses unlock after {program.trial_min_completed_jobs} lifetime completed jobs, and the monthly performance bonus unlocks once the worker closes at least {program.royalty_min_jobs} jobs with a {program.royalty_min_completion_rate}% completion rate during the cycle.
                 </p>
               </div>
-              <div className="shrink-0 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-right">
-                <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">Cycle gross base earnings</p>
-                <p className="mt-1 text-xl font-black text-slate-900 sm:text-2xl">{formatMoney(summary.cycle_gross_earnings)}</p>
+              <div className="shrink-0 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-right dark:border-white/10 dark:bg-slate-800">
+                <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400 dark:text-slate-500">Cycle gross base earnings</p>
+                <p className="mt-1 text-xl font-black text-slate-900 dark:text-white sm:text-2xl">{formatMoney(summary.cycle_gross_earnings)}</p>
               </div>
             </div>
           </div>
@@ -315,31 +315,31 @@ export const EarningsView: React.FC = () => {
           initial={{ opacity: 0, y: 18 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.16 }}
-          className="rounded-[28px] border border-gray-200 bg-white p-5 shadow-sm md:p-6"
+          className="rounded-[28px] border border-slate-200/70 bg-white p-5 shadow-sm dark:border-white/10 dark:bg-slate-900 md:p-6"
         >
           <div className="flex items-center justify-between gap-3">
             <div>
-              <p className="text-xs font-black uppercase tracking-[0.18em] text-slate-400">Current money breakdown</p>
-              <h3 className="mt-2 text-xl font-black text-slate-900 sm:text-2xl">What those totals mean</h3>
+              <p className="text-xs font-black uppercase tracking-[0.18em] text-slate-400 dark:text-slate-500">Current money breakdown</p>
+              <h3 className="mt-2 text-xl font-black text-slate-900 dark:text-white sm:text-2xl">What those totals mean</h3>
             </div>
-            <div className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-black text-slate-600">
+            <div className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-black text-slate-600 dark:border-white/10 dark:bg-slate-800 dark:text-slate-300">
               {summary.lifetime_completed_jobs} jobs counted
             </div>
           </div>
 
           <div className="mt-5 space-y-3">
             {payoutBreakdownRows.map((row) => (
-              <div key={row.label} className="flex items-center justify-between rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
-                <span className="text-sm font-semibold text-slate-600">{row.label}</span>
+              <div key={row.label} className="flex items-center justify-between rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 dark:border-white/10 dark:bg-slate-800/60">
+                <span className="text-sm font-semibold text-slate-600 dark:text-slate-300">{row.label}</span>
                 <span className={`text-lg font-black ${row.tone}`}>{row.value}</span>
               </div>
             ))}
           </div>
 
-          <div className="mt-6 rounded-3xl border border-slate-200 bg-slate-50 p-4">
-            <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">Next payout batch</p>
-            <p className="mt-2 text-2xl font-black text-slate-900 sm:text-3xl">{formatMoney(summary.next_payout_amount)}</p>
-            <p className="mt-2 text-sm text-slate-500">
+          <div className="mt-6 rounded-3xl border border-slate-200 bg-slate-50 p-4 dark:border-white/10 dark:bg-slate-800/60">
+            <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400 dark:text-slate-500">Next payout batch</p>
+            <p className="mt-2 text-2xl font-black text-slate-900 dark:text-white sm:text-3xl">{formatMoney(summary.next_payout_amount)}</p>
+            <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
               {summary.next_payout_date
                 ? `${getNextPayoutLabel(summary.next_payout_label)} scheduled for ${formatDate(summary.next_payout_date)}.`
                 : 'As soon as work is released into a payout cycle, the next batch will show here.'}
@@ -347,40 +347,40 @@ export const EarningsView: React.FC = () => {
 
             {nextBatchBreakdown && (
               <div className="mt-4 grid gap-3 sm:grid-cols-3">
-                <div className="rounded-2xl border border-white/70 bg-white px-3 py-3">
-                  <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">Base earnings</p>
-                  <p className="mt-2 text-xl font-black text-slate-900">{formatMoney(nextBatchBreakdown.base)}</p>
+                <div className="rounded-2xl border border-white/70 bg-white px-3 py-3 dark:border-white/10 dark:bg-slate-800">
+                  <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400 dark:text-slate-500">Base earnings</p>
+                  <p className="mt-2 text-xl font-black text-slate-900 dark:text-white">{formatMoney(nextBatchBreakdown.base)}</p>
                 </div>
-                <div className="rounded-2xl border border-white/70 bg-white px-3 py-3">
-                  <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">Commission bonus</p>
-                  <p className="mt-2 text-xl font-black text-amber-700">{formatMoney(nextBatchBreakdown.commission)}</p>
+                <div className="rounded-2xl border border-white/70 bg-white px-3 py-3 dark:border-white/10 dark:bg-slate-800">
+                  <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400 dark:text-slate-500">Commission bonus</p>
+                  <p className="mt-2 text-xl font-black text-amber-700 dark:text-amber-400">{formatMoney(nextBatchBreakdown.commission)}</p>
                 </div>
-                <div className="rounded-2xl border border-white/70 bg-white px-3 py-3">
-                  <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">Monthly bonus</p>
-                  <p className="mt-2 text-xl font-black text-emerald-700">{formatMoney(nextBatchBreakdown.performance)}</p>
+                <div className="rounded-2xl border border-white/70 bg-white px-3 py-3 dark:border-white/10 dark:bg-slate-800">
+                  <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400 dark:text-slate-500">Monthly bonus</p>
+                  <p className="mt-2 text-xl font-black text-emerald-700 dark:text-emerald-400">{formatMoney(nextBatchBreakdown.performance)}</p>
                 </div>
               </div>
             )}
           </div>
 
-          <div className="mt-6 rounded-3xl border border-slate-200 bg-white p-4">
-            <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">At a glance</p>
-            <div className="mt-3 space-y-2 text-sm font-semibold text-slate-600">
+          <div className="mt-6 rounded-3xl border border-slate-200 bg-white p-4 dark:border-white/10 dark:bg-slate-800/60">
+            <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400 dark:text-slate-500">At a glance</p>
+            <div className="mt-3 space-y-2 text-sm font-semibold text-slate-600 dark:text-slate-300">
               <div className="flex items-center justify-between gap-3">
                 <span>{getBonusProgramLabel('commission')}</span>
-                <span className="font-black text-slate-900">
+                <span className="font-black text-slate-900 dark:text-white">
                   {summary.trial_unlocked ? 'Unlocked' : `${progress.jobs_until_trial} job(s) left`}
                 </span>
               </div>
               <div className="flex items-center justify-between gap-3">
                 <span>{getBonusProgramLabel('royalty')}</span>
-                <span className="font-black text-slate-900">
+                <span className="font-black text-slate-900 dark:text-white">
                   {summary.royalty_unlocked ? 'Unlocked' : `${progress.jobs_until_royalty} job(s) left`}
                 </span>
               </div>
               <div className="flex items-center justify-between gap-3">
                 <span>Completion rate gap</span>
-                <span className="font-black text-slate-900">{progress.completion_rate_gap}%</span>
+                <span className="font-black text-slate-900 dark:text-white">{progress.completion_rate_gap}%</span>
               </div>
             </div>
           </div>

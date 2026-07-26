@@ -520,6 +520,69 @@ export const reverseGeocodeLocation = async (lat: number, lng: number) => {
   });
 };
 
+const ROUTE_CACHE_TTL_MS = 60 * 1000;
+const routeCache = new Map<string, CacheEntry<DrivingRoute | null>>();
+
+export type DrivingRoute = {
+  points: [number, number][];
+  distanceKm: number;
+  durationMin: number;
+};
+
+const roundCoord = (value: number) => Number(value.toFixed(5));
+
+// Self-hosted OSRM (docker-compose service "osrm") is used by default so routing
+// never depends on the public, unauthenticated, rate-limited demo server.
+// OSRM_BASE_URL can override this (e.g. back to the public demo) if the
+// self-hosted instance isn't available in a given environment.
+const OSRM_BASE_URL = (process.env.OSRM_BASE_URL || 'http://osrm:5000').replace(/\/+$/, '');
+
+export const getDrivingRoute = async (
+  origin: { lat: number; lng: number },
+  destination: { lat: number; lng: number }
+): Promise<DrivingRoute | null> => {
+  const cacheKey = `${roundCoord(origin.lat)},${roundCoord(origin.lng)};${roundCoord(destination.lat)},${roundCoord(destination.lng)}`;
+
+  return rememberGeoResult({
+    cache: routeCache,
+    cacheName: 'route',
+    key: cacheKey,
+    ttlMs: ROUTE_CACHE_TTL_MS,
+    factory: async () => {
+      const params = new URLSearchParams({ overview: 'full', geometries: 'geojson', steps: 'false' });
+      const url = `${OSRM_BASE_URL}/route/v1/driving/${origin.lng},${origin.lat};${destination.lng},${destination.lat}?${params.toString()}`;
+
+      const abort = new AbortController();
+      const timeout = setTimeout(() => abort.abort(), 6000);
+      let response: Response;
+      try {
+        response = await fetch(url, { signal: abort.signal, headers: { 'User-Agent': 'Fixlife/1.0 (backend router)' } });
+      } finally {
+        clearTimeout(timeout);
+      }
+
+      if (!response.ok) return null;
+
+      const payload = (await response.json()) as {
+        routes?: Array<{ geometry?: { coordinates?: [number, number][] }; distance?: number; duration?: number }>;
+      };
+      const route = payload?.routes?.[0];
+      const coordinates = Array.isArray(route?.geometry?.coordinates) ? route.geometry.coordinates : [];
+      const points = coordinates
+        .map((point) => [Number(point[1]), Number(point[0])] as [number, number])
+        .filter((point) => Number.isFinite(point[0]) && Number.isFinite(point[1]));
+
+      if (points.length < 2 || !route) return null;
+
+      return {
+        points,
+        distanceKm: Number(route.distance || 0) / 1000,
+        durationMin: Number(route.duration || 0) / 60,
+      };
+    },
+  });
+};
+
 export const resolveRequestLocation = async (
   locationText: string,
   latitudeRaw: number | null,

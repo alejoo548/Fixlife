@@ -4,7 +4,9 @@ import { adminApi } from '../api/adminApi';
 import { AdminCard, AdminNumberInput, EmptyState, FormSection, Skeleton, StatusBadge } from '../components/AdminUI';
 import { DropifyUpload } from '../components/DropifyUpload';
 import { HeroSlidesEditor } from './content/HeroSlidesEditor';
+import { HeroTextEditor } from './content/HeroTextEditor';
 import { showSweetAlert, showSweetConfirm, showSweetToast } from '../../../utils/sweetAlert';
+import { normalizeImageUrl } from '../../../utils/imageUrls';
 
 type Service = { id_service: number; name: string };
 type ServiceCard = {
@@ -326,6 +328,7 @@ export default function ContentModule() {
 
   return (
     <div className="admin-page-stack">
+      <HeroTextEditor />
       <HeroSlidesEditor />
       <AdminCard>
         <div className="admin-section-heading">
@@ -481,7 +484,7 @@ export default function ContentModule() {
         <div className="admin-content-grid">
           {cards.map((card) => (
             <AdminCard key={card.id_card} className="admin-content-card">
-              {card.image_url ? <img src={card.image_url} alt="" /> : <div className="admin-content-placeholder" />}
+              {card.image_url ? <img src={normalizeImageUrl(card.image_url)} alt="" /> : <div className="admin-content-placeholder" />}
               <div>
                 <div className="admin-section-heading"><StatusBadge status={card.is_active ? 'active' : 'inactive'} /><small>Order {card.sort_order}</small></div>
                 <p className="admin-eyebrow">{card.badge || card.service_name}</p>

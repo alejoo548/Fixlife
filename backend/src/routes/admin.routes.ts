@@ -27,6 +27,8 @@ import {
   getAdminActivity,
   updateRequestAdmin,
   getHeroSlidesPublic,
+  getHeroTextPublic,
+  updateHeroText,
   getCommissionRulesAdmin,
   getFinanceSettlementReportAdmin,
   getPaymentLedgerAdmin,
@@ -64,6 +66,7 @@ const router = Router();
 // All admin routes require token + admin role (except public hero slides)
 router.get('/hero-slides', getHeroSlidesPublic);
 router.get('/faq-items/public', getPublicFaqItems);
+router.get('/hero-text/public', getHeroTextPublic);
 
 router.use(verifyToken, requireAdmin);
 
@@ -124,6 +127,9 @@ router.get('/search', searchAdmin);
 
 // Hero Slides Editor
 router.put('/hero-slides', sensitiveLimiter, validate(AdminSchema.heroSlides), updateHeroSlides);
+
+// Hero Text Editor
+router.put('/hero-text', sensitiveLimiter, updateHeroText);
 router.post(
   '/hero-slides/image-upload',
   sensitiveLimiter,

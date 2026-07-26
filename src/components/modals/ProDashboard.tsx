@@ -10,6 +10,7 @@ import { NotificationCenter } from '../common/NotificationCenter';
 import { DashboardThemeToggle } from '../common/DashboardThemeToggle';
 import { useDashboardTheme } from '../../hooks/useDashboardTheme';
 import { showSweetAlert } from '../../utils/sweetAlert';
+import { normalizeImageUrl } from '../../utils/imageUrls';
 
 const RequestsView = lazy(() =>
    import('../dashboard/RequestsView').then((module) => ({
@@ -340,11 +341,7 @@ export const ProDashboard: React.FC<ProDashboardProps> = ({ isOpen, onClose, onS
          const rawAvatar = typeof user.profile_image_url === 'string' && user.profile_image_url
             ? user.profile_image_url
             : typeof user.profile_image === 'string' ? user.profile_image : null;
-         const resolvedAvatar = rawAvatar
-            ? (rawAvatar.startsWith('http://') || rawAvatar.startsWith('https://')
-               ? rawAvatar
-               : `${API_URL}/uploads/${rawAvatar.replace(/^\/+/, '').replace(/^uploads\//, '')}`)
-            : null;
+         const resolvedAvatar = rawAvatar ? normalizeImageUrl(rawAvatar) || null : null;
          setUserAvatar(resolvedAvatar);
       } else {
          setIsOnline(readStoredPresence() ?? false);
@@ -409,11 +406,7 @@ export const ProDashboard: React.FC<ProDashboardProps> = ({ isOpen, onClose, onS
          const rawAvatar = typeof user.profile_image_url === 'string' && user.profile_image_url
             ? user.profile_image_url
             : typeof user.profile_image === 'string' ? user.profile_image : null;
-         const resolvedAvatar = rawAvatar
-            ? (rawAvatar.startsWith('http://') || rawAvatar.startsWith('https://')
-               ? rawAvatar
-               : `${API_URL}/uploads/${rawAvatar.replace(/^\/+/, '').replace(/^uploads\//, '')}`)
-            : null;
+         const resolvedAvatar = rawAvatar ? normalizeImageUrl(rawAvatar) || null : null;
          setUserAvatar(resolvedAvatar);
       };
 

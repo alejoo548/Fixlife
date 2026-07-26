@@ -31,18 +31,18 @@ export const StepsSection: React.FC = () => {
 
   return (
     <div className="w-full relative">
-      <div className="text-center mb-7">
-        <h3 className="text-2xl md:text-3xl font-black text-gray-900 mb-2">
+      <div className="text-center mb-10">
+        <h3 className="text-2xl md:text-3xl font-black text-slate-900 dark:text-slate-100 mb-2">
           How It Works
         </h3>
-        <p className="text-gray-600 text-sm md:text-base font-medium">
+        <p className="text-slate-600 dark:text-slate-400 text-sm md:text-base font-medium">
           Get your problem solved in three simple steps
         </p>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-5 md:gap-8 relative">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 md:gap-10 relative">
         {/* Connecting line for desktop */}
-        <div className="hidden md:block absolute top-20 left-[16%] right-[16%] h-1 bg-gradient-to-r from-transparent via-gray-200 to-transparent">
+        <div className="hidden md:block absolute top-20 left-[16%] right-[16%] h-1 bg-gradient-to-r from-transparent via-gray-200 dark:via-white/10 to-transparent">
           <div className="h-full bg-gradient-to-r from-bird-blue via-bird-yellow to-green-400 origin-left" />
         </div>
 
@@ -59,20 +59,20 @@ export const StepsSection: React.FC = () => {
             <motion.div
               whileHover={{ scale: 1.1, rotate: 5 }}
               transition={{ type: "spring", stiffness: 300 }}
-              className="relative z-10 w-24 h-24 md:w-28 md:h-28 rounded-2xl bg-white border-2 border-gray-200 flex items-center justify-center mb-4 shadow-xl group-hover:border-transparent group-hover:shadow-2xl transition-all duration-300"
+              className="relative z-10 w-24 h-24 md:w-28 md:h-28 rounded-2xl bg-white dark:bg-slate-900 border-2 border-gray-200 dark:border-white/10 flex items-center justify-center mb-4 shadow-xl group-hover:border-transparent group-hover:shadow-2xl transition-all duration-300"
             >
               {/* Gradient background on hover */}
               <div className={`absolute inset-0 rounded-3xl bg-gradient-to-br ${step.gradient} opacity-0 group-hover:opacity-100 transition-opacity duration-300`} />
               
               {/* Icon */}
               <div className="relative z-10">
-                <svg className="w-9 h-9 md:w-10 md:h-10 text-gray-700 group-hover:text-white transition-colors duration-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <svg className="w-9 h-9 md:w-10 md:h-10 text-slate-700 dark:text-slate-200 group-hover:text-white transition-colors duration-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={step.icon} />
                 </svg>
               </div>
 
               {/* Step number badge */}
-              <div className={`absolute -top-3 -right-3 w-9 h-9 rounded-full bg-gradient-to-br ${step.gradient} flex items-center justify-center shadow-lg border-4 border-white`}>
+              <div className={`absolute -top-3 -right-3 w-9 h-9 rounded-full bg-gradient-to-br ${step.gradient} flex items-center justify-center shadow-lg border-4 border-white dark:border-slate-900`}>
                 <span className="text-white font-black text-sm">{step.id}</span>
               </div>
 
@@ -81,10 +81,10 @@ export const StepsSection: React.FC = () => {
             </motion.div>
 
             {/* Content */}
-            <h3 className="text-xl md:text-2xl font-black text-gray-900 mb-2 group-hover:text-transparent group-hover:bg-clip-text group-hover:bg-gradient-to-r group-hover:from-bird-blue group-hover:to-bird-lightBlue transition-all duration-300">
+            <h3 className="text-xl md:text-2xl font-black text-slate-900 dark:text-slate-100 mb-2 group-hover:text-transparent group-hover:bg-clip-text group-hover:bg-gradient-to-r group-hover:from-bird-blue group-hover:to-bird-lightBlue transition-all duration-300">
               {step.title}
             </h3>
-            <p className="text-gray-600 text-xs md:text-sm leading-relaxed max-w-xs px-2 font-medium">
+            <p className="text-slate-600 dark:text-slate-400 text-xs md:text-sm leading-relaxed max-w-xs px-2 font-medium">
               {step.desc}
             </p>
 

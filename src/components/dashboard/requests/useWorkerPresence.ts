@@ -155,7 +155,14 @@ export const useWorkerPresence = ({
           persistCoords(lat, lng);
           void pushPresence(true, lat, lng);
         },
-        () => void pushPresence(true),
+        () => {
+          // GPS read failed mid-session: keep the worker's last known fix
+          // (persisted to localStorage) instead of pushing online with no
+          // coordinates, which would strand the worker without a position.
+          const stored = readStoredCoords();
+          if (stored) void pushPresence(true, stored.lat, stored.lng);
+          else void pushPresence(true);
+        },
         {
           enableHighAccuracy: routeActive,
           timeout: routeActive ? 6000 : 12000,

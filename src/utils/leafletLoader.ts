@@ -56,14 +56,22 @@ export const loadLeaflet = async (scope: string) => {
   return Boolean(window.L);
 };
 
-export const addResilientTileLayer = (L: any, map: any) => {
+export const addResilientTileLayer = (L: any, map: any, dark: boolean = false) => {
   let fallbackAdded = false;
-  const primaryLayer = L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
-    maxZoom: 19,
+  // Light: CARTO Positron — minimal grey/white basemap (Uber/rideshare-app
+  // look), swapped from the old colorful Voyager tiles. Dark: CARTO Dark
+  // Matter, softened with a CSS filter (see .fixlife-map-tiles-dark in
+  // index.css) so roads/water/labels stay legible instead of near-black.
+  const tileUrl = dark
+    ? 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png'
+    : 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png';
+  const primaryLayer = L.tileLayer(tileUrl, {
+    maxZoom: 20,
     attribution: '&copy; OpenStreetMap &copy; CARTO',
     keepBuffer: 1,
     updateWhenIdle: true,
     updateWhenZooming: false,
+    className: dark ? 'fixlife-map-tiles-dark' : '',
   }).addTo(map);
 
   primaryLayer.on('tileerror', () => {
@@ -73,6 +81,8 @@ export const addResilientTileLayer = (L: any, map: any) => {
       map.removeLayer(primaryLayer);
     } catch {
     }
+    // Fallback only fires if CARTO is unreachable; plain OSM tiles are light,
+    // not dark, but keeping the map usable matters more than the theme here.
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
       maxZoom: 19,
       attribution: '&copy; OpenStreetMap contributors',

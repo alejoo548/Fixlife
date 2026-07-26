@@ -16,7 +16,7 @@ export const Logo: React.FC<LogoProps> = ({ onClick }) => {
         alt="Fixlife Logo" 
         className="w-10 h-10 object-contain"
       />
-      <span className="font-bold text-xl tracking-tight text-gray-900 hidden sm:block">
+      <span className="font-bold text-xl tracking-tight text-slate-900 dark:text-white hidden sm:block">
         Fix<span className="text-bird-blue">life</span>
       </span>
     </button>
