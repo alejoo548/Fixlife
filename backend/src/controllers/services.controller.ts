@@ -3398,21 +3398,8 @@ export const createRequestPaymentCheckout = async (req: AuthRequest, res: Respon
         return;
       }
 
-      // virtual_wallet checkout is disabled client-side; a stale/incomplete attempt
-      // must never block the client from paying with PayPal or cash instead.
-      if (
-        existingProvider &&
-        existingProvider !== paymentMethod &&
-        existingProvider !== 'sandbox' &&
-        existingProvider !== 'virtual_wallet'
-      ) {
-        await connection.rollback();
-        res.status(409).json({
-          error: `Checkout already started with ${existingProvider}. Cancel or finish it before switching methods.`,
-          existing_payment_method: existingProvider,
-        });
-        return;
-      }
+      // Pending checkouts from any provider can be freely overwritten — the
+      // INSERT ... ON DUPLICATE KEY UPDATE below replaces the stale record.
     }
 
     const commission = await calculateCommissionBreakdown({
