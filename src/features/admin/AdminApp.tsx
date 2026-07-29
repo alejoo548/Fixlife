@@ -14,6 +14,7 @@ const FinanceModule = lazy(() => import('./modules/FinanceModule'));
 const SupportModule = lazy(() => import('./modules/SupportModule'));
 const ActivityModule = lazy(() => import('./modules/ActivityModule'));
 const SettingsModule = lazy(() => import('./modules/SettingsModule'));
+const AssistantModule = lazy(() => import('./modules/AssistantModule'));
 
 const Loading = () => <Skeleton rows={6} />;
 const Lazy = ({ children }: { children: React.ReactNode }) => <Suspense fallback={<Loading />}>{children}</Suspense>;
@@ -32,6 +33,7 @@ export const AdminApp = ({ onClose }: { isOpen: boolean; onClose: () => void }) 
     <Route path="support" element={<Lazy><SupportModule /></Lazy>} />
     <Route path="activity" element={<Lazy><ActivityModule /></Lazy>} />
     <Route path="settings" element={<Lazy><SettingsModule /></Lazy>} />
+    <Route path="assistant" element={<Lazy><AssistantModule /></Lazy>} />
     <Route path="*" element={<Navigate to="/admin-dashboard/overview" replace />} />
   </Route>
 </Routes>;

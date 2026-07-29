@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
-import { Activity, Banknote, ChevronLeft, ChevronRight, FileText, Gauge, Headphones, Image, LogOut, Menu, Search, Settings, ShieldCheck, ShieldAlert, Users, Wrench, X } from 'lucide-react';
+import { Activity, Banknote, ChevronLeft, ChevronRight, FileText, Gauge, Headphones, Image, LogOut, Menu, Search, Settings, ShieldCheck, ShieldAlert, Sparkles, Users, Wrench, X } from 'lucide-react';
 import { DashboardThemeToggle } from '../../../components/common/DashboardThemeToggle';
 import { useDashboardTheme } from '../../../hooks/useDashboardTheme';
 import { getAuthUser, logoutAndReload } from '../../../utils/session';
@@ -26,6 +26,7 @@ const navGroups = [
   { label: 'Control', items: [
     { to: `${BASE}/finance`, label: 'Finance', icon: Banknote }, { to: `${BASE}/activity`, label: 'Admin activity', icon: Activity },
     { to: `${BASE}/settings`, label: 'Settings', icon: Settings },
+    { to: `${BASE}/assistant`, label: 'Assistant', icon: Sparkles },
   ]},
 ];
 
@@ -37,6 +38,7 @@ const titles: Record<string, [string, string]> = {
   finance: ['Finance', 'Revenue, settlements and exceptions'], support: ['Support', 'Customer support workspace'],
   activity: ['Admin activity', 'Audited changes across platform'],
   settings: ['Platform settings', 'Controlled configuration'],
+  assistant: ['Assistant', 'Voice support and AI assistance for the platform'],
 };
 
 export const AdminShell = ({ onClose }: { onClose: () => void }) => {
