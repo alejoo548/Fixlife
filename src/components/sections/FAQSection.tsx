@@ -36,8 +36,16 @@ const DEFAULT_FAQS: Array<{ question: string; answer: string }> = [
   },
 ];
 
+const normalizeFaqText = (value: string) =>
+  String(value || '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim();
+
 export const FAQSection: React.FC<FAQSectionProps> = ({ onBookService, onNavigateSection }) => {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const [openIndex, setOpenIndex] = useState<number | null>(0);
   const [dynamicFaqs, setDynamicFaqs] = useState<FAQItem[]>([]);
   const translatedFaqs = t('faq.items', { returnObjects: true });
@@ -76,8 +84,21 @@ export const FAQSection: React.FC<FAQSectionProps> = ({ onBookService, onNavigat
   }, []);
 
   const faqs = useMemo(
-    () => (dynamicFaqs.length > 0 ? dynamicFaqs : defaultFaqs),
-    [dynamicFaqs]
+    () => {
+      if (dynamicFaqs.length === 0) return defaultFaqs;
+
+      return dynamicFaqs.map((faq) => {
+        const defaultIndex = DEFAULT_FAQS.findIndex(
+          (item) => normalizeFaqText(item.question) === normalizeFaqText(faq.question)
+        );
+        const localized = defaultIndex >= 0 ? localizedFaqs[defaultIndex] : null;
+
+        return localized
+          ? { ...faq, question: localized.question, answer: localized.answer }
+          : faq;
+      });
+    },
+    [defaultFaqs, dynamicFaqs, i18n.language, localizedFaqs]
   );
 
   const toggleFAQ = (index: number) => {
