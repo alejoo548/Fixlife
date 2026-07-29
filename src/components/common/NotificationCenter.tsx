@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { useSSE } from '../../hooks/useSSE';
 import { AnimatePresence, motion } from 'framer-motion';
 import { showSweetToast } from '../../utils/sweetAlert';
@@ -46,6 +47,8 @@ const paymentEventTypes = new Set([
 
 const jobEventTypes = new Set([
   'request_accepted',
+  'worker_approved',
+  'worker_route_started',
   'counter_offer_received',
   'counter_offer_sent',
   'tier_updated',
@@ -56,33 +59,6 @@ const jobEventTypes = new Set([
   'chat_new_message',
 ]);
 
-const filterOptions: Array<{ id: NotificationFilter; label: string }> = [
-  { id: 'all', label: 'All' },
-  { id: 'unread', label: 'Unread' },
-  { id: 'payments', label: 'Payments' },
-  { id: 'jobs', label: 'Jobs' },
-];
-
-const eventLabelMap: Record<string, string> = {
-  request_accepted: 'Accepted',
-  counter_offer_received: 'Counter offer',
-  counter_offer_sent: 'Counter sent',
-  counter_offer_accepted: 'Counter accepted',
-  payment_secured: 'Payment',
-  tier_updated: 'Tier upgrade',
-  worker_arriving: 'Arriving',
-  job_started: 'In progress',
-  job_completed_pending_confirmation: 'Pending confirm',
-  job_completed: 'Completed',
-  payout_scheduled: 'Payout',
-  payout_paid: 'Paid out',
-  chat_new_message: 'New chat',
-  support_thread_created: 'Support',
-  admin_request_created: 'New request',
-  admin_payment_secured: 'Payment secured',
-  admin_job_completed: 'Completed',
-};
-
 const eventAccentClasses: Record<string, string> = {
   request_accepted: 'from-blue-500 to-sky-400 text-white',
   counter_offer_received: 'from-amber-400 to-orange-400 text-white',
@@ -90,6 +66,8 @@ const eventAccentClasses: Record<string, string> = {
   counter_offer_accepted: 'from-emerald-500 to-green-400 text-white',
   payment_secured: 'from-emerald-500 to-teal-400 text-white',
   tier_updated: 'from-amber-400 to-orange-500 text-white',
+  worker_approved: 'from-emerald-500 to-green-400 text-white',
+  worker_route_started: 'from-blue-500 to-indigo-500 text-white',
   worker_arriving: 'from-blue-500 to-indigo-500 text-white',
   job_started: 'from-violet-500 to-indigo-500 text-white',
   job_completed_pending_confirmation: 'from-fuchsia-500 to-pink-500 text-white',
@@ -103,17 +81,17 @@ const eventAccentClasses: Record<string, string> = {
   admin_job_completed: 'from-emerald-500 to-lime-400 text-white',
 };
 
-const formatTimeAgo = (value: string) => {
+const formatTimeAgo = (value: string, language: string) => {
   const date = new Date(value);
   const diffMs = Date.now() - date.getTime();
   const diffMin = Math.max(1, Math.floor(diffMs / 60000));
 
-  if (diffMin < 60) return `${diffMin}m ago`;
+  if (diffMin < 60) return language.startsWith('es') ? `hace ${diffMin} min` : `${diffMin}m ago`;
   const diffHours = Math.floor(diffMin / 60);
-  if (diffHours < 24) return `${diffHours}h ago`;
+  if (diffHours < 24) return language.startsWith('es') ? `hace ${diffHours} h` : `${diffHours}h ago`;
   const diffDays = Math.floor(diffHours / 24);
-  if (diffDays < 7) return `${diffDays}d ago`;
-  return date.toLocaleDateString();
+  if (diffDays < 7) return language.startsWith('es') ? `hace ${diffDays} d` : `${diffDays}d ago`;
+  return date.toLocaleDateString(language.startsWith('es') ? 'es-SV' : 'en-US');
 };
 
 const renderEventGlyph = (eventType: string) => {
@@ -121,27 +99,28 @@ const renderEventGlyph = (eventType: string) => {
     case 'payment_secured':
     case 'payout_scheduled':
     case 'payout_paid':
-      return '💸';
+      return '\u{1F4B8}';
     case 'chat_new_message':
-      return '💬';
+      return '\u{1F4AC}';
     case 'job_completed':
     case 'job_completed_pending_confirmation':
-      return '✅';
+      return '\u2705';
     case 'worker_arriving':
-      return '🚗';
+    case 'worker_route_started':
+      return '\u{1F697}';
     case 'request_accepted':
-      return '🛠️';
+    case 'worker_approved':
+      return '\u{1F6E0}\uFE0F';
     case 'counter_offer_received':
     case 'counter_offer_sent':
     case 'counter_offer_accepted':
-      return '💼';
+      return '\u{1F4BC}';
     case 'job_started':
-      return '⚡';
+      return '\u26A1';
     default:
-      return '🔔';
+      return '\u{1F514}';
   }
 };
-
 export const NotificationCenter: React.FC<NotificationCenterProps> = ({
   token,
   isActive = true,
@@ -149,6 +128,7 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({
   className = '',
   theme = 'light',
 }) => {
+  const { t, i18n } = useTranslation();
   const navigate = useNavigate();
   const [isOpen, setIsOpen] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -185,14 +165,14 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({
       });
       const payload = await res.json();
       if (!res.ok || !payload?.success) {
-        throw new Error(payload?.error || 'Could not load notifications.');
+        throw new Error(payload?.error || t('serviceRequest.notificationCenter.loadError'));
       }
 
       setNotifications(Array.isArray(payload.notifications) ? payload.notifications : []);
       setUnreadCount(Number(payload.summary?.unread_count || 0));
     } catch (error: any) {
       if (!silent) {
-        void showSweetToast({ tone: 'error', message: error?.message || 'Could not load notifications.' });
+        void showSweetToast({ tone: 'error', message: error?.message || t('serviceRequest.notificationCenter.loadError') });
       }
     } finally {
       if (!silent) setLoading(false);
@@ -265,6 +245,15 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({
     [notifications]
   );
 
+  const notificationCopy = 'serviceRequest.notificationCenter';
+
+  const filterOptions: Array<{ id: NotificationFilter; label: string }> = [
+    { id: 'all', label: t(`${notificationCopy}.filters.all`) },
+    { id: 'unread', label: t(`${notificationCopy}.filters.unread`) },
+    { id: 'payments', label: t(`${notificationCopy}.filters.payments`) },
+    { id: 'jobs', label: t(`${notificationCopy}.filters.jobs`) },
+  ];
+
   const filteredNotifications = useMemo(() => {
     switch (activeFilter) {
       case 'unread':
@@ -278,6 +267,18 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({
         return notifications;
     }
   }, [activeFilter, notifications]);
+
+  const localizeNotificationText = (item: NotificationItem) => {
+    const requestId = item.id_request ?? '';
+    const titleKey = `${notificationCopy}.messages.${item.event_type}.title`;
+    const messageKey = `${notificationCopy}.messages.${item.event_type}.message`;
+    const localizedTitle = t(titleKey, { requestId, defaultValue: item.title });
+    const localizedMessage = t(messageKey, { requestId, defaultValue: item.message });
+    return {
+      title: localizedTitle,
+      message: localizedMessage,
+    };
+  };
 
   const filterCounts = useMemo(
     () => ({
@@ -304,7 +305,7 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({
       });
       const payload = await res.json();
       if (!res.ok || !payload?.success) {
-        throw new Error(payload?.error || 'Could not mark notification as read.');
+        throw new Error(payload?.error || t('serviceRequest.notificationCenter.markReadError'));
       }
       setNotifications((prev) =>
         prev.map((item) =>
@@ -314,7 +315,7 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({
       setUnreadCount((prev) => Math.max(prev - 1, 0));
       return true;
     } catch (error: any) {
-      void showSweetToast({ tone: 'error', message: error?.message || 'Could not mark notification as read.' });
+      void showSweetToast({ tone: 'error', message: error?.message || t('serviceRequest.notificationCenter.markReadError') });
       return false;
     }
   };
@@ -330,12 +331,12 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({
       });
       const payload = await res.json();
       if (!res.ok || !payload?.success) {
-        throw new Error(payload?.error || 'Could not mark notifications as read.');
+        throw new Error(payload?.error || t('serviceRequest.notificationCenter.markAllReadError'));
       }
       setNotifications((prev) => prev.map((item) => ({ ...item, is_read: true })));
       setUnreadCount(0);
     } catch (error: any) {
-      void showSweetToast({ tone: 'error', message: error?.message || 'Could not mark notifications as read.' });
+      void showSweetToast({ tone: 'error', message: error?.message || t('serviceRequest.notificationCenter.markAllReadError') });
     }
   };
 
@@ -398,14 +399,14 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({
         <div className="pointer-events-none absolute right-0 top-2 h-20 w-20 rounded-full bg-bird-yellow/20 blur-2xl" />
         <div className="flex items-start justify-between gap-3">
           <div>
-            <p className="admin-notification-eyebrow text-[11px] font-black uppercase tracking-[0.18em] text-bird-blue">Notification Center</p>
-            <h3 className="admin-notification-title mt-1 text-lg font-black text-slate-900 dark:text-slate-100">Recent activity</h3>
+            <p className="admin-notification-eyebrow text-[11px] font-black uppercase tracking-[0.18em] text-bird-blue">{t('serviceRequest.notificationCenter.title')}</p>
+            <h3 className="admin-notification-title mt-1 text-lg font-black text-slate-900 dark:text-slate-100">{t('serviceRequest.notificationCenter.subtitle')}</h3>
             <p className="admin-notification-subtitle mt-1 text-xs text-slate-500 dark:text-slate-400">
               {!isActive
-                ? 'Go online to receive and review notifications.'
+                ? t('serviceRequest.notificationCenter.offline')
                 : unreadCount > 0
-                ? `${unreadCount} unread event${unreadCount === 1 ? '' : 's'} waiting`
-                : 'Everything is up to date.'}
+                ? t('serviceRequest.notificationCenter.unreadWaiting', { count: unreadCount })
+                : t('serviceRequest.notificationCenter.upToDate')}
             </p>
           </div>
           <button
@@ -414,7 +415,7 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({
             disabled={!isActive}
             className="admin-notification-read-all rounded-full border border-bird-blue/15 bg-white dark:bg-slate-900/70 px-3 py-1.5 text-[11px] font-black text-bird-blue shadow-sm transition hover:border-bird-blue hover:bg-bird-blue hover:text-white"
           >
-            Read all
+            {t('serviceRequest.notificationCenter.readAll')}
           </button>
         </div>
         {isActive && unreadItems.length > 0 && (
@@ -468,9 +469,9 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M18.364 5.636A9 9 0 105.636 18.364M15 17h5l-1.4-1.4a2 2 0 01-.6-1.4V11a6 6 0 00-1.221-3.636M9 17a3 3 0 006 0M6.343 6.343A5.978 5.978 0 006 11v3.2a2 2 0 01-.6 1.4L4 17h5" />
               </svg>
             </div>
-            <p className="mt-4 text-sm font-bold text-slate-700 dark:text-slate-300">Notifications are hidden while offline</p>
+            <p className="mt-4 text-sm font-bold text-slate-700 dark:text-slate-300">{t('serviceRequest.notificationCenter.hiddenOffline')}</p>
             <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-              Go online to receive new alerts for jobs, payments, and payout updates.
+              {t('serviceRequest.notificationCenter.hiddenOfflineHelp')}
             </p>
           </div>
         ) : loading ? (
@@ -491,12 +492,14 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({
               </svg>
             </div>
             <p className="mt-4 text-sm font-bold text-slate-700 dark:text-slate-300">
-              {activeFilter === 'all' ? 'No notifications yet' : `No ${activeFilter} notifications`}
+              {activeFilter === 'all'
+                ? t('serviceRequest.notificationCenter.emptyAll')
+                : t('serviceRequest.notificationCenter.emptyFiltered', { filter: t(`${notificationCopy}.filters.${activeFilter}`) })}
             </p>
             <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
               {activeFilter === 'all'
-                ? "We'll save request, payment and payout events here."
-                : 'Try another filter or check back in a moment.'}
+                ? t('serviceRequest.notificationCenter.emptyAllHelp')
+                : t('serviceRequest.notificationCenter.emptyFilteredHelp')}
             </p>
           </div>
         ) : (
@@ -527,13 +530,13 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({
                     <div className="min-w-0">
                       <div className="flex flex-wrap items-center gap-2">
                         <span className={`admin-notification-chip rounded-full border px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.14em] ${toneClasses[item.tone]}`}>
-                          {eventLabelMap[item.event_type] || item.event_type.replace(/_/g, ' ')}
+                          {t(`${notificationCopy}.eventLabels.${item.event_type}`, { defaultValue: item.event_type.replace(/_/g, ' ') })}
                         </span>
                         {!item.is_read && <span className="h-2.5 w-2.5 rounded-full bg-bird-orange shadow-[0_0_0_4px_rgba(255,140,0,0.15)]" />}
-                        <span className="admin-notification-time text-[11px] font-semibold text-slate-400 dark:text-slate-500">{formatTimeAgo(item.created_at)}</span>
+                        <span className="admin-notification-time text-[11px] font-semibold text-slate-400 dark:text-slate-500">{formatTimeAgo(item.created_at, i18n.language)}</span>
                       </div>
-                      <p className="admin-notification-item-title mt-2 text-sm font-black text-slate-900 dark:text-slate-100">{item.title}</p>
-                      <p className="admin-notification-message mt-1 text-xs leading-5 text-slate-600 dark:text-slate-300">{item.message}</p>
+                      <p className="admin-notification-item-title mt-2 text-sm font-black text-slate-900 dark:text-slate-100">{localizeNotificationText(item).title}</p>
+                      <p className="admin-notification-message mt-1 text-xs leading-5 text-slate-600 dark:text-slate-300">{localizeNotificationText(item).message}</p>
                     </div>
                   </div>
 
@@ -543,7 +546,7 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({
                       onClick={() => void markOneRead(item.id_notification)}
                       className="admin-notification-secondary rounded-full border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900/70 px-3 py-1.5 text-[11px] font-black text-slate-600 dark:text-slate-300 transition hover:-translate-y-0.5 hover:border-bird-blue/25 hover:text-bird-blue"
                     >
-                      {item.is_read ? 'Read' : 'Mark read'}
+                      {item.is_read ? t('serviceRequest.notificationCenter.read') : t('serviceRequest.notificationCenter.markRead')}
                     </button>
                     {item.action_url && (
                       <button
@@ -555,7 +558,7 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({
                         }}
                         className="admin-notification-primary rounded-full bg-bird-blue px-3 py-1.5 text-[11px] font-black text-white shadow-sm shadow-blue-200 transition hover:-translate-y-0.5 hover:bg-blue-700"
                       >
-                        Open
+                        {t('serviceRequest.notificationCenter.open')}
                       </button>
                     )}
                   </div>
@@ -581,7 +584,7 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({
             ? 'admin-notification-button border border-white/60 dark:border-white/10 bg-white/90 dark:bg-slate-900/70 text-slate-700 dark:text-slate-300 shadow-[0_16px_30px_rgba(15,23,42,0.08)] hover:-translate-y-0.5 hover:border-bird-blue/30 hover:text-bird-blue hover:shadow-[0_18px_32px_rgba(0,144,255,0.18)]'
             : 'admin-notification-button border border-gray-200 dark:border-white/10 bg-white dark:bg-slate-900/70 text-slate-700 dark:text-slate-300 shadow-sm hover:-translate-y-0.5 hover:border-bird-blue/20 hover:text-bird-blue hover:shadow-[0_12px_24px_rgba(0,144,255,0.14)]'
         }`}
-        aria-label="Open notifications"
+        aria-label={t('serviceRequest.notificationCenter.openAria')}
       >
         <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path

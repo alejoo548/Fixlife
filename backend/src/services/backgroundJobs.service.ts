@@ -428,6 +428,27 @@ export const ensureBackgroundJobsTable = async () => {
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
   `);
 
+  await pool.execute(`
+    ALTER TABLE background_jobs
+    MODIFY COLUMN id_job INT NOT NULL AUTO_INCREMENT
+  `).catch(() => undefined);
+  await pool.execute(`
+    ALTER TABLE background_jobs
+    ADD PRIMARY KEY (id_job)
+  `).catch(() => undefined);
+  await pool.execute(`
+    ALTER TABLE background_jobs
+    MODIFY COLUMN id_job INT NOT NULL AUTO_INCREMENT
+  `).catch(() => undefined);
+  await pool.execute(`
+    ALTER TABLE background_jobs
+    ADD UNIQUE KEY uniq_background_job_key (job_key)
+  `).catch(() => undefined);
+  await pool.execute(`
+    ALTER TABLE background_jobs
+    ADD KEY idx_background_jobs_status_run_after (status, run_after)
+  `).catch(() => undefined);
+
   backgroundJobsTableChecked = true;
 };
 

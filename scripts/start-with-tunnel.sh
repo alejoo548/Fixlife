@@ -72,6 +72,9 @@ fi
 echo "==> Starting the stack (db, backend, frontend, nginx, tunnel)..."
 docker compose up -d
 
+echo "==> Refreshing nginx upstreams..."
+docker compose restart nginx >/dev/null
+
 echo "==> Waiting for the Cloudflare tunnel to hand out a URL..."
 TUNNEL_URL=""
 for _ in $(seq 1 60); do
@@ -99,6 +102,8 @@ else
 
   echo "==> Restarting backend so it picks up the new .env..."
   docker compose up -d --force-recreate backend
+  echo "==> Refreshing nginx upstreams after backend restart..."
+  docker compose restart nginx >/dev/null
 fi
 
 cat <<EOF

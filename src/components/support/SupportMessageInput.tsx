@@ -1,5 +1,6 @@
 import React, { useRef, useState } from 'react';
 import { Send, Paperclip, X } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { hasUnsafeSupportText, sanitizeSupportTextInput } from '../../utils/supportSecurity';
 import { useProfanityGuard } from '../../hooks/useProfanityGuard';
 
@@ -12,6 +13,7 @@ export const SupportMessageInput: React.FC<SupportMessageInputProps> = ({
   onSend,
   disabled = false,
 }) => {
+  const { t } = useTranslation();
   const [message, setMessage] = useState('');
   const [image, setImage] = useState<File | null>(null);
   const [imageError, setImageError] = useState<string | null>(null);
@@ -31,13 +33,13 @@ export const SupportMessageInput: React.FC<SupportMessageInputProps> = ({
     if (!ALLOWED_IMAGE_TYPES.includes(file.type)) {
       setImage(null);
       if (fileInputRef.current) fileInputRef.current.value = '';
-      setImageError('Only JPG, PNG or WEBP images are allowed.');
+      setImageError(t('serviceRequest.supportWidget.onlyImages'));
       return;
     }
     if (file.size > MAX_IMAGE_BYTES) {
       setImage(null);
       if (fileInputRef.current) fileInputRef.current.value = '';
-      setImageError('Image must be 5 MB or smaller.');
+      setImageError(t('serviceRequest.supportWidget.imageTooLarge'));
       return;
     }
     setImage(file);
@@ -100,7 +102,7 @@ export const SupportMessageInput: React.FC<SupportMessageInputProps> = ({
           value={message}
           onChange={(e) => setMessage(guardValue(sanitizeSupportTextInput(e.target.value, 2000)))}
           onKeyDown={handleKeyDown}
-          placeholder="Type your message..."
+          placeholder={t('serviceRequest.supportWidget.typeMessage')}
           maxLength={2000}
           className="flex-1 bg-transparent text-[15px] placeholder:text-gray-400 focus:outline-none"
           disabled={disabled}
@@ -119,10 +121,10 @@ export const SupportMessageInput: React.FC<SupportMessageInputProps> = ({
         {imageError
           ? imageError
           : hasUnsafeContent
-            ? 'Malicious characters or patterns are not allowed.'
+            ? t('serviceRequest.supportWidget.unsafeText')
             : profanityWarning
               ? profanityWarning
-              : 'Support available 8am to 8pm'}
+              : t('serviceRequest.supportWidget.supportHours')}
       </div>
     </div>
   );

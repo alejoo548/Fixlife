@@ -1,5 +1,7 @@
 import React from 'react';
 import { motion } from 'framer-motion';
+import { useTranslation } from 'react-i18next';
+import { localizeClientServiceDescription, localizeClientServiceName } from '../../utils/clientTranslations';
 
 interface ServiceOptionCard {
     id_service: number;
@@ -19,6 +21,8 @@ export function ServiceRequestServiceStep({
     services,
     onSelectService,
 }: ServiceRequestServiceStepProps) {
+    const { i18n } = useTranslation();
+
     return (
         <motion.div
             key="step0"
@@ -40,7 +44,13 @@ export function ServiceRequestServiceStep({
                 </div>
             ) : (
                 <div className="space-y-3">
-                    {services.map((cat) => (
+                    {services.map((cat) => {
+                        const localizedName = localizeClientServiceName(cat.name, i18n.language);
+                        const localizedDescription = cat.description
+                            ? localizeClientServiceDescription(cat.description, i18n.language)
+                            : null;
+
+                        return (
                         <motion.button
                             key={cat.id_service}
                             whileHover={{ scale: 1.01 }}
@@ -51,10 +61,10 @@ export function ServiceRequestServiceStep({
                             <div className="w-12 h-12 rounded-xl bg-gray-50 dark:bg-slate-700 flex items-center justify-center shrink-0 border border-gray-100 dark:border-white/10">
                                 {cat.icon ? (
                                     /^(https?:|data:image\/|\/)/i.test(cat.icon) ? (
-                                        <img src={cat.icon} alt={cat.name} className="w-6 h-6 object-contain" />
+                                        <img src={cat.icon} alt={localizedName} className="w-6 h-6 object-contain" />
                                     ) : (
                                         <span className="text-2xl leading-none">
-                                            {cat.icon.length <= 2 ? cat.icon : '🧰'}
+                                            {cat.icon.length <= 3 ? cat.icon : '🧰'}
                                         </span>
                                     )
                                 ) : (
@@ -62,8 +72,8 @@ export function ServiceRequestServiceStep({
                                 )}
                             </div>
                             <div className="flex flex-col flex-1">
-                                <span className="font-bold text-gray-900 dark:text-slate-100 text-[15px]">{cat.name}</span>
-                                {cat.description && <span className="text-xs font-medium text-slate-500 dark:text-slate-400 line-clamp-1">{cat.description}</span>}
+                                <span className="font-bold text-gray-900 dark:text-slate-100 text-[15px]">{localizedName}</span>
+                                {localizedDescription && <span className="text-xs font-medium text-slate-500 dark:text-slate-400 line-clamp-1">{localizedDescription}</span>}
                             </div>
                             <div className="text-gray-300 dark:text-slate-500">
                                 <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -71,7 +81,8 @@ export function ServiceRequestServiceStep({
                                 </svg>
                             </div>
                         </motion.button>
-                    ))}
+                        );
+                    })}
                 </div>
             )}
         </motion.div>

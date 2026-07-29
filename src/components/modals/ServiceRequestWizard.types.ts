@@ -12,6 +12,8 @@ export interface ServiceOption {
     name: string;
     description: string | null;
     icon: string | null;
+    min_budget?: number | null;
+    max_budget?: number | null;
 }
 
 export interface NearbyWorker {

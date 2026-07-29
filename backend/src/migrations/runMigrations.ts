@@ -192,6 +192,63 @@ const MIGRATIONS: MigrationDefinition[] = [
       await ensureHeroTextTable();
     },
   },
+  {
+    id: '20260729_001_service_budget_limits',
+    description: 'Service budget limit columns',
+    run: async () => {
+      const [rows] = await pool.execute<any[]>(
+        `SELECT column_name
+         FROM information_schema.columns
+         WHERE table_schema = DATABASE()
+           AND table_name = 'services'
+           AND column_name IN ('min_budget', 'max_budget')`
+      );
+      const existingColumns = new Set(rows.map((row) => String(row.column_name)));
+
+      if (!existingColumns.has('min_budget')) {
+        await pool.execute(`ALTER TABLE services ADD COLUMN min_budget DECIMAL(10,2) NULL`);
+      }
+      if (!existingColumns.has('max_budget')) {
+        await pool.execute(`ALTER TABLE services ADD COLUMN max_budget DECIMAL(10,2) NULL`);
+      }
+    },
+  },
+  {
+    id: '20260729_002_seed_service_budget_limits',
+    description: 'Default service budget limits',
+    run: async () => {
+      const budgetLimits = [
+        ['Carpentry', 35, 700],
+        ['Auto Mechanic', 30, 800],
+        ['Childcare / Babysitting', 20, 250],
+        ['Gardening', 25, 450],
+        ['Electrical Services', 35, 900],
+        ['Plumbing', 35, 900],
+        ['House Painting', 50, 1000],
+        ['Masonry', 50, 1000],
+        ['Welding', 40, 900],
+        ['AC Installation & Repair', 45, 1000],
+        ['Refrigeration Repair', 40, 900],
+        ['Locksmith Services', 25, 350],
+        ['Drywall Installation', 45, 900],
+        ['Home Cleaning', 25, 400],
+        ['Elderly Care', 25, 350],
+        ['Computer Technician', 25, 500],
+        ['Security Camera Installation', 50, 1000],
+        ['Appliance Repair', 30, 800],
+      ] as const;
+
+      for (const [name, minBudget, maxBudget] of budgetLimits) {
+        await pool.execute(
+          `UPDATE services
+           SET min_budget = COALESCE(min_budget, ?),
+               max_budget = COALESCE(max_budget, ?)
+           WHERE LOWER(name) = LOWER(?)`,
+          [minBudget, maxBudget, name]
+        );
+      }
+    },
+  },
 ];
 
 const ensureMigrationsTable = async () => {

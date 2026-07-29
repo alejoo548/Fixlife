@@ -1,6 +1,7 @@
 import React, { useState, useEffect, Suspense, lazy } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Navigate, Route, Routes, useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { Navbar } from './components/layout/Navbar';
 import { NavItemType, AuthMode } from './types';
 import { AuthModal } from './components/modals/AuthModal';
@@ -24,6 +25,7 @@ import { isExternalStockImage, normalizeImageUrl } from './utils/imageUrls';
 import { getHeroSlides, fetchHeroSlides, HeroSlideContent } from './utils/heroSlides';
 import { ProtectedRoute } from './routes/ProtectedRoute';
 import UserAmbientBackground from './components/common/UserAmbientBackground';
+import { localizeClientLearnMore, localizeClientServiceDescription, localizeClientServiceName } from './utils/clientTranslations';
 
 const ServiceRequestWizard = lazy(() =>
   import('./components/modals/ServiceRequestWizard').then((module) => ({
@@ -270,6 +272,7 @@ const fetchHeroText = async (): Promise<typeof DEFAULT_HERO_TEXT> => {
 const App: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
+  const { t, i18n } = useTranslation();
   const [roleIndex, setRoleIndex] = useState(0);
   const [heroText, setHeroText] = useState<typeof DEFAULT_HERO_TEXT>(() => getHeroText());
 
@@ -867,7 +870,14 @@ const App: React.FC = () => {
                 </div>
               </ScrollReveal>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                {cardsToRender.map((item, i) => (
+                {cardsToRender.map((item, i) => {
+                  const localizedHeadline = localizeClientServiceName(item.headline || item.service_name, i18n.language);
+                  const localizedSummary = localizeClientServiceDescription(item.summary, i18n.language);
+                  const localizedCta = item.cta_label === 'Learn More'
+                    ? localizeClientLearnMore(t)
+                    : item.cta_label || localizeClientLearnMore(t);
+
+                  return (
                   <ScrollReveal key={i} delay={i * 100} className="h-full">
                     <ThreeDCard className="h-full">
                     <div
@@ -880,7 +890,7 @@ const App: React.FC = () => {
                           whileHover={{ scale: 1.15 }}
                           transition={{ duration: 0.6 }}
                           src={item.image_url || fallbackCards[0].image_url || ''}
-                          alt={item.headline}
+                          alt={localizedHeadline}
                           loading="lazy"
                           decoding="async"
                           onError={(e) => {
@@ -904,8 +914,8 @@ const App: React.FC = () => {
                       </div>
                       <div className="p-6 flex-1 flex flex-col relative z-20">
                         <div className="flex-1">
-                          <h4 className="text-xl font-bold text-slate-900 group-hover:text-bird-blue transition-colors mb-2 dark:text-slate-100">{item.headline}</h4>
-                          <p className="text-slate-600 text-sm leading-relaxed mb-4 line-clamp-3 font-medium dark:text-slate-400">{item.summary}</p>
+                          <h4 className="text-xl font-bold text-slate-900 group-hover:text-bird-blue transition-colors mb-2 dark:text-slate-100">{localizedHeadline}</h4>
+                          <p className="text-slate-600 text-sm leading-relaxed mb-4 line-clamp-3 font-medium dark:text-slate-400">{localizedSummary}</p>
                         </div>
                         <motion.div
                           initial={{ x: 0 }}
@@ -916,7 +926,7 @@ const App: React.FC = () => {
                           }}
                           className="flex items-center gap-2 text-bird-blue font-bold text-sm mt-2 group-hover:gap-3 transition-all"
                         >
-                          <span>{item.cta_label || 'Learn More'}</span>
+                          <span>{localizedCta}</span>
                           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" />
                           </svg>
@@ -925,7 +935,8 @@ const App: React.FC = () => {
                     </div>
                     </ThreeDCard>
                   </ScrollReveal>
-                ))}
+                  );
+                })}
               </div>
             </section>
 

@@ -1,12 +1,14 @@
 import React, { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { RefreshCw, Moon, Sun, HelpCircle, User } from 'lucide-react';
 import { API_ENDPOINTS, API_URL } from '../../config/api';
 import { NavbarProps, AuthMode } from '../../types';
 import { Logo } from '../common/Logo';
 import { useAuth } from '../../context/AuthContext';
 import { NotificationCenter } from '../common/NotificationCenter';
+import { LanguageSwitcher } from '../common/LanguageSwitcher';
 import UserThemeToggle from '../common/UserThemeToggle';
 import { getToken } from '../../utils/session';
 import { useUserTheme } from '../../hooks/useUserTheme';
@@ -17,6 +19,7 @@ import { canUseRequestChat, hasPendingCounter, hasPendingWorkerApproval } from '
 import { showSweetToast } from '../../utils/sweetAlert';
 import { useOnboardingTour } from '../../hooks/useOnboardingTour';
 import { normalizeImageUrl } from '../../utils/imageUrls';
+import { localizeClientServiceName } from '../../utils/clientTranslations';
 
 
 const ClientLiveRequestTracker = lazy(() => import('../modals/ClientLiveRequestTracker'));
@@ -193,6 +196,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   onSelectCategory,
 }) => {
   const navigate = useNavigate();
+  const { t, i18n } = useTranslation();
   const { user, logout } = useAuth();
   const authToken = getToken();
   const { startTour } = useOnboardingTour({ userId: user?.id, isLoggedIn: Boolean(user) });
@@ -226,6 +230,24 @@ export const Navbar: React.FC<NavbarProps> = ({
 
     return `${apiPublicUrl}/uploads/${cleanPath}`;
   }, [user?.profile_image]);
+
+  const translateNavLabel = (value: string) => {
+    const labels: Record<string, string> = {
+      Services: t('navigation.items.0.name'),
+      Professionals: t('navigation.items.1.name'),
+      Categories: t('navigation.items.2.name'),
+      Plumbing: t('navigation.items.2.items.0.name'),
+      Electrical: t('navigation.items.2.items.1.name'),
+      Cleaning: t('navigation.items.2.items.2.name'),
+      Landscaping: t('navigation.items.2.items.3.name'),
+      Mechanics: t('navigation.items.2.items.4.name'),
+      Help: t('navigation.items.3.name'),
+      Support: t('navigation.items.3.items.0.name'),
+      'How it works': t('navigation.items.3.items.1.name'),
+      Reviews: t('navigation.items.4.name'),
+    };
+    return labels[value] || value;
+  };
 
   const [activeItem, setActiveItem] = useState<number | null>(null);
   const [isAccountOpen, setIsAccountOpen] = useState(false);
@@ -792,7 +814,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                 className="group relative flex items-center justify-center h-16 cursor-pointer text-slate-600 dark:text-slate-300 hover:text-slate-950 dark:hover:text-white transition-colors duration-200"
                 onClick={() => handleNavItemClick(item.name)}
               >
-                <span className="font-semibold text-sm tracking-wide transform group-hover:scale-102 transition-transform duration-200">{item.name}</span>
+                <span className="font-semibold text-sm tracking-wide transform group-hover:scale-102 transition-transform duration-200">{translateNavLabel(item.name)}</span>
 
                 {item.items && (
                   <div className="absolute top-14 left-0 w-44 pt-4 opacity-0 translate-y-[-10px] pointer-events-none group-hover:opacity-100 group-hover:translate-y-0 group-hover:pointer-events-auto transition-all duration-300 ease-out z-30">
@@ -807,7 +829,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                           }}
                           className="block w-full px-4 py-2 text-left text-sm text-gray-600 dark:text-slate-300 hover:bg-bird-blue/5 dark:hover:bg-bird-blue/15 hover:text-bird-blue dark:hover:text-bird-blue rounded-lg transition-colors font-medium"
                         >
-                          {subItem}
+                          {translateNavLabel(subItem)}
                         </button>
                       ))}
                     </div>
@@ -828,7 +850,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                 data-tour="nav-book-service"
                 className="px-5 py-2.5 rounded-full bg-slate-950 hover:bg-slate-800 dark:bg-white dark:hover:bg-slate-100 text-white dark:text-slate-950 font-bold text-sm tracking-wide shadow-md transition-all duration-300 shrink-0"
               >
-                Book Service
+                {t('navbar.bookService')}
               </button>
             </>
           ) : (
@@ -839,7 +861,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                 data-tour="nav-book-service"
                 className="px-5 py-2.5 rounded-full bg-slate-950 hover:bg-slate-800 dark:bg-white dark:hover:bg-slate-100 text-white dark:text-slate-950 font-bold text-sm tracking-wide shadow-md transition-all duration-300 shrink-0"
               >
-                Book Service
+                {t('navbar.bookService')}
               </button>
 
               {/* Utility Dock (Solo Request + Notificaciones) */}
@@ -847,9 +869,9 @@ export const Navbar: React.FC<NavbarProps> = ({
                 <button
                   type="button"
                   onClick={handleMyRequestClick}
-                  title="Active Requests"
+                  title={t('navbar.myRequests')}
                   className="group relative flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-slate-500 hover:text-bird-blue dark:text-slate-400 dark:hover:text-bird-blue transition-colors duration-200"
-                  aria-label="Open my service requests"
+                  aria-label={t('navbar.openMyServiceRequest')}
                 >
                   <svg className="h-5 w-5 transform group-hover:scale-105 transition-transform duration-200" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.2} d="M9 12h6m-6 4h6M7 4h10a2 2 0 012 2v14l-3-2-3 2-3-2-3 2V6a2 2 0 012-2z" />
@@ -864,6 +886,8 @@ export const Navbar: React.FC<NavbarProps> = ({
               </div>
             </>
           )}
+
+          <LanguageSwitcher />
 
           {/* Theme Toggle */}
           <button
@@ -910,7 +934,7 @@ export const Navbar: React.FC<NavbarProps> = ({
               )}
 
               <span className="font-bold text-sm tracking-wide">
-                {user ? user.name : 'Account'}
+                {user ? user.name : t('navbar.account')}
               </span>
               <svg
                 className={`w-4 h-4 transition-transform duration-300 ${isAccountOpen ? 'rotate-180 text-bird-blue' : ''}`}
@@ -935,7 +959,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                       <svg className="w-4 h-4 text-bird-yellow" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 16l-4-4m0 0l-4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1" />
                       </svg>
-                      Sign In
+                      {t('navbar.signIn')}
                     </button>
 
                     <button
@@ -955,7 +979,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                       className="w-full flex items-center gap-3 px-4 py-3 text-sm text-gray-600 dark:text-slate-300 hover:bg-bird-blue/5 dark:hover:bg-bird-blue/15 hover:text-bird-blue rounded-lg transition-colors text-left font-medium"
                     >
                       <User className="w-4 h-4 text-gray-400 dark:text-slate-500" />
-                      My Profile
+                      {t('navbar.myProfile')}
                     </button>
 
                     <button
@@ -966,7 +990,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                         <svg className="w-4 h-4 text-bird-blue" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
                         </svg>
-                        <span>Active Requests</span>
+                        <span>{t('navbar.myRequest')}</span>
                       </div>
                       {openRequestsCount > 0 && (
                         <span className="rounded-full bg-bird-yellow px-2 py-0.5 text-[10px] font-black text-slate-900">
@@ -982,7 +1006,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                       <svg className="w-4 h-4 text-gray-400 dark:text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6M7 4h10a2 2 0 012 2v14l-3-2-3 2-3-2-3 2V6a2 2 0 012-2z" />
                       </svg>
-                      Services History
+                      {t('navbar.myRequests')}
                     </button>
 
                     <div className="my-1 border-t border-gray-100 dark:border-white/5" />
@@ -994,7 +1018,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                       <svg className="w-4 h-4 text-red-400 dark:text-rose-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
                       </svg>
-                      Log Out
+                      {t('navbar.logOut')}
                     </button>
                   </>
                 )}
@@ -1005,6 +1029,7 @@ export const Navbar: React.FC<NavbarProps> = ({
 
         <div className="xl:hidden flex items-center">
           {user && <NotificationCenter token={authToken} className="mr-2" />}
+          <LanguageSwitcher />
           <button
             onClick={() => setIsMobileMenuOpen(true)}
             className="p-2 text-gray-700 hover:text-bird-blue focus:outline-none"
@@ -1031,6 +1056,10 @@ export const Navbar: React.FC<NavbarProps> = ({
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
               </svg>
             </button>
+          </div>
+
+          <div className="mb-6">
+            <LanguageSwitcher mobile />
           </div>
 
           <div className="flex flex-col gap-6 overflow-y-auto">
@@ -1068,13 +1097,13 @@ export const Navbar: React.FC<NavbarProps> = ({
         onClick={(e) => handleAuthClick(e, 'signin')}
         className="w-full py-4 rounded-xl bg-gray-100 dark:bg-slate-900 border border-gray-200 dark:border-white/10 text-gray-900 dark:text-slate-100 font-bold active:scale-95 transition-transform shadow-sm"
       >
-        Sign In
+        {t('navbar.signIn')}
       </button>
       <button
         onClick={(e) => handleAuthClick(e, 'signup')}
         className="w-full py-4 rounded-xl bg-bird-blue text-white font-bold shadow-lg shadow-bird-blue/20 active:scale-95 transition-transform"
       >
-        Create Account
+        {t('navbar.createAccount')}
       </button>
     </>
   ) : (
@@ -1083,25 +1112,25 @@ export const Navbar: React.FC<NavbarProps> = ({
         onClick={handleMyRequestClick}
         className="w-full py-4 rounded-xl bg-bird-blue text-white font-bold active:scale-95 transition-transform shadow-lg shadow-bird-blue/20"
       >
-        My Request
+        {t('navbar.myRequest')}
       </button>
       <button
         onClick={handleProfileClick}
         className="w-full py-4 rounded-xl bg-gray-100 dark:bg-slate-900 border border-gray-200 dark:border-white/10 text-gray-900 dark:text-slate-100 font-bold active:scale-95 transition-transform shadow-sm"
       >
-        My Profile
+        {t('navbar.myProfile')}
       </button>
       <button
         onClick={handleMyRequestsHistoryClick}
         className="w-full py-4 rounded-xl bg-gray-100 dark:bg-slate-900 border border-gray-200 dark:border-white/10 text-gray-900 dark:text-slate-100 font-bold active:scale-95 transition-transform shadow-sm"
       >
-        My Requests
+        {t('navbar.myRequests')}
       </button>
       <button
         onClick={handleLogoutClick}
         className="w-full py-4 rounded-xl bg-red-50 dark:bg-rose-900/30 text-red-600 dark:text-rose-400 border border-red-200 dark:border-rose-900/50 font-bold active:scale-95 transition-transform"
       >
-        Log Out
+        {t('navbar.logOut')}
       </button>
     </>
   )}
@@ -1140,7 +1169,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                       )}
                     </div>
                     <h2 className="truncate text-2xl sm:text-3xl font-black leading-tight text-slate-950 dark:text-slate-100 tracking-tight">
-                      {primaryRequest ? primaryRequest.service_name : 'Your active service'}
+                      {primaryRequest ? localizeClientServiceName(primaryRequest.service_name, i18n.language) : t('navbar.openMyServiceRequest')}
                     </h2>
                   </div>
 
@@ -1234,7 +1263,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                               #{request.id_request}
                             </span>
                           </div>
-                          <p className="mt-1 truncate text-sm font-black text-slate-900 dark:text-slate-100">{request.service_name}</p>
+                          <p className="mt-1 truncate text-sm font-black text-slate-900 dark:text-slate-100">{localizeClientServiceName(request.service_name, i18n.language)}</p>
                           <div className="mt-1.5 flex items-center justify-between gap-2">
                             <span className="truncate text-[11px] font-bold text-slate-500 dark:text-slate-400">{requestStatus.label}</span>
                             <span className="shrink-0 text-[10px] font-semibold text-slate-400 dark:text-slate-500">
@@ -1329,7 +1358,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                           <div className={`mb-4 inline-flex rounded-full border border-white/15 bg-white/10 px-3.5 py-1.5 text-xs font-black text-white shadow-sm`}>
                             {primaryRequestStatus.label}
                           </div>
-                          <h3 className="text-2xl font-black leading-tight tracking-tight relative z-10">{primaryRequest.service_name}</h3>
+                          <h3 className="text-2xl font-black leading-tight tracking-tight relative z-10">{localizeClientServiceName(primaryRequest.service_name, i18n.language)}</h3>
                           <p className="mt-2 text-sm font-semibold leading-6 text-white/75 relative z-10">{primaryRequestStatus.hint}</p>
                         </div>
 
@@ -1730,7 +1759,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                                 <div className="mt-5 space-y-3">
                                   <div className="rounded-2xl border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-slate-950/50 p-4">
                                     <p className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400 dark:text-slate-500">Service</p>
-                                    <p className="mt-1 text-base font-black leading-6 text-slate-950 dark:text-slate-100">{primaryRequest.service_name}</p>
+                                    <p className="mt-1 text-base font-black leading-6 text-slate-950 dark:text-slate-100">{localizeClientServiceName(primaryRequest.service_name, i18n.language)}</p>
                                   </div>
                                   <div className="rounded-2xl border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-slate-950/50 p-4">
                                     <p className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400 dark:text-slate-500">Location</p>

@@ -1,4 +1,4 @@
-import { Activity, BadgeDollarSign, BriefcaseBusiness, CheckCircle2, FileText, Mail, Phone, Star, UserRound } from 'lucide-react';
+﻿import { Activity, BadgeDollarSign, BriefcaseBusiness, CheckCircle2, FileText, Mail, Phone, Star, UserRound } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import type { AdminUserDetail } from '../types';
 import { AdminCard, DetailDrawer, FormSection, Skeleton, StatusBadge } from './AdminUI';

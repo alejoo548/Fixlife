@@ -1,20 +1,11 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
+import { useTranslation } from 'react-i18next';
 import { Navbar } from '../components/layout/Navbar';
 import { Footer } from '../components/layout/Footer';
 import { NavItemType, AuthMode } from '../types';
 import { ReviewSubmitSection } from '../components/sections/ReviewSubmitSection';
-
-const navItems: NavItemType[] = [
-  { name: 'Services' },
-  { name: 'Professionals' },
-  {
-    name: 'Help',
-    items: ['Support', 'How it works'],
-  },
-  { name: 'Reviews' },
-];
 
 interface LeaveReviewProps {
   onOpenAuth?: (mode: AuthMode) => void;
@@ -22,6 +13,9 @@ interface LeaveReviewProps {
 
 const LeaveReview: React.FC<LeaveReviewProps> = ({ onOpenAuth }) => {
   const navigate = useNavigate();
+  const { t } = useTranslation();
+  const translatedNavItems = t('common.reviewPage.navItems', { returnObjects: true });
+  const navItems = (Array.isArray(translatedNavItems) ? translatedNavItems : []) as NavItemType[];
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-900 flex flex-col">
@@ -43,14 +37,14 @@ const LeaveReview: React.FC<LeaveReviewProps> = ({ onOpenAuth }) => {
           className="mb-10"
         >
           <p className="text-xs font-semibold tracking-[0.2em] uppercase text-bird-blue mb-3">
-            Share Your Experience
+            {t('common.reviewPage.badge')}
           </p>
           <h1 className="text-3xl md:text-4xl font-black text-slate-900 dark:text-slate-100 leading-tight mb-3">
-            How was your experience<br />
-            <span className="text-slate-400 dark:text-slate-500 font-light">with Fixlife?</span>
+            {t('common.reviewPage.title')}<br />
+            <span className="text-slate-400 dark:text-slate-500 font-light">{t('common.reviewPage.titleAccent')}</span>
           </h1>
           <p className="text-slate-500 dark:text-slate-400 text-base max-w-xl">
-            Your honest review helps others find great professionals and helps our community grow. Reviews may appear in our testimonials carousel.
+            {t('common.reviewPage.description')}
           </p>
         </motion.div>
 

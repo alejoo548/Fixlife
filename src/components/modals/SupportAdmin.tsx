@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+﻿import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { API_ENDPOINTS } from '../../config/api';
 import { SupportThread, SupportMessage } from '../../types/support';
 import { MessageCircle, RefreshCw, Send, ArrowLeft, Paperclip, X } from 'lucide-react';

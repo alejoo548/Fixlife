@@ -21,6 +21,8 @@ import { showSweetToast, showSweetConfirm } from '../utils/sweetAlert';
 import { normalizeImageUrl } from '../utils/imageUrls';
 import WorkerRatingModal from '../components/modals/WorkerRatingModal';
 import { ServiceReportModal } from '../components/shared/ServiceReportModal';
+import { useTranslation } from 'react-i18next';
+import { localizeClientServiceDescription, localizeClientServiceName } from '../utils/clientTranslations';
 
 type RequestStatus =
     | 'pending'
@@ -91,22 +93,20 @@ const bucketOf = (status: string): FilterKey => {
     return 'active';
 };
 
-const statusLabel = (status: string) => {
+const statusLabel = (status: string, t: (key: string) => string) => {
     const s = String(status || '').toLowerCase();
-    if (s === 'done') return 'Completed';
-    if (s === 'cancelled') return 'Cancelled';
-    if (s === 'payment_pending') return 'Payment Pending';
-    if (s === 'paid') return 'Paid';
-    if (s === 'assigned') return 'Worker Assigned';
-    if (s === 'route_in_progress') return 'On The Way';
-    if (s === 'arrived') return 'Worker Arrived';
-    if (s === 'start_pending') return 'Start Pending';
-    if (s === 'in_progress') return 'In Progress';
-    if (s === 'finish_pending') return 'Finish Pending';
-    if (s === 'completion_pending') return 'Awaiting Final Approval';
-    if (s === 'awaiting_confirmation') return 'Awaiting Confirmation';
-    if (s === 'pending') return 'Finding Worker';
+    const key = `common.serviceHistory.status.${s}`;
+    const label = t(key);
+    if (label !== key) return label;
     return s.charAt(0).toUpperCase() + s.slice(1);
+};
+
+const paymentStatusLabel = (status: string | null | undefined, t: (key: string) => string) => {
+    const s = String(status || 'pending').toLowerCase();
+    const key = `common.serviceHistory.paymentStatus.${s}`;
+    const label = t(key);
+    if (label !== key) return label;
+    return s.replace(/_/g, ' ').replace(/\b\w/g, (char) => char.toUpperCase());
 };
 
 const statusTone = (status: string) => {
@@ -119,13 +119,13 @@ const statusTone = (status: string) => {
     return 'bg-slate-100 text-slate-600 border-slate-200 dark:bg-white/[0.06] dark:text-slate-400 dark:border-white/10';
 };
 
-const money = (value: number, currency = 'USD') =>
-    Number(value || 0).toLocaleString('en-US', { style: 'currency', currency });
+const money = (value: number, currency = 'USD', language = 'en-US') =>
+    Number(value || 0).toLocaleString(language, { style: 'currency', currency });
 
-const formatDate = (iso: string) => {
+const formatDate = (iso: string, language = 'en-US') => {
     const d = new Date(iso);
     if (Number.isNaN(d.getTime())) return '';
-    return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    return d.toLocaleDateString(language, { month: 'short', day: 'numeric', year: 'numeric' });
 };
 
 const paymentDisplayAmount = (request: MyServiceRequest) => {
@@ -141,6 +141,7 @@ interface Props {
 
 const MyServicesHistory: React.FC<Props> = ({ onOpenReview, onGoHome }) => {
     const navigate = useNavigate();
+    const { t, i18n } = useTranslation();
     const [requests, setRequests] = useState<MyServiceRequest[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
@@ -252,14 +253,14 @@ const MyServicesHistory: React.FC<Props> = ({ onOpenReview, onGoHome }) => {
     const handleCancel = async (request: MyServiceRequest) => {
         const s = String(request.status || '').toLowerCase();
         if (!['pending', 'assigned', 'payment_pending'].includes(s)) {
-            showSweetToast({ tone: 'error', message: 'This request can no longer be cancelled.' });
+            showSweetToast({ tone: 'error', message: t('common.serviceHistory.errors.cancelUnavailable') });
             return;
         }
         const confirmed = await showSweetConfirm({
-            title: 'Cancel this request?',
-            message: `Request #${request.id_request} for "${request.service_name}" will be cancelled and cannot be reopened.`,
+            title: t('common.serviceHistory.confirm.cancelTitle'),
+            message: t('common.serviceHistory.confirm.cancelMessage', { id: request.id_request, service: request.service_name }),
             tone: 'warning',
-            confirmText: 'Yes, cancel',
+            confirmText: t('common.serviceHistory.confirm.cancelAction'),
         });
         if (!confirmed) return;
 
@@ -273,13 +274,13 @@ const MyServicesHistory: React.FC<Props> = ({ onOpenReview, onGoHome }) => {
             });
             const payload = await res.json().catch(() => ({}));
             if (!res.ok || !payload?.success) {
-                showSweetToast({ tone: 'error', message: payload?.error || 'Could not cancel this request.' });
+                showSweetToast({ tone: 'error', message: payload?.error || t('common.serviceHistory.errors.cancelError') });
                 return;
             }
-            showSweetToast({ tone: 'success', message: 'Request cancelled.' });
+            showSweetToast({ tone: 'success', message: t('common.serviceHistory.messages.cancelled') });
             await loadRequests(true);
         } catch {
-            showSweetToast({ tone: 'error', message: 'Network error cancelling this request.' });
+            showSweetToast({ tone: 'error', message: t('common.serviceHistory.errors.cancelNetworkError') });
         } finally {
             setCancelBusy(null);
         }
@@ -303,7 +304,7 @@ const MyServicesHistory: React.FC<Props> = ({ onOpenReview, onGoHome }) => {
                         className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white/70 px-4 py-2 text-xs font-black uppercase tracking-[0.14em] text-slate-500 backdrop-blur transition hover:border-slate-300 hover:text-slate-900 dark:border-white/10 dark:bg-white/[0.04] dark:text-slate-400 dark:hover:border-white/20 dark:hover:text-slate-100"
                     >
                         <ArrowLeft className="h-3.5 w-3.5" />
-                        Back to home
+                        {t('common.serviceHistory.back')}
                     </button>
                 </div>
 
@@ -326,19 +327,19 @@ const MyServicesHistory: React.FC<Props> = ({ onOpenReview, onGoHome }) => {
                         <div className="max-w-xl">
                             <div className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-3 py-1.5 text-[11px] font-black uppercase tracking-[0.18em] text-cyan-100 backdrop-blur">
                                 <ShieldCheck className="h-3.5 w-3.5" />
-                                My Account
+                                {t('common.serviceHistory.badge')}
                             </div>
                             <h1 className="mt-5 text-4xl font-black tracking-tight sm:text-5xl">
-                                Services history
+                                {t('common.serviceHistory.title')}
                             </h1>
                             <p className="mt-3 max-w-md text-sm font-medium text-slate-300 sm:text-base">
-                                Every booking, payment and job you have with Fixlife — cleanly tracked, always available.
+                                {t('common.serviceHistory.description')}
                             </p>
                         </div>
                         <div className="grid w-full max-w-md grid-cols-3 gap-3 lg:w-auto">
-                            <HeroStat label="Total spent" value={`$${summary.totalSpent.toFixed(2)}`} accent />
-                            <HeroStat label="Completed" value={String(summary.completed)} />
-                            <HeroStat label="Active" value={String(summary.active)} />
+                            <HeroStat label={t('common.serviceHistory.stats.totalSpent')} value={money(summary.totalSpent, 'USD', i18n.language)} accent />
+                            <HeroStat label={t('common.serviceHistory.stats.completed')} value={String(summary.completed)} />
+                            <HeroStat label={t('common.serviceHistory.stats.active')} value={String(summary.active)} />
                         </div>
                     </div>
                 </motion.section>
@@ -361,7 +362,7 @@ const MyServicesHistory: React.FC<Props> = ({ onOpenReview, onGoHome }) => {
                                             : 'text-slate-500 hover:bg-slate-50 hover:text-slate-800 dark:text-slate-400 dark:hover:bg-white/[0.06] dark:hover:text-slate-100'
                                     }`}
                                 >
-                                    {f.label}
+                                    {t(`common.serviceHistory.filters.${f.key}`)}
                                     <span
                                         className={`inline-flex min-w-[1.4rem] items-center justify-center rounded-full px-2 py-[2px] text-[10px] font-black ${
                                             active ? 'bg-white/20 text-white dark:bg-slate-900/10 dark:text-slate-900' : 'bg-slate-100 text-slate-500 dark:bg-white/[0.06] dark:text-slate-400'
@@ -402,13 +403,15 @@ const MyServicesHistory: React.FC<Props> = ({ onOpenReview, onGoHome }) => {
                                             onCancel={() => void handleCancel(r)}
                                             onReview={() => {
                                                 if (r.has_rating) {
-                                                    showSweetToast({ tone: 'info', message: 'You already reviewed this service.' });
+                                                    showSweetToast({ tone: 'info', message: t('common.serviceHistory.errors.reviewedAlready') });
                                                     return;
                                                 }
                                                 onOpenReview?.(r);
                                                 setRatingRequest(r);
                                             }}
                                             onReport={() => setReportRequest(r)}
+                                            t={t}
+                                            language={i18n.language}
                                         />
                                     </motion.li>
                                 ))}
@@ -664,7 +667,9 @@ const RequestCard: React.FC<{
     onCancel: () => void;
     onReview: () => void;
     onReport: () => void;
-}> = ({ request, cancelBusy, fetchingWorkerId, onOpenWorkerProfile, onCancel, onReview, onReport }) => {
+    t: (key: string) => string;
+    language: string;
+}> = ({ request, cancelBusy, fetchingWorkerId, onOpenWorkerProfile, onCancel, onReview, onReport, t, language }) => {
     const navigate = useNavigate();
     const status = String(request.status || '').toLowerCase();
     const amount = paymentDisplayAmount(request);
@@ -673,12 +678,14 @@ const RequestCard: React.FC<{
     const paid = ['paid', 'released'].includes(paymentStatus);
     const canCancel = ['pending', 'assigned', 'payment_pending'].includes(status);
     const canReview = status === 'done' && !request.has_rating;
+    const localizedServiceName = localizeClientServiceName(request.service_name, language);
+    const localizedDescription = localizeClientServiceDescription(request.description, language);
     const scheduledLabel = (() => {
         const raw = request.scheduled_start_time || (request.scheduled_date && request.scheduled_time ? `${request.scheduled_date}T${request.scheduled_time}` : '');
         if (!raw) return null;
         const d = new Date(raw);
         if (Number.isNaN(d.getTime())) return null;
-        return d.toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+        return d.toLocaleString(language, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
     })();
 
     return (
@@ -687,47 +694,47 @@ const RequestCard: React.FC<{
                 <div className="flex items-start justify-between gap-4">
                     <div className="min-w-0 flex-1">
                         <div className="flex flex-wrap items-center gap-2 text-[10px] font-black uppercase tracking-[0.18em] text-slate-400 dark:text-slate-500">
-                            <span>Request #{request.id_request}</span>
+                            <span>{t('common.serviceHistory.card.request').replace('{{id}}', String(request.id_request))}</span>
                             <span aria-hidden>·</span>
-                            <span>{formatDate(request.created_at)}</span>
+                            <span>{formatDate(request.created_at, language)}</span>
                         </div>
-                        <h3 className="mt-2 text-xl font-black text-slate-900 truncate dark:text-slate-100">{request.service_name}</h3>
-                        <p className="mt-1.5 line-clamp-2 text-sm text-slate-500 dark:text-slate-400">{request.description}</p>
+                        <h3 className="mt-2 text-xl font-black text-slate-900 truncate dark:text-slate-100">{localizedServiceName}</h3>
+                        <p className="mt-1.5 line-clamp-2 text-sm text-slate-500 dark:text-slate-400">{localizedDescription}</p>
                     </div>
                     <span
                         className={`shrink-0 rounded-full border px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.14em] ${statusTone(request.status)}`}
                     >
-                        {statusLabel(request.status)}
+                        {statusLabel(request.status, t)}
                     </span>
                 </div>
 
                 <div className="mt-5 grid gap-3 sm:grid-cols-3">
                     <InfoTile
                         icon={<User2 className="h-4 w-4" />}
-                        label="Professional"
-                        value={request.assigned_worker?.name || 'Unassigned'}
+                        label={t('common.serviceHistory.card.professional')}
+                        value={request.assigned_worker?.name || t('common.serviceHistory.card.unassigned')}
                         onClick={request.assigned_worker ? () => onOpenWorkerProfile(request.id_request) : undefined}
                         isClickable={!!request.assigned_worker}
                     />
                     <InfoTile
                         icon={<MapPin className="h-4 w-4" />}
-                        label="Location"
-                        value={request.location_text || 'Not provided'}
+                        label={t('common.serviceHistory.card.location')}
+                        value={request.location_text || t('common.serviceHistory.card.noLocation')}
                     />
                     {scheduledLabel ? (
                         <InfoTile
                             icon={<CalendarClock className="h-4 w-4" />}
-                            label="Scheduled"
+                            label={t('common.serviceHistory.card.scheduled')}
                             value={scheduledLabel}
                         />
                     ) : (
                         <InfoTile
                             icon={<Receipt className="h-4 w-4" />}
-                            label={paid ? 'Paid on' : 'Payment'}
+                            label={paid ? t('common.serviceHistory.card.paidOn') : t('common.serviceHistory.card.payment')}
                             value={
                                 paid && request.payment?.paid_at
-                                    ? formatDate(request.payment.paid_at)
-                                    : String(request.payment?.status || 'pending').replace(/_/g, ' ')
+                                    ? formatDate(request.payment.paid_at, language)
+                                    : paymentStatusLabel(request.payment?.status, t)
                             }
                         />
                     )}
@@ -736,8 +743,8 @@ const RequestCard: React.FC<{
                 <div className="mt-6 flex flex-col gap-4 border-t border-slate-100 pt-5 sm:flex-row sm:items-end sm:justify-between dark:border-white/10">
                     <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1">
                         <div>
-                            <p className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-400 dark:text-slate-500">Total</p>
-                            <p className="mt-1 text-2xl font-black text-slate-900 dark:text-slate-100">{money(amount, currency)}</p>
+                            <p className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-400 dark:text-slate-500">{t('common.serviceHistory.card.total')}</p>
+                            <p className="mt-1 text-2xl font-black text-slate-900 dark:text-slate-100">{money(amount, currency, language)}</p>
                         </div>
                         {request.payment?.provider && (
                             <div className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.14em] text-slate-500 dark:border-white/10 dark:bg-white/[0.04] dark:text-slate-400">
@@ -774,7 +781,7 @@ const RequestCard: React.FC<{
                                 className="inline-flex items-center gap-1.5 rounded-2xl bg-slate-900 dark:bg-white px-4 py-2.5 text-xs font-black uppercase tracking-[0.14em] text-white dark:text-slate-900 shadow-sm transition hover:bg-slate-800 dark:hover:bg-slate-200"
                             >
                                 <Star className="h-3.5 w-3.5" />
-                                Review pro
+                                {t('common.serviceHistory.card.reviewPro')}
                             </button>
                         )}
                         {canCancel && (
@@ -789,7 +796,7 @@ const RequestCard: React.FC<{
                                 ) : (
                                     <XCircle className="h-3.5 w-3.5" />
                                 )}
-                                {cancelBusy ? 'Cancelling' : 'Cancel'}
+                                {cancelBusy ? t('common.serviceHistory.card.cancelling') : t('common.serviceHistory.card.cancel')}
                             </button>
                         )}
                         <button

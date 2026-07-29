@@ -276,6 +276,8 @@ type CatalogService = {
   aliases?: string[];
   description: string;
   icon: string;
+  minBudget: number;
+  maxBudget: number;
 };
 
 const CATALOG_SERVICES: CatalogService[] = [
@@ -283,93 +285,129 @@ const CATALOG_SERVICES: CatalogService[] = [
     name: 'Carpentry',
     description: 'Custom woodwork, furniture repair, and door/window installations.',
     icon: '\u{1FA9A}',
+    minBudget: 35,
+    maxBudget: 700,
   },
   {
     name: 'Auto Mechanic',
     description: 'Vehicle diagnostics, maintenance, and mechanical repairs.',
     icon: '\u{1F527}',
+    minBudget: 30,
+    maxBudget: 800,
   },
   {
     name: 'Childcare / Babysitting',
     description: 'Safe and reliable care for children at home.',
     icon: '\u{1F9F8}',
+    minBudget: 20,
+    maxBudget: 250,
   },
   {
     name: 'Gardening',
     description: 'Lawn care, pruning, planting, and garden maintenance.',
     icon: '\u{1F33F}',
+    minBudget: 25,
+    maxBudget: 450,
   },
   {
     name: 'Electrical Services',
     description: 'Wiring, outlets, lighting, and electrical troubleshooting.',
     icon: '\u26A1',
+    minBudget: 35,
+    maxBudget: 900,
   },
   {
     name: 'Plumbing',
     description: 'Leak repairs, pipe installation, and drain unclogging.',
     icon: '\u{1F6B0}',
+    minBudget: 35,
+    maxBudget: 900,
   },
   {
     name: 'House Painting',
     aliases: ['Painting'],
     description: 'Interior and exterior painting with professional finishing.',
     icon: '\u{1F3A8}',
+    minBudget: 50,
+    maxBudget: 1000,
   },
   {
     name: 'Masonry',
     description: 'Brickwork, concrete repairs, and structural improvements.',
     icon: '\u{1F9F1}',
+    minBudget: 50,
+    maxBudget: 1000,
   },
   {
     name: 'Welding',
     description: 'Metal fabrication, repairs, and custom welding jobs.',
     icon: '\u{1F525}',
+    minBudget: 40,
+    maxBudget: 900,
   },
   {
     name: 'AC Installation & Repair',
     description: 'Air conditioner setup, maintenance, and cooling fixes.',
     icon: '\u2744\uFE0F',
+    minBudget: 45,
+    maxBudget: 1000,
   },
   {
     name: 'Refrigeration Repair',
     description: 'Repair and maintenance for refrigerators and cooling systems.',
     icon: '\u{1F9CA}',
+    minBudget: 40,
+    maxBudget: 900,
   },
   {
     name: 'Locksmith Services',
     description: 'Lock installation, key duplication, and emergency unlocking.',
     icon: '\u{1F510}',
+    minBudget: 25,
+    maxBudget: 350,
   },
   {
     name: 'Drywall Installation',
     description: 'Drywall mounting, patching, and wall finishing.',
     icon: '\u{1F9F1}',
+    minBudget: 45,
+    maxBudget: 900,
   },
   {
     name: 'Home Cleaning',
     aliases: ['Cleaning'],
     description: 'Deep cleaning and regular housekeeping services.',
     icon: '\u{1F9F9}',
+    minBudget: 25,
+    maxBudget: 400,
   },
   {
     name: 'Elderly Care',
     description: 'Companion and basic support care for seniors.',
     icon: '\u{1F91D}',
+    minBudget: 25,
+    maxBudget: 350,
   },
   {
     name: 'Computer Technician',
     description: 'PC troubleshooting, software setup, and hardware repair.',
     icon: '\u{1F4BB}',
+    minBudget: 25,
+    maxBudget: 500,
   },
   {
     name: 'Security Camera Installation',
     description: 'CCTV setup, configuration, and basic monitoring guidance.',
     icon: '\u{1F4F9}',
+    minBudget: 50,
+    maxBudget: 1000,
   },
   {
     name: 'Appliance Repair',
     description: 'Repair of washers, dryers, stoves, and home appliances.',
     icon: '\u{1F6E0}\uFE0F',
+    minBudget: 30,
+    maxBudget: 800,
   },
 ];
 
@@ -397,26 +435,46 @@ const repairServiceCatalogData = async () => {
   for (const service of CATALOG_SERVICES) {
     await pool.execute(
       `UPDATE services
-       SET description = ?, icon = ?
+       SET description = ?, icon = ?, min_budget = COALESCE(min_budget, ?), max_budget = COALESCE(max_budget, ?)
        WHERE LOWER(name) = ?`,
-      [service.description, service.icon, service.name.toLowerCase()]
+      [service.description, service.icon, service.minBudget, service.maxBudget, service.name.toLowerCase()]
     );
 
     for (const alias of service.aliases || []) {
       await pool.execute(
         `UPDATE services
-         SET name = ?, description = ?, icon = ?
+         SET name = ?, description = ?, icon = ?, min_budget = COALESCE(min_budget, ?), max_budget = COALESCE(max_budget, ?)
          WHERE LOWER(name) = ?
            AND NOT EXISTS (
              SELECT 1
              FROM (SELECT id_service FROM services WHERE LOWER(name) = ? LIMIT 1) AS existing_service
            )`,
-        [service.name, service.description, service.icon, alias.toLowerCase(), service.name.toLowerCase()]
+        [service.name, service.description, service.icon, service.minBudget, service.maxBudget, alias.toLowerCase(), service.name.toLowerCase()]
       );
     }
   }
 
   serviceCatalogDataChecked = true;
+};
+
+const ensureServiceBudgetColumns = async () => {
+  if (!shouldRunRuntimeSchemaSync()) return;
+
+  const [rows] = await pool.execute<RowDataPacket[]>(
+    `SELECT column_name
+     FROM information_schema.columns
+     WHERE table_schema = DATABASE()
+       AND table_name = 'services'
+       AND column_name IN ('min_budget', 'max_budget')`
+  );
+  const existingColumns = new Set(rows.map((row) => String(row.column_name)));
+
+  if (!existingColumns.has('min_budget')) {
+    await pool.execute(`ALTER TABLE services ADD COLUMN min_budget DECIMAL(10,2) NULL`);
+  }
+  if (!existingColumns.has('max_budget')) {
+    await pool.execute(`ALTER TABLE services ADD COLUMN max_budget DECIMAL(10,2) NULL`);
+  }
 };
 
 const repairServiceCardSeedData = async () => {
@@ -503,8 +561,9 @@ const defaultImageForService = (serviceName: string) => {
   return 'https://images.unsplash.com/photo-1562259949-e8e7689d7828?q=80&w=1400&auto=format&fit=crop';
 };
 
-const ensureDefaultServices = async () => {
+export const ensureDefaultServices = async () => {
   if (!shouldRunRuntimeSchemaSync()) return;
+  await ensureServiceBudgetColumns();
 
   const [rows] = await pool.execute<RowDataPacket[]>(
     `SELECT COUNT(*) AS total FROM services`
@@ -514,9 +573,9 @@ const ensureDefaultServices = async () => {
   if (total === 0) {
     for (const service of CATALOG_SERVICES) {
       await pool.execute(
-        `INSERT INTO services (name, description, icon, is_active)
-         VALUES (?, ?, ?, 1)`,
-        [service.name, service.description, service.icon]
+        `INSERT INTO services (name, description, icon, min_budget, max_budget, is_active)
+         VALUES (?, ?, ?, ?, ?, 1)`,
+        [service.name, service.description, service.icon, service.minBudget, service.maxBudget]
       );
     }
   }
@@ -709,9 +768,16 @@ export const getActiveServices = async (_req: Request, res: Response): Promise<v
     await ensureDefaultServices();
 
     const [rows] = await pool.execute<RowDataPacket[]>(
-      `SELECT id_service, name, description, icon FROM services WHERE is_active = 1 ORDER BY name ASC`
+      `SELECT id_service, name, description, icon, min_budget, max_budget FROM services WHERE is_active = 1 ORDER BY name ASC`
     );
-    res.json({ success: true, services: rows });
+    res.json({
+      success: true,
+      services: rows.map((row: any) => ({
+        ...row,
+        min_budget: row.min_budget == null ? null : Number(row.min_budget),
+        max_budget: row.max_budget == null ? null : Number(row.max_budget),
+      })),
+    });
   } catch (error: any) {
     console.error('Error in getActiveServices:', error);
     res.status(500).json({ error: 'Internal server error' });
@@ -1976,7 +2042,7 @@ export const createServiceRequest = async (req: AuthRequest, res: Response): Pro
     const description = String(req.body?.description || '').trim();
     const locationText = String(req.body?.location || '').trim();
     const budgetRaw = Number(req.body?.budget);
-    const budget = Number.isFinite(budgetRaw) && budgetRaw > 0 ? Math.min(budgetRaw, 1000) : 0;
+    const budget = Number.isFinite(budgetRaw) && budgetRaw > 0 ? Math.min(budgetRaw, 10000) : 0;
     const latitudeRaw = req.body?.lat != null && req.body?.lat !== '' ? Number(req.body?.lat) : null;
     const longitudeRaw = req.body?.lng != null && req.body?.lng !== '' ? Number(req.body?.lng) : null;
     const radiusRaw = Number(req.body?.radius_km ?? 8);
@@ -2025,12 +2091,6 @@ export const createServiceRequest = async (req: AuthRequest, res: Response): Pro
     const latitude = resolvedLocation.lat;
     const longitude = resolvedLocation.lng;
 
-    if (!Number.isFinite(budget) || budget <= 0 || budget > 1000) {
-      removeUploadedFiles(files);
-      res.status(400).json({ error: 'Budget must be between 0.01 and 1000.00.' });
-      return;
-    }
-    const initialBudget = budget; // force initial_budget = budget (no mass assignment)
     if (files.length === 0) {
       res.status(400).json({ error: 'At least one problem image is required.' });
       return;
@@ -2046,7 +2106,7 @@ export const createServiceRequest = async (req: AuthRequest, res: Response): Pro
     }
 
     const [svcRows] = await pool.execute<RowDataPacket[]>(
-      `SELECT id_service, name FROM services WHERE id_service = ? AND is_active = 1 LIMIT 1`,
+      `SELECT id_service, name, min_budget, max_budget FROM services WHERE id_service = ? AND is_active = 1 LIMIT 1`,
       [idService]
     );
     if (svcRows.length === 0) {
@@ -2054,6 +2114,14 @@ export const createServiceRequest = async (req: AuthRequest, res: Response): Pro
       res.status(400).json({ error: 'Service is not available.' });
       return;
     }
+    const minBudget = Number(svcRows[0].min_budget ?? 1);
+    const maxBudget = Number(svcRows[0].max_budget ?? 1000);
+    if (!Number.isFinite(budget) || budget < minBudget || budget > maxBudget) {
+      removeUploadedFiles(files);
+      res.status(400).json({ error: `Budget for this service must be between $${minBudget.toFixed(2)} and $${maxBudget.toFixed(2)}.` });
+      return;
+    }
+    const initialBudget = budget; // force initial_budget = budget (no mass assignment)
 
     const [insertRequest] = await pool.execute<ResultSetHeader>(
       `INSERT INTO service_requests
@@ -4033,11 +4101,6 @@ export const confirmRequestPayment = async (req: AuthRequest, res: Response): Pr
 
     const requestRow = requestRows[0];
     const currentStatus = String(requestRow.status || '').toLowerCase();
-    if (currentStatus !== 'payment_pending') {
-      await connection.rollback();
-      res.status(409).json({ error: 'This request is not waiting for payment.' });
-      return;
-    }
 
     const [paymentRows] = await connection.execute<RowDataPacket[]>(
       `SELECT id_payment, provider, payment_status, amount, platform_fee, worker_payout, commission_rate, commission_snapshot_json, checkout_reference, provider_payment_id, provider_capture_id, currency_code
@@ -4047,6 +4110,21 @@ export const confirmRequestPayment = async (req: AuthRequest, res: Response): Pr
        FOR UPDATE`,
       [idRequest]
     );
+    const storedPaymentRow = paymentRows.length > 0 ? paymentRows[0] : null;
+    const storedPaymentMethod = storedPaymentRow ? parseRequestedPaymentMethod(storedPaymentRow.provider) : null;
+
+    // Wompi/Virtual Wallet are confirmed asynchronously by a server-to-server
+    // webhook, which can land in between the client's poll requests. If that
+    // webhook already flipped the request to 'paid' by the time the client
+    // polls again, report the already-confirmed payment instead of a 409.
+    const alreadyPaidViaAsyncWebhook =
+      currentStatus === 'paid' && (storedPaymentMethod === 'wompi' || storedPaymentMethod === 'virtual_wallet');
+
+    if (currentStatus !== 'payment_pending' && !alreadyPaidViaAsyncWebhook) {
+      await connection.rollback();
+      res.status(409).json({ error: 'This request is not waiting for payment.' });
+      return;
+    }
 
     const commission = await calculateCommissionBreakdown({
       amount: getRequestChargeAmount(requestRow),
@@ -4056,8 +4134,6 @@ export const confirmRequestPayment = async (req: AuthRequest, res: Response): Pr
       executor: connection,
     });
     const { amount, platformFee, workerPayout } = commission;
-    const storedPaymentRow = paymentRows.length > 0 ? paymentRows[0] : null;
-    const storedPaymentMethod = storedPaymentRow ? parseRequestedPaymentMethod(storedPaymentRow.provider) : null;
     const paymentMethod: SupportedPaymentMethod = requestedPaymentMethod || storedPaymentMethod || 'paypal';
 
     if (paymentMethod === 'cash' || storedPaymentMethod === 'cash') {

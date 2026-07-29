@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+﻿import React, { useEffect, useRef, useState } from 'react';
 import { useMotionValue, useSpring } from 'framer-motion';
 
 const VW = 800;

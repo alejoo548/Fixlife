@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { MessageCircle, X, Plus } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { useSupportChat } from '../../hooks/useSupportChat';
 import { SupportThreadList } from './SupportThreadList';
 import { SupportChatWindow } from './SupportChatWindow';
@@ -13,11 +14,11 @@ interface SupportChatWidgetProps {
 }
 
 export const SupportChatWidget: React.FC<SupportChatWidgetProps> = ({ token, userName, scope = 'client' }) => {
-  const isWorker = scope === 'worker';
-  const panelTitle = isWorker ? 'Pro support' : 'Support';
-  const panelSubtitleIdle = isWorker ? 'Send a request to the Fixlife team' : "We're here to help";
-  const newButtonLabel = isWorker ? 'New request' : 'New case';
-  const footerCopy = isWorker ? 'The Fixlife team usually replies within 2 hours' : 'We usually reply within 2 hours';
+  const { t } = useTranslation();
+  const panelTitle = t('serviceRequest.supportWidget.title');
+  const panelSubtitleIdle = t('serviceRequest.supportWidget.helpSubtitle');
+  const newButtonLabel = t('serviceRequest.supportWidget.newCase');
+  const footerCopy = t('serviceRequest.supportWidget.replyWindow');
   const [isOpen, setIsOpen] = useState(false);
   const [showCreateForm, setShowCreateForm] = useState(false);
 
@@ -69,7 +70,7 @@ export const SupportChatWidget: React.FC<SupportChatWidgetProps> = ({ token, use
       <button
         onClick={handleToggle}
         className="fixed bottom-6 right-6 z-[200] flex h-14 w-14 items-center justify-center rounded-2xl border border-white/40 bg-bird-blue/95 text-white shadow-[0_10px_30px_rgba(0,0,0,0.18)] backdrop-blur-xl transition-all duration-200 hover:bg-bird-blue hover:shadow-[0_14px_36px_rgba(0,0,0,0.22)] active:scale-[0.96]"
-        aria-label="Open support"
+        aria-label={t('serviceRequest.supportWidget.openSupport')}
       >
         {isOpen ? (
           <X size={23} />
@@ -112,7 +113,7 @@ export const SupportChatWidget: React.FC<SupportChatWidgetProps> = ({ token, use
                     {isOpen && (
                       <div
                         className={`h-2 w-2 rounded-full ${isSocketConnected ? 'bg-emerald-500' : 'bg-gray-300'}`}
-                        title={isSocketConnected ? 'Connected in real time' : 'Offline mode'}
+                        title={isSocketConnected ? t('serviceRequest.supportWidget.connected') : t('serviceRequest.supportWidget.offline')}
                       />
                     )}
                   </div>

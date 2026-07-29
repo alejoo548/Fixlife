@@ -13,6 +13,8 @@ interface Coordinates {
 interface ServiceOptionLike {
   id_service: number;
   name: string;
+  min_budget?: number | null;
+  max_budget?: number | null;
 }
 
 interface UseServiceRequestSubmitOptions {
@@ -47,6 +49,26 @@ interface UseServiceRequestSubmitOptions {
   }) => void | Promise<void>;
   showAlert?: (input: { title: string; message: string; html?: string; tone?: 'warning' | 'error' | 'success' | 'info'; confirmText?: string }) => void;
   showToast: (type: 'success' | 'error' | 'info', message: string) => void;
+  messages?: {
+    authRequired: string;
+    selectServiceFirst: string;
+    locationRequired: string;
+    confirmLocation: string;
+    specificLocation: string;
+    descriptionRequired: string;
+    budgetInvalid: string;
+    imageRequired: string;
+    scheduleRequired: string;
+    scheduleDurationInvalid: string;
+    scheduleInvalid: string;
+    sessionExpiredTitle: string;
+    sessionExpiredMessage: string;
+    signInAgain: string;
+    activeRequestExists: string;
+    createError: string;
+    networkError: string;
+    incompleteRequest: string;
+  };
 }
 
 export const useServiceRequestSubmit = ({
@@ -65,46 +87,71 @@ export const useServiceRequestSubmit = ({
   onRequestCreated,
   showAlert,
   showToast,
+  messages,
 }: UseServiceRequestSubmitOptions) =>
   useCallback(async () => {
+    const msg = {
+      authRequired: 'You need an account and active session to create a request.',
+      selectServiceFirst: 'Select a service first.',
+      locationRequired: 'Location is required.',
+      confirmLocation: 'Confirm the exact service location before sending.',
+      specificLocation: 'Choose a specific address, landmark, or coordinates.',
+      descriptionRequired: 'Description must have at least 10 characters.',
+      budgetInvalid: 'Budget must be between $0.01 and $1,000.00.',
+      imageRequired: 'Add at least one problem image.',
+      scheduleRequired: 'Select a date and time window for the scheduled visit.',
+      scheduleDurationInvalid: 'Estimated visit duration must be between 1 and 7 hours.',
+      scheduleInvalid: 'Select a valid date and time for the scheduled visit.',
+      sessionExpiredTitle: 'Session expired',
+      sessionExpiredMessage: 'Please sign in again before creating a service request.',
+      signInAgain: 'Sign in again',
+      activeRequestExists: 'You already have an active request (#{{id}}).',
+      createError: 'Could not create request.',
+      networkError: 'Network error creating request.',
+      incompleteRequest: 'Complete the missing information before sending.',
+      ...messages,
+    };
+
     if (!isAuthenticated() || !getToken() || !getAuthUser()) {
-      showToast('error', 'You need an account and active session to create a request.');
+      showToast('error', msg.authRequired);
       return;
     }
 
     const selectedService = services.find((svc) => svc.name === data.category);
     if (!selectedService?.id_service) {
-      showToast('error', 'Select a service first.');
+      showToast('error', msg.selectServiceFirst);
       return;
     }
     if (!data.location.trim()) {
-      showToast('error', 'Location is required.');
+      showToast('error', msg.locationRequired);
       return;
     }
     if (!currentCoords) {
-      showToast('error', 'Confirm the exact service location before sending.');
+      showToast('error', msg.confirmLocation);
       return;
     }
     const normalizedLocation = data.location.trim().toLocaleLowerCase();
     if (normalizedLocation === 'el salvador' || normalizedLocation === 'salvador') {
-      showToast('error', 'Choose a specific address, landmark, or coordinates.');
+      showToast('error', msg.specificLocation);
       return;
     }
     if (!data.description.trim() || data.description.trim().length < 10) {
-      showToast('error', 'Description must have at least 10 characters.');
+      showToast('error', msg.descriptionRequired);
       return;
     }
     const budgetValue = Number(data.price);
-    if (!Number.isFinite(budgetValue) || budgetValue <= 0 || budgetValue > 1000) {
-      showToast('error', 'Budget must be between $0.01 and $1,000.00.');
+    const minBudget = Number(selectedService.min_budget ?? 1);
+    const maxBudget = Number(selectedService.max_budget ?? 1000);
+    if (!Number.isFinite(budgetValue) || budgetValue < minBudget || budgetValue > maxBudget) {
+      showToast('error', msg.budgetInvalid);
       return;
     }
     if (problemFiles.length === 0) {
-      showToast('error', 'Add at least one problem image.');
+      showToast('error', msg.imageRequired);
       return;
     }
     if (data.booking_type === 'scheduled' && (!data.scheduled_date || !data.scheduled_time)) {
-      showToast('error', 'Select a date and time window for the scheduled visit.');
+      showToast('error', msg.scheduleRequired);
       return;
     }
     const scheduledDurationMinutes = Math.round(Number(data.scheduled_duration_minutes || 120) / 60) * 60;
@@ -112,7 +159,7 @@ export const useServiceRequestSubmit = ({
       data.booking_type === 'scheduled' &&
       (!Number.isFinite(scheduledDurationMinutes) || scheduledDurationMinutes < 60 || scheduledDurationMinutes > 7 * 60)
     ) {
-      showToast('error', 'Estimated visit duration must be between 1 and 7 hours.');
+      showToast('error', msg.scheduleDurationInvalid);
       return;
     }
     const selectionMode = data.selection_mode === 'client_review' ? 'client_review' : 'auto_assign';
@@ -131,7 +178,7 @@ export const useServiceRequestSubmit = ({
       if (data.booking_type === 'scheduled') {
         const scheduledStart = new Date(`${data.scheduled_date}T${data.scheduled_time}:00`);
         if (Number.isNaN(scheduledStart.getTime())) {
-          showToast('error', 'Select a valid date and time for the scheduled visit.');
+          showToast('error', msg.scheduleInvalid);
           return;
         }
         form.append('scheduled_date', data.scheduled_date);
@@ -149,24 +196,30 @@ export const useServiceRequestSubmit = ({
         headers: token ? { Authorization: `Bearer ${token}` } : undefined,
         body: form,
       });
-      const payload = await res.json();
+      const rawPayload = await res.text();
+      let payload: any = null;
+      try {
+        payload = rawPayload ? JSON.parse(rawPayload) : null;
+      } catch {
+        payload = { error: rawPayload };
+      }
       if (!res.ok || !payload?.success) {
         if (res.status === 401 || res.status === 403) {
           clearAuthSession('client');
           showAlert?.({
-            title: 'Session expired',
-            message: 'Please sign in again before creating a service request.',
+            title: msg.sessionExpiredTitle,
+            message: msg.sessionExpiredMessage,
             tone: 'warning',
-            confirmText: 'Sign in again',
+            confirmText: msg.signInAgain,
           });
           return;
         }
         if (res.status === 409 && payload?.id_request) {
-          showToast('error', `You already have an active request (#${payload.id_request}).`);
+          showToast('error', msg.activeRequestExists.replace('{{id}}', String(payload.id_request)));
           void fetchMyRequests(historyStatus);
           return;
         }
-        showToast('error', payload?.error || 'Could not create request.');
+        showToast('error', payload?.error || msg.createError);
         return;
       }
 
@@ -208,8 +261,9 @@ export const useServiceRequestSubmit = ({
         scheduled_end_time: payload.request?.scheduled_end_time || null,
         image_count: problemFiles.length,
       });
-    } catch {
-      showToast('error', 'Network error creating request.');
+    } catch (error: any) {
+      console.error('Network error creating service request:', error);
+      showToast('error', error?.message ? `${msg.networkError} ${error.message}` : msg.networkError);
     } finally {
       setIsSubmittingRequest(false);
     }
@@ -229,4 +283,5 @@ export const useServiceRequestSubmit = ({
     onRequestCreated,
     showAlert,
     showToast,
+    messages,
   ]);

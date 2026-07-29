@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+﻿import { useEffect, useState } from 'react';
 import { CheckCircle2, Navigation, Play, SquareCheckBig } from 'lucide-react';
 
 interface WorkerCurrentJobActionProps {

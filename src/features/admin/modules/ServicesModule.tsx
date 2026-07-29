@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { DollarSign, Plus, Trash2 } from 'lucide-react';
 import { adminApi } from '../api/adminApi';
-import { AdminCard, DataTable, EmptyState, FormSection, Skeleton, StatusBadge } from '../components/AdminUI';
+import { AdminCard, AdminNumberInput, DataTable, EmptyState, FormSection, Skeleton, StatusBadge } from '../components/AdminUI';
 import { showSweetAlert, showSweetConfirm, showSweetToast } from '../../../utils/sweetAlert';
 
 type Service = {
@@ -10,6 +10,8 @@ type Service = {
   description: string | null;
   icon: string | null;
   is_active: number;
+  min_budget: number | null;
+  max_budget: number | null;
   request_count: number;
   completed_count: number;
   cancelled_count: number;
@@ -21,12 +23,16 @@ type ServiceForm = {
   name: string;
   description: string;
   icon: string;
+  min_budget: string;
+  max_budget: string;
 };
 
 const emptyForm: ServiceForm = {
   name: '',
   description: '',
   icon: '',
+  min_budget: '25',
+  max_budget: '500',
 };
 const SERVICES_CONFIRM_BUILD_MARKER = 'services-sweet-confirm-v2';
 
@@ -74,6 +80,16 @@ export default function ServicesModule() {
       });
       return;
     }
+    const minBudget = Number(form.min_budget);
+    const maxBudget = Number(form.max_budget);
+    if (!Number.isFinite(minBudget) || !Number.isFinite(maxBudget) || minBudget < 1 || maxBudget < minBudget) {
+      showSweetAlert({
+        tone: 'warning',
+        title: 'Budget range required',
+        message: 'Set a realistic minimum and maximum budget for this service. The maximum must be greater than or equal to the minimum.',
+      });
+      return;
+    }
 
     setSaving(true);
     setError('');
@@ -82,6 +98,8 @@ export default function ServicesModule() {
         name: form.name.trim(),
         description: form.description.trim(),
         icon: form.icon.trim(),
+        min_budget: minBudget,
+        max_budget: maxBudget,
       };
 
       if (editing) {
@@ -181,6 +199,8 @@ export default function ServicesModule() {
       name: service.name,
       description: service.description || '',
       icon: service.icon || '',
+      min_budget: String(service.min_budget ?? 25),
+      max_budget: String(service.max_budget ?? 500),
     });
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
@@ -195,6 +215,16 @@ export default function ServicesModule() {
             <strong>{service.name}</strong>
             <span>{service.description || 'No description'}</span>
           </div>
+        ),
+      },
+      {
+        key: 'budget',
+        label: 'Budget range',
+        render: (service: Service) => (
+          <span className="admin-rating-inline">
+            <DollarSign size={14} />
+            {Number(service.min_budget ?? 0).toFixed(2)} - {Number(service.max_budget ?? 0).toFixed(2)}
+          </span>
         ),
       },
       {
@@ -295,6 +325,29 @@ export default function ServicesModule() {
               />
             </label>
           </details>
+        </FormSection>
+
+        <FormSection title="Request budget limits" description="Clients can only submit a budget inside this range for the selected service.">
+          <label className="admin-field">
+            <span>Minimum budget (USD)</span>
+            <AdminNumberInput
+              value={form.min_budget}
+              min={1}
+              max={10000}
+              decimals={2}
+              onChange={(value) => setForm((current) => ({ ...current, min_budget: value }))}
+            />
+          </label>
+          <label className="admin-field">
+            <span>Maximum budget (USD)</span>
+            <AdminNumberInput
+              value={form.max_budget}
+              min={1}
+              max={10000}
+              decimals={2}
+              onChange={(value) => setForm((current) => ({ ...current, max_budget: value }))}
+            />
+          </label>
         </FormSection>
 
         {error && <div className="admin-inline-error">{error}</div>}

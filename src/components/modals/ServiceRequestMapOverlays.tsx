@@ -1,4 +1,5 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 
 interface ServiceRequestMapOverlaysProps {
     leafletReady: boolean;
@@ -19,19 +20,21 @@ export function ServiceRequestMapOverlays({
     radiusKm,
     trackerContent,
 }: ServiceRequestMapOverlaysProps) {
+    const { t } = useTranslation();
+
     return (
         <>
             {!leafletReady && <div className="absolute right-4 top-4 z-[500] h-2.5 w-2.5 rounded-full bg-bird-blue/40 animate-pulse" />}
             {!activeTrackedRequest && (
                 <div className="absolute left-4 right-4 top-4 z-[400] rounded-2xl bg-white/92 border border-white/70 shadow-[0_18px_40px_rgba(15,23,42,0.14)] px-4 py-3 backdrop-blur-xl pointer-events-auto sm:left-auto sm:right-6 sm:top-6 sm:max-w-xs">
-                    <p className="text-[11px] uppercase tracking-wider font-bold text-gray-500">Live Map</p>
+                    <p className="text-[11px] uppercase tracking-wider font-bold text-gray-500">{t('serviceRequest.location.liveMap')}</p>
                     <p className="text-[15px] font-bold text-slate-800 truncate">
                         {currentCoords
                             ? (locationLabel.trim() || `Lat ${currentCoords.lat.toFixed(4)}, Lng ${currentCoords.lng.toFixed(4)}`)
-                            : 'Confirm an address to center'}
+                            : t('serviceRequest.location.confirmAddressToCenter')}
                     </p>
                     <p className="text-xs text-slate-900 font-bold mt-1">
-                        {nearbyWorkersCount} nearby pro(s) in {radiusKm} km
+                        {t('serviceRequest.location.nearbyPros', { count: nearbyWorkersCount, radius: radiusKm })}
                     </p>
                 </div>
             )}

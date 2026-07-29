@@ -8,7 +8,7 @@ import { createUserNotification } from '../utils/notifications';
 import { emitToUser } from '../services/socketManager';
 import { emitAdminActivity } from '../services/supportSocket.service';
 import { recordSystemEvent } from '../services/systemEvents.service';
-import { ensureServiceCardsTable, ensureServiceRequestTables } from './services.controller';
+import { ensureDefaultServices, ensureServiceCardsTable, ensureServiceRequestTables } from './services.controller';
 import { ensureUsersActiveColumn, ensureUsersPendingWorkerColumn } from '../utils/users';
 import { buildProtectedAssetUrl, buildPublicAssetUrl, deleteUploadIfExists } from '../utils/assets';
 import { shouldRunRuntimeSchemaSync } from '../config/schemaSync';
@@ -283,8 +283,9 @@ const logAdminActivity = async (
 
 export const createService = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    assertAllowedFields(req.body, ['name', 'description', 'icon']);
-    const { name, description, icon } = req.body;
+    await ensureDefaultServices();
+    assertAllowedFields(req.body, ['name', 'description', 'icon', 'min_budget', 'max_budget']);
+    const { name, description, icon, min_budget, max_budget } = req.body;
 
     if (!name || typeof name !== 'string' || name.trim().length === 0) {
       res.status(400).json({ error: 'Service name is required.' });
@@ -294,6 +295,12 @@ export const createService = async (req: AuthRequest, res: Response): Promise<vo
     const trimmedName = sanitizeText(name, 100);
     const trimmedDesc = sanitizeOptionalText(description, 500);
     const trimmedIcon = sanitizeOptionalText(icon, 255);
+    const minBudget = Number(min_budget ?? 25);
+    const maxBudget = Number(max_budget ?? 500);
+    if (!Number.isFinite(minBudget) || !Number.isFinite(maxBudget) || minBudget < 1 || maxBudget < minBudget || maxBudget > 10000) {
+      res.status(400).json({ error: 'Budget limits must be valid, with max greater than or equal to min.' });
+      return;
+    }
 
     // Check duplicate name
     const [existing] = await pool.execute<RowDataPacket[]>(
@@ -307,8 +314,8 @@ export const createService = async (req: AuthRequest, res: Response): Promise<vo
     }
 
     const [result] = await pool.execute<ResultSetHeader>(
-      `INSERT INTO services (name, description, icon, is_active) VALUES (?, ?, ?, 1)`,
-      [trimmedName, trimmedDesc, trimmedIcon]
+      `INSERT INTO services (name, description, icon, min_budget, max_budget, is_active) VALUES (?, ?, ?, ?, ?, 1)`,
+      [trimmedName, trimmedDesc, trimmedIcon, minBudget, maxBudget]
     );
 
     await logAdminActivity(
@@ -328,6 +335,8 @@ export const createService = async (req: AuthRequest, res: Response): Promise<vo
         name: trimmedName,
         description: trimmedDesc,
         icon: trimmedIcon,
+        min_budget: minBudget,
+        max_budget: maxBudget,
         is_active: true,
       },
     });
@@ -437,9 +446,10 @@ export const getHeroSlidesPublic = async (req: AuthRequest, res: Response): Prom
 
 export const getAllServices = async (_req: AuthRequest, res: Response): Promise<void> => {
   try {
+    await ensureDefaultServices();
     await ensureServiceRequestTables();
     const [rows] = await pool.execute<RowDataPacket[]>(
-      `SELECT s.id_service, s.name, s.description, s.icon, s.is_active, s.created_at,
+      `SELECT s.id_service, s.name, s.description, s.icon, s.min_budget, s.max_budget, s.is_active, s.created_at,
          COUNT(DISTINCT sr.id_request) AS request_count,
          COUNT(DISTINCT CASE WHEN sr.status = 'done' THEN sr.id_request END) AS completed_count,
          COUNT(DISTINCT CASE WHEN sr.status = 'cancelled' THEN sr.id_request END) AS cancelled_count,
@@ -448,12 +458,14 @@ export const getAllServices = async (_req: AuthRequest, res: Response): Promise<
        FROM services s
        LEFT JOIN service_requests sr ON sr.id_service = s.id_service
        LEFT JOIN service_request_payments p ON p.id_request = sr.id_request
-       GROUP BY s.id_service, s.name, s.description, s.icon, s.is_active, s.created_at
+       GROUP BY s.id_service, s.name, s.description, s.icon, s.min_budget, s.max_budget, s.is_active, s.created_at
        ORDER BY s.created_at DESC`
     );
     res.json({ success: true, services: rows.map((row: any) => ({
       ...row,
       id_service: Number(row.id_service),
+      min_budget: row.min_budget == null ? null : Number(row.min_budget),
+      max_budget: row.max_budget == null ? null : Number(row.max_budget),
       request_count: Number(row.request_count || 0),
       completed_count: Number(row.completed_count || 0),
       cancelled_count: Number(row.cancelled_count || 0),
@@ -467,14 +479,15 @@ export const getAllServices = async (_req: AuthRequest, res: Response): Promise<
 
 export const updateService = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    assertAllowedFields(req.body, ['name', 'description', 'icon', 'is_active']);
+    await ensureDefaultServices();
+    assertAllowedFields(req.body, ['name', 'description', 'icon', 'min_budget', 'max_budget', 'is_active']);
     const idService = Number(req.params.id);
     if (!idService || isNaN(idService)) {
       res.status(400).json({ error: 'Invalid service ID.' });
       return;
     }
 
-    const { name, description, icon, is_active } = req.body;
+    const { name, description, icon, min_budget, max_budget, is_active } = req.body;
     const updates: string[] = [];
     const values: any[] = [];
     const changedFields: string[] = [];
@@ -512,6 +525,33 @@ export const updateService = async (req: AuthRequest, res: Response): Promise<vo
       updates.push('icon = ?');
       values.push(sanitizeOptionalText(icon, 255));
       changedFields.push('icon');
+    }
+
+    if (min_budget !== undefined || max_budget !== undefined) {
+      const [currentRows] = await pool.execute<RowDataPacket[]>(
+        `SELECT min_budget, max_budget FROM services WHERE id_service = ? LIMIT 1`,
+        [idService]
+      );
+      if (currentRows.length === 0) {
+        res.status(404).json({ error: 'Service not found.' });
+        return;
+      }
+      const nextMin = min_budget !== undefined ? Number(min_budget) : Number(currentRows[0].min_budget ?? 25);
+      const nextMax = max_budget !== undefined ? Number(max_budget) : Number(currentRows[0].max_budget ?? 500);
+      if (!Number.isFinite(nextMin) || !Number.isFinite(nextMax) || nextMin < 1 || nextMax < nextMin || nextMax > 10000) {
+        res.status(400).json({ error: 'Budget limits must be valid, with max greater than or equal to min.' });
+        return;
+      }
+      if (min_budget !== undefined) {
+        updates.push('min_budget = ?');
+        values.push(nextMin);
+        changedFields.push('min_budget');
+      }
+      if (max_budget !== undefined) {
+        updates.push('max_budget = ?');
+        values.push(nextMax);
+        changedFields.push('max_budget');
+      }
     }
 
     try {
