@@ -101,6 +101,14 @@ const statusLabel = (status: string, t: (key: string) => string) => {
     return s.charAt(0).toUpperCase() + s.slice(1);
 };
 
+const paymentStatusLabel = (status: string | null | undefined, t: (key: string) => string) => {
+    const s = String(status || 'pending').toLowerCase();
+    const key = `common.serviceHistory.paymentStatus.${s}`;
+    const label = t(key);
+    if (label !== key) return label;
+    return s.replace(/_/g, ' ').replace(/\b\w/g, (char) => char.toUpperCase());
+};
+
 const statusTone = (status: string) => {
     const s = String(status || '').toLowerCase();
     if (s === 'done') return 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-900/40 dark:text-emerald-300 dark:border-emerald-900/50';
@@ -470,7 +478,7 @@ const RequestCard: React.FC<{
                             value={
                                 paid && request.payment?.paid_at
                                     ? formatDate(request.payment.paid_at, i18n.language)
-                                    : String(request.payment?.status || 'pending').replace(/_/g, ' ')
+                                    : paymentStatusLabel(request.payment?.status, t)
                             }
                         />
                     )}

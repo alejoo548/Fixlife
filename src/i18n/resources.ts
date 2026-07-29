@@ -91,6 +91,15 @@ export const resources = {
             awaiting_confirmation: 'Awaiting Confirmation',
             pending: 'Finding Worker',
           },
+          paymentStatus: {
+            pending: 'Pending',
+            paid: 'Paid',
+            released: 'Released',
+            failed: 'Failed',
+            cancelled: 'Cancelled',
+            refunded: 'Refunded',
+            cash_reserved: 'Cash reserved',
+          },
           errors: {
             loginRequired: 'Login required.',
             loadError: 'Could not load your service history.',
@@ -1593,6 +1602,15 @@ export const resources = {
             completion_pending: 'Esperando aprobación final',
             awaiting_confirmation: 'Esperando confirmación',
             pending: 'Buscando profesional',
+          },
+          paymentStatus: {
+            pending: 'Pendiente',
+            paid: 'Pagado',
+            released: 'Liberado',
+            failed: 'Fallido',
+            cancelled: 'Cancelado',
+            refunded: 'Reembolsado',
+            cash_reserved: 'Pago en efectivo reservado',
           },
           errors: {
             loginRequired: 'Debes iniciar sesión.',
