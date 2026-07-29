@@ -1,5 +1,6 @@
-import React, { useState, useEffect } from 'react';
+﻿import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useTranslation } from 'react-i18next';
 import { isAuthenticated } from '../../utils/session';
 
 interface ProBentoProps {
@@ -52,6 +53,7 @@ const StatIcon = ({ type }: { type: string }) => {
 };
 
 export const ProBento: React.FC<ProBentoProps> = ({ onOpenPro, onOpenWorkerAuth }) => {
+  const { t } = useTranslation();
   const [activeProfile, setActiveProfile] = useState(0);
 
   useEffect(() => {
@@ -61,7 +63,14 @@ export const ProBento: React.FC<ProBentoProps> = ({ onOpenPro, onOpenWorkerAuth 
     return () => clearInterval(interval);
   }, []);
 
-  const profile = PRO_PROFILES[activeProfile];
+  const benefits = t('pros.benefits', { returnObjects: true }) as string[];
+  const translatedProfiles = t('pros.profiles', { returnObjects: true }) as Array<{ role: string; bio: string; stats: string[] }>;
+  const profile = {
+    ...PRO_PROFILES[activeProfile],
+    role: translatedProfiles?.[activeProfile]?.role || PRO_PROFILES[activeProfile].role,
+    bio: translatedProfiles?.[activeProfile]?.bio || PRO_PROFILES[activeProfile].bio,
+    stats: translatedProfiles?.[activeProfile]?.stats || PRO_PROFILES[activeProfile].stats,
+  };
 
   return (
     <div className="w-full relative">
@@ -103,26 +112,26 @@ export const ProBento: React.FC<ProBentoProps> = ({ onOpenPro, onOpenWorkerAuth 
               transition={{ duration: 2, repeat: Infinity }}
               className="w-2 h-2 rounded-full bg-bird-blue"
             />
-            FOR PROFESSIONALS
+            {t('pros.badge')}
           </div>
 
           <h2 className="text-4xl md:text-5xl lg:text-6xl font-black text-gray-900 mb-6 leading-[1.1] tracking-tight">
-            Your work.<br />
+            {t('pros.titleLine1')}<br />
             <span className="text-transparent bg-clip-text bg-gradient-to-r from-bird-blue via-bird-lightBlue to-bird-blue animate-gradient">
-              Your rules.
+              {t('pros.titleAccent')}
             </span>
           </h2>
 
           <p className="text-gray-600 text-base md:text-lg mb-8 leading-relaxed font-medium">
-            Join the platform that values your craft. No bosses, manage your own schedule and get paid securely every week.
+            {t('pros.description')}
           </p>
 
           {/* Benefits list */}
           <div className="mb-8 space-y-3">
             {[
-              { icon: "M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z", text: "Earn up to $5,000/month" },
-              { icon: "M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z", text: "Flexible schedule" },
-              { icon: "M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z", text: "Insurance included" }
+              { icon: "M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z", text: benefits?.[0] || "" },
+              { icon: "M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z", text: benefits?.[1] || "" },
+              { icon: "M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z", text: benefits?.[2] || "" }
             ].map((benefit, i) => (
               <div
                 key={i}
@@ -146,7 +155,7 @@ export const ProBento: React.FC<ProBentoProps> = ({ onOpenPro, onOpenWorkerAuth 
               onClick={() => onOpenWorkerAuth?.('signup')}
               className="w-full sm:w-auto px-8 py-4 rounded-xl bg-gradient-to-r from-bird-blue to-bird-lightBlue text-white font-bold text-base shadow-xl shadow-bird-blue/30 flex items-center justify-center gap-2 group hover:shadow-2xl hover:shadow-bird-blue/40 transition-all"
             >
-              Apply as Pro
+              {t('pros.ctas.apply')}
               <svg className="w-5 h-5 group-hover:translate-x-1 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" />
               </svg>
@@ -157,7 +166,7 @@ export const ProBento: React.FC<ProBentoProps> = ({ onOpenPro, onOpenWorkerAuth 
               onClick={() => onOpenWorkerAuth?.('signin')}
               className="w-full sm:w-auto px-8 py-4 rounded-xl bg-white border-2 border-gray-200 text-gray-900 font-bold hover:border-bird-blue hover:text-bird-blue transition-all"
             >
-              Pro Sign In
+              {t('pros.ctas.signIn')}
             </motion.button>
           </div>
           )}

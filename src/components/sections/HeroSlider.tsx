@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useTranslation } from 'react-i18next';
 import { HeroSliderProps } from '../../types';
 import {
   DEFAULT_HERO_SLIDES,
@@ -21,9 +22,22 @@ const preloadHeroImages = (images: string[]) => {
   });
 };
 
+const knownBackendHeroSlideCopies: Array<Pick<ReturnType<typeof getHeroSlides>[number], 'tag' | 'title' | 'description' | 'cta'>> = [
+  {
+    tag: 'Home repairs and maintenance',
+    title: 'Home repairs and maintenance',
+    description:
+      'Deep repairing and regular maintenance services so you can enjoy your free time.',
+    cta: 'Book repair',
+  },
+];
+
 export const HeroSlider: React.FC<HeroSliderProps> = ({ onStartBooking }) => {
+  const { t } = useTranslation();
   const [slides, setSlides] = useState(() => getHeroSlides());
   const [current, setCurrent] = useState(0);
+  const localizedDefaultSlides = t('heroSlides.items', { returnObjects: true }) as Array<{ tag: string; title: string; description: string; cta: string }>;
+  const localizedKnownSlides = t('heroSlides.knownBackendItems', { returnObjects: true }) as Array<{ tag: string; title: string; description: string; cta: string }>;
 
   const nextSlide = () => {
     setCurrent((prev) => (prev === slides.length - 1 ? 0 : prev + 1));
@@ -66,6 +80,46 @@ export const HeroSlider: React.FC<HeroSliderProps> = ({ onStartBooking }) => {
     preloadHeroImages(slides.map((slide) => slide.image));
   }, [slides]);
 
+  const slidesToRender = slides.map((slide, index) => {
+    const defaultSlide = DEFAULT_HERO_SLIDES[index];
+    const localized = localizedDefaultSlides?.[index];
+    const knownCopyIndex = knownBackendHeroSlideCopies.findIndex((knownSlide) =>
+      slide.tag === knownSlide.tag &&
+      slide.title === knownSlide.title &&
+      slide.description === knownSlide.description &&
+      slide.cta === knownSlide.cta
+    );
+    const localizedKnownCopy = knownCopyIndex >= 0 ? localizedKnownSlides?.[knownCopyIndex] : null;
+    const isDefaultCopy =
+      defaultSlide &&
+      slide.tag === defaultSlide.tag &&
+      slide.title === defaultSlide.title &&
+      slide.description === defaultSlide.description &&
+      slide.cta === defaultSlide.cta;
+
+    if (localizedKnownCopy) {
+      return {
+        ...slide,
+        tag: localizedKnownCopy.tag,
+        title: localizedKnownCopy.title,
+        description: localizedKnownCopy.description,
+        cta: localizedKnownCopy.cta,
+      };
+    }
+
+    if (!localized || !isDefaultCopy) {
+      return slide;
+    }
+
+    return {
+      ...slide,
+      tag: localized.tag,
+      title: localized.title,
+      description: localized.description,
+      cta: localized.cta,
+    };
+  });
+
   return (
     <motion.div
       initial={{ opacity: 0, scale: 0.95 }}
@@ -74,7 +128,7 @@ export const HeroSlider: React.FC<HeroSliderProps> = ({ onStartBooking }) => {
       className="relative w-full h-full min-h-[450px] rounded-3xl overflow-hidden shadow-2xl border border-gray-200/50 group bg-white"
     >
       <AnimatePresence mode="wait">
-        {slides.map((slide, index) => {
+        {slidesToRender.map((slide, index) => {
           const isActive = index === current;
           if (!isActive) return null;
           
@@ -184,7 +238,7 @@ export const HeroSlider: React.FC<HeroSliderProps> = ({ onStartBooking }) => {
       </motion.button>
 
       <div className="absolute bottom-6 right-6 z-20 flex gap-2">
-        {slides.map((_, idx) => (
+        {slidesToRender.map((_, idx) => (
           <motion.button
             key={idx}
             whileHover={{ scale: 1.2 }}

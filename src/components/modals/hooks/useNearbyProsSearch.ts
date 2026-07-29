@@ -20,6 +20,12 @@ interface UseNearbyProsSearchOptions<TWorker> {
   services: ServiceOptionLike[];
   setNearbyWorkers: Dispatch<SetStateAction<TWorker[]>>;
   showToast: (type: 'success' | 'error' | 'info', message: string) => void;
+  messages?: {
+    selectServiceFirst: string;
+    searchError: string;
+    nearbyWorkersLoaded: string;
+    networkError: string;
+  };
 }
 
 export const useNearbyProsSearch = <TWorker,>({
@@ -30,11 +36,12 @@ export const useNearbyProsSearch = <TWorker,>({
   services,
   setNearbyWorkers,
   showToast,
+  messages,
 }: UseNearbyProsSearchOptions<TWorker>) =>
   useCallback(async () => {
     const selectedService = services.find((svc) => svc.name === selectedCategory);
     if (!selectedService?.id_service) {
-      showToast('error', 'Select a service first.');
+      showToast('error', messages?.selectServiceFirst || 'Select a service first.');
       return [];
     }
 
@@ -53,17 +60,17 @@ export const useNearbyProsSearch = <TWorker,>({
       const res = await fetch(`${API_ENDPOINTS.services.nearbyWorkers}?${params.toString()}`);
       const payload = await res.json();
       if (!res.ok || !payload?.success) {
-        showToast('error', payload?.error || 'Could not search nearby workers.');
+        showToast('error', payload?.error || messages?.searchError || 'Could not search nearby workers.');
         return [];
       }
       const workers = Array.isArray(payload.workers) ? payload.workers : [];
       setNearbyWorkers(workers);
       if (workers.length > 0) {
-        showToast('success', 'Nearby workers loaded.');
+        showToast('success', messages?.nearbyWorkersLoaded || 'Nearby workers loaded.');
       }
       return workers as TWorker[];
     } catch {
-      showToast('error', 'Network error searching nearby workers.');
+      showToast('error', messages?.networkError || 'Network error searching nearby workers.');
       return [];
     }
-  }, [currentCoords, radiusKm, resolveLocationInput, selectedCategory, services, setNearbyWorkers, showToast]);
+  }, [currentCoords, messages, radiusKm, resolveLocationInput, selectedCategory, services, setNearbyWorkers, showToast]);

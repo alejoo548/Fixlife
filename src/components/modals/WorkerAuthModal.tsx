@@ -1,7 +1,8 @@
-import React, { useState, useEffect } from 'react';
+﻿import React, { useState, useEffect } from 'react';
 import { API_ENDPOINTS, API_URL } from '../../config/api';
 import { showSweetToast } from '../../utils/sweetAlert';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useTranslation } from 'react-i18next';
 import WorkerForgotPassword from '../../pages/WorkerForgotPassword';
 import { getAuthUser, getToken, setAuthSession, updateStoredAuthUser } from '../../utils/session';
 import PasswordInput from '../common/PasswordInput';
@@ -21,6 +22,7 @@ interface WorkerAuthModalProps {
 }
 
 export const WorkerAuthModal: React.FC<WorkerAuthModalProps> = ({ isOpen, onClose, mode: initialMode, onSuccess }) => {
+  const { t } = useTranslation();
   const [view, setView] = useState<'signin' | 'signup' | 'specialties' | 'verify' | 'upload' | 'forgot'>(initialMode);
   const [registeredEmail, setRegisteredEmail] = useState('');
   const [otp, setOtp] = useState('');
@@ -625,12 +627,12 @@ export const WorkerAuthModal: React.FC<WorkerAuthModalProps> = ({ isOpen, onClos
           className={`absolute top-0 left-1/2 w-1/2 h-full z-30 flex flex-col items-center justify-center text-center px-12 gap-6 ${transitionClass}
            ${!isSignup ? 'translate-x-0 opacity-100 pointer-events-auto' : 'translate-x-[20%] opacity-0 pointer-events-none'}`}
         >
-          <h2 className="text-4xl font-bold tracking-tight text-white">Join Fixlife Pros!</h2>
+          <h2 className="text-4xl font-bold tracking-tight text-white">{t('workerAuth.joinHeroTitle')}</h2>
           <p className="text-sm text-white/90 leading-relaxed">
-            Enter your professional details and start earning by offering your services to clients.
+            {t('workerAuth.joinHeroDescription')}
           </p>
           <button onClick={toggleView} className="mt-2 px-10 py-3 rounded-full border border-white/50 bg-white/10 text-white font-bold hover:bg-white hover:text-bird-orange transition-all duration-300 backdrop-blur-sm shadow-lg">
-            SIGN UP
+            {t('workerAuth.actions.signUp')}
           </button>
         </div>
 
@@ -638,15 +640,15 @@ export const WorkerAuthModal: React.FC<WorkerAuthModalProps> = ({ isOpen, onClos
           className={`absolute top-0 left-0 w-1/2 h-full z-10 flex flex-col items-center justify-center px-14 ${transitionClass}
            ${!isSignup ? 'translate-x-0 opacity-100 z-10' : '-translate-x-[20%] opacity-0 z-0'}`}
         >
-          <h2 className="text-3xl font-bold mb-2 text-bird-orange">Pro Sign In</h2>
-          <p className="text-xs text-gray-500 mb-6">Welcome back to your dashboard</p>
+          <h2 className="text-3xl font-bold mb-2 text-bird-orange">{t('workerAuth.signInTitle')}</h2>
+          <p className="text-xs text-gray-500 mb-6">{t('workerAuth.signInDescription')}</p>
 
           <form className="w-full flex flex-col gap-4" onSubmit={handleSigninSubmit}>
             <div className="bg-gray-50 rounded-lg p-1 border border-gray-200 focus-within:border-bird-orange/50 transition-colors">
-              <input required value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} type="email" maxLength={100} placeholder="Email Address" className="w-full bg-transparent px-3 py-3 text-sm text-gray-900 outline-none placeholder-gray-500" />
+              <input required value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} type="email" maxLength={100} placeholder={t('workerAuth.fields.emailAddress')} className="w-full bg-transparent px-3 py-3 text-sm text-gray-900 outline-none placeholder-gray-500" />
             </div>
             <div className="bg-gray-50 rounded-lg p-1 border border-gray-200 focus-within:border-bird-orange/50 transition-colors">
-              <PasswordInput required value={formData.password} onChange={e => setFormData({...formData, password: e.target.value})}  maxLength={128} placeholder="Password" className="w-full bg-transparent px-3 py-3 text-sm text-gray-900 outline-none placeholder-gray-500" />
+              <PasswordInput required value={formData.password} onChange={e => setFormData({...formData, password: e.target.value})}  maxLength={128} placeholder={t('workerAuth.fields.password')} className="w-full bg-transparent px-3 py-3 text-sm text-gray-900 outline-none placeholder-gray-500" />
             </div>
             
             <button
@@ -654,11 +656,11 @@ export const WorkerAuthModal: React.FC<WorkerAuthModalProps> = ({ isOpen, onClos
               onClick={() => setView('forgot')}
               className="text-xs text-gray-500 hover:text-bird-orange transition-colors self-end my-1"
             >
-              Forgot your password?
+              {t('workerAuth.forgotPassword')}
             </button>
             
             <button disabled={loading} type="submit" className="w-full py-4 rounded-full bg-gradient-to-r from-bird-orange to-bird-gold text-white font-bold text-sm tracking-wide shadow-lg shadow-bird-orange/20 hover:scale-[1.02] transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed">
-              {loading ? 'PROCESSING...' : 'SIGN IN'}
+              {loading ? t('workerAuth.actions.processing') : t('workerAuth.actions.signIn')}
             </button>
           </form>
         </div>

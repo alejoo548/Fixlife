@@ -16,7 +16,8 @@ export default defineConfig(() => {
     server: {
       port: 3000,
       strictPort: true,
-      host: '0.0.0.0',
+      // Listen on IPv6 any-address so Windows localhost (::1) resolves correctly too.
+      host: '::',
       allowedHosts: true,
       // Disable HMR websocket in Docker+Windows to avoid intermittent ws resets.
       hmr: false,
@@ -41,7 +42,7 @@ export default defineConfig(() => {
     preview: {
       port: 3000,
       strictPort: true,
-      host: '0.0.0.0',
+      host: '::',
       allowedHosts: true,
       headers: {
         'Cross-Origin-Opener-Policy': 'same-origin-allow-popups',

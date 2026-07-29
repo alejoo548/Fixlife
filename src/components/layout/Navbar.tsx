@@ -1,10 +1,12 @@
-import React, { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+﻿import React, { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { RefreshCw } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { API_ENDPOINTS, API_URL } from '../../config/api';
 import { NavbarProps, AuthMode } from '../../types';
 import { Logo } from '../common/Logo';
 import { useAuth } from '../../context/AuthContext';
+import { LanguageSwitcher } from '../common/LanguageSwitcher';
 import { NotificationCenter } from '../common/NotificationCenter';
 import UserThemeToggle from '../common/UserThemeToggle';
 import { getToken } from '../../utils/session';
@@ -13,6 +15,7 @@ import { useSSE } from '../../hooks/useSSE';
 import { useServiceRequestChat } from '../modals/hooks/useServiceRequestChat';
 import { canUseRequestChat, hasPendingCounter, hasPendingWorkerApproval } from '../modals/serviceRequestHelpers';
 import { showSweetToast } from '../../utils/sweetAlert';
+import { localizeClientServiceName, localizeExperienceLabel } from '../../utils/clientTranslations';
 
 
 const ClientLiveRequestTracker = lazy(() => import('../modals/ClientLiveRequestTracker'));
@@ -95,38 +98,41 @@ interface NavbarWorkerProfile {
   }>;
 }
 
-const requestStatusCopy = (statusRaw: ClientRequestStatus) => {
+type TranslateFn = (key: string, options?: Record<string, unknown>) => string;
+
+const requestStatusCopy = (statusRaw: ClientRequestStatus, t?: TranslateFn) => {
+  const copy = (key: string, fallback: string) => t ? t(key) : fallback;
   const status = String(statusRaw || '').toLowerCase();
-  if (status === 'done') return { label: 'Completed', hint: 'Saved in your service history.', tone: 'bg-slate-100 text-slate-700 border-slate-200' };
-  if (status === 'cancelled') return { label: 'Cancelled', hint: 'This request is closed.', tone: 'bg-red-50 text-red-600 border-red-100' };
-  if (status === 'awaiting_confirmation') return { label: 'Confirm finish', hint: 'Your pro marked the work as complete.', tone: 'bg-amber-50 text-amber-700 border-amber-100' };
-  if (status === 'completion_pending') return { label: 'Final approval', hint: 'Payment completed. Both must close service.', tone: 'bg-emerald-50 text-emerald-700 border-emerald-100' };
-  if (status === 'finish_pending') return { label: 'Finish approval', hint: 'Work ends after both approve.', tone: 'bg-violet-50 text-violet-700 border-violet-100' };
-  if (status === 'in_progress') return { label: 'In progress', hint: 'Your pro is working on it now.', tone: 'bg-blue-50 text-blue-700 border-blue-100' };
-  if (status === 'start_pending') return { label: 'Approve work start', hint: 'Worker approved. Your approval is required.', tone: 'bg-blue-50 text-blue-700 border-blue-100' };
-  if (status === 'arrived') return { label: 'Worker arrived', hint: 'Both must approve before work starts.', tone: 'bg-violet-50 text-violet-700 border-violet-100' };
-  if (status === 'route_in_progress') return { label: 'Worker on route', hint: 'Follow live route to destination.', tone: 'bg-sky-50 text-sky-700 border-sky-100' };
-  if (status === 'paid') return { label: 'Payment completed', hint: 'Final approval required from both.', tone: 'bg-emerald-50 text-emerald-700 border-emerald-100' };
-  if (status === 'payment_pending') return { label: 'Work finished - pay', hint: 'Both approved work finish. Complete payment.', tone: 'bg-orange-50 text-orange-700 border-orange-100' };
-  if (status === 'assigned') return { label: 'Pro assigned', hint: 'Review the assigned professional.', tone: 'bg-sky-50 text-sky-700 border-sky-100' };
-  return { label: 'Finding a pro', hint: 'We are matching your request.', tone: 'bg-slate-100 text-slate-700 border-slate-200' };
+  if (status === 'done') return { label: copy('serviceRequest.requestPanel.status.done.label', 'Completed'), hint: copy('serviceRequest.requestPanel.status.done.hint', 'Saved in your service history.'), tone: 'bg-slate-100 text-slate-700 border-slate-200' };
+  if (status === 'cancelled') return { label: copy('serviceRequest.requestPanel.status.cancelled.label', 'Cancelled'), hint: copy('serviceRequest.requestPanel.status.cancelled.hint', 'This request is closed.'), tone: 'bg-red-50 text-red-600 border-red-100' };
+  if (status === 'awaiting_confirmation') return { label: copy('serviceRequest.requestPanel.status.awaitingConfirmation.label', 'Confirm finish'), hint: copy('serviceRequest.requestPanel.status.awaitingConfirmation.hint', 'Your pro marked the work as complete.'), tone: 'bg-amber-50 text-amber-700 border-amber-100' };
+  if (status === 'completion_pending') return { label: copy('serviceRequest.requestPanel.status.completionPending.label', 'Final approval'), hint: copy('serviceRequest.requestPanel.status.completionPending.hint', 'Payment completed. Both must close service.'), tone: 'bg-emerald-50 text-emerald-700 border-emerald-100' };
+  if (status === 'finish_pending') return { label: copy('serviceRequest.requestPanel.status.finishPending.label', 'Finish approval'), hint: copy('serviceRequest.requestPanel.status.finishPending.hint', 'Work ends after both approve.'), tone: 'bg-violet-50 text-violet-700 border-violet-100' };
+  if (status === 'in_progress') return { label: copy('serviceRequest.requestPanel.status.inProgress.label', 'In progress'), hint: copy('serviceRequest.requestPanel.status.inProgress.hint', 'Your pro is working on it now.'), tone: 'bg-blue-50 text-blue-700 border-blue-100' };
+  if (status === 'start_pending') return { label: copy('serviceRequest.requestPanel.status.startPending.label', 'Approve work start'), hint: copy('serviceRequest.requestPanel.status.startPending.hint', 'Worker approved. Your approval is required.'), tone: 'bg-blue-50 text-blue-700 border-blue-100' };
+  if (status === 'arrived') return { label: copy('serviceRequest.requestPanel.status.arrived.label', 'Worker arrived'), hint: copy('serviceRequest.requestPanel.status.arrived.hint', 'Both must approve before work starts.'), tone: 'bg-violet-50 text-violet-700 border-violet-100' };
+  if (status === 'route_in_progress') return { label: copy('serviceRequest.requestPanel.status.routeInProgress.label', 'Worker on route'), hint: copy('serviceRequest.requestPanel.status.routeInProgress.hint', 'Follow live route to destination.'), tone: 'bg-sky-50 text-sky-700 border-sky-100' };
+  if (status === 'paid') return { label: copy('serviceRequest.requestPanel.status.paid.label', 'Payment completed'), hint: copy('serviceRequest.requestPanel.status.paid.hint', 'Final approval required from both.'), tone: 'bg-emerald-50 text-emerald-700 border-emerald-100' };
+  if (status === 'payment_pending') return { label: copy('serviceRequest.requestPanel.status.paymentPending.label', 'Work finished - pay'), hint: copy('serviceRequest.requestPanel.status.paymentPending.hint', 'Both approved work finish. Complete payment.'), tone: 'bg-orange-50 text-orange-700 border-orange-100' };
+  if (status === 'assigned') return { label: copy('serviceRequest.requestPanel.status.assigned.label', 'Pro assigned'), hint: copy('serviceRequest.requestPanel.status.assigned.hint', 'Review the assigned professional.'), tone: 'bg-sky-50 text-sky-700 border-sky-100' };
+  return { label: copy('serviceRequest.requestPanel.status.pending.label', 'Finding a pro'), hint: copy('serviceRequest.requestPanel.status.pending.hint', 'We are matching your request.'), tone: 'bg-slate-100 text-slate-700 border-slate-200' };
 };
 
-const formatRequestSchedule = (request: ClientRequestSummary | null) => {
+const formatRequestSchedule = (request: ClientRequestSummary | null, t?: TranslateFn, language = 'en') => {
   if (!request) return '';
-  if (String(request.booking_type || 'express').toLowerCase() !== 'scheduled') return 'Express visit';
+  if (String(request.booking_type || 'express').toLowerCase() !== 'scheduled') return t ? t('serviceRequest.requestPanel.schedule.expressVisit') : 'Express visit';
 
   const rawStart = request.scheduled_start_time || (
     request.scheduled_date && request.scheduled_time
       ? `${request.scheduled_date}T${request.scheduled_time}`
       : ''
   );
-  if (!rawStart) return 'Scheduled visit';
+  if (!rawStart) return t ? t('serviceRequest.requestPanel.schedule.scheduledVisit') : 'Scheduled visit';
 
   const start = new Date(rawStart);
-  if (Number.isNaN(start.getTime())) return 'Scheduled visit';
+  if (Number.isNaN(start.getTime())) return t ? t('serviceRequest.requestPanel.schedule.scheduledVisit') : 'Scheduled visit';
 
-  return start.toLocaleDateString('en-US', {
+  return start.toLocaleDateString(language.startsWith('es') ? 'es-SV' : 'en-US', {
     month: 'short',
     day: 'numeric',
     hour: 'numeric',
@@ -166,8 +172,6 @@ const sortClientRequests = (requests: ClientRequestSummary[]) =>
 const isCancelledRequest = (request: ClientRequestSummary) =>
   ['cancelled', 'canceled'].includes(String(request.status || '').toLowerCase());
 
-const requestProgressLabels = ['Pro approved', 'On route', 'Arrived', 'Working', 'Work finished', 'Paid', 'Completed'];
-
 const getRequestStepIndex = (statusRaw: ClientRequestStatus) => {
   const status = String(statusRaw || '').toLowerCase();
   if (status === 'done') return 6;
@@ -189,6 +193,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   onSelectCategory,
 }) => {
   const navigate = useNavigate();
+  const { t, i18n } = useTranslation();
   const { user, logout } = useAuth();
   const authToken = getToken();
 
@@ -264,7 +269,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   const selectedRequestPosition = primaryRequest
     ? orderedClientRequests.findIndex((request) => request.id_request === primaryRequest.id_request) + 1
     : 0;
-  const primaryRequestStatus = requestStatusCopy(primaryRequest?.status || 'pending');
+  const primaryRequestStatus = requestStatusCopy(primaryRequest?.status || 'pending', t);
   const primaryRequestStep = getRequestStepIndex(primaryRequest?.status || 'pending');
   const pendingWorkerApproval = primaryRequest ? hasPendingWorkerApproval(primaryRequest) : false;
   const pendingCounter = primaryRequest ? hasPendingCounter(primaryRequest) : false;
@@ -295,6 +300,18 @@ export const Navbar: React.FC<NavbarProps> = ({
   const openRequestsCount = useMemo(
     () => visibleClientRequests.filter((request) => String(request.status).toLowerCase() !== 'done').length,
     [visibleClientRequests]
+  );
+  const requestProgressLabels = useMemo(
+    () => [
+      t('serviceRequest.requestPanel.progress.proApproved'),
+      t('serviceRequest.requestPanel.progress.onRoute'),
+      t('serviceRequest.requestPanel.progress.arrived'),
+      t('serviceRequest.requestPanel.progress.working'),
+      t('serviceRequest.requestPanel.progress.workFinished'),
+      t('serviceRequest.requestPanel.progress.paid'),
+      t('serviceRequest.requestPanel.progress.completed'),
+    ],
+    [t]
   );
 
   const showRequestMessage = useCallback((_type: 'success' | 'error' | 'info', message: string) => {
@@ -380,7 +397,7 @@ export const Navbar: React.FC<NavbarProps> = ({
       const payload = await response.json().catch(() => ({}));
 
       if (!response.ok) {
-        throw new Error(payload?.error || 'Could not load your request.');
+        throw new Error(payload?.error || t('serviceRequest.requestPanel.messages.loadError'));
       }
 
       const requests = Array.isArray(payload?.requests) ? payload.requests : [];
@@ -390,18 +407,18 @@ export const Navbar: React.FC<NavbarProps> = ({
           return !isCancelledRequest(request) && s !== 'done';
         })
       );
-      void showSweetToast({ tone: 'success', message: 'Request updated.' });
+      void showSweetToast({ tone: 'success', message: t('serviceRequest.requestPanel.messages.updated') });
     } catch (error: any) {
       const rawMessage = String(error?.message || '');
       setRequestsError(
         rawMessage.toLowerCase().includes('failed to fetch')
-          ? 'We could not reach the server yet. Check your connection while we try again.'
-          : rawMessage || 'We could not refresh your request right now.'
+          ? t('serviceRequest.requestPanel.messages.networkRetry')
+          : rawMessage || t('serviceRequest.requestPanel.messages.refreshError')
       );
     } finally {
       setRequestsLoading(false);
     }
-  }, [authToken, user]);
+  }, [authToken, t, user]);
 
   const handleMyRequestClick = () => {
     setIsAccountOpen(false);
@@ -427,14 +444,14 @@ export const Navbar: React.FC<NavbarProps> = ({
       });
       const payload = await response.json().catch(() => ({}));
       if (!response.ok || !payload?.success || !payload?.worker) {
-        throw new Error(payload?.error || 'Could not load this professional.');
+        throw new Error(payload?.error || t('serviceRequest.requestPanel.messages.profileLoadError'));
       }
       setWorkerProfile({
         worker: payload.worker,
         portfolio: Array.isArray(payload.portfolio) ? payload.portfolio : [],
       });
     } catch (error: any) {
-      setRequestActionMessage(String(error?.message || 'Could not load this professional.'));
+      setRequestActionMessage(String(error?.message || t('serviceRequest.requestPanel.messages.profileLoadError')));
     } finally {
       setWorkerProfileLoading(false);
     }
@@ -465,7 +482,7 @@ export const Navbar: React.FC<NavbarProps> = ({
       });
       const payload = await response.json().catch(() => ({}));
       if (!response.ok || !payload?.success) {
-        throw new Error(payload?.error || 'Could not save your decision.');
+        throw new Error(payload?.error || t('serviceRequest.requestPanel.messages.saveDecisionError'));
       }
       setWorkerProfile(null);
       if (kind === 'request') {
@@ -476,16 +493,16 @@ export const Navbar: React.FC<NavbarProps> = ({
       }
       setRequestActionMessage(
         kind === 'request'
-          ? `Request #${primaryRequest.id_request} was cancelled.`
+          ? t('serviceRequest.requestPanel.messages.cancelled', { id: primaryRequest.id_request })
           : decision === 'accept'
           ? kind === 'counter'
-            ? 'Counter offer accepted. Worker can start route.'
-            : 'Professional approved. Worker can start route.'
-          : 'Declined. Fixlife will continue looking for another professional.'
+            ? t('serviceRequest.requestPanel.messages.counterAccepted')
+            : t('serviceRequest.requestPanel.messages.workerApproved')
+          : t('serviceRequest.requestPanel.messages.declined')
       );
       await fetchClientRequests();
     } catch (error: any) {
-      setRequestActionMessage(String(error?.message || 'Could not save your decision.'));
+      setRequestActionMessage(String(error?.message || t('serviceRequest.requestPanel.messages.saveDecisionError')));
     } finally {
       setRequestActionBusy(false);
     }
@@ -502,8 +519,8 @@ export const Navbar: React.FC<NavbarProps> = ({
         body: JSON.stringify({ action }),
       });
       const payload = await response.json().catch(() => ({}));
-      if (!response.ok || !payload?.success) throw new Error(payload?.error || 'Could not save approval.');
-      setRequestActionMessage(payload?.message || 'Approval saved.');
+      if (!response.ok || !payload?.success) throw new Error(payload?.error || t('serviceRequest.requestPanel.messages.saveApprovalError'));
+      setRequestActionMessage(payload?.message || t('serviceRequest.requestPanel.messages.approvalSaved'));
 
       if (action === 'complete_service') {
         // Immediately remove from the "in process / active services" views.
@@ -516,7 +533,7 @@ export const Navbar: React.FC<NavbarProps> = ({
 
       await fetchClientRequests();
     } catch (error: any) {
-      setRequestActionMessage(String(error?.message || 'Could not save approval.'));
+      setRequestActionMessage(String(error?.message || t('serviceRequest.requestPanel.messages.saveApprovalError')));
     } finally {
       setRequestActionBusy(false);
     }
@@ -526,18 +543,24 @@ export const Navbar: React.FC<NavbarProps> = ({
     setIsAccountOpen(false);
     setIsMobileMenuOpen(false);
 
+    const servicesLabel = t('navigation.items.0.name');
+    const professionalsLabel = t('navigation.items.1.name');
+    const categoriesLabel = t('navigation.items.2.name');
+    const helpLabel = t('navigation.items.3.name');
+    const reviewsLabel = 'Reviews';
+
     switch (itemName) {
-      case 'Services':
-      case 'Categories':
+      case servicesLabel:
+      case categoriesLabel:
         onNavigateSection?.('services');
         break;
-      case 'Professionals':
+      case professionalsLabel:
         onNavigateSection?.('professionals');
         break;
-      case 'Help':
+      case helpLabel:
         onNavigateSection?.('faq');
         break;
-      case 'Reviews':
+      case reviewsLabel:
         navigate('/leave-review');
         break;
       default:
@@ -549,16 +572,16 @@ export const Navbar: React.FC<NavbarProps> = ({
     setIsAccountOpen(false);
     setIsMobileMenuOpen(false);
 
-    if (parentName === 'Categories') {
+    if (parentName === t('navigation.items.2.name')) {
       onSelectCategory?.(subItem);
       return;
     }
 
     switch (subItem) {
-      case 'Support':
+      case t('navigation.items.3.items.0.name'):
         onNavigateSection?.('faq');
         break;
-      case 'How it works':
+      case t('navigation.items.3.items.1.name'):
         onNavigateSection?.('steps');
         break;
       default:
@@ -636,8 +659,9 @@ export const Navbar: React.FC<NavbarProps> = ({
       if (!requestStateInitializedRef.current) continue;
       const previous = previousRequestStateRef.current[request.id_request];
       if (!previous) {
-        setLiveRequestNotice(`New request #${request.id_request} was added.`);
-        void showSweetToast({ tone: 'info', message: `New request #${request.id_request} was added.` });
+        const message = t('serviceRequest.requestPanel.messages.newRequest', { id: request.id_request });
+        setLiveRequestNotice(message);
+        void showSweetToast({ tone: 'info', message });
         continue;
       }
       if (
@@ -645,28 +669,30 @@ export const Navbar: React.FC<NavbarProps> = ({
         (request.counter_status == null || request.counter_status === 'pending') &&
         (previous.counterStatus !== counterStatus || previous.proposedBudget !== proposedBudget)
       ) {
-        setLiveRequestNotice(
-          `${request.assigned_worker?.name || 'Your professional'} sent a counter offer for request #${request.id_request}.`
-        );
+        const message = t('serviceRequest.requestPanel.messages.counterOffer', {
+          id: request.id_request,
+          name: request.assigned_worker?.name || t('serviceRequest.requestPanel.messages.professionalFallback'),
+        });
+        setLiveRequestNotice(message);
         void showSweetToast({
           tone: 'warning',
-          message: `${request.assigned_worker?.name || 'Your professional'} sent a counter offer for request #${request.id_request}.`,
+          message,
         });
         continue;
       }
       if (previous.status !== status) {
         setLiveRequestNotice(
-          `Request #${request.id_request} changed to ${requestStatusCopy(status).label}.`
+          t('serviceRequest.requestPanel.messages.statusChanged', { id: request.id_request, status: requestStatusCopy(status, t).label })
         );
         void showSweetToast({
           tone: 'info',
-          message: `Request #${request.id_request} changed to ${requestStatusCopy(status).label}.`,
+          message: t('serviceRequest.requestPanel.messages.statusChanged', { id: request.id_request, status: requestStatusCopy(status, t).label }),
         });
       }
     }
     previousRequestStateRef.current = nextState;
     requestStateInitializedRef.current = true;
-  }, [orderedClientRequests]);
+  }, [orderedClientRequests, t]);
 
   useEffect(() => {
     if (!isRequestModalOpen || !requestsError || requestRetryAttempt >= 2) return undefined;
@@ -757,7 +783,7 @@ export const Navbar: React.FC<NavbarProps> = ({
               onMouseEnter={() => handleMouseEnter(BOOKING_INDEX)}
               onClick={handleBookingClick}
             >
-              <span className="font-bold text-sm tracking-wide z-20 transform group-hover:scale-105 transition-transform duration-200">Book Service</span>
+              <span className="font-bold text-sm tracking-wide z-20 transform group-hover:scale-105 transition-transform duration-200">{t('navbar.bookService')}</span>
             </div>
           </div>
 
@@ -773,18 +799,19 @@ export const Navbar: React.FC<NavbarProps> = ({
         </nav>
 
         <div className="hidden xl:flex items-center gap-3 ml-4">
+          <LanguageSwitcher />
           {user && (
             <>
               <button
                 type="button"
                 onClick={handleMyRequestClick}
                 className="group relative flex h-16 items-center gap-2 px-2 text-gray-700 hover:text-bird-blue transition-all duration-300"
-                aria-label="Open my service request"
+                aria-label={t('navbar.openMyServiceRequest')}
               >
                 <svg className="h-4 w-4 transform group-hover:scale-105 transition-transform duration-200" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.2} d="M9 12h6m-6 4h6M7 4h10a2 2 0 012 2v14l-3-2-3 2-3-2-3 2V6a2 2 0 012-2z" />
                 </svg>
-                <span className="font-bold text-sm tracking-wide transform group-hover:scale-105 transition-transform duration-200">Request</span>
+                <span className="font-bold text-sm tracking-wide transform group-hover:scale-105 transition-transform duration-200">{t('navbar.myRequest')}</span>
                 {openRequestsCount > 0 && (
                   <span className="absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-bird-yellow px-1.5 text-[10px] font-black text-slate-900 shadow">
                     {openRequestsCount}
@@ -819,7 +846,7 @@ export const Navbar: React.FC<NavbarProps> = ({
               )}
 
               <span className="font-bold text-sm tracking-wide">
-                {user ? user.name : 'Account'}
+                {user ? user.name : t('navbar.account')}
               </span>
               <svg
                 className={`w-4 h-4 transition-transform duration-300 ${isAccountOpen ? 'rotate-180 text-bird-blue' : ''}`}
@@ -854,7 +881,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                           d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1"
                         />
                       </svg>
-                      Sign In
+                      {t('navbar.signIn')}
                     </button>
 
                     <button
@@ -874,7 +901,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                           d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z"
                         />
                       </svg>
-                      Sign Up
+                      {t('navbar.signUp')}
                     </button>
                   </>
                 ) : (
@@ -883,21 +910,21 @@ export const Navbar: React.FC<NavbarProps> = ({
                       onClick={handleProfileClick}
                       className="w-full px-4 py-3 text-sm text-gray-600 hover:bg-bird-blue/5 rounded-lg text-left font-medium"
                     >
-                      My Profile
+                      {t('navbar.myProfile')}
                     </button>
 
                     <button
                       onClick={handleMyRequestsHistoryClick}
                       className="w-full px-4 py-3 text-sm text-gray-600 hover:bg-bird-blue/5 rounded-lg text-left font-medium"
                     >
-                      My Requests
+                      {t('navbar.myRequests')}
                     </button>
 
                     <button
                       onClick={handleLogoutClick}
                       className="w-full px-4 py-3 text-sm text-red-500 hover:bg-red-50 rounded-lg text-left font-medium"
                     >
-                      Log Out
+                      {t('navbar.logOut')}
                     </button>
                   </>
                 )}
@@ -936,6 +963,10 @@ export const Navbar: React.FC<NavbarProps> = ({
             </button>
           </div>
 
+          <div className="mb-6">
+            <LanguageSwitcher mobile />
+          </div>
+
           <div className="flex flex-col gap-6 overflow-y-auto">
             {navItems.map((item) => (
               <div key={item.name} className="flex flex-col gap-3">
@@ -971,13 +1002,13 @@ export const Navbar: React.FC<NavbarProps> = ({
         onClick={(e) => handleAuthClick(e, 'signin')}
         className="w-full py-4 rounded-xl bg-gray-100 border border-gray-200 text-gray-900 font-bold active:scale-95 transition-transform shadow-sm"
       >
-        Sign In
+        {t('navbar.signIn')}
       </button>
       <button
         onClick={(e) => handleAuthClick(e, 'signup')}
         className="w-full py-4 rounded-xl bg-bird-blue text-white font-bold shadow-lg shadow-bird-blue/20 active:scale-95 transition-transform"
       >
-        Create Account
+        {t('navbar.createAccount')}
       </button>
     </>
   ) : (
@@ -986,25 +1017,25 @@ export const Navbar: React.FC<NavbarProps> = ({
         onClick={handleMyRequestClick}
         className="w-full py-4 rounded-xl bg-bird-blue text-white font-bold active:scale-95 transition-transform shadow-lg shadow-bird-blue/20"
       >
-        My Request
+        {t('navbar.myRequest')}
       </button>
       <button
         onClick={handleProfileClick}
         className="w-full py-4 rounded-xl bg-gray-100 border border-gray-200 text-gray-900 font-bold active:scale-95 transition-transform shadow-sm"
       >
-        My Profile
+        {t('navbar.myProfile')}
       </button>
       <button
         onClick={handleMyRequestsHistoryClick}
         className="w-full py-4 rounded-xl bg-gray-100 border border-gray-200 text-gray-900 font-bold active:scale-95 transition-transform shadow-sm"
       >
-        My Requests
+        {t('navbar.myRequests')}
       </button>
       <button
         onClick={handleLogoutClick}
         className="w-full py-4 rounded-xl bg-red-50 text-red-600 border border-red-200 font-bold active:scale-95 transition-transform"
       >
-        Log Out
+        {t('navbar.logOut')}
       </button>
     </>
   )}
@@ -1021,16 +1052,16 @@ export const Navbar: React.FC<NavbarProps> = ({
                 <div className="min-w-0">
                   <div className="mb-2 flex flex-wrap items-center gap-2">
                     <span className="inline-flex rounded-full bg-bird-blue/10 px-3 py-1 text-[11px] font-black uppercase tracking-[0.18em] text-bird-blue">
-                      My requests
+                      {t('serviceRequest.requestPanel.myRequests')}
                     </span>
                     {primaryRequest && (
                       <span className="text-xs font-black text-slate-400">
-                        {selectedRequestPosition} of {orderedClientRequests.length}
+                        {t('serviceRequest.requestPanel.requestPosition', { current: selectedRequestPosition, total: orderedClientRequests.length })}
                       </span>
                     )}
                   </div>
                   <h2 className="truncate text-2xl font-black leading-tight text-slate-950 sm:text-3xl">
-                    {primaryRequest ? primaryRequest.service_name : 'Your active service'}
+                    {primaryRequest ? localizeClientServiceName(primaryRequest.service_name, i18n.language) : t('serviceRequest.requestPanel.yourActiveService')}
                   </h2>
                 </div>
 
@@ -1090,16 +1121,16 @@ export const Navbar: React.FC<NavbarProps> = ({
               <div className="border-b border-slate-200 bg-slate-50 px-5 py-3 sm:px-7">
                 <div className="mb-2 flex items-center justify-between gap-3">
                   <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">
-                    All your requests
+                    {t('serviceRequest.requestPanel.allRequests')}
                   </p>
                   <p className="text-xs font-bold text-slate-500">
-                    {openRequestsCount} active · {orderedClientRequests.length} total
+                    {t('serviceRequest.requestPanel.requestTotals', { active: openRequestsCount, total: orderedClientRequests.length })}
                   </p>
                 </div>
                 <div className="flex gap-2 overflow-x-auto pb-1 custom-scrollbar">
                   {orderedClientRequests.map((request) => {
                     const selected = request.id_request === primaryRequest?.id_request;
-                    const requestStatus = requestStatusCopy(request.status);
+                    const requestStatus = requestStatusCopy(request.status, t);
                     return (
                       <button
                         key={request.id_request}
@@ -1124,11 +1155,11 @@ export const Navbar: React.FC<NavbarProps> = ({
                             #{request.id_request}
                           </span>
                         </div>
-                        <p className="mt-1 truncate text-sm font-black text-slate-900">{request.service_name}</p>
+                        <p className="mt-1 truncate text-sm font-black text-slate-900">{localizeClientServiceName(request.service_name, i18n.language)}</p>
                         <div className="mt-1 flex items-center justify-between gap-2">
                           <span className="truncate text-[11px] font-bold text-slate-500">{requestStatus.label}</span>
                           <span className="shrink-0 text-[10px] font-semibold text-slate-400">
-                            {request.created_at ? new Date(request.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : ''}
+                            {request.created_at ? new Date(request.created_at).toLocaleDateString(i18n.language.startsWith('es') ? 'es-SV' : 'en-US', { month: 'short', day: 'numeric' }) : ''}
                           </span>
                         </div>
                       </button>
@@ -1149,7 +1180,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                   onClick={() => setLiveRequestNotice('')}
                   className="shrink-0 text-xs font-black text-blue-700 hover:text-blue-950"
                 >
-                  Dismiss
+                  {t('serviceRequest.requestPanel.dismiss')}
                 </button>
               </div>
             )}
@@ -1159,7 +1190,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                 <div className="grid min-h-[520px] place-items-center rounded-[1.5rem] bg-white">
                   <div className="text-center">
                     <div className="mx-auto mb-4 h-12 w-12 rounded-full border-4 border-bird-blue/20 border-t-bird-blue animate-spin" />
-                    <p className="text-sm font-bold text-slate-500">Loading your request...</p>
+                    <p className="text-sm font-bold text-slate-500">{t('serviceRequest.requestPanel.loading')}</p>
                   </div>
                 </div>
               ) : requestsError ? (
@@ -1170,11 +1201,11 @@ export const Navbar: React.FC<NavbarProps> = ({
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.2} d="M4 4v5h5M20 20v-5h-5M5.7 15a7 7 0 0011.6 2M18.3 9A7 7 0 006.7 7" />
                       </svg>
                     </div>
-                    <h3 className="text-xl font-black text-slate-950">Reconnecting to your request</h3>
+                    <h3 className="text-xl font-black text-slate-950">{t('serviceRequest.requestPanel.reconnecting')}</h3>
                     <p className="mt-2 text-sm font-semibold leading-6 text-slate-500">{requestsError}</p>
                     {requestRetryAttempt < 2 && (
                       <p className="mt-3 text-xs font-black uppercase tracking-[0.14em] text-bird-blue">
-                        Retrying automatically...
+                        {t('serviceRequest.requestPanel.retrying')}
                       </p>
                     )}
                     <button
@@ -1185,7 +1216,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                       }}
                       className="mt-5 rounded-xl bg-bird-blue px-5 py-3 text-sm font-black text-white shadow-lg shadow-bird-blue/20 transition-transform active:scale-95"
                     >
-                      Retry now
+                      {t('serviceRequest.requestPanel.retryNow')}
                     </button>
                   </div>
                 </div>
@@ -1197,16 +1228,16 @@ export const Navbar: React.FC<NavbarProps> = ({
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.2} d="M8 7V3m8 4V3M5 11h14M7 21h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v12a2 2 0 002 2z" />
                       </svg>
                     </div>
-                    <h3 className="text-2xl font-black text-slate-950">No active request yet</h3>
+                    <h3 className="text-2xl font-black text-slate-950">{t('serviceRequest.requestPanel.noActiveTitle')}</h3>
                     <p className="mt-3 text-sm font-semibold leading-6 text-slate-500">
-                      When you book a service, this space becomes your quick view for status, pro details, route and next steps.
+                      {t('serviceRequest.requestPanel.noActiveHelp')}
                     </p>
                     <button
                       type="button"
                       onClick={handleBookingClick}
                       className="mt-6 rounded-xl bg-bird-blue px-6 py-3 text-sm font-black text-white shadow-lg shadow-bird-blue/20 transition-transform active:scale-95"
                     >
-                      Book a service
+                      {t('serviceRequest.requestPanel.bookService')}
                     </button>
                   </div>
                 </div>
@@ -1218,7 +1249,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                         <div className={`mb-4 inline-flex rounded-full border border-white/15 bg-white/10 px-3 py-1.5 text-xs font-black text-white`}>
                           {primaryRequestStatus.label}
                         </div>
-                        <h3 className="text-2xl font-black leading-tight">{primaryRequest.service_name}</h3>
+                        <h3 className="text-2xl font-black leading-tight">{localizeClientServiceName(primaryRequest.service_name, i18n.language)}</h3>
                         <p className="mt-2 text-sm font-semibold leading-6 text-white/70">{primaryRequestStatus.hint}</p>
                       </div>
 
@@ -1245,18 +1276,18 @@ export const Navbar: React.FC<NavbarProps> = ({
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.2} d="M12 11.5a2.5 2.5 0 100-5 2.5 2.5 0 000 5z" />
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.2} d="M19.5 9c0 7-7.5 12-7.5 12S4.5 16 4.5 9a7.5 7.5 0 1115 0z" />
                             </svg>
-                            <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">Location</p>
+                            <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">{t('serviceRequest.requestPanel.labels.location')}</p>
                           </div>
                           <p className="line-clamp-2 text-sm font-bold leading-6 text-slate-900">{primaryRequest.location_text}</p>
                         </div>
 
                         <div className="grid grid-cols-2 gap-3">
                           <div className="rounded-2xl border border-slate-100 bg-white p-4 shadow-sm">
-                            <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">Visit</p>
-                            <p className="mt-2 text-sm font-black leading-5 text-slate-900">{formatRequestSchedule(primaryRequest)}</p>
+                            <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">{t('serviceRequest.requestPanel.labels.visit')}</p>
+                            <p className="mt-2 text-sm font-black leading-5 text-slate-900">{formatRequestSchedule(primaryRequest, t, i18n.language)}</p>
                           </div>
                           <div className="rounded-2xl border border-slate-100 bg-white p-4 shadow-sm">
-                            <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">Budget</p>
+                            <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">{t('serviceRequest.requestPanel.labels.budget')}</p>
                             <p className="mt-2 text-lg font-black text-slate-900">
                               ${Number(primaryRequest.final_budget ?? primaryRequest.budget ?? 0).toFixed(2)}
                             </p>
@@ -1267,10 +1298,10 @@ export const Navbar: React.FC<NavbarProps> = ({
 
                     <div className="rounded-[1.5rem] border border-slate-100 bg-white p-5 shadow-sm">
                       <div className="mb-3 flex items-center justify-between gap-3">
-                        <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">Professional</p>
+                        <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">{t('serviceRequest.requestPanel.labels.professional')}</p>
                         {!primaryRequest.assigned_worker && (
                           <span className="rounded-full bg-bird-yellow/20 px-2.5 py-1 text-[10px] font-black uppercase tracking-wide text-yellow-700">
-                            Matching
+                            {t('serviceRequest.requestPanel.labels.matching')}
                           </span>
                         )}
                       </div>
@@ -1291,7 +1322,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                             <div className="min-w-0 flex-1">
                               <p className="truncate text-base font-black text-slate-950">{primaryRequest.assigned_worker.name}</p>
                               <p className="text-xs font-bold text-slate-500">
-                                {primaryRequest.assigned_worker.is_online ? 'Online now' : 'Assigned to your request'}
+                                {primaryRequest.assigned_worker.is_online ? t('serviceRequest.requestPanel.professionalCard.onlineNow') : t('serviceRequest.requestPanel.professionalCard.assigned')}
                               </p>
                             </div>
                           </div>
@@ -1301,7 +1332,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                             disabled={workerProfileLoading}
                             className="mt-4 w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-black text-slate-900 transition hover:border-bird-blue hover:text-bird-blue disabled:opacity-50"
                           >
-                            {workerProfileLoading ? 'Loading profile...' : 'View profile and portfolio'}
+                            {workerProfileLoading ? t('serviceRequest.requestPanel.professionalCard.loadingProfile') : t('serviceRequest.requestPanel.professionalCard.viewProfile')}
                           </button>
                           {canUseRequestChat(primaryRequest) && (
                             <button
@@ -1312,7 +1343,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                               }}
                               className="mt-2 w-full rounded-xl bg-bird-blue px-4 py-3 text-sm font-black text-white shadow-lg shadow-bird-blue/15 transition hover:bg-blue-600"
                             >
-                              Chat with {primaryRequest.assigned_worker.name}
+                              {t('serviceRequest.requestPanel.professionalCard.chatWith', { name: primaryRequest.assigned_worker.name })}
                             </button>
                           )}
                         </div>
@@ -1320,7 +1351,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                         <div className="flex gap-3">
                           <div className="mt-1 h-2.5 w-2.5 shrink-0 rounded-full bg-bird-blue shadow-[0_0_0_6px_rgba(0,144,255,0.12)]" />
                           <p className="text-sm font-semibold leading-6 text-slate-600">
-                            We are checking nearby verified pros. This updates automatically when someone accepts.
+                            {t('serviceRequest.requestPanel.professionalCard.checkingPros')}
                           </p>
                         </div>
                       )}
@@ -1328,14 +1359,14 @@ export const Navbar: React.FC<NavbarProps> = ({
 
                     {pendingCounter && (
                       <div className="rounded-[1.5rem] border border-amber-200 bg-amber-50 p-5 shadow-sm">
-                        <p className="text-[10px] font-black uppercase tracking-[0.18em] text-amber-700">Counter offer</p>
+                        <p className="text-[10px] font-black uppercase tracking-[0.18em] text-amber-700">{t('serviceRequest.requestPanel.counter.title')}</p>
                         <div className="mt-2 flex items-end justify-between gap-3">
                           <div>
                             <p className="text-3xl font-black text-slate-950">
                               ${Number(primaryRequest.proposed_budget || 0).toFixed(2)}
                             </p>
                             <p className="mt-1 text-xs font-bold text-slate-500">
-                              Your original estimate was ${Number(primaryRequest.budget || 0).toFixed(2)}
+                              {t('serviceRequest.requestPanel.counter.originalEstimate', { amount: Number(primaryRequest.budget || 0).toFixed(2) })}
                             </p>
                           </div>
                         </div>
@@ -1351,7 +1382,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                             onClick={() => setPendingDecision({ kind: 'counter', decision: 'decline' })}
                             className="rounded-xl border border-red-200 bg-white px-4 py-3 text-sm font-black text-red-600 hover:bg-red-50 disabled:opacity-50"
                           >
-                            Decline
+                            {t('serviceRequest.requestPanel.counter.decline')}
                           </button>
                           <button
                             type="button"
@@ -1359,7 +1390,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                             onClick={() => setPendingDecision({ kind: 'counter', decision: 'accept' })}
                             className="rounded-xl bg-slate-950 px-4 py-3 text-sm font-black text-white hover:bg-black disabled:opacity-50"
                           >
-                            Accept offer
+                            {t('serviceRequest.requestPanel.counter.acceptOffer')}
                           </button>
                         </div>
                       </div>
@@ -1367,9 +1398,9 @@ export const Navbar: React.FC<NavbarProps> = ({
 
                     {pendingWorkerApproval && (
                       <div className="rounded-[1.5rem] border border-sky-200 bg-sky-50 p-5 shadow-sm">
-                        <p className="text-[10px] font-black uppercase tracking-[0.18em] text-sky-700">Your approval is needed</p>
+                        <p className="text-[10px] font-black uppercase tracking-[0.18em] text-sky-700">{t('serviceRequest.requestPanel.approval.needed')}</p>
                         <p className="mt-2 text-sm font-semibold leading-6 text-slate-700">
-                          Review professional and portfolio. After approval, worker can start route. Payment happens only after work finishes.
+                          {t('serviceRequest.requestPanel.approval.reviewHelp')}
                         </p>
                         <div className="mt-4 grid grid-cols-2 gap-2">
                           <button
@@ -1378,7 +1409,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                             onClick={() => setPendingDecision({ kind: 'worker', decision: 'decline' })}
                             className="rounded-xl border border-red-200 bg-white px-4 py-3 text-sm font-black text-red-600 hover:bg-red-50 disabled:opacity-50"
                           >
-                            Find another
+                            {t('serviceRequest.requestPanel.approval.findAnother')}
                           </button>
                           <button
                             type="button"
@@ -1386,7 +1417,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                             onClick={() => setPendingDecision({ kind: 'worker', decision: 'accept' })}
                             className="rounded-xl bg-slate-950 px-4 py-3 text-sm font-black text-white hover:bg-black disabled:opacity-50"
                           >
-                            Approve pro
+                            {t('serviceRequest.requestPanel.approval.approvePro')}
                           </button>
                         </div>
                       </div>
@@ -1394,14 +1425,14 @@ export const Navbar: React.FC<NavbarProps> = ({
 
                     {primaryRequest.workflow_version === 2 && ['arrived', 'start_pending'].includes(primaryStatus) && (
                       <div className="rounded-[1.5rem] border border-blue-200 bg-blue-50 p-5 shadow-sm">
-                        <p className="text-[10px] font-black uppercase tracking-[0.18em] text-blue-700">Start work approval</p>
-                        <h4 className="mt-2 text-xl font-black text-slate-950">Worker arrived</h4>
+                        <p className="text-[10px] font-black uppercase tracking-[0.18em] text-blue-700">{t('serviceRequest.requestPanel.workflow.startTitle')}</p>
+                        <h4 className="mt-2 text-xl font-black text-slate-950">{t('serviceRequest.requestPanel.workflow.workerArrived')}</h4>
                         <p className="mt-2 text-sm font-semibold leading-6 text-slate-600">
-                          {clientStartApproved ? 'Your approval is saved. Waiting for worker approval.' : 'Approve only when worker is present and both are ready to begin.'}
+                          {clientStartApproved ? t('serviceRequest.requestPanel.workflow.startSaved') : t('serviceRequest.requestPanel.workflow.startHelp')}
                         </p>
                         {canApproveStart && (
                           <button type="button" disabled={requestActionBusy} onClick={() => void approveWorkflowAction('start_work')} className="mt-4 w-full rounded-xl bg-blue-600 px-5 py-3.5 text-sm font-black text-white disabled:opacity-50">
-                            Approve work start
+                            {t('serviceRequest.requestPanel.workflow.approveStart')}
                           </button>
                         )}
                       </div>
@@ -1409,14 +1440,14 @@ export const Navbar: React.FC<NavbarProps> = ({
 
                     {primaryRequest.workflow_version === 2 && ['in_progress', 'finish_pending'].includes(primaryStatus) && (
                       <div className="rounded-[1.5rem] border border-violet-200 bg-violet-50 p-5 shadow-sm">
-                        <p className="text-[10px] font-black uppercase tracking-[0.18em] text-violet-700">Finish work approval</p>
-                        <h4 className="mt-2 text-xl font-black text-slate-950">Work in progress</h4>
+                        <p className="text-[10px] font-black uppercase tracking-[0.18em] text-violet-700">{t('serviceRequest.requestPanel.workflow.finishTitle')}</p>
+                        <h4 className="mt-2 text-xl font-black text-slate-950">{t('serviceRequest.requestPanel.workflow.workInProgress')}</h4>
                         <p className="mt-2 text-sm font-semibold leading-6 text-slate-600">
-                          {clientFinishApproved ? 'Your finish approval is saved. Waiting for worker.' : canApproveFinish ? 'Confirm technical work is finished. Payment unlocks after both approve.' : 'Finish approval unlocks 1 minute after work starts.'}
+                          {clientFinishApproved ? t('serviceRequest.requestPanel.workflow.finishSaved') : canApproveFinish ? t('serviceRequest.requestPanel.workflow.finishHelp') : t('serviceRequest.requestPanel.workflow.finishLocked')}
                         </p>
                         {canApproveFinish && (
                           <button type="button" disabled={requestActionBusy} onClick={() => void approveWorkflowAction('finish_work')} className="mt-4 w-full rounded-xl bg-violet-600 px-5 py-3.5 text-sm font-black text-white disabled:opacity-50">
-                            Approve work finish
+                            {t('serviceRequest.requestPanel.workflow.approveFinish')}
                           </button>
                         )}
                       </div>
@@ -1430,10 +1461,10 @@ export const Navbar: React.FC<NavbarProps> = ({
 
                     {String(primaryRequest.status || '').toLowerCase() === 'payment_pending' && (
                       <div className="rounded-[1.5rem] border border-emerald-200 bg-emerald-50 p-5 shadow-sm">
-                        <p className="text-[10px] font-black uppercase tracking-[0.18em] text-emerald-700">Next step</p>
-                        <h4 className="mt-2 text-xl font-black text-slate-950">Pay for finished work</h4>
+                        <p className="text-[10px] font-black uppercase tracking-[0.18em] text-emerald-700">{t('serviceRequest.requestPanel.payment.nextStep')}</p>
+                        <h4 className="mt-2 text-xl font-black text-slate-950">{t('serviceRequest.requestPanel.payment.payTitle')}</h4>
                         <p className="mt-2 text-sm font-semibold leading-6 text-slate-600">
-                          Both approved work finish. Pay ${Number(primaryRequest.final_budget ?? primaryRequest.budget ?? 0).toFixed(2)} to continue to final closure.
+                          {t('serviceRequest.requestPanel.payment.payHelp', { amount: Number(primaryRequest.final_budget ?? primaryRequest.budget ?? 0).toFixed(2) })}
                         </p>
                         <button
                           type="button"
@@ -1444,21 +1475,21 @@ export const Navbar: React.FC<NavbarProps> = ({
                           }}
                           className="mt-4 w-full rounded-xl bg-emerald-600 px-5 py-3.5 text-sm font-black text-white shadow-lg shadow-emerald-600/20 hover:bg-emerald-700"
                         >
-                          Continue to payment
+                          {t('serviceRequest.requestPanel.continueToPayment')}
                         </button>
                       </div>
                     )}
 
                     {primaryRequest.workflow_version === 2 && ['paid', 'completion_pending'].includes(primaryStatus) && (
                       <div className="rounded-[1.5rem] border border-emerald-200 bg-emerald-50 p-5 shadow-sm">
-                        <p className="text-[10px] font-black uppercase tracking-[0.18em] text-emerald-700">Final service approval</p>
-                        <h4 className="mt-2 text-xl font-black text-slate-950">Payment completed</h4>
+                        <p className="text-[10px] font-black uppercase tracking-[0.18em] text-emerald-700">{t('serviceRequest.requestPanel.workflow.finalTitle')}</p>
+                        <h4 className="mt-2 text-xl font-black text-slate-950">{t('serviceRequest.requestPanel.workflow.paymentCompleted')}</h4>
                         <p className="mt-2 text-sm font-semibold leading-6 text-slate-600">
-                          {clientCompleteApproved ? 'Your final approval is saved. Waiting for worker.' : 'Approve final closure. Service completes only after both approve.'}
+                          {clientCompleteApproved ? t('serviceRequest.requestPanel.workflow.finalSaved') : t('serviceRequest.requestPanel.workflow.finalHelp')}
                         </p>
                         {canApproveCompletion && (
                           <button type="button" disabled={requestActionBusy} onClick={() => void approveWorkflowAction('complete_service')} className="mt-4 w-full rounded-xl bg-emerald-600 px-5 py-3.5 text-sm font-black text-white disabled:opacity-50">
-                            Approve service completion
+                            {t('serviceRequest.requestPanel.workflow.approveCompletion')}
                           </button>
                         )}
                       </div>
@@ -1471,7 +1502,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                       className="flex w-full items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-5 py-3 text-sm font-black text-slate-900 shadow-sm transition-all hover:-translate-y-0.5 hover:border-bird-blue/30 hover:shadow-lg hover:shadow-bird-blue/10 active:scale-[0.97] disabled:opacity-60 disabled:hover:translate-y-0"
                     >
                       <RefreshCw className={`h-4 w-4 ${requestsLoading ? 'animate-spin' : ''}`} />
-                      {requestsLoading ? 'Refreshing...' : 'Refresh request'}
+                      {requestsLoading ? t('serviceRequest.history.refreshing') : t('serviceRequest.requestPanel.refreshRequest')}
                     </button>
                     {canCancelRequest && (
                       <button
@@ -1480,7 +1511,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                         onClick={() => setPendingDecision({ kind: 'request', decision: 'decline' })}
                         className="w-full rounded-xl border border-red-200 bg-red-50 px-5 py-3 text-sm font-black text-red-700 transition hover:border-red-300 hover:bg-red-100 disabled:opacity-50"
                       >
-                        Cancel this request
+                        {t('serviceRequest.actions.cancelRequest')}
                       </button>
                     )}
                   </aside>
@@ -1490,7 +1521,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                       <Suspense
                         fallback={
                           <div className="grid h-full min-h-[600px] place-items-center bg-slate-100 lg:min-h-[640px]">
-                            <p className="text-sm font-bold text-slate-500">Preparing live view...</p>
+                            <p className="text-sm font-bold text-slate-500">{t('serviceRequest.ui.preparingTracker')}</p>
                           </div>
                         }
                       >
@@ -1509,17 +1540,21 @@ export const Navbar: React.FC<NavbarProps> = ({
                             </svg>
                           </div>
                           <p className="mt-5 text-xs font-black uppercase tracking-[0.18em] text-bird-blue">
-                            {isScheduledFuture ? 'Visit confirmed' : 'Professional selected'}
+                            {isScheduledFuture ? t('serviceRequest.requestPanel.assignedView.visitConfirmed') : t('serviceRequest.requestPanel.assignedView.professionalSelected')}
                           </p>
                           <h3 className="mt-2 text-3xl font-black text-slate-950">
-                            {isScheduledFuture ? 'Your map will open near visit time' : pendingWorkerApproval ? 'Review professional' : 'Waiting for route start'}
+                            {isScheduledFuture
+                              ? t('serviceRequest.requestPanel.assignedView.mapOpensNearVisit')
+                              : pendingWorkerApproval
+                                ? t('serviceRequest.requestPanel.assignedView.reviewProfessional')
+                                : t('serviceRequest.requestPanel.assignedView.waitingForRoute')}
                           </h3>
                           <p className="mx-auto mt-3 max-w-md text-sm font-semibold leading-7 text-slate-500">
                             {isScheduledFuture
-                              ? `${formatRequestSchedule(primaryRequest)} is reserved. Live location stays private until the professional starts the trip.`
+                              ? t('serviceRequest.requestPanel.map.futureVisitHelp', { schedule: formatRequestSchedule(primaryRequest, t, i18n.language) })
                               : pendingWorkerApproval
-                                ? 'Review professional and approve selection. Worker can then start route.'
-                                : 'Professional is approved. Live route appears as soon as worker starts traveling.'}
+                                ? t('serviceRequest.requestPanel.assignedView.reviewAndApprove')
+                                : t('serviceRequest.requestPanel.assignedView.routeAppears')}
                           </p>
                           <div className="mt-6 flex flex-col justify-center gap-2 sm:flex-row">
                             <button
@@ -1527,7 +1562,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                               onClick={() => void openWorkerProfile()}
                               className="rounded-xl border border-slate-200 bg-white px-6 py-3 text-sm font-black text-slate-900 hover:border-bird-blue hover:text-bird-blue"
                             >
-                              Review professional
+                              {t('serviceRequest.requestPanel.assignedView.reviewProfessional')}
                             </button>
                             {canUseRequestChat(primaryRequest) && (
                               <button
@@ -1538,7 +1573,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                                 }}
                                 className="rounded-xl bg-bird-blue px-6 py-3 text-sm font-black text-white shadow-lg shadow-bird-blue/20"
                               >
-                                Open chat
+                                {t('serviceRequest.requestPanel.assignedView.openChat')}
                               </button>
                             )}
                           </div>
@@ -1561,35 +1596,35 @@ export const Navbar: React.FC<NavbarProps> = ({
                                   <div className="flex flex-wrap items-center gap-2">
                                     <span className="inline-flex items-center gap-2 rounded-full bg-sky-50 px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.16em] text-bird-blue">
                                       <span className="h-2 w-2 rounded-full bg-bird-blue" />
-                                      Matching in progress
+                                      {t('serviceRequest.requestPanel.matching.inProgress')}
                                     </span>
                                     <span className="rounded-full bg-amber-50 px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.14em] text-amber-700">
-                                      Request #{primaryRequest.id_request}
+                                      {t('serviceRequest.requestPanel.chat.requestLabel', { id: primaryRequest.id_request })}
                                     </span>
                                   </div>
                                   <h3 className="mt-4 text-3xl font-black leading-[1.05] text-slate-950 sm:text-4xl">
-                                    Finding the right pro
+                                    {t('serviceRequest.requestPanel.matching.heroTitle')}
                                   </h3>
                                   <p className="mt-3 max-w-2xl text-sm font-semibold leading-6 text-slate-600">
-                                    We are checking verified professionals near your address. You can leave this screen open; it updates automatically as soon as someone accepts.
+                                    {t('serviceRequest.requestPanel.matching.heroHelp')}
                                   </p>
                                 </div>
                               </div>
                               <div className="rounded-2xl border border-sky-100 bg-sky-50/80 px-4 py-3 text-left lg:w-[260px]">
-                                <p className="text-[10px] font-black uppercase tracking-[0.16em] text-bird-blue">Next step</p>
-                                <p className="mt-1 text-sm font-black text-slate-950">Live route opens after matching</p>
+                                <p className="text-[10px] font-black uppercase tracking-[0.16em] text-bird-blue">{t('serviceRequest.requestPanel.matching.nextStep')}</p>
+                                <p className="mt-1 text-sm font-black text-slate-950">{t('serviceRequest.requestPanel.matching.routeOpens')}</p>
                               </div>
                             </div>
                           </div>
 
                           <div className="grid gap-4 lg:grid-cols-[1fr_0.9fr]">
                             <section className="rounded-[28px] border border-slate-200/80 bg-white p-5 shadow-[0_16px_45px_rgba(15,23,42,0.07)] sm:p-6">
-                              <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">Progress</p>
+                              <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">{t('serviceRequest.requestPanel.matching.progress')}</p>
                               <div className="mt-5 grid gap-3 sm:grid-cols-3">
                                 {[
-                                  ['Request sent', 'Your request is active.', true],
-                                  ['Pros nearby', 'Checking verified pros.', true],
-                                  ['Route next', 'Starts after approval.', false],
+                                  [t('serviceRequest.requestPanel.matching.requestSent'), t('serviceRequest.requestPanel.matching.requestActive'), true],
+                                  [t('serviceRequest.requestPanel.matching.prosNearby'), t('serviceRequest.requestPanel.matching.checkingPros'), true],
+                                  [t('serviceRequest.requestPanel.matching.routeNext'), t('serviceRequest.requestPanel.matching.startsAfterApproval'), false],
                                 ].map(([label, helper, active]) => (
                                   <div
                                     key={String(label)}
@@ -1606,31 +1641,31 @@ export const Navbar: React.FC<NavbarProps> = ({
                                 ))}
                               </div>
                               <div className="mt-5 rounded-2xl border border-amber-100 bg-amber-50/80 p-4">
-                                <p className="text-sm font-black text-amber-800">Still searching</p>
+                                <p className="text-sm font-black text-amber-800">{t('serviceRequest.requestPanel.matching.stillSearching')}</p>
                                 <p className="mt-1 text-xs font-semibold leading-5 text-amber-900/70">
-                                  If nobody accepts immediately, Fixlife keeps your request active and continues checking nearby verified professionals.
+                                  {t('serviceRequest.requestPanel.matching.stillSearchingHelp')}
                                 </p>
                               </div>
                             </section>
 
                             <aside className="rounded-[28px] border border-slate-200/80 bg-white p-5 shadow-[0_16px_45px_rgba(15,23,42,0.07)] sm:p-6">
-                              <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">Request summary</p>
+                              <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">{t('serviceRequest.requestPanel.matching.requestSummary')}</p>
                               <div className="mt-5 space-y-3">
                                 <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                                  <p className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">Service</p>
-                                  <p className="mt-1 text-base font-black leading-6 text-slate-950">{primaryRequest.service_name}</p>
+                                  <p className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">{t('serviceRequest.requestPanel.matching.service')}</p>
+                                  <p className="mt-1 text-base font-black leading-6 text-slate-950">{localizeClientServiceName(primaryRequest.service_name, i18n.language)}</p>
                                 </div>
                                 <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                                  <p className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">Location</p>
-                                  <p className="mt-1 text-sm font-bold leading-6 text-slate-700">{primaryRequest.location_text || 'Location confirmed'}</p>
+                                  <p className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">{t('serviceRequest.requestPanel.labels.location')}</p>
+                                  <p className="mt-1 text-sm font-bold leading-6 text-slate-700">{primaryRequest.location_text || t('serviceRequest.requestPanel.matching.locationConfirmed')}</p>
                                 </div>
                                 <div className="grid grid-cols-2 gap-3">
                                   <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                                    <p className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">Visit</p>
-                                    <p className="mt-1 text-sm font-black text-slate-950">{formatRequestSchedule(primaryRequest)}</p>
+                                    <p className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">{t('serviceRequest.requestPanel.labels.visit')}</p>
+                                    <p className="mt-1 text-sm font-black text-slate-950">{formatRequestSchedule(primaryRequest, t, i18n.language)}</p>
                                   </div>
                                   <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                                    <p className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">Budget</p>
+                                    <p className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">{t('serviceRequest.requestPanel.labels.budget')}</p>
                                     <p className="mt-1 text-sm font-black text-slate-950">${Number(primaryRequest.budget || 0).toFixed(2)}</p>
                                   </div>
                                 </div>
@@ -1650,14 +1685,14 @@ export const Navbar: React.FC<NavbarProps> = ({
                 <div className="max-h-[88vh] w-full max-w-4xl overflow-y-auto rounded-[1.5rem] bg-white shadow-2xl">
                   <div className="sticky top-0 z-10 flex items-center justify-between border-b border-slate-100 bg-white px-5 py-4 sm:px-6">
                     <div>
-                      <p className="text-[10px] font-black uppercase tracking-[0.18em] text-bird-blue">Verified professional</p>
-                      <h3 className="mt-1 text-xl font-black text-slate-950">Profile and completed work</h3>
+                      <p className="text-[10px] font-black uppercase tracking-[0.18em] text-bird-blue">{t('serviceRequest.requestPanel.workerProfile.verifiedProfessional')}</p>
+                      <h3 className="mt-1 text-xl font-black text-slate-950">{t('serviceRequest.requestPanel.workerProfile.title')}</h3>
                     </div>
                     <button
                       type="button"
                       onClick={() => setWorkerProfile(null)}
                       className="flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 text-slate-500 hover:text-slate-950"
-                      aria-label="Close worker profile"
+                      aria-label={t('serviceRequest.requestPanel.workerProfile.close')}
                     >
                       <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.4} d="M6 18L18 6M6 6l12 12" />
@@ -1682,39 +1717,39 @@ export const Navbar: React.FC<NavbarProps> = ({
                           )}
                           <div className="min-w-0">
                             <h4 className="truncate text-lg font-black text-slate-950">{workerProfile.worker.name}</h4>
-                            <p className="mt-1 text-xs font-bold text-emerald-700">Identity verified</p>
+                            <p className="mt-1 text-xs font-bold text-emerald-700">{t('serviceRequest.requestPanel.workerProfile.identityVerified')}</p>
                           </div>
                         </div>
                         <p className="mt-4 text-sm font-semibold leading-6 text-slate-600">
-                          {workerProfile.worker.bio || 'This professional has not added a biography yet.'}
+                          {workerProfile.worker.bio || t('serviceRequest.requestPanel.workerProfile.emptyBio')}
                         </p>
                         <div className="mt-5 grid grid-cols-2 gap-2">
                           <div className="rounded-xl bg-white p-3">
-                            <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">Rating</p>
+                            <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">{t('serviceRequest.requestPanel.workerProfile.rating')}</p>
                             <p className="mt-1 text-base font-black text-slate-950">
                               {workerProfile.worker.rating_average != null
                                 ? `${Number(workerProfile.worker.rating_average).toFixed(1)} / 5`
-                                : 'New'}
+                                : t('serviceRequest.requestPanel.workerProfile.newRating')}
                             </p>
-                            <p className="text-[10px] font-bold text-slate-400">{workerProfile.worker.rating_count} reviews</p>
+                            <p className="text-[10px] font-bold text-slate-400">{t('serviceRequest.requestPanel.workerProfile.reviews', { count: workerProfile.worker.rating_count })}</p>
                           </div>
                           <div className="rounded-xl bg-white p-3">
-                            <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">Jobs</p>
+                            <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">{t('serviceRequest.requestPanel.workerProfile.jobs')}</p>
                             <p className="mt-1 text-base font-black text-slate-950">{workerProfile.worker.completed_jobs}</p>
-                            <p className="text-[10px] font-bold text-slate-400">completed</p>
+                            <p className="text-[10px] font-bold text-slate-400">{t('serviceRequest.requestPanel.workerProfile.completed')}</p>
                           </div>
                         </div>
-                        <p className="mt-4 text-xs font-bold text-slate-500">{workerProfile.worker.experience_label}</p>
+                        <p className="mt-4 text-xs font-bold text-slate-500">{localizeExperienceLabel(workerProfile.worker.experience_label, i18n.language)}</p>
                       </aside>
 
                       <div>
                         <div className="flex items-center justify-between gap-3">
                           <div>
-                            <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">Portfolio</p>
-                            <h4 className="mt-1 text-lg font-black text-slate-950">Previous work</h4>
+                            <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">{t('serviceRequest.requestPanel.workerProfile.portfolio')}</p>
+                            <h4 className="mt-1 text-lg font-black text-slate-950">{t('serviceRequest.requestPanel.workerProfile.previousWork')}</h4>
                           </div>
                           <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-black text-slate-600">
-                            {workerProfile.portfolio.length} photos
+                            {t('serviceRequest.requestPanel.workerProfile.photos', { count: workerProfile.portfolio.length })}
                           </span>
                         </div>
 
@@ -1725,11 +1760,11 @@ export const Navbar: React.FC<NavbarProps> = ({
                                 {photo.image_url ? (
                                   <img
                                     src={photo.image_url}
-                                    alt={photo.description || 'Completed work'}
+                                    alt={photo.description || t('serviceRequest.requestPanel.workerProfile.completedWork')}
                                     className="aspect-square w-full object-cover"
                                   />
                                 ) : (
-                                  <div className="grid aspect-square place-items-center text-xs font-bold text-slate-400">No image</div>
+                                  <div className="grid aspect-square place-items-center text-xs font-bold text-slate-400">{t('serviceRequest.requestPanel.workerProfile.noImage')}</div>
                                 )}
                                 {photo.description && (
                                   <figcaption className="line-clamp-2 p-2.5 text-xs font-semibold text-slate-600">
@@ -1741,8 +1776,8 @@ export const Navbar: React.FC<NavbarProps> = ({
                           </div>
                         ) : (
                           <div className="mt-4 rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-8 text-center">
-                            <p className="text-sm font-black text-slate-700">No portfolio photos yet</p>
-                            <p className="mt-1 text-xs font-semibold text-slate-500">Use ratings, completed jobs and experience to make your decision.</p>
+                            <p className="text-sm font-black text-slate-700">{t('serviceRequest.requestPanel.workerProfile.emptyPortfolioTitle')}</p>
+                            <p className="mt-1 text-xs font-semibold text-slate-500">{t('serviceRequest.requestPanel.workerProfile.emptyPortfolioHelp')}</p>
                           </div>
                         )}
 
@@ -1754,7 +1789,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                               onClick={() => setPendingDecision({ kind: pendingCounter ? 'counter' : 'worker', decision: 'decline' })}
                               className="rounded-xl border border-red-200 bg-white px-5 py-3 text-sm font-black text-red-600 hover:bg-red-50 disabled:opacity-50"
                             >
-                              Decline
+                              {t('serviceRequest.requestPanel.counter.decline')}
                             </button>
                             <button
                               type="button"
@@ -1762,7 +1797,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                               onClick={() => setPendingDecision({ kind: pendingCounter ? 'counter' : 'worker', decision: 'accept' })}
                               className="rounded-xl bg-slate-950 px-5 py-3 text-sm font-black text-white hover:bg-black disabled:opacity-50"
                             >
-                              {pendingCounter ? 'Accept counter offer' : 'Approve professional'}
+                              {pendingCounter ? t('serviceRequest.requestPanel.workerProfile.acceptCounter') : t('serviceRequest.requestPanel.workerProfile.approveProfessional')}
                             </button>
                           </div>
                         )}
@@ -1779,17 +1814,17 @@ export const Navbar: React.FC<NavbarProps> = ({
                   <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4">
                     <div className="min-w-0">
                       <p className="text-[10px] font-black uppercase tracking-[0.18em] text-bird-blue">
-                        Request #{primaryRequest.id_request}
+                        {t('serviceRequest.requestPanel.chat.requestLabel', { id: primaryRequest.id_request })}
                       </p>
                       <h3 className="truncate text-lg font-black text-slate-950">
-                        Chat with {primaryRequest.assigned_worker?.name || 'your professional'}
+                        {t('serviceRequest.requestPanel.chat.title', { name: primaryRequest.assigned_worker?.name || t('serviceRequest.requestPanel.messages.professionalFallback') })}
                       </h3>
                     </div>
                     <button
                       type="button"
                       onClick={() => setOpenChatRequestId(null)}
                       className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-slate-200 text-slate-500 hover:text-slate-950"
-                      aria-label="Close chat"
+                      aria-label={t('serviceRequest.requestPanel.chat.close')}
                     >
                       <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.4} d="M6 18L18 6M6 6l12 12" />
@@ -1801,9 +1836,9 @@ export const Navbar: React.FC<NavbarProps> = ({
                     {(chatByRequest[openChatRequestId] || []).length === 0 ? (
                       <div className="grid h-full place-items-center text-center">
                         <div>
-                          <p className="text-base font-black text-slate-700">Start the conversation</p>
+                          <p className="text-base font-black text-slate-700">{t('serviceRequest.requestPanel.chat.emptyTitle')}</p>
                           <p className="mt-1 text-sm font-semibold text-slate-500">
-                            Ask about arrival, materials or details for this request.
+                            {t('serviceRequest.requestPanel.chat.emptyHelp')}
                           </p>
                         </div>
                       </div>
@@ -1818,13 +1853,13 @@ export const Navbar: React.FC<NavbarProps> = ({
                               {message.image_url && (
                                 <img
                                   src={message.image_url}
-                                  alt="Chat attachment"
+                                  alt={t('serviceRequest.requestPanel.chat.attachmentAlt')}
                                   className="mb-2 max-h-52 w-full rounded-xl object-cover"
                                 />
                               )}
                               {message.message && <p className="whitespace-pre-wrap text-sm font-semibold leading-6">{message.message}</p>}
                               <p className={`mt-1 text-[10px] font-bold ${mine ? 'text-white/70' : 'text-slate-400'}`}>
-                                {new Date(message.created_at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
+                                {new Date(message.created_at).toLocaleTimeString(i18n.language.startsWith('es') ? 'es-SV' : 'en-US', { hour: 'numeric', minute: '2-digit' })}
                               </p>
                             </div>
                           </div>
@@ -1838,7 +1873,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                       <div className="mb-2 flex items-center justify-between rounded-xl bg-blue-50 px-3 py-2 text-xs font-bold text-blue-800">
                         <span className="truncate">{chatImage[openChatRequestId]?.name}</span>
                         <button type="button" onClick={() => setChatImage((prev) => ({ ...prev, [openChatRequestId]: null }))}>
-                          Remove
+                          {t('serviceRequest.requestPanel.chat.removeImage')}
                         </button>
                       </div>
                     )}
@@ -1861,7 +1896,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                       <textarea
                         value={chatMessage[openChatRequestId] || ''}
                         onChange={(event) => setChatMessage((prev) => ({ ...prev, [openChatRequestId]: event.target.value.slice(0, 500) }))}
-                        placeholder="Write a message..."
+                        placeholder={t('serviceRequest.requestPanel.chat.placeholder')}
                         rows={1}
                         maxLength={500}
                         className="min-h-11 flex-1 resize-none rounded-xl border border-slate-200 px-4 py-3 text-sm font-semibold outline-none focus:border-bird-blue"
@@ -1872,7 +1907,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                         onClick={() => void sendRequestChat(openChatRequestId)}
                         className="h-11 shrink-0 rounded-xl bg-bird-blue px-5 text-sm font-black text-white disabled:opacity-50"
                       >
-                        {chatBusyId === openChatRequestId ? 'Sending' : 'Send'}
+                        {chatBusyId === openChatRequestId ? t('serviceRequest.requestPanel.chat.sending') : t('serviceRequest.requestPanel.chat.send')}
                       </button>
                     </div>
                   </div>
@@ -1890,23 +1925,23 @@ export const Navbar: React.FC<NavbarProps> = ({
                   </div>
                   <h3 className="mt-4 text-xl font-black text-slate-950">
                     {pendingDecision.kind === 'request'
-                      ? `Cancel request #${primaryRequest.id_request}?`
+                      ? t('serviceRequest.requestPanel.decision.cancelRequestTitle', { id: primaryRequest.id_request })
                       : pendingDecision.decision === 'decline'
                       ? pendingDecision.kind === 'worker'
-                        ? 'Find another professional?'
-                        : 'Decline this counter offer?'
+                        ? t('serviceRequest.requestPanel.decision.findAnotherTitle')
+                        : t('serviceRequest.requestPanel.decision.declineCounterTitle')
                       : pendingDecision.kind === 'worker'
-                        ? 'Approve this professional?'
-                        : 'Accept this counter offer?'}
+                        ? t('serviceRequest.requestPanel.decision.approveProfessionalTitle')
+                        : t('serviceRequest.requestPanel.decision.acceptCounterTitle')}
                   </h3>
                   <p className="mt-2 text-sm font-semibold leading-6 text-slate-500">
                     {pendingDecision.kind === 'request'
-                      ? 'Fixlife will stop matching this request. An assigned professional will be released and this action cannot be undone.'
+                      ? t('serviceRequest.requestPanel.decision.cancelRequestHelp')
                       : pendingDecision.decision === 'decline'
-                      ? 'This professional will be removed from this request and Fixlife will continue matching.'
+                      ? t('serviceRequest.requestPanel.decision.declineProfessionalHelp')
                       : pendingDecision.kind === 'counter'
-                        ? `The service estimate will change to $${Number(primaryRequest.proposed_budget || 0).toFixed(2)} and payment will be the next step.`
-                        : 'The professional will be approved and payment will be the next step.'}
+                        ? t('serviceRequest.requestPanel.decision.acceptCounterHelp', { amount: Number(primaryRequest.proposed_budget || 0).toFixed(2) })
+                        : t('serviceRequest.requestPanel.decision.approveProfessionalHelp')}
                   </p>
                   <div className="mt-6 grid grid-cols-2 gap-3">
                     <button
@@ -1915,7 +1950,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                       onClick={() => setPendingDecision(null)}
                       className="rounded-xl border border-slate-200 px-4 py-3 text-sm font-black text-slate-700 hover:bg-slate-50"
                     >
-                      Go back
+                      {t('serviceRequest.requestPanel.decision.goBack')}
                     </button>
                     <button
                       type="button"
@@ -1931,7 +1966,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                           : 'bg-slate-950 hover:bg-black'
                       }`}
                     >
-                      {requestActionBusy ? 'Saving...' : pendingDecision.kind === 'request' ? 'Cancel request' : 'Confirm'}
+                      {requestActionBusy ? t('serviceRequest.requestPanel.decision.saving') : pendingDecision.kind === 'request' ? t('serviceRequest.requestPanel.decision.cancelRequest') : t('serviceRequest.requestPanel.decision.confirm')}
                     </button>
                   </div>
                 </div>

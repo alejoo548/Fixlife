@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import {
   forgotPassword,
   verifyResetToken,
@@ -12,6 +13,7 @@ interface WorkerForgotPasswordProps {
 }
 
 const WorkerForgotPassword: React.FC<WorkerForgotPasswordProps> = ({ onBack }) => {
+  const { t } = useTranslation();
 
   const [step, setStep] = useState(1);
 
@@ -27,7 +29,7 @@ const WorkerForgotPassword: React.FC<WorkerForgotPasswordProps> = ({ onBack }) =
     e.preventDefault();
     
     if (!email.trim()) {
-      void showSweetToast({ tone: 'error', message: "Please enter your email" });
+      void showSweetToast({ tone: 'error', message: t('passwordRecovery.validation.emailRequired') });
       return;
     }
 
@@ -35,10 +37,10 @@ const WorkerForgotPassword: React.FC<WorkerForgotPasswordProps> = ({ onBack }) =
 
     try {
       await forgotPassword(email.trim());
-      void showSweetToast({ tone: 'success', message: "Verification code sent to your email" });
+      void showSweetToast({ tone: 'success', message: t('passwordRecovery.messages.codeSent') });
       setStep(2);
     } catch (error: any) {
-      const errorMsg = error.response?.data?.error || "Error sending email. Please try again.";
+      const errorMsg = error.response?.data?.error || t('passwordRecovery.messages.sendError');
       void showSweetToast({ tone: 'error', message: errorMsg });
     } finally {
       setLoading(false);
@@ -49,7 +51,7 @@ const WorkerForgotPassword: React.FC<WorkerForgotPasswordProps> = ({ onBack }) =
     e.preventDefault();
     
     if (!token.trim()) {
-      void showSweetToast({ tone: 'error', message: "Please enter the verification code" });
+      void showSweetToast({ tone: 'error', message: t('passwordRecovery.validation.codeRequired') });
       return;
     }
 
@@ -57,10 +59,10 @@ const WorkerForgotPassword: React.FC<WorkerForgotPasswordProps> = ({ onBack }) =
 
     try {
       await verifyResetToken(email.trim(), token.trim());
-      void showSweetToast({ tone: 'success', message: "Code verified successfully" });
+      void showSweetToast({ tone: 'success', message: t('passwordRecovery.messages.codeVerified') });
       setStep(3);
     } catch (error: any) {
-      const errorMsg = error.response?.data?.error || error.response?.data?.message || "Invalid or expired code";
+      const errorMsg = error.response?.data?.error || error.response?.data?.message || t('passwordRecovery.messages.invalidCode');
       void showSweetToast({ tone: 'error', message: errorMsg });
     } finally {
       setLoading(false);
@@ -71,17 +73,17 @@ const WorkerForgotPassword: React.FC<WorkerForgotPasswordProps> = ({ onBack }) =
     e.preventDefault();
 
     if (!password.trim() || !confirmPassword.trim()) {
-      void showSweetToast({ tone: 'error', message: "Please fill in all fields" });
+      void showSweetToast({ tone: 'error', message: t('passwordRecovery.validation.fillAllFields') });
       return;
     }
 
     if (password.length < 8) {
-      void showSweetToast({ tone: 'error', message: "Password must be at least 8 characters" });
+      void showSweetToast({ tone: 'error', message: t('passwordRecovery.validation.passwordLength') });
       return;
     }
 
     if (password !== confirmPassword) {
-      void showSweetToast({ tone: 'error', message: "Passwords do not match" });
+      void showSweetToast({ tone: 'error', message: t('passwordRecovery.validation.passwordsDoNotMatch') });
       return;
     }
 
@@ -89,7 +91,7 @@ const WorkerForgotPassword: React.FC<WorkerForgotPasswordProps> = ({ onBack }) =
 
     try {
       await resetPassword(email.trim(), token.trim(), password);
-      void showSweetToast({ tone: 'success', message: "Password successfully updated! You can now log in." });
+      void showSweetToast({ tone: 'success', message: t('passwordRecovery.messages.passwordUpdated') });
       
       // Esperar 1.5 segundos antes de volver al login
       setTimeout(() => {
@@ -97,7 +99,7 @@ const WorkerForgotPassword: React.FC<WorkerForgotPasswordProps> = ({ onBack }) =
       }, 1500);
 
     } catch (error: any) {
-      const errorMsg = error.response?.data?.error || "Error resetting password. Please try again.";
+      const errorMsg = error.response?.data?.error || t('passwordRecovery.messages.resetError');
       void showSweetToast({ tone: 'error', message: errorMsg });
     } finally {
       setLoading(false);
@@ -108,7 +110,7 @@ const WorkerForgotPassword: React.FC<WorkerForgotPasswordProps> = ({ onBack }) =
     <div className="flex flex-col gap-6">
 
       <h2 className="text-2xl font-bold text-gray-900 text-center">
-        Recover password
+        {t('passwordRecovery.title')}
       </h2>
 
       {step === 1 && (
@@ -116,7 +118,7 @@ const WorkerForgotPassword: React.FC<WorkerForgotPasswordProps> = ({ onBack }) =
 
           <input
             type="email"
-            placeholder="Email address"
+            placeholder={t('passwordRecovery.emailPlaceholder')}
             value={email}
             maxLength={100}
             onChange={(e)=>setEmail(e.target.value)}
@@ -129,7 +131,7 @@ const WorkerForgotPassword: React.FC<WorkerForgotPasswordProps> = ({ onBack }) =
             disabled={loading}
             className="w-full py-4 rounded-full bg-gradient-to-r from-bird-orange to-bird-gold text-white font-bold text-sm tracking-wide shadow-lg shadow-bird-orange/20 hover:scale-[1.02] transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {loading ? "Sending..." : "Send code"}
+            {loading ? t('passwordRecovery.sending') : t('passwordRecovery.sendCode')}
           </button>
 
         </form>
@@ -140,7 +142,7 @@ const WorkerForgotPassword: React.FC<WorkerForgotPasswordProps> = ({ onBack }) =
 
           <input
             type="text"
-            placeholder="Enter verification code"
+            placeholder={t('passwordRecovery.codePlaceholder')}
             value={token}
             maxLength={6}
             inputMode="numeric"
@@ -154,7 +156,7 @@ const WorkerForgotPassword: React.FC<WorkerForgotPasswordProps> = ({ onBack }) =
             disabled={loading}
             className="w-full py-4 rounded-full bg-gradient-to-r from-bird-orange to-bird-gold text-white font-bold text-sm tracking-wide shadow-lg shadow-bird-orange/20 hover:scale-[1.02] transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {loading ? "Verifying..." : "Verify code"}
+            {loading ? t('passwordRecovery.verifying') : t('passwordRecovery.verifyCode')}
           </button>
 
         </form>
@@ -164,7 +166,7 @@ const WorkerForgotPassword: React.FC<WorkerForgotPasswordProps> = ({ onBack }) =
         <form onSubmit={handleResetPassword} className="flex flex-col gap-4">
 
           <PasswordInput
-            placeholder="New password"
+            placeholder={t('passwordRecovery.newPasswordPlaceholder')}
             value={password}
             onChange={(e)=>setPassword(e.target.value)}
             required
@@ -172,7 +174,7 @@ const WorkerForgotPassword: React.FC<WorkerForgotPasswordProps> = ({ onBack }) =
           />
 
           <PasswordInput
-            placeholder="Confirm password"
+            placeholder={t('passwordRecovery.confirmPasswordPlaceholder')}
             value={confirmPassword}
             onChange={(e)=>setConfirmPassword(e.target.value)}
             required
@@ -184,7 +186,7 @@ const WorkerForgotPassword: React.FC<WorkerForgotPasswordProps> = ({ onBack }) =
             disabled={loading}
             className="w-full py-4 rounded-full bg-gradient-to-r from-bird-orange to-bird-gold text-white font-bold text-sm tracking-wide shadow-lg shadow-bird-orange/20 hover:scale-[1.02] transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {loading ? "Saving..." : "Reset password"}
+            {loading ? t('passwordRecovery.saving') : t('passwordRecovery.resetPassword')}
           </button>
 
         </form>
@@ -195,7 +197,7 @@ const WorkerForgotPassword: React.FC<WorkerForgotPasswordProps> = ({ onBack }) =
           onClick={onBack}
           className="text-sm text-gray-500 hover:text-bird-orange transition-colors self-center"
         >
-          &larr; Back to login
+          &larr; {t('passwordRecovery.backToLogin')}
         </button>
       )}
 

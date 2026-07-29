@@ -1,5 +1,6 @@
-import React, { Suspense, lazy, useEffect, useMemo, useRef, useState } from 'react';
+﻿import React, { Suspense, lazy, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
+import { useTranslation } from 'react-i18next';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useSSE } from '../../hooks/useSSE';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -20,6 +21,7 @@ import { ServiceRequestFixesSuccessModal } from './ServiceRequestFixesSuccessMod
 import { ServiceReportModal } from '../shared/ServiceReportModal';
 import { showSweetAlert, showSweetToast } from '../../utils/sweetAlert';
 import { sanitizeLettersOnly, sanitizeMessageText, sanitizeStrictText } from '../../utils/textSanitize';
+import { localizeClientServiceName, localizeExperienceLabel } from '../../utils/clientTranslations';
 import { useProfanityGuard } from '../../hooks/useProfanityGuard';
 import { useResponsiveSheet } from '../../hooks/useResponsiveSheet';
 import { useServiceRequestChat } from './hooks/useServiceRequestChat';
@@ -128,7 +130,8 @@ const isScheduledServiceRequest = (request: Pick<MyServiceRequest, 'booking_type
     String(request?.booking_type || 'express').toLowerCase() === 'scheduled';
 
 const formatScheduledServiceWindow = (
-    request: Pick<MyServiceRequest, 'scheduled_start_time' | 'scheduled_end_time' | 'scheduled_date' | 'scheduled_time'>
+    request: Pick<MyServiceRequest, 'scheduled_start_time' | 'scheduled_end_time' | 'scheduled_date' | 'scheduled_time'>,
+    language = 'en'
 ) => {
     const startValue = request.scheduled_start_time || (
         request.scheduled_date && request.scheduled_time
@@ -141,14 +144,15 @@ const formatScheduledServiceWindow = (
     const end = request.scheduled_end_time ? new Date(request.scheduled_end_time) : null;
     if (Number.isNaN(start.getTime())) return 'Time pending';
 
-    const dateLabel = start.toLocaleDateString('en-US', {
+    const locale = language.startsWith('es') ? 'es-SV' : 'en-US';
+    const dateLabel = start.toLocaleDateString(locale, {
         weekday: 'short',
         month: 'short',
         day: 'numeric',
     });
-    const startLabel = start.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+    const startLabel = start.toLocaleTimeString(locale, { hour: 'numeric', minute: '2-digit' });
     const endLabel = end && !Number.isNaN(end.getTime())
-        ? end.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
+        ? end.toLocaleTimeString(locale, { hour: 'numeric', minute: '2-digit' })
         : null;
 
     return endLabel ? `${dateLabel} · ${startLabel} - ${endLabel}` : `${dateLabel} · ${startLabel}`;
@@ -161,10 +165,10 @@ declare global {
 }
 
 const REQUEST_FLOW_STEPS = [
-    { label: 'Problem', shortLabel: '1' },
-    { label: 'Location', shortLabel: '2' },
-    { label: 'Schedule', shortLabel: '3' },
-    { label: 'Review', shortLabel: '4' },
+    { label: 'serviceRequest.wizard.headings.problem', shortLabel: '1' },
+    { label: 'serviceRequest.wizard.headings.location', shortLabel: '2' },
+    { label: 'serviceRequest.wizard.headings.schedule', shortLabel: '3' },
+    { label: 'serviceRequest.wizard.headings.review', shortLabel: '4' },
 ] as const;
 
 const MAX_REQUEST_BUDGET = 1000;
@@ -177,21 +181,25 @@ const escapeHtml = (value: unknown) =>
         .replace(/"/g, '&quot;')
         .replace(/'/g, '&#39;');
 
+type TranslateFn = (key: string, options?: Record<string, unknown>) => string;
+
 const formatSubmittedRequestSchedule = (request: {
     booking_type: string;
     scheduled_start_time: string | null;
     scheduled_end_time: string | null;
     scheduled_date: string | null;
     scheduled_time: string | null;
-}) => {
-    if (String(request.booking_type || '').toLowerCase() !== 'scheduled') return 'Express request';
+}, t: TranslateFn, language: string) => {
+    if (String(request.booking_type || '').toLowerCase() !== 'scheduled') {
+        return t('serviceRequest.wizard.submitted.expressRequest');
+    }
 
     return formatScheduledServiceWindow({
         scheduled_start_time: request.scheduled_start_time,
         scheduled_end_time: request.scheduled_end_time,
         scheduled_date: request.scheduled_date,
         scheduled_time: request.scheduled_time,
-    });
+    }, language);
 };
 
 const buildSubmittedRequestSummaryHtml = (request: {
@@ -210,50 +218,54 @@ const buildSubmittedRequestSummaryHtml = (request: {
     status: string;
     selection_mode: 'auto_assign' | 'client_review';
     assigned_worker_profile: number | null;
-}) => {
+}, t: TranslateFn, language: string) => {
     const autoAssigned =
         request.status === 'assigned' &&
         request.selection_mode === 'auto_assign' &&
         request.assigned_worker_profile != null;
-    const requestNumber = request.id_request ? `#${request.id_request}` : 'Created';
-    const scheduleLabel = formatSubmittedRequestSchedule(request);
-    const modeLabel = String(request.booking_type || 'express').toLowerCase() === 'scheduled' ? 'Scheduled' : 'Express';
-    const statusLabelText = autoAssigned ? 'Pro assigned' : 'Waiting for Pro';
+    const requestNumber = request.id_request ? `#${request.id_request}` : t('serviceRequest.wizard.submitted.created');
+    const scheduleLabel = formatSubmittedRequestSchedule(request, t, language);
+    const modeLabel = String(request.booking_type || 'express').toLowerCase() === 'scheduled'
+        ? t('serviceRequest.scheduling.scheduled')
+        : t('serviceRequest.scheduling.express');
+    const statusLabelText = autoAssigned
+        ? t('serviceRequest.wizard.submitted.proAssigned')
+        : t('serviceRequest.wizard.submitted.waitingForPro');
 
     return `
         <div class="mt-2 text-left">
             <div class="rounded-3xl border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-white/[0.04] p-4">
                 <div class="flex items-start justify-between gap-3">
                     <div>
-                        <p class="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">Request ${escapeHtml(requestNumber)}</p>
-                        <h3 class="mt-1 text-lg font-black leading-tight text-slate-950 dark:text-slate-100">${escapeHtml(request.service_name)}</h3>
+                        <p class="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">${escapeHtml(t('serviceRequest.wizard.submitted.request'))} ${escapeHtml(requestNumber)}</p>
+                        <h3 class="mt-1 text-lg font-black leading-tight text-slate-950 dark:text-slate-100">${escapeHtml(localizeClientServiceName(request.service_name, language))}</h3>
                     </div>
                     <span class="shrink-0 rounded-full bg-emerald-100 dark:bg-emerald-900/40 px-3 py-1 text-[10px] font-black uppercase tracking-[0.12em] text-emerald-700 dark:text-emerald-400">${escapeHtml(statusLabelText)}</span>
                 </div>
                 <div class="mt-4 grid grid-cols-2 gap-2">
                     <div class="rounded-2xl border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900/70 p-3">
-                        <p class="text-[10px] font-black uppercase tracking-[0.14em] text-slate-400 dark:text-slate-500">Type</p>
+                        <p class="text-[10px] font-black uppercase tracking-[0.14em] text-slate-400 dark:text-slate-500">${escapeHtml(t('serviceRequest.wizard.submitted.type'))}</p>
                         <p class="mt-1 text-sm font-black text-slate-950 dark:text-slate-100">${escapeHtml(modeLabel)}</p>
                     </div>
                     <div class="rounded-2xl border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900/70 p-3">
-                        <p class="text-[10px] font-black uppercase tracking-[0.14em] text-slate-400 dark:text-slate-500">Budget</p>
+                        <p class="text-[10px] font-black uppercase tracking-[0.14em] text-slate-400 dark:text-slate-500">${escapeHtml(t('serviceRequest.wizard.submitted.budget'))}</p>
                         <p class="mt-1 text-sm font-black text-slate-950 dark:text-slate-100">$${Number(request.budget || 0).toFixed(2)}</p>
                     </div>
                     <div class="rounded-2xl border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900/70 p-3">
-                        <p class="text-[10px] font-black uppercase tracking-[0.14em] text-slate-400 dark:text-slate-500">Schedule</p>
+                        <p class="text-[10px] font-black uppercase tracking-[0.14em] text-slate-400 dark:text-slate-500">${escapeHtml(t('serviceRequest.wizard.submitted.schedule'))}</p>
                         <p class="mt-1 text-sm font-black text-slate-950 dark:text-slate-100">${escapeHtml(scheduleLabel)}</p>
                     </div>
                     <div class="rounded-2xl border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900/70 p-3">
-                        <p class="text-[10px] font-black uppercase tracking-[0.14em] text-slate-400 dark:text-slate-500">Photos</p>
+                        <p class="text-[10px] font-black uppercase tracking-[0.14em] text-slate-400 dark:text-slate-500">${escapeHtml(t('serviceRequest.wizard.submitted.photos'))}</p>
                         <p class="mt-1 text-sm font-black text-slate-950 dark:text-slate-100">${request.image_count}</p>
                     </div>
                 </div>
                 <div class="mt-3 rounded-2xl border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900/70 p-3">
-                    <p class="text-[10px] font-black uppercase tracking-[0.14em] text-slate-400 dark:text-slate-500">Location</p>
+                    <p class="text-[10px] font-black uppercase tracking-[0.14em] text-slate-400 dark:text-slate-500">${escapeHtml(t('serviceRequest.wizard.submitted.location'))}</p>
                     <p class="mt-1 break-words text-sm font-bold leading-5 text-slate-700 dark:text-slate-300">${escapeHtml(request.location)}</p>
                 </div>
                 <p class="mt-3 text-center text-xs font-bold leading-5 text-slate-500 dark:text-slate-400">
-                    You will return to the main map now. You can reopen this request from notifications or My Requests later.
+                    ${escapeHtml(t('serviceRequest.wizard.submitted.returnNotice'))}
                 </p>
             </div>
         </div>
@@ -282,11 +294,11 @@ const areValidCoordinates = (coords: { lat: number; lng: number } | null | undef
     coords.lng >= -180 &&
     coords.lng <= 180;
 
-const formatRequestVisit = (data: ServiceRequestData) => {
-    if (data.booking_type === 'express') return 'As soon as possible';
+const formatRequestVisit = (data: ServiceRequestData, t: TranslateFn, language: string) => {
+    if (data.booking_type === 'express') return t('serviceRequest.scheduling.visitLabels.asSoonAsPossible');
     const start = new Date(`${data.scheduled_date}T${data.scheduled_time}:00`);
-    if (Number.isNaN(start.getTime())) return 'Schedule needs review';
-    return start.toLocaleString('en-US', {
+    if (Number.isNaN(start.getTime())) return t('serviceRequest.scheduling.visitLabels.scheduleNeedsReview');
+    return start.toLocaleString(language.startsWith('es') ? 'es-SV' : 'en-US', {
         weekday: 'short',
         month: 'short',
         day: 'numeric',
@@ -297,6 +309,8 @@ const formatRequestVisit = (data: ServiceRequestData) => {
 };
 
 export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOpen, onClose, initialServiceId, initialServiceName, onOpenCheckout, openOnHistory }) => {
+    const { t, i18n } = useTranslation();
+    const isSpanish = (i18n.resolvedLanguage || i18n.language || 'en').startsWith('es');
     const location = useLocation();
     const navigate = useNavigate();
     const { guardValue: guardDescriptionValue } = useProfanityGuard();
@@ -1203,7 +1217,7 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
             name:
                 workerProfileData?.worker.name ||
                 workerProfileRequest.assigned_worker?.name ||
-                'Assigned pro',
+                (isSpanish ? 'Profesional asignado' : 'Assigned pro'),
             phone_number:
                 workerProfileData?.worker.phone_number ??
                 workerProfileRequest.assigned_worker?.phone_number ??
@@ -1221,14 +1235,13 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                 workerProfileRequest.assigned_worker?.profile_image_url ??
                 null,
             years_of_experience: workerProfileData?.worker.years_of_experience ?? null,
-            experience_label:
-                workerProfileData?.worker.experience_label || 'Experience not available',
+            experience_label: localizeExperienceLabel(workerProfileData?.worker.experience_label, i18n.language),
             rating_average: workerProfileData?.worker.rating_average ?? null,
             rating_count: workerProfileData?.worker.rating_count ?? 0,
             completed_jobs: workerProfileData?.worker.completed_jobs ?? 0,
             services_offered: workerProfileData?.worker.services_offered || [],
         };
-    }, [workerProfileData, workerProfileRequest]);
+    }, [i18n.language, isSpanish, workerProfileData, workerProfileRequest]);
 
     useEffect(() => {
         if (workerPortfolio.length === 0 && workerPortfolioIndex !== 0) {
@@ -1518,13 +1531,23 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
     const selectedServiceTitle = useMemo(() => {
         if (!data.category) return null;
         const found = services.find((svc) => svc.name === data.category);
-        return found?.name || data.category;
-    }, [data.category, services]);
+        return localizeClientServiceName(found?.name || data.category, i18n.language);
+    }, [data.category, i18n.language, services]);
+    const selectedService = useMemo(
+        () => services.find((svc) => svc.name === data.category) || null,
+        [data.category, services]
+    );
+    const serviceMinBudget = Number(selectedService?.min_budget ?? 1);
+    const serviceMaxBudget = Number(selectedService?.max_budget ?? MAX_REQUEST_BUDGET);
+    const serviceBudgetRange = {
+        min: Number.isFinite(serviceMinBudget) && serviceMinBudget > 0 ? serviceMinBudget : 1,
+        max: Number.isFinite(serviceMaxBudget) && serviceMaxBudget > 0 ? serviceMaxBudget : MAX_REQUEST_BUDGET,
+    };
     const hasConfirmedLocation = areValidCoordinates(currentCoords) && isSpecificLocationLabel(data.location);
     const hasValidBudget =
         Number.isFinite(Number(data.price)) &&
-        Number(data.price) > 0 &&
-        Number(data.price) <= MAX_REQUEST_BUDGET;
+        Number(data.price) >= serviceBudgetRange.min &&
+        Number(data.price) <= serviceBudgetRange.max;
     const canSearchPros = hasConfirmedLocation && !resolvingLocation;
     const problemStepReady = data.description.trim().length >= 10 && problemFiles.length > 0;
     const locationStepReady = hasConfirmedLocation && !resolvingLocation;
@@ -1542,6 +1565,30 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
         locationStepReady &&
         scheduleStepReady &&
         !resolvingLocation;
+
+    const getRequestMissingReasons = () => {
+        const reasons: string[] = [];
+        if (!isAuthenticated()) reasons.push(t('serviceRequest.wizard.review.missing.auth'));
+        if (!problemStepReady) reasons.push(t('serviceRequest.wizard.review.missing.problemPhoto'));
+        if (!locationStepReady) reasons.push(t('serviceRequest.wizard.review.missing.exactAddress'));
+        if (!scheduleStepReady) reasons.push(t('serviceRequest.wizard.review.missing.visitTime'));
+        if (!hasValidBudget) {
+            reasons.push(t('serviceRequest.wizard.review.missing.budgetRange', {
+                min: serviceBudgetRange.min.toFixed(2),
+                max: serviceBudgetRange.max.toFixed(2),
+            }));
+        }
+        return reasons;
+    };
+
+    const handleFinalSubmitRequest = () => {
+        const missingReasons = getRequestMissingReasons();
+        if (missingReasons.length > 0) {
+            showToast('error', `${t('serviceRequest.wizard.review.completeBeforeSending')} ${missingReasons.join(' ')}`);
+            return;
+        }
+        void submitServiceRequest();
+    };
 
     const moveRequestFlowForward = () => {
         if (requestFlowStep === 0 && !problemStepReady) {
@@ -1598,7 +1645,7 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
         if (nextValue === '' || nextValue === '.') return '';
         const parsed = Number(nextValue);
         if (!Number.isFinite(parsed) || parsed < 0) return '';
-        if (parsed > MAX_REQUEST_BUDGET) return String(MAX_REQUEST_BUDGET);
+        if (parsed > serviceBudgetRange.max) return String(serviceBudgetRange.max);
         return nextValue;
     };
 
@@ -1697,7 +1744,7 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
         if (totalAfterAdd > 5) {
             showToast('error', 'Maximum 5 problem images.');
         } else if (valid.length > 0) {
-            showToast('success', `${valid.length} image(s) added.`);
+            showToast('success', t('serviceRequest.wizard.toasts.imagesAdded', { count: valid.length }));
         }
 
         setProblemFiles((prev) => [...prev, ...valid].slice(0, 5));
@@ -1707,7 +1754,7 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
 
     const removeProblemImage = (index: number) => {
         setProblemFiles((prev) => prev.filter((_, i) => i !== index));
-        showToast('success', 'Image removed.');
+        showToast('success', isSpanish ? 'Imagen eliminada.' : 'Image removed.');
     };
 
     const handleLocationChange = (value: string) => {
@@ -1906,6 +1953,12 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
         services,
         setNearbyWorkers,
         showToast,
+        messages: {
+            selectServiceFirst: t('serviceRequest.wizard.toasts.selectServiceFirst'),
+            searchError: t('serviceRequest.wizard.toasts.nearbySearchError'),
+            nearbyWorkersLoaded: t('serviceRequest.wizard.toasts.nearbyWorkersLoaded'),
+            networkError: t('serviceRequest.wizard.toasts.nearbyNetworkError'),
+        },
     });
 
     const submitServiceRequest = useServiceRequestSubmit({
@@ -1925,17 +1978,17 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
             const { id_request, status, selection_mode, assigned_worker_profile } = createdRequest;
             const autoAssigned = status === 'assigned' && selection_mode === 'auto_assign' && assigned_worker_profile != null;
             await showSweetAlert({
-                title: autoAssigned ? 'Pro matched successfully' : 'Request sent successfully',
+                title: autoAssigned ? t('serviceRequest.wizard.submitted.proMatchedTitle') : t('serviceRequest.wizard.submitted.requestSentTitle'),
                 message: autoAssigned
                     ? id_request
-                        ? `Request #${id_request} was assigned to a verified Pro.`
-                        : 'Your request was assigned to a verified Pro.'
+                        ? t('serviceRequest.wizard.submitted.assignedMessage', { id: id_request })
+                        : t('serviceRequest.wizard.submitted.assignedMessageNoId')
                     : id_request
-                        ? `Request #${id_request} was created successfully.`
-                        : 'Your request was created successfully.',
-                html: buildSubmittedRequestSummaryHtml(createdRequest),
+                        ? t('serviceRequest.wizard.submitted.createdMessage', { id: id_request })
+                        : t('serviceRequest.wizard.submitted.createdMessageNoId'),
+                html: buildSubmittedRequestSummaryHtml(createdRequest, t, i18n.language),
                 tone: 'success',
-                confirmText: 'Back to main map',
+                confirmText: t('serviceRequest.wizard.submitted.backToMainMap'),
             });
             setIsHistoryModalOpen(false);
             navigate('/app');
@@ -1945,6 +1998,29 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
             void showSweetAlert(input);
         },
         showToast,
+        messages: {
+            authRequired: t('serviceRequest.wizard.submit.authRequired'),
+            selectServiceFirst: t('serviceRequest.wizard.submit.selectServiceFirst'),
+            locationRequired: t('serviceRequest.wizard.submit.locationRequired'),
+            confirmLocation: t('serviceRequest.wizard.submit.confirmLocation'),
+            specificLocation: t('serviceRequest.wizard.submit.specificLocation'),
+            descriptionRequired: t('serviceRequest.wizard.submit.descriptionRequired'),
+            budgetInvalid: t('serviceRequest.wizard.submit.budgetInvalidRange', {
+                min: serviceBudgetRange.min.toFixed(2),
+                max: serviceBudgetRange.max.toFixed(2),
+            }),
+            imageRequired: t('serviceRequest.wizard.submit.imageRequired'),
+            scheduleRequired: t('serviceRequest.wizard.submit.scheduleRequired'),
+            scheduleDurationInvalid: t('serviceRequest.wizard.submit.scheduleDurationInvalid'),
+            scheduleInvalid: t('serviceRequest.wizard.submit.scheduleInvalid'),
+            sessionExpiredTitle: t('serviceRequest.wizard.submit.sessionExpiredTitle'),
+            sessionExpiredMessage: t('serviceRequest.wizard.submit.sessionExpiredMessage'),
+            signInAgain: t('serviceRequest.wizard.submit.signInAgain'),
+            activeRequestExists: t('serviceRequest.wizard.submit.activeRequestExists'),
+            createError: t('serviceRequest.wizard.submit.createError'),
+            networkError: t('serviceRequest.wizard.submit.networkError'),
+            incompleteRequest: t('serviceRequest.wizard.review.completeBeforeSending'),
+        },
     });
 
     const handleWorkerApprovalDecision = async (request: MyServiceRequest, decision: 'accept' | 'decline') => {
@@ -2276,16 +2352,16 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                     <div className="flex items-start justify-between gap-4">
                                         <div className="min-w-0">
                                             <p className="text-[10px] font-black uppercase tracking-[0.2em] text-bird-blue">
-                                                {requestFlowStep + 1} of {REQUEST_FLOW_STEPS.length}
+                                                {requestFlowStep + 1} / {REQUEST_FLOW_STEPS.length}
                                             </p>
                                             <h2 className="mt-1 text-2xl font-black text-slate-950 dark:text-slate-100">
-                                                {requestFlowStep === 0 && 'Tell us what needs fixing'}
-                                                {requestFlowStep === 1 && 'Where should the pro go?'}
-                                                {requestFlowStep === 2 && 'When should we visit?'}
-                                                {requestFlowStep === 3 && 'Review your request'}
+                                                {requestFlowStep === 0 && t('serviceRequest.problem.title')}
+                                                {requestFlowStep === 1 && t('serviceRequest.location.title')}
+                                                {requestFlowStep === 2 && t('serviceRequest.scheduling.title')}
+                                                {requestFlowStep === 3 && t('serviceRequest.wizard.headings.review')}
                                             </h2>
                                             <p className="mt-1 truncate text-sm font-bold text-slate-500 dark:text-slate-400">
-                                                {selectedServiceTitle || 'Selected service'}
+                                                {selectedServiceTitle || t('serviceRequest.serviceStep.selectedService')}
                                             </p>
                                         </div>
                                         <button
@@ -2296,7 +2372,7 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                             }}
                                             className="shrink-0 rounded-xl border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900/70 px-3 py-2 text-xs font-black text-slate-600 dark:text-slate-300 hover:border-bird-blue hover:text-bird-blue"
                                         >
-                                            Change service
+                                            {t('serviceRequest.serviceStep.changeService')}
                                         </button>
                                     </div>
 
@@ -2319,7 +2395,7 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                                     <span className={`block truncate text-[10px] font-black uppercase tracking-[0.08em] ${
                                                         active ? 'text-slate-950 dark:text-slate-100' : complete ? 'text-bird-blue' : 'text-slate-400 dark:text-slate-500'
                                                     }`}>
-                                                        {flowStep.label}
+                                                        {t(flowStep.label)}
                                                     </span>
                                                 </button>
                                             );
@@ -2459,36 +2535,36 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                             >
                                                 <div className="grid gap-3 sm:grid-cols-2">
                                                     <div className="rounded-2xl border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900/70 p-4">
-                                                        <p className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400 dark:text-slate-500">Service</p>
+                                                        <p className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400 dark:text-slate-500">{t('serviceRequest.wizard.review.service')}</p>
                                                         <p className="mt-2 text-base font-black text-slate-900 dark:text-slate-100">{selectedServiceTitle}</p>
                                                         <p className="mt-1 line-clamp-3 text-sm font-semibold leading-6 text-slate-500 dark:text-slate-400">{data.description}</p>
                                                     </div>
                                                     <div className="rounded-2xl border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900/70 p-4">
                                                         <div className="flex items-center justify-between gap-3">
-                                                            <p className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400 dark:text-slate-500">Location</p>
+                                                            <p className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400 dark:text-slate-500">{t('serviceRequest.wizard.review.location')}</p>
                                                             <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 dark:bg-emerald-900/40 px-2 py-1 text-[10px] font-black text-emerald-700 dark:text-emerald-400">
                                                                 <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
-                                                                Confirmed
+                                                                {t('serviceRequest.wizard.review.confirmed')}
                                                             </span>
                                                         </div>
                                                         <p className="mt-2 line-clamp-3 text-sm font-black leading-6 text-slate-900 dark:text-slate-100">{data.location}</p>
-                                                        <p className="mt-2 text-xs font-bold text-bird-blue">{radiusKm} km search radius</p>
+                                                        <p className="mt-2 text-xs font-bold text-bird-blue">{t('serviceRequest.wizard.review.searchRadius', { count: radiusKm })}</p>
                                                     </div>
                                                     <div className="rounded-2xl border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900/70 p-4">
-                                                        <p className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400 dark:text-slate-500">Visit</p>
+                                                        <p className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400 dark:text-slate-500">{t('serviceRequest.wizard.review.visit')}</p>
                                                         <p className="mt-2 text-sm font-black text-slate-900 dark:text-slate-100">
-                                                            {formatRequestVisit(data)}
+                                                            {formatRequestVisit(data, t, i18n.language)}
                                                         </p>
                                                         {data.booking_type === 'scheduled' && (
                                                             <p className="mt-1 text-xs font-bold text-slate-500 dark:text-slate-400">
-                                                                Estimated duration: {data.scheduled_duration_minutes / 60}h
+                                                                {t('serviceRequest.wizard.review.estimatedDuration', { hours: data.scheduled_duration_minutes / 60 })}
                                                             </p>
                                                         )}
                                                     </div>
                                                     <div className="rounded-2xl border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900/70 p-4">
-                                                        <p className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400 dark:text-slate-500">Photos</p>
-                                                        <p className="mt-2 text-sm font-black text-slate-900 dark:text-slate-100">{problemFiles.length} attached</p>
-                                                        <p className="mt-1 text-xs font-semibold text-slate-500 dark:text-slate-400">Verified before upload</p>
+                                                        <p className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400 dark:text-slate-500">{t('serviceRequest.wizard.review.photos')}</p>
+                                                        <p className="mt-2 text-sm font-black text-slate-900 dark:text-slate-100">{t('serviceRequest.wizard.review.attached', { count: problemFiles.length })}</p>
+                                                        <p className="mt-1 text-xs font-semibold text-slate-500 dark:text-slate-400">{t('serviceRequest.wizard.review.verifiedBeforeUpload')}</p>
                                                     </div>
                                                 </div>
 
@@ -2496,16 +2572,16 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                                     <div className="flex flex-wrap items-start justify-between gap-3">
                                                         <div>
                                                             <p className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400 dark:text-slate-500">
-                                                                Hiring preference
+                                                                {isSpanish ? 'Preferencia de asignacion' : 'Hiring preference'}
                                                             </p>
                                                             <h3 className="mt-1 text-lg font-black text-slate-950 dark:text-slate-100">
                                                                 {data.booking_type === 'express'
-                                                                    ? 'Express assigns the first available Pro'
-                                                                    : 'How should Fixlife match your Pro?'}
+                                                                    ? (isSpanish ? 'Express asigna al primer profesional disponible' : 'Express assigns the first available Pro')
+                                                                    : (isSpanish ? 'Como debe Fixlife asignar a tu profesional?' : 'How should Fixlife match your Pro?')}
                                                             </h3>
                                                         </div>
                                                         <span className="rounded-full border border-bird-blue/20 bg-sky-50 dark:bg-sky-900/40 px-3 py-1 text-[10px] font-black uppercase tracking-[0.14em] text-bird-blue">
-                                                            Protected match
+                                                            {isSpanish ? 'Asignacion protegida' : 'Protected match'}
                                                         </span>
                                                     </div>
 
@@ -2513,15 +2589,15 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                                         {[
                                                             {
                                                                 mode: 'auto_assign' as const,
-                                                                title: 'Fast Match',
-                                                                eyebrow: data.booking_type === 'express' ? 'Recommended for express' : 'Fastest option',
-                                                                body: 'Fixlife assigns the best verified Pro using distance, availability, rating and schedule safety.',
+                                                                title: isSpanish ? 'Asignacion rapida' : 'Fast Match',
+                                                                eyebrow: data.booking_type === 'express' ? (isSpanish ? 'Recomendado para express' : 'Recommended for express') : (isSpanish ? 'Opcion mas rapida' : 'Fastest option'),
+                                                                body: isSpanish ? 'Fixlife asigna al mejor profesional verificado segun distancia, disponibilidad, calificacion y seguridad del horario.' : 'Fixlife assigns the best verified Pro using distance, availability, rating and schedule safety.',
                                                             },
                                                             {
                                                                 mode: 'client_review' as const,
-                                                                title: 'Review & Choose',
-                                                                eyebrow: data.booking_type === 'scheduled' ? 'Recommended for scheduled' : 'More control',
-                                                                body: 'Compare Pro profiles, portfolio and experience before approving who can start the route.',
+                                                                title: isSpanish ? 'Revisar y elegir' : 'Review & Choose',
+                                                                eyebrow: data.booking_type === 'scheduled' ? (isSpanish ? 'Recomendado para programado' : 'Recommended for scheduled') : (isSpanish ? 'Mas control' : 'More control'),
+                                                                body: isSpanish ? 'Compara perfiles, portafolio y experiencia antes de aprobar quien puede iniciar la ruta.' : 'Compare Pro profiles, portfolio and experience before approving who can start the route.',
                                                             },
                                                         ]
                                                             .filter((option) => data.booking_type !== 'express' || option.mode === 'auto_assign')
@@ -2568,14 +2644,14 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
 
                                                     <p className="mt-3 text-xs font-semibold leading-5 text-slate-500 dark:text-slate-400">
                                                         {data.booking_type === 'express'
-                                                            ? 'Express is protected: the first verified, available Pro who accepts is assigned automatically.'
-                                                            : 'Fast Match is still protected: unverified, unavailable or conflicting workers are rejected by the backend.'}
+                                                            ? (isSpanish ? 'Express esta protegido: el primer profesional verificado y disponible que acepte se asigna automaticamente.' : 'Express is protected: the first verified, available Pro who accepts is assigned automatically.')
+                                                            : (isSpanish ? 'La asignacion rapida sigue protegida: el backend rechaza profesionales no verificados, no disponibles o con conflictos.' : 'Fast Match is still protected: unverified, unavailable or conflicting workers are rejected by the backend.')}
                                                     </p>
                                                 </div>
 
                                                 <div className="rounded-2xl border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900/70 p-4">
                                                     <label className="block text-[10px] font-black uppercase tracking-[0.16em] text-slate-400 dark:text-slate-500">
-                                                        Your estimated budget
+                                                        {t('serviceRequest.wizard.review.budget')}
                                                     </label>
                                                     <div className="relative mt-2">
                                                         <span className="absolute left-4 top-1/2 -translate-y-1/2 text-lg font-black text-slate-400 dark:text-slate-500">$</span>
@@ -2591,25 +2667,31 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                                         <span className="absolute right-4 top-1/2 -translate-y-1/2 text-xs font-black text-slate-400 dark:text-slate-500">USD</span>
                                                     </div>
                                                     <p className="mt-2 text-xs font-semibold text-slate-500 dark:text-slate-400">
-                                                        This is your starting estimate. Maximum allowed: $1,000.00.
+                                                        {t('serviceRequest.wizard.review.budgetHelpRange', {
+                                                            min: serviceBudgetRange.min.toFixed(2),
+                                                            max: serviceBudgetRange.max.toFixed(2),
+                                                        })}
                                                     </p>
                                                     {!hasValidBudget && (
                                                         <p className="mt-2 text-xs font-black text-amber-700 dark:text-amber-400">
-                                                            Enter an amount greater than $0 to send the request.
+                                                            {t('serviceRequest.wizard.review.budgetErrorRange', {
+                                                                min: serviceBudgetRange.min.toFixed(2),
+                                                                max: serviceBudgetRange.max.toFixed(2),
+                                                            })}
                                                         </p>
                                                     )}
                                                 </div>
 
                                                 <div className="rounded-2xl border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-white/[0.04] p-4">
                                                     <p className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400 dark:text-slate-500">
-                                                        Ready to send
+                                                        {t('serviceRequest.wizard.review.readyToSend')}
                                                     </p>
                                                     <div className="mt-3 grid gap-2 sm:grid-cols-2">
                                                         {[
-                                                            { label: 'Problem and photo', ready: problemStepReady },
-                                                            { label: 'Exact address confirmed', ready: locationStepReady },
-                                                            { label: 'Visit time selected', ready: scheduleStepReady },
-                                                            { label: 'Estimated budget added', ready: hasValidBudget },
+                                                            { label: t('serviceRequest.wizard.review.checklist.problemPhoto'), ready: problemStepReady },
+                                                            { label: t('serviceRequest.wizard.review.checklist.exactAddress'), ready: locationStepReady },
+                                                            { label: t('serviceRequest.wizard.review.checklist.visitTime'), ready: scheduleStepReady },
+                                                            { label: t('serviceRequest.wizard.review.checklist.budget'), ready: hasValidBudget },
                                                         ].map(({ label, ready }) => (
                                                             <div
                                                                 key={label}
@@ -2633,14 +2715,14 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                                 {nearbyWorkers.length > 0 && (
                                                     <div className="rounded-2xl border border-emerald-200 dark:border-emerald-900/50 bg-emerald-50 dark:bg-emerald-900/40 p-4">
                                                         <p className="text-sm font-black text-emerald-900 dark:text-emerald-200">
-                                                            {nearbyWorkers.length} verified pro{nearbyWorkers.length === 1 ? '' : 's'} found nearby
+                                                            {t('serviceRequest.wizard.review.prosFound', { count: nearbyWorkers.length })}
                                                         </p>
-                                                        <p className="mt-1 text-xs font-semibold text-emerald-700 dark:text-emerald-400">Your request is ready to send.</p>
+                                                        <p className="mt-1 text-xs font-semibold text-emerald-700 dark:text-emerald-400">{t('serviceRequest.wizard.review.requestReady')}</p>
                                                     </div>
                                                 )}
                                                 {noNearbyProsNotice && nearbyWorkers.length === 0 && (
                                                     <div className="rounded-2xl border border-amber-200 dark:border-amber-900/50 bg-amber-50 dark:bg-amber-900/40 p-4">
-                                                        <p className="text-sm font-black text-amber-900 dark:text-amber-200">Matching may take a little longer</p>
+                                                        <p className="text-sm font-black text-amber-900 dark:text-amber-200">{t('serviceRequest.wizard.review.matchingDelay')}</p>
                                                         <p className="mt-1 text-xs font-semibold leading-5 text-amber-700 dark:text-amber-400">{noNearbyProsNotice}</p>
                                                     </div>
                                                 )}
@@ -2655,13 +2737,13 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                         onClick={moveRequestFlowBack}
                                         className="rounded-xl border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900/70 px-5 py-3 text-sm font-black text-slate-700 dark:text-slate-300 hover:border-slate-300 dark:hover:border-white/10 hover:bg-slate-50 dark:hover:bg-white/[0.04]"
                                     >
-                                        Back
+                                        {t('auth.ui.back')}
                                     </button>
                                     <button
                                         type="button"
                                         onClick={
                                             requestFlowStep === REQUEST_FLOW_STEPS.length - 1
-                                                ? submitServiceRequest
+                                                ? handleFinalSubmitRequest
                                                 : requestFlowStep === 1
                                                     ? async () => {
                                                         if (!locationStepReady) {
@@ -2672,7 +2754,7 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                                         setNoNearbyProsNotice('');
                                                         const workers = await fetchNearbyPros();
                                                         if (workers.length === 0) {
-                                                            setNoNearbyProsNotice('No nearby pros are available right now. You can still send the request and we will keep matching.');
+                                                            setNoNearbyProsNotice(isSpanish ? 'No hay profesionales cercanos disponibles en este momento. Aun puedes enviar la solicitud y seguiremos buscando.' : 'No nearby pros are available right now. You can still send the request and we will keep matching.');
                                                         }
                                                         setIsSearching(false);
                                                         moveRequestFlowForward();
@@ -2686,14 +2768,14 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                         }
                                         title={
                                             requestFlowStep === REQUEST_FLOW_STEPS.length - 1 && !canSubmitRequest
-                                                ? 'Complete the items marked above before sending.'
+                                                ? t('serviceRequest.wizard.review.completeBeforeSending')
                                                 : undefined
                                         }
                                         className="min-w-36 rounded-xl bg-bird-blue px-6 py-3 text-sm font-black text-white shadow-lg shadow-bird-blue/20 transition hover:bg-blue-600 disabled:cursor-not-allowed disabled:opacity-45"
                                     >
                                         {requestFlowStep === REQUEST_FLOW_STEPS.length - 1
-                                            ? isSubmittingRequest ? 'Sending...' : 'Send request'
-                                            : 'Continue'}
+                                            ? isSubmittingRequest ? t('serviceRequest.problem.submitting') : t('serviceRequest.problem.submitRequest')
+                                            : t('serviceRequest.actions.continue')}
                                     </button>
                                 </div>
                             </motion.div>
@@ -2721,7 +2803,7 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                                 <p className="text-[11px] font-black uppercase tracking-[0.2em] text-white/80">Fixes review</p>
                                                 <h3 className="mt-1 text-2xl font-black">Rate this completed job</h3>
                                                 <p className="mt-2 text-sm text-white/85">
-                                                    Share how the pro did after finishing <span className="font-black">{ratingModalRequest.service_name}</span>.
+                                                    {t('serviceRequest.rating.description')} <span className="font-black">{localizeClientServiceName(ratingModalRequest.service_name, i18n.language)}</span>.
                                                 </p>
                                             </div>
                                             <button
@@ -2740,7 +2822,7 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                                 <div>
                                                     <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-900 dark:text-slate-100">Completed service</p>
                                                     <p className="mt-1 text-lg font-black text-slate-900 dark:text-slate-100">
-                                                        {ratingModalRequest.service_name}
+                                                        {localizeClientServiceName(ratingModalRequest.service_name, i18n.language)}
                                                     </p>
                                                     <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
                                                         {ratingModalRequest.assigned_worker?.name || 'Your pro'}
@@ -3178,14 +3260,14 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                                     )}
                                                 </div>
                                                 <h3 className="text-xl font-black text-white truncate">
-                                                    {selectedWorkerProfile?.name || 'Assigned Pro'}
+                                                    {selectedWorkerProfile?.name || (isSpanish ? 'Profesional asignado' : 'Assigned Pro')}
                                                 </h3>
                                                 <div className="flex items-center gap-2 mt-1.5">
                                                     {renderStarSummary(selectedWorkerProfile?.rating_average ?? null)}
                                                     <span className="text-xs font-bold text-slate-400 dark:text-slate-500">
                                                         {selectedWorkerProfile?.rating_average != null
-                                                            ? `${selectedWorkerProfile.rating_average.toFixed(1)} · ${selectedWorkerProfile.rating_count} reviews`
-                                                            : 'New Pro'}
+                                                            ? `${selectedWorkerProfile.rating_average.toFixed(1)} · ${selectedWorkerProfile.rating_count} ${isSpanish ? 'reseñas' : 'reviews'}`
+                                                            : (isSpanish ? 'Profesional nuevo' : 'New Pro')}
                                                     </span>
                                                 </div>
                                             </div>
@@ -3194,9 +3276,9 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                         {/* Stats row */}
                                         <div className="relative z-10 mt-5 grid grid-cols-3 gap-3">
                                             {[
-                                                { label: 'Jobs', value: selectedWorkerProfile?.completed_jobs ?? 0 },
-                                                { label: 'Experience', value: selectedWorkerProfile?.years_of_experience != null ? `${selectedWorkerProfile.years_of_experience}y` : '--' },
-                                                { label: 'Rating', value: selectedWorkerProfile?.rating_average != null ? selectedWorkerProfile.rating_average.toFixed(1) : '--' },
+                                                { label: isSpanish ? 'Trabajos' : 'Jobs', value: selectedWorkerProfile?.completed_jobs ?? 0 },
+                                                { label: isSpanish ? 'Experiencia' : 'Experience', value: localizeExperienceLabel(selectedWorkerProfile?.experience_label, i18n.language) },
+                                                { label: isSpanish ? 'Calificación' : 'Rating', value: selectedWorkerProfile?.rating_average != null ? selectedWorkerProfile.rating_average.toFixed(1) : '--' },
                                             ].map((stat) => (
                                                 <div key={stat.label} className="rounded-xl bg-white/8 border border-white/10 px-3 py-2.5 text-center backdrop-blur-sm">
                                                     <p className="text-base font-black text-white">{stat.value}</p>
@@ -3211,14 +3293,14 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                         {workerProfileLoading ? (
                                             <div className="flex items-center justify-center gap-3 py-16">
                                                 <div className="h-5 w-5 rounded-full border-2 border-slate-200 dark:border-white/10 border-t-slate-700 animate-spin" />
-                                                <p className="text-sm font-bold text-slate-500 dark:text-slate-400">Loading profile...</p>
+                                                <p className="text-sm font-bold text-slate-500 dark:text-slate-400">{isSpanish ? 'Cargando perfil...' : 'Loading profile...'}</p>
                                             </div>
                                         ) : (
                                             <div className="divide-y divide-slate-100 dark:divide-white/5">
                                                 {/* Bio */}
                                                 {selectedWorkerProfile?.bio && (
                                                     <div className="px-6 py-5">
-                                                        <p className="text-[11px] font-black uppercase tracking-widest text-slate-400 dark:text-slate-500 mb-2">About</p>
+                                                        <p className="text-[11px] font-black uppercase tracking-widest text-slate-400 dark:text-slate-500 mb-2">{isSpanish ? 'Acerca de' : 'About'}</p>
                                                         <p className="text-sm leading-relaxed text-slate-700 dark:text-slate-300">{selectedWorkerProfile.bio}</p>
                                                     </div>
                                                 )}
@@ -3226,19 +3308,19 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                                 {/* Info row */}
                                                 <div className="px-6 py-5 grid grid-cols-2 gap-4">
                                                     <div>
-                                                        <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 dark:text-slate-500 mb-1">Phone</p>
-                                                        <p className="text-sm font-bold text-slate-900 dark:text-slate-100">{selectedWorkerProfile?.phone_number || 'Hidden'}</p>
+                                                        <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 dark:text-slate-500 mb-1">{isSpanish ? 'Teléfono' : 'Phone'}</p>
+                                                        <p className="text-sm font-bold text-slate-900 dark:text-slate-100">{selectedWorkerProfile?.phone_number || (isSpanish ? 'Oculto' : 'Hidden')}</p>
                                                     </div>
                                                     <div>
-                                                        <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 dark:text-slate-500 mb-1">Level</p>
-                                                        <p className="text-sm font-bold text-slate-900 dark:text-slate-100">{selectedWorkerProfile?.experience_label || '—'}</p>
+                                                        <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 dark:text-slate-500 mb-1">{isSpanish ? 'Nivel' : 'Level'}</p>
+                                                        <p className="text-sm font-bold text-slate-900 dark:text-slate-100">{localizeExperienceLabel(selectedWorkerProfile?.experience_label, i18n.language)}</p>
                                                     </div>
                                                 </div>
 
                                                 {/* Services */}
                                                 {(selectedWorkerProfile?.services_offered || []).length > 0 && (
                                                     <div className="px-6 py-5">
-                                                        <p className="text-[11px] font-black uppercase tracking-widest text-slate-400 dark:text-slate-500 mb-3">Services</p>
+                                                        <p className="text-[11px] font-black uppercase tracking-widest text-slate-400 dark:text-slate-500 mb-3">{isSpanish ? 'Servicios' : 'Services'}</p>
                                                         <div className="flex flex-wrap gap-2">
                                                             {selectedWorkerProfile!.services_offered.map((s) => (
                                                                 <span key={s} className="rounded-xl bg-slate-100 dark:bg-white/[0.06] border border-slate-200 dark:border-white/10 px-3 py-1.5 text-xs font-bold text-slate-700 dark:text-slate-300">
@@ -3252,13 +3334,13 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                                 {/* Portfolio */}
                                                 <div className="px-6 py-5">
                                                     <div className="flex items-center justify-between mb-4">
-                                                        <p className="text-[11px] font-black uppercase tracking-widest text-slate-400 dark:text-slate-500">Portfolio</p>
-                                                        <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-white/[0.06] px-2.5 py-1 rounded-full">{workerPortfolio.length} photos</span>
+                                                        <p className="text-[11px] font-black uppercase tracking-widest text-slate-400 dark:text-slate-500">{isSpanish ? 'Portafolio' : 'Portfolio'}</p>
+                                                        <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-white/[0.06] px-2.5 py-1 rounded-full">{workerPortfolio.length} {isSpanish ? 'fotos' : 'photos'}</span>
                                                     </div>
                                                     {workerPortfolio.length === 0 ? (
                                                         <div className="border-2 border-dashed border-slate-200 dark:border-white/10 rounded-2xl p-8 flex flex-col items-center text-center">
                                                             <svg className="w-8 h-8 text-slate-300 dark:text-slate-400 mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
-                                                            <p className="text-sm font-bold text-slate-500 dark:text-slate-400">No portfolio yet</p>
+                                                            <p className="text-sm font-bold text-slate-500 dark:text-slate-400">{isSpanish ? 'Aún no hay portafolio' : 'No portfolio yet'}</p>
                                                         </div>
                                                     ) : (
                                                         <div className="grid grid-cols-3 gap-2 pb-2">
@@ -3279,7 +3361,7 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                                                     ) : (
                                                                         <div className="w-full h-full flex flex-col items-center justify-center bg-slate-100 dark:bg-white/[0.06] text-slate-400 dark:text-slate-500">
                                                                             <svg className="w-6 h-6 mb-1" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
-                                                                            <span className="text-[9px] font-bold uppercase tracking-wider">Unavailable</span>
+                                                                            <span className="text-[9px] font-bold uppercase tracking-wider">{isSpanish ? 'No disponible' : 'Unavailable'}</span>
                                                                         </div>
                                                                     )}
                                                                     <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center">
@@ -3339,14 +3421,14 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                                         : 'border-white/15 bg-white/10 text-white hover:bg-white/15'
                                                 }`}
                                             >
-                                                {isWorkerPortfolioZoomed ? 'Zoom out' : 'Zoom in'}
+                                                {isWorkerPortfolioZoomed ? (isSpanish ? 'Alejar' : 'Zoom out') : (isSpanish ? 'Acercar' : 'Zoom in')}
                                             </button>
                                             <button
                                                 type="button"
                                                 onClick={() => setIsWorkerPortfolioFullscreen(false)}
                                                 className="rounded-full border border-white/15 bg-white/10 px-4 py-2 text-xs font-black uppercase tracking-[0.16em] text-white backdrop-blur hover:bg-white/15"
                                             >
-                                                Close
+                                                {isSpanish ? 'Cerrar' : 'Close'}
                                             </button>
                                         </div>
                                     </div>
@@ -3374,7 +3456,7 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                                 <motion.img
                                                     key={`${activeWorkerPortfolioPhoto.id_photo}`}
                                                     src={activeWorkerPortfolioPhoto.image_url}
-                                                    alt={activeWorkerPortfolioPhoto.description || 'Portfolio work'}
+                                                    alt={activeWorkerPortfolioPhoto.description || (isSpanish ? 'Trabajo de portafolio' : 'Portfolio work')}
                                                     initial={{ opacity: 0.45, scale: 0.96 }}
                                                     animate={{ opacity: 1, scale: workerPortfolioScale }}
                                                     transition={{ type: 'spring', stiffness: 220, damping: 24 }}
@@ -3396,7 +3478,7 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                                         {selectedWorkerProfile?.profile_image_url ? (
                                                             <img
                                                                 src={selectedWorkerProfile.profile_image_url}
-                                                                alt={selectedWorkerProfile.name || 'Worker'}
+                                                                alt={selectedWorkerProfile.name || (isSpanish ? 'Profesional' : 'Worker')}
                                                                 className="h-14 w-14 rounded-2xl object-cover ring-2 ring-white/10"
                                                             />
                                                         ) : (
@@ -3406,43 +3488,43 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                                         )}
                                                         <div>
                                                             <p className="text-base font-black text-white">
-                                                                {selectedWorkerProfile?.name || 'Assigned pro'}
+                                                                {selectedWorkerProfile?.name || (isSpanish ? 'Profesional asignado' : 'Assigned pro')}
                                                             </p>
                                                             <p className="mt-1 text-xs font-semibold uppercase tracking-[0.14em] text-white/55">
-                                                                {selectedWorkerProfile?.experience_label || 'Verified professional'}
+                                                                {localizeExperienceLabel(selectedWorkerProfile?.experience_label, i18n.language) || (isSpanish ? 'Profesional verificado' : 'Verified professional')}
                                                             </p>
                                                             <p className="mt-1 text-sm text-white/70">
-                                                                {selectedWorkerProfile?.phone_number || 'Phone shared after approval'}
+                                                                {selectedWorkerProfile?.phone_number || (isSpanish ? 'Teléfono visible después de aprobar' : 'Phone shared after approval')}
                                                             </p>
                                                         </div>
                                                     </div>
                                                     <div>
-                                                        <p className="text-[11px] font-black uppercase tracking-[0.18em] text-white/55">Image note</p>
+                                                        <p className="text-[11px] font-black uppercase tracking-[0.18em] text-white/55">{isSpanish ? 'Nota de imagen' : 'Image note'}</p>
                                                         <p className="mt-2 text-lg font-black">
-                                                            {activeWorkerPortfolioPhoto.description || 'Recent portfolio work'}
+                                                            {activeWorkerPortfolioPhoto.description || (isSpanish ? 'Trabajo reciente de portafolio' : 'Recent portfolio work')}
                                                         </p>
                                                         <p className="mt-2 text-sm text-white/70">
                                                             {activeWorkerPortfolioPhoto.uploaded_at
                                                                 ? new Date(activeWorkerPortfolioPhoto.uploaded_at).toLocaleDateString()
-                                                                : 'Recently uploaded'}
+                                                                : (isSpanish ? 'Subido recientemente' : 'Recently uploaded')}
                                                         </p>
                                                     </div>
                                                 </div>
                                                 <div className="rounded-full border border-white/15 bg-white/10 px-4 py-2 text-sm font-black backdrop-blur">
-                                                    {(selectedWorkerProfile?.services_offered || []).slice(0, 2).join(' • ') || 'Assigned pro'}
+                                                    {(selectedWorkerProfile?.services_offered || []).slice(0, 2).join(' • ') || (isSpanish ? 'Profesional asignado' : 'Assigned pro')}
                                                 </div>
                                             </div>
                                             <div className="mt-3 flex flex-wrap items-center gap-2 text-[11px] font-bold uppercase tracking-[0.14em] text-white/65">
                                                 <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1">
-                                                    {isWorkerPortfolioZoomed ? `Zoom ${workerPortfolioScale.toFixed(1)}x active` : 'Tap image to zoom'}
+                                                    {isWorkerPortfolioZoomed ? `Zoom ${workerPortfolioScale.toFixed(1)}x ${isSpanish ? 'activo' : 'active'}` : (isSpanish ? 'Toca la imagen para acercar' : 'Tap image to zoom')}
                                                 </span>
                                                 {workerPortfolio.length > 1 && !isWorkerPortfolioZoomed && (
                                                     <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1">
-                                                        Swipe left or right to browse
+                                                        {isSpanish ? 'Desliza a la izquierda o derecha para navegar' : 'Swipe left or right to browse'}
                                                     </span>
                                                 )}
                                                 <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1">
-                                                    Pinch with two fingers to zoom
+                                                    {isSpanish ? 'Pellizca con dos dedos para acercar' : 'Pinch with two fingers to zoom'}
                                                 </span>
                                             </div>
                                         </div>
@@ -3481,7 +3563,7 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                                             {item.image_url ? (
                                                                 <img
                                                                     src={item.image_url}
-                                                                    alt={item.description || 'Portfolio thumbnail'}
+                                                                    alt={item.description || (isSpanish ? 'Miniatura del portafolio' : 'Portfolio thumbnail')}
                                                                     className="aspect-square w-full object-cover transition duration-300 group-hover:scale-[1.04]"
                                                                 />
                                                             ) : (
@@ -3898,7 +3980,7 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                                 const timelineState = getClientTimelineState(request);
                                                 const isTrackingActive = activeTrackedRequest?.id_request === request.id_request;
                                                 const isScheduled = isScheduledServiceRequest(request);
-                                                const scheduledWindow = formatScheduledServiceWindow(request);
+                                                const scheduledWindow = formatScheduledServiceWindow(request, i18n.language);
 
                                                 return (
                                                     <div

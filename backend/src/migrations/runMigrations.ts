@@ -1,6 +1,7 @@
 import pool from '../config/db';
 import {
   ensureSavedLocationsTable,
+  ensureDefaultServices,
   ensureServiceCardsTable,
   ensureServiceRequestTables,
   ensureWorkerGeoColumns,
@@ -176,6 +177,13 @@ const MIGRATIONS: MigrationDefinition[] = [
     description: 'Virtual Wallet webhook raw event logging table',
     run: async () => {
       await ensureVirtualWalletWebhookTables();
+    },
+  },
+  {
+    id: '20260724_001_service_budget_limits',
+    description: 'Configurable min and max budgets per service',
+    run: async () => {
+      await ensureDefaultServices();
     },
   },
 ];

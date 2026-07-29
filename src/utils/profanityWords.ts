@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Frontend mirror of backend/src/utils/profanityWords.ts -- same convention as
  * textSanitize.ts/sanitize.ts. Keep both lists in sync when adding words.
  *

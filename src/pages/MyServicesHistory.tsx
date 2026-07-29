@@ -1,5 +1,6 @@
-import React, { useEffect, useMemo, useState } from 'react';
+﻿import React, { useEffect, useMemo, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import {
     ArrowLeft,
@@ -18,6 +19,7 @@ import { API_ENDPOINTS } from '../config/api';
 import { getToken } from '../utils/session';
 import { showSweetToast, showSweetConfirm } from '../utils/sweetAlert';
 import WorkerRatingModal from '../components/modals/WorkerRatingModal';
+import { localizeClientServiceName } from '../utils/clientTranslations';
 
 type RequestStatus =
     | 'pending'
@@ -74,13 +76,6 @@ interface MyServiceRequest {
 
 type FilterKey = 'all' | 'active' | 'completed' | 'cancelled';
 
-const FILTERS: Array<{ key: FilterKey; label: string }> = [
-    { key: 'all', label: 'All' },
-    { key: 'active', label: 'Active' },
-    { key: 'completed', label: 'Completed' },
-    { key: 'cancelled', label: 'Cancelled' },
-];
-
 const bucketOf = (status: string): FilterKey => {
     const s = String(status || '').toLowerCase();
     if (s === 'done') return 'completed';
@@ -88,21 +83,21 @@ const bucketOf = (status: string): FilterKey => {
     return 'active';
 };
 
-const statusLabel = (status: string) => {
+const statusLabel = (status: string, t: (key: string) => string) => {
     const s = String(status || '').toLowerCase();
-    if (s === 'done') return 'Completed';
-    if (s === 'cancelled') return 'Cancelled';
-    if (s === 'payment_pending') return 'Payment Pending';
-    if (s === 'paid') return 'Paid';
-    if (s === 'assigned') return 'Worker Assigned';
-    if (s === 'route_in_progress') return 'On The Way';
-    if (s === 'arrived') return 'Worker Arrived';
-    if (s === 'start_pending') return 'Start Pending';
-    if (s === 'in_progress') return 'In Progress';
-    if (s === 'finish_pending') return 'Finish Pending';
-    if (s === 'completion_pending') return 'Awaiting Final Approval';
-    if (s === 'awaiting_confirmation') return 'Awaiting Confirmation';
-    if (s === 'pending') return 'Finding Worker';
+    if (s === 'done') return t('common.serviceHistory.status.done');
+    if (s === 'cancelled') return t('common.serviceHistory.status.cancelled');
+    if (s === 'payment_pending') return t('common.serviceHistory.status.payment_pending');
+    if (s === 'paid') return t('common.serviceHistory.status.paid');
+    if (s === 'assigned') return t('common.serviceHistory.status.assigned');
+    if (s === 'route_in_progress') return t('common.serviceHistory.status.route_in_progress');
+    if (s === 'arrived') return t('common.serviceHistory.status.arrived');
+    if (s === 'start_pending') return t('common.serviceHistory.status.start_pending');
+    if (s === 'in_progress') return t('common.serviceHistory.status.in_progress');
+    if (s === 'finish_pending') return t('common.serviceHistory.status.finish_pending');
+    if (s === 'completion_pending') return t('common.serviceHistory.status.completion_pending');
+    if (s === 'awaiting_confirmation') return t('common.serviceHistory.status.awaiting_confirmation');
+    if (s === 'pending') return t('common.serviceHistory.status.pending');
     return s.charAt(0).toUpperCase() + s.slice(1);
 };
 
@@ -116,13 +111,13 @@ const statusTone = (status: string) => {
     return 'bg-slate-100 text-slate-600 border-slate-200 dark:bg-white/[0.06] dark:text-slate-400 dark:border-white/10';
 };
 
-const money = (value: number, currency = 'USD') =>
-    Number(value || 0).toLocaleString('en-US', { style: 'currency', currency });
+const money = (value: number, language: string, currency = 'USD') =>
+    Number(value || 0).toLocaleString(language.startsWith('es') ? 'es-SV' : 'en-US', { style: 'currency', currency });
 
-const formatDate = (iso: string) => {
+const formatDate = (iso: string, language: string) => {
     const d = new Date(iso);
     if (Number.isNaN(d.getTime())) return '';
-    return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    return d.toLocaleDateString(language.startsWith('es') ? 'es-SV' : 'en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 };
 
 const paymentDisplayAmount = (request: MyServiceRequest) => {
@@ -137,7 +132,14 @@ interface Props {
 }
 
 const MyServicesHistory: React.FC<Props> = ({ onOpenReview, onGoHome }) => {
+    const { t, i18n } = useTranslation();
     const navigate = useNavigate();
+    const FILTERS: Array<{ key: FilterKey; label: string }> = [
+        { key: 'all', label: t('common.serviceHistory.filters.all') },
+        { key: 'active', label: t('common.serviceHistory.filters.active') },
+        { key: 'completed', label: t('common.serviceHistory.filters.completed') },
+        { key: 'cancelled', label: t('common.serviceHistory.filters.cancelled') },
+    ];
     const [requests, setRequests] = useState<MyServiceRequest[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
@@ -148,7 +150,7 @@ const MyServicesHistory: React.FC<Props> = ({ onOpenReview, onGoHome }) => {
     const loadRequests = async (silent = false) => {
         const token = getToken();
         if (!token) {
-            setError('Login required.');
+            setError(t('common.serviceHistory.errors.loginRequired'));
             setLoading(false);
             return;
         }
@@ -159,13 +161,13 @@ const MyServicesHistory: React.FC<Props> = ({ onOpenReview, onGoHome }) => {
             });
             const payload = await res.json();
             if (!res.ok || !payload?.success || !Array.isArray(payload?.requests)) {
-                setError(payload?.error || 'Could not load your service history.');
+                setError(payload?.error || t('common.serviceHistory.errors.loadError'));
                 return;
             }
             setRequests(payload.requests as MyServiceRequest[]);
             setError(null);
         } catch {
-            setError('Network error loading your service history.');
+            setError(t('common.serviceHistory.errors.networkLoadError'));
         } finally {
             setLoading(false);
         }
@@ -173,7 +175,7 @@ const MyServicesHistory: React.FC<Props> = ({ onOpenReview, onGoHome }) => {
 
     useEffect(() => {
         void loadRequests();
-    }, []);
+    }, [t]);
 
     const summary = useMemo(() => {
         let totalSpent = 0;
@@ -214,14 +216,14 @@ const MyServicesHistory: React.FC<Props> = ({ onOpenReview, onGoHome }) => {
     const handleCancel = async (request: MyServiceRequest) => {
         const s = String(request.status || '').toLowerCase();
         if (!['pending', 'assigned', 'payment_pending'].includes(s)) {
-            showSweetToast({ tone: 'error', message: 'This request can no longer be cancelled.' });
+            showSweetToast({ tone: 'error', message: t('common.serviceHistory.errors.cancelUnavailable') });
             return;
         }
         const confirmed = await showSweetConfirm({
-            title: 'Cancel this request?',
-            message: `Request #${request.id_request} for "${request.service_name}" will be cancelled and cannot be reopened.`,
+            title: t('common.serviceHistory.confirm.cancelTitle'),
+            message: t('common.serviceHistory.confirm.cancelMessage', { id: request.id_request, service: request.service_name }),
             tone: 'warning',
-            confirmText: 'Yes, cancel',
+            confirmText: t('common.serviceHistory.confirm.cancelAction'),
         });
         if (!confirmed) return;
 
@@ -235,13 +237,13 @@ const MyServicesHistory: React.FC<Props> = ({ onOpenReview, onGoHome }) => {
             });
             const payload = await res.json().catch(() => ({}));
             if (!res.ok || !payload?.success) {
-                showSweetToast({ tone: 'error', message: payload?.error || 'Could not cancel this request.' });
+                showSweetToast({ tone: 'error', message: payload?.error || t('common.serviceHistory.errors.cancelError') });
                 return;
             }
-            showSweetToast({ tone: 'success', message: 'Request cancelled.' });
+            showSweetToast({ tone: 'success', message: t('common.serviceHistory.messages.cancelled') });
             await loadRequests(true);
         } catch {
-            showSweetToast({ tone: 'error', message: 'Network error cancelling this request.' });
+            showSweetToast({ tone: 'error', message: t('common.serviceHistory.errors.cancelNetworkError') });
         } finally {
             setCancelBusy(null);
         }
@@ -265,7 +267,7 @@ const MyServicesHistory: React.FC<Props> = ({ onOpenReview, onGoHome }) => {
                         className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white/70 px-4 py-2 text-xs font-black uppercase tracking-[0.14em] text-slate-500 backdrop-blur transition hover:border-slate-300 hover:text-slate-900 dark:border-white/10 dark:bg-white/[0.04] dark:text-slate-400 dark:hover:border-white/20 dark:hover:text-slate-100"
                     >
                         <ArrowLeft className="h-3.5 w-3.5" />
-                        Back to home
+                        {t('common.serviceHistory.back')}
                     </button>
                 </div>
 
@@ -288,19 +290,19 @@ const MyServicesHistory: React.FC<Props> = ({ onOpenReview, onGoHome }) => {
                         <div className="max-w-xl">
                             <div className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-3 py-1.5 text-[11px] font-black uppercase tracking-[0.18em] text-cyan-100 backdrop-blur">
                                 <ShieldCheck className="h-3.5 w-3.5" />
-                                My Account
+                                {t('common.serviceHistory.badge')}
                             </div>
                             <h1 className="mt-5 text-4xl font-black tracking-tight sm:text-5xl">
-                                Services history
+                                {t('common.serviceHistory.title')}
                             </h1>
                             <p className="mt-3 max-w-md text-sm font-medium text-slate-300 sm:text-base">
                                 Every booking, payment and job you have with Fixlife — cleanly tracked, always available.
                             </p>
                         </div>
                         <div className="grid w-full max-w-md grid-cols-3 gap-3 lg:w-auto">
-                            <HeroStat label="Total spent" value={`$${summary.totalSpent.toFixed(2)}`} accent />
-                            <HeroStat label="Completed" value={String(summary.completed)} />
-                            <HeroStat label="Active" value={String(summary.active)} />
+                            <HeroStat label={t('common.serviceHistory.stats.totalSpent')} value={money(summary.totalSpent, i18n.language)} accent />
+                            <HeroStat label={t('common.serviceHistory.stats.completed')} value={String(summary.completed)} />
+                            <HeroStat label={t('common.serviceHistory.stats.active')} value={String(summary.active)} />
                         </div>
                     </div>
                 </motion.section>
@@ -362,7 +364,7 @@ const MyServicesHistory: React.FC<Props> = ({ onOpenReview, onGoHome }) => {
                                             onCancel={() => void handleCancel(r)}
                                             onReview={() => {
                                                 if (r.has_rating) {
-                                                    showSweetToast({ tone: 'info', message: 'You already reviewed this service.' });
+                                                    showSweetToast({ tone: 'info', message: t('common.serviceHistory.errors.reviewedAlready') });
                                                     return;
                                                 }
                                                 onOpenReview?.(r);
@@ -383,7 +385,7 @@ const MyServicesHistory: React.FC<Props> = ({ onOpenReview, onGoHome }) => {
                 onSubmitted={() => {
                     setRatingRequest(null);
                     void loadRequests(true);
-                    showSweetToast({ tone: 'success', message: 'Review submitted. Thanks!' });
+                    showSweetToast({ tone: 'success', message: t('common.serviceHistory.messages.reviewSubmitted') });
                 }}
             />
         </div>
@@ -407,6 +409,7 @@ const RequestCard: React.FC<{
     onCancel: () => void;
     onReview: () => void;
 }> = ({ request, cancelBusy, onCancel, onReview }) => {
+    const { t, i18n } = useTranslation();
     const status = String(request.status || '').toLowerCase();
     const amount = paymentDisplayAmount(request);
     const currency = request.payment?.currency_code || 'USD';
@@ -414,12 +417,13 @@ const RequestCard: React.FC<{
     const paid = ['paid', 'released'].includes(paymentStatus);
     const canCancel = ['pending', 'assigned', 'payment_pending'].includes(status);
     const canReview = status === 'done' && !request.has_rating;
+    const localizedServiceName = localizeClientServiceName(request.service_name, i18n.language);
     const scheduledLabel = (() => {
         const raw = request.scheduled_start_time || (request.scheduled_date && request.scheduled_time ? `${request.scheduled_date}T${request.scheduled_time}` : '');
         if (!raw) return null;
         const d = new Date(raw);
         if (Number.isNaN(d.getTime())) return null;
-        return d.toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+        return d.toLocaleString(i18n.language.startsWith('es') ? 'es-SV' : 'en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
     })();
 
     return (
@@ -428,44 +432,44 @@ const RequestCard: React.FC<{
                 <div className="flex items-start justify-between gap-4">
                     <div className="min-w-0 flex-1">
                         <div className="flex flex-wrap items-center gap-2 text-[10px] font-black uppercase tracking-[0.18em] text-slate-400 dark:text-slate-500">
-                            <span>Request #{request.id_request}</span>
+                            <span>{t('common.serviceHistory.card.request', { id: request.id_request })}</span>
                             <span aria-hidden>·</span>
-                            <span>{formatDate(request.created_at)}</span>
+                            <span>{formatDate(request.created_at, i18n.language)}</span>
                         </div>
-                        <h3 className="mt-2 text-xl font-black text-slate-900 truncate dark:text-slate-100">{request.service_name}</h3>
+                        <h3 className="mt-2 text-xl font-black text-slate-900 truncate dark:text-slate-100">{localizedServiceName}</h3>
                         <p className="mt-1.5 line-clamp-2 text-sm text-slate-500 dark:text-slate-400">{request.description}</p>
                     </div>
                     <span
                         className={`shrink-0 rounded-full border px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.14em] ${statusTone(request.status)}`}
                     >
-                        {statusLabel(request.status)}
+                        {statusLabel(request.status, t)}
                     </span>
                 </div>
 
                 <div className="mt-5 grid gap-3 sm:grid-cols-3">
                     <InfoTile
                         icon={<User2 className="h-4 w-4" />}
-                        label="Professional"
-                        value={request.assigned_worker?.name || 'Unassigned'}
+                        label={t('common.serviceHistory.card.professional')}
+                        value={request.assigned_worker?.name || t('common.serviceHistory.card.unassigned')}
                     />
                     <InfoTile
                         icon={<MapPin className="h-4 w-4" />}
-                        label="Location"
-                        value={request.location_text || 'Not provided'}
+                        label={t('common.serviceHistory.card.location')}
+                        value={request.location_text || t('common.serviceHistory.card.noLocation')}
                     />
                     {scheduledLabel ? (
                         <InfoTile
                             icon={<CalendarClock className="h-4 w-4" />}
-                            label="Scheduled"
+                            label={t('common.serviceHistory.card.scheduled')}
                             value={scheduledLabel}
                         />
                     ) : (
                         <InfoTile
                             icon={<Receipt className="h-4 w-4" />}
-                            label={paid ? 'Paid on' : 'Payment'}
+                            label={paid ? t('common.serviceHistory.card.paidOn') : t('common.serviceHistory.card.payment')}
                             value={
                                 paid && request.payment?.paid_at
-                                    ? formatDate(request.payment.paid_at)
+                                    ? formatDate(request.payment.paid_at, i18n.language)
                                     : String(request.payment?.status || 'pending').replace(/_/g, ' ')
                             }
                         />
@@ -475,8 +479,8 @@ const RequestCard: React.FC<{
                 <div className="mt-6 flex flex-col gap-4 border-t border-slate-100 pt-5 sm:flex-row sm:items-end sm:justify-between dark:border-white/10">
                     <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1">
                         <div>
-                            <p className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-400 dark:text-slate-500">Total</p>
-                            <p className="mt-1 text-2xl font-black text-slate-900 dark:text-slate-100">{money(amount, currency)}</p>
+                            <p className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-400 dark:text-slate-500">{t('common.serviceHistory.card.total')}</p>
+                            <p className="mt-1 text-2xl font-black text-slate-900 dark:text-slate-100">{money(amount, i18n.language, currency)}</p>
                         </div>
                         {request.payment?.provider && (
                             <div className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.14em] text-slate-500 dark:border-white/10 dark:bg-white/[0.04] dark:text-slate-400">
@@ -492,7 +496,7 @@ const RequestCard: React.FC<{
                                 className="inline-flex items-center gap-1.5 rounded-2xl bg-slate-900 dark:bg-white px-4 py-2.5 text-xs font-black uppercase tracking-[0.14em] text-white dark:text-slate-900 shadow-sm transition hover:bg-slate-800 dark:hover:bg-slate-200"
                             >
                                 <Star className="h-3.5 w-3.5" />
-                                Review pro
+                                {t('common.serviceHistory.card.reviewPro')}
                             </button>
                         )}
                         {canCancel && (
@@ -507,7 +511,7 @@ const RequestCard: React.FC<{
                                 ) : (
                                     <XCircle className="h-3.5 w-3.5" />
                                 )}
-                                {cancelBusy ? 'Cancelling' : 'Cancel'}
+                                {cancelBusy ? t('common.serviceHistory.card.cancelling') : t('common.serviceHistory.card.cancel')}
                             </button>
                         )}
                     </div>
@@ -529,14 +533,19 @@ const InfoTile: React.FC<{ icon: React.ReactNode; label: string; value: string }
     </div>
 );
 
-const LoadingState: React.FC = () => (
+const LoadingState: React.FC = () => {
+    const { t, i18n } = useTranslation();
+    return (
     <div className="flex flex-col items-center justify-center rounded-3xl border border-slate-200 bg-white p-16 text-center shadow-sm dark:border-white/10 dark:bg-slate-900/70">
         <Loader2 className="h-8 w-8 animate-spin text-slate-400 dark:text-slate-500" />
-        <p className="mt-4 text-sm font-bold text-slate-500 dark:text-slate-400">Loading your service history...</p>
+        <p className="mt-4 text-sm font-bold text-slate-500 dark:text-slate-400">{t('common.serviceHistory.loading')}</p>
     </div>
-);
+    );
+};
 
-const ErrorState: React.FC<{ message: string; onRetry: () => void }> = ({ message, onRetry }) => (
+const ErrorState: React.FC<{ message: string; onRetry: () => void }> = ({ message, onRetry }) => {
+    const { t, i18n } = useTranslation();
+    return (
     <div className="rounded-3xl border border-rose-200 bg-rose-50 p-8 text-center dark:border-rose-900/50 dark:bg-rose-900/40">
         <AlertTriangle className="mx-auto h-8 w-8 text-rose-500" />
         <p className="mt-4 text-sm font-bold text-rose-700 dark:text-rose-300">{message}</p>
@@ -545,31 +554,33 @@ const ErrorState: React.FC<{ message: string; onRetry: () => void }> = ({ messag
             onClick={onRetry}
             className="mt-5 inline-flex items-center gap-2 rounded-2xl bg-rose-600 px-5 py-2.5 text-xs font-black uppercase tracking-[0.14em] text-white hover:bg-rose-700 dark:bg-rose-700 dark:hover:bg-rose-600"
         >
-            Retry
+            {t('common.serviceHistory.retry')}
         </button>
     </div>
-);
+    );
+};
 
 const EmptyState: React.FC<{ filter: FilterKey; onGoHome: () => void }> = ({ filter, onGoHome }) => {
+    const { t, i18n } = useTranslation();
     const copy: Record<FilterKey, string> = {
-        all: "You haven't booked any services yet.",
-        active: 'No active services right now.',
-        completed: 'No completed services yet.',
-        cancelled: 'No cancelled services.',
+        all: t('common.serviceHistory.empty.all'),
+        active: t('common.serviceHistory.empty.active'),
+        completed: t('common.serviceHistory.empty.completed'),
+        cancelled: t('common.serviceHistory.empty.cancelled'),
     };
     return (
         <div className="rounded-3xl border border-slate-200 bg-white p-12 text-center shadow-sm dark:border-white/10 dark:bg-slate-900/70">
             <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-slate-50 text-slate-400 dark:bg-white/[0.04] dark:text-slate-500">
                 <Sparkles className="h-6 w-6" />
             </div>
-            <h3 className="mt-5 text-lg font-black text-slate-900 dark:text-slate-100">Nothing here yet</h3>
+            <h3 className="mt-5 text-lg font-black text-slate-900 dark:text-slate-100">{t('common.serviceHistory.empty.title')}</h3>
             <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">{copy[filter]}</p>
             <button
                 type="button"
                 onClick={onGoHome}
                 className="mt-6 inline-flex items-center gap-2 rounded-2xl bg-slate-900 px-5 py-2.5 text-xs font-black uppercase tracking-[0.14em] text-white hover:bg-slate-800 dark:bg-white dark:text-slate-900 dark:hover:bg-slate-100"
             >
-                Book a service
+                {t('landing.primaryCta')}
             </button>
         </div>
     );

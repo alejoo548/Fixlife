@@ -1,4 +1,4 @@
-const VIRTUAL_WALLET_SCRIPT_ID = 'virtual-wallet-widget-script';
+﻿const VIRTUAL_WALLET_SCRIPT_ID = 'virtual-wallet-widget-script';
 
 // Virtual Wallet's widget expects data-client-id/data-amount-id/data-desc-id
 // on the <script> tag itself and scans the DOM for elements with those ids.

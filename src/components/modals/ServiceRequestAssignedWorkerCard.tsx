@@ -1,4 +1,6 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
+import { localizeExperienceLabel } from '../../utils/clientTranslations';
 
 interface AssignedWorker {
     name: string;
@@ -33,17 +35,44 @@ export function ServiceRequestAssignedWorkerCard({
     onDecline,
     onAccept,
 }: ServiceRequestAssignedWorkerCardProps) {
+    const { i18n } = useTranslation();
+    const isSpanish = i18n.language.startsWith('es');
+    const copy = {
+        workerResponse: isSpanish ? 'Respuesta del profesional' : 'Worker response',
+        needsReview: isSpanish ? 'Requiere revisión' : 'Needs review',
+        approved: isSpanish ? 'Aprobado' : 'Approved',
+        online: isSpanish ? 'En línea' : 'Online',
+        viewProfile: isSpanish ? 'Ver perfil y portafolio' : 'View profile & portfolio',
+        newPro: isSpanish ? 'Profesional nuevo' : 'New pro',
+        rating: isSpanish ? 'Calificación' : 'Rating',
+        reviews: (count: number) => isSpanish ? `${count} reseña${count === 1 ? '' : 's'}` : `${count} review${count === 1 ? '' : 's'}`,
+        jobs: (count: number) => isSpanish ? `${count} trabajo${count === 1 ? '' : 's'}` : `${count} job${count === 1 ? '' : 's'}`,
+        completed: isSpanish ? 'Completados' : 'Completed',
+        onFixlife: isSpanish ? 'en Fixlife' : 'on Fixlife',
+        experience: isSpanish ? 'Experiencia' : 'Experience',
+        declaredLevel: isSpanish ? 'nivel declarado' : 'declared level',
+        portfolio: isSpanish ? 'Portafolio' : 'Portfolio',
+        portfolioPhotos: (count: number) => isSpanish ? `${count} foto${count === 1 ? '' : 's'} de portafolio` : `${count} portfolio photo${count === 1 ? '' : 's'}`,
+        tapProfile: isSpanish ? 'toca el perfil' : 'tap profile',
+        actionRequired: isSpanish ? 'Acción requerida' : 'Action Required',
+        reviewInstruction: isSpanish
+            ? 'Revisa el perfil y portafolio. Aprueba para pasar al pago, o rechaza para buscar otro profesional.'
+            : 'Review the profile and portfolio. Approve to move to payment, or decline to find another pro.',
+        saving: isSpanish ? 'Guardando...' : 'Saving...',
+        decline: isSpanish ? 'Rechazar' : 'Decline',
+        approve: isSpanish ? 'Aprobar profesional' : 'Approve Pro',
+    };
     const ratingLabel = worker.rating_average != null
-        ? `${Number(worker.rating_average).toFixed(1)} rating`
-        : 'New pro';
-    const reviewLabel = `${Number(worker.rating_count || 0)} review${Number(worker.rating_count || 0) === 1 ? '' : 's'}`;
-    const jobsLabel = `${Number(worker.completed_jobs || 0)} job${Number(worker.completed_jobs || 0) === 1 ? '' : 's'}`;
-    const portfolioLabel = `${Number(worker.portfolio_count || 0)} portfolio photo${Number(worker.portfolio_count || 0) === 1 ? '' : 's'}`;
-    const experienceLabel = worker.experience_label || (
+        ? `${Number(worker.rating_average).toFixed(1)} / 5`
+        : copy.newPro;
+    const reviewLabel = copy.reviews(Number(worker.rating_count || 0));
+    const jobsLabel = copy.jobs(Number(worker.completed_jobs || 0));
+    const portfolioLabel = copy.portfolioPhotos(Number(worker.portfolio_count || 0));
+    const experienceLabel = localizeExperienceLabel(worker.experience_label || (
         worker.years_of_experience != null
             ? `${worker.years_of_experience}+ year${worker.years_of_experience === 1 ? '' : 's'}`
-            : 'Experience not available'
-    );
+            : ''
+    ), i18n.language);
 
     return (
         <div className="mt-4 rounded-2xl border border-slate-100 bg-slate-50 p-4">
@@ -63,19 +92,19 @@ export function ServiceRequestAssignedWorkerCard({
                     <div className="min-w-0 flex-1">
                         <div className="flex flex-wrap items-center gap-2">
                             <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">
-                                Worker response
+                                {copy.workerResponse}
                             </p>
                             <span className={`rounded-full px-2 py-0.5 text-[9px] font-black uppercase tracking-[0.12em] ${
                                 pendingWorkerApproval
                                     ? 'bg-blue-100 text-blue-700'
                                     : 'bg-emerald-100 text-emerald-700'
                             }`}>
-                                {pendingWorkerApproval ? 'Needs review' : 'Approved'}
+                                {pendingWorkerApproval ? copy.needsReview : copy.approved}
                             </span>
                             {worker.is_online && (
                                 <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[9px] font-black uppercase tracking-[0.12em] text-emerald-700">
                                     <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
-                                    Online
+                                    {copy.online}
                                 </span>
                             )}
                         </div>
@@ -88,16 +117,16 @@ export function ServiceRequestAssignedWorkerCard({
                     onClick={onViewProfile}
                     className="w-full sm:w-auto shrink-0 rounded-xl border-2 border-slate-200 bg-white px-3 py-2.5 sm:py-2 text-[11px] font-black text-slate-900 shadow-sm transition hover:border-slate-900 hover:bg-slate-900 hover:text-white text-center"
                 >
-                    View profile & portfolio
+                    {copy.viewProfile}
                 </button>
             </div>
 
             <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
                 {[
-                    { label: 'Rating', value: ratingLabel, detail: reviewLabel },
-                    { label: 'Completed', value: jobsLabel, detail: 'on Fixlife' },
-                    { label: 'Experience', value: experienceLabel, detail: 'declared level' },
-                    { label: 'Portfolio', value: portfolioLabel, detail: 'tap profile' },
+                    { label: copy.rating, value: ratingLabel, detail: reviewLabel },
+                    { label: copy.completed, value: jobsLabel, detail: copy.onFixlife },
+                    { label: copy.experience, value: experienceLabel, detail: copy.declaredLevel },
+                    { label: copy.portfolio, value: portfolioLabel, detail: copy.tapProfile },
                 ].map((item) => (
                     <div key={item.label} className="rounded-xl border border-slate-100 bg-white px-3 py-2">
                         <p className="text-[9px] font-black uppercase tracking-[0.14em] text-slate-400">{item.label}</p>
@@ -121,10 +150,10 @@ export function ServiceRequestAssignedWorkerCard({
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
                             </svg>
                         </span>
-                        <p className="text-xs font-black uppercase tracking-widest text-slate-900">Action Required</p>
+                        <p className="text-xs font-black uppercase tracking-widest text-slate-900">{copy.actionRequired}</p>
                     </div>
                     <p className="text-[13px] font-medium text-slate-600 mb-3">
-                        Review the profile and portfolio. Approve to move to payment, or decline to find another pro.
+                        {copy.reviewInstruction}
                     </p>
                     <div className="grid grid-cols-2 gap-2">
                         <button
@@ -133,7 +162,7 @@ export function ServiceRequestAssignedWorkerCard({
                             onClick={onDecline}
                             className="rounded-xl border-2 border-red-200 bg-white px-4 py-2.5 text-xs font-bold text-red-600 transition hover:bg-red-50 disabled:opacity-50 text-center"
                         >
-                            {workerApprovalBusy ? 'Saving...' : 'Decline'}
+                            {workerApprovalBusy ? copy.saving : copy.decline}
                         </button>
                         <button
                             type="button"
@@ -141,7 +170,7 @@ export function ServiceRequestAssignedWorkerCard({
                             onClick={onAccept}
                             className="rounded-xl bg-slate-900 px-4 py-2.5 text-xs font-bold text-white transition hover:bg-black disabled:opacity-50 shadow-md text-center"
                         >
-                            {workerApprovalBusy ? 'Saving...' : 'Approve Pro'}
+                            {workerApprovalBusy ? copy.saving : copy.approve}
                         </button>
                     </div>
                 </div>

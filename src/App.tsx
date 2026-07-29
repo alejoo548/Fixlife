@@ -1,6 +1,7 @@
 import React, { useState, useEffect, Suspense, lazy } from 'react';
 import { motion } from 'framer-motion';
 import { Navigate, Route, Routes, useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { Navbar } from './components/layout/Navbar';
 import { NavItemType, AuthMode } from './types';
 import { AuthModal } from './components/modals/AuthModal';
@@ -23,6 +24,7 @@ import { API_ENDPOINTS } from './config/api';
 import { isExternalStockImage, normalizeImageUrl } from './utils/imageUrls';
 import { ProtectedRoute } from './routes/ProtectedRoute';
 import UserAmbientBackground from './components/common/UserAmbientBackground';
+import { localizeClientLearnMore, localizeClientServiceDescription, localizeClientServiceName } from './utils/clientTranslations';
 
 const ServiceRequestWizard = lazy(() =>
   import('./components/modals/ServiceRequestWizard').then((module) => ({
@@ -43,16 +45,6 @@ const PaymentCheckoutPage = lazy(() => import('./pages/PaymentCheckoutPage'));
 const ResetPassword = lazy(() => import('./pages/ResetPassword'));
 const LeaveReview = lazy(() => import('./pages/LeaveReview'));
 const MyServicesHistory = lazy(() => import('./pages/MyServicesHistory'));
-
-const navItems: NavItemType[] = [
-  { name: "Services" },
-  { name: "Professionals" },
-  {
-    name: "Help",
-    items: ["Support", "How it works"]
-  },
-  { name: "Reviews" }
-];
 
 interface HomeServiceCard {
   id_card: number;
@@ -109,6 +101,28 @@ const LANDING_SECTION_IDS = {
   faq: 'faq-section',
   professionals: 'professionals-section',
 } as const;
+
+const DEFAULT_NAV_ITEMS: Array<{ name: string; items?: Array<{ name: string }> }> = [
+  { name: 'Services' },
+  { name: 'Professionals' },
+  {
+    name: 'Categories',
+    items: [
+      { name: 'Plumbing' },
+      { name: 'Electrical' },
+      { name: 'Cleaning' },
+      { name: 'Landscaping' },
+      { name: 'Mechanics' },
+    ],
+  },
+  {
+    name: 'Help',
+    items: [
+      { name: 'Support' },
+      { name: 'How it works' },
+    ],
+  },
+];
 
 type LandingSectionTarget = keyof typeof LANDING_SECTION_IDS;
 
@@ -237,6 +251,7 @@ const buildBookingPath = (service?: { id: number; name: string } | null) => {
 };
 
 const App: React.FC = () => {
+  const { t, i18n } = useTranslation();
   const navigate = useNavigate();
   const location = useLocation();
   const [isAuthOpen, setIsAuthOpen] = useState(false);
@@ -247,12 +262,18 @@ const App: React.FC = () => {
   const [pendingSection, setPendingSection] = useState<LandingSectionTarget | null>(null);
   const [pendingBookingPath, setPendingBookingPath] = useState<string | null>(null);
   const isLandingRoute = location.pathname === '/';
+  const translatedNavItems = t('navigation.items', { returnObjects: true });
+  const navItemsSource = Array.isArray(translatedNavItems) ? translatedNavItems : DEFAULT_NAV_ITEMS;
+  const navItems = navItemsSource.map((item) => ({
+    name: item.name,
+    items: item.items?.map((subItem) => subItem.name),
+  })) as NavItemType[];
 
   useEffect(() => {
     if (consumeLogoutNotice()) {
-      void showSweetToast({ tone: 'success', message: 'Logged out successfully.' });
+      void showSweetToast({ tone: 'success', message: t('userProfile.messages.logoutSuccess') });
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     const fetchServiceCards = async () => {
@@ -384,9 +405,9 @@ const App: React.FC = () => {
       id_service: 0,
       image_url: '/landing-home-repair.jpg',
       badge: 'POPULAR',
-      headline: 'Expert Plumbing',
-      summary: 'Leak repairs, pipe installation, and sanitary maintenance.',
-      cta_label: 'Learn More',
+      headline: t('landing.fallbacks.0.headline'),
+      summary: t('landing.fallbacks.0.summary'),
+      cta_label: t('landing.fallbacks.0.ctaLabel'),
       service_name: 'Plumbing',
       service_icon: 'PL',
     },
@@ -395,9 +416,9 @@ const App: React.FC = () => {
       id_service: 0,
       image_url: '/landing-home-repair.jpg',
       badge: 'POPULAR',
-      headline: 'Electrical',
-      summary: 'Safe installations, wiring, panels, and short circuit repairs.',
-      cta_label: 'Learn More',
+      headline: t('landing.fallbacks.1.headline'),
+      summary: t('landing.fallbacks.1.summary'),
+      cta_label: t('landing.fallbacks.1.ctaLabel'),
       service_name: 'Electrical Services',
       service_icon: 'EL',
     },
@@ -406,9 +427,9 @@ const App: React.FC = () => {
       id_service: 0,
       image_url: '/landing-home-repair.jpg',
       badge: 'POPULAR',
-      headline: 'Auto Mechanics',
-      summary: 'Vehicle diagnostics, oil changes, and mobile repairs.',
-      cta_label: 'Learn More',
+      headline: t('landing.fallbacks.2.headline'),
+      summary: t('landing.fallbacks.2.summary'),
+      cta_label: t('landing.fallbacks.2.ctaLabel'),
       service_name: 'Auto Mechanic',
       service_icon: 'AU',
     },
@@ -417,15 +438,21 @@ const App: React.FC = () => {
       id_service: 0,
       image_url: '/landing-carpentry.jpg',
       badge: 'POPULAR',
-      headline: 'Carpentry',
-      summary: 'Furniture design, door repair, and structure assembly.',
-      cta_label: 'Learn More',
+      headline: t('landing.fallbacks.3.headline'),
+      summary: t('landing.fallbacks.3.summary'),
+      cta_label: t('landing.fallbacks.3.ctaLabel'),
       service_name: 'Carpentry',
       service_icon: 'CA',
     },
   ];
 
   const cardsToRender = serviceCards.length > 0 ? serviceCards.slice(0, 8) : fallbackCards;
+  const localizedCardsToRender = cardsToRender.map((card) => ({
+    ...card,
+    headline: localizeClientServiceName(card.headline, i18n.language),
+    summary: localizeClientServiceDescription(card.service_name || card.summary, i18n.language),
+    cta_label: localizeClientLearnMore(t),
+  }));
 
   const normalizeLabel = (value: string) => value.toLowerCase().replace(/[^a-z0-9]+/g, '');
 
@@ -661,7 +688,7 @@ const App: React.FC = () => {
                         transition={{ duration: 2, repeat: Infinity }}
                         className="w-2 h-2 rounded-full bg-green-500"
                       />
-                      <span className="text-xs font-bold text-green-700 tracking-wider uppercase dark:text-emerald-400">Verified local pros</span>
+                      <span className="text-xs font-bold text-green-700 tracking-wider uppercase dark:text-emerald-400">{t('landing.statusBadge')}</span>
                     </motion.div>
 
                     <motion.h1
@@ -670,7 +697,7 @@ const App: React.FC = () => {
                       transition={{ delay: 0.5, duration: 0.6 }}
                       className="text-3xl md:text-4xl xl:text-5xl font-black mb-4 md:mb-6 leading-tight tracking-tight text-gray-900 dark:text-slate-100"
                     >
-                      Book trusted home help <br />
+                      {t('landing.heroTitlePrefix')} <br />
                       <motion.span
                         animate={{
                           backgroundPosition: ["0% 50%", "100% 50%", "0% 50%"],
@@ -683,7 +710,7 @@ const App: React.FC = () => {
                         className="text-transparent bg-clip-text bg-gradient-to-r from-bird-blue via-bird-yellow to-bird-orange"
                         style={{ backgroundSize: "200% 200%" }}
                       >
-                        with Fixlife
+                        {t('landing.heroTitleAccent')}
                       </motion.span>
                     </motion.h1>
 
@@ -693,7 +720,7 @@ const App: React.FC = () => {
                       transition={{ delay: 0.6, duration: 0.6 }}
                       className="text-gray-600 text-base md:text-lg leading-relaxed mb-6 md:mb-8 max-w-md font-medium dark:text-slate-400"
                     >
-                      Describe the problem, review nearby professionals, and chat before accepting a quote. <span className="text-gray-900 font-bold dark:text-slate-100">Cleaner booking, less guesswork.</span>
+                      {t('landing.heroDescription')} <span className="text-gray-900 font-bold dark:text-slate-100">{t('landing.heroDescriptionStrong')}</span>
                     </motion.p>
                   </div>
 
@@ -714,7 +741,7 @@ const App: React.FC = () => {
                         </svg>
                       }
                     >
-                      Book a service
+                      {t('landing.primaryCta')}
                     </Button>
 
                     <Button
@@ -723,11 +750,11 @@ const App: React.FC = () => {
                       size="lg"
                       fullWidth
                     >
-                      See how it works
+                      {t('landing.secondaryCta')}
                     </Button>
 
                     <p className="pt-2 text-sm leading-relaxed text-gray-500 dark:text-slate-400">
-                      Share the problem, add photos, and we help you connect with nearby pros.
+                      {t('landing.helperText')}
                     </p>
                   </motion.div>
                 </div>
@@ -741,10 +768,10 @@ const App: React.FC = () => {
                   <div>
                     <h3 className="text-3xl md:text-4xl font-black text-gray-900 flex items-center gap-4 dark:text-slate-100">
                       <span className="w-1.5 h-8 rounded-full bg-bird-blue shadow-[0_0_15px_rgba(0,144,255,0.4)] origin-bottom" />
-                      Professional Services
+                      {t('landing.servicesTitle')}
                     </h3>
                     <p className="text-gray-600 mt-2 ml-6 text-sm font-medium dark:text-slate-400">
-                      Expert solutions for every home need
+                      {t('landing.servicesSubtitle')}
                     </p>
                   </div>
                   <Button
@@ -758,12 +785,12 @@ const App: React.FC = () => {
                       </svg>
                     }
                   >
-                    View All
+                    {t('landing.servicesViewAll')}
                   </Button>
                 </div>
               </ScrollReveal>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                {cardsToRender.map((item, i) => (
+                {localizedCardsToRender.map((item, i) => (
                   <ScrollReveal key={i} delay={i * 100} className="h-full">
                     <ThreeDCard className="h-full">
                     <div
@@ -812,7 +839,7 @@ const App: React.FC = () => {
                           }}
                           className="flex items-center gap-2 text-bird-blue font-bold text-sm mt-2 group-hover:gap-3 transition-all"
                         >
-                          <span>{item.cta_label || 'Learn More'}</span>
+                          <span>{item.cta_label || t('landing.fallbacks.0.ctaLabel')}</span>
                           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" />
                           </svg>

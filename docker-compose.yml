@@ -4,7 +4,7 @@ services:
       context: .
       dockerfile: docker/Dockerfile.dev
       args:
-        VITE_API_URL: ${VITE_API_URL:-http://127.0.0.1:8000}
+        VITE_API_URL: ${VITE_API_URL:-http://localhost:8000}
         VITE_ENABLE_GOOGLE_LOGIN: ${VITE_ENABLE_GOOGLE_LOGIN:-false}
         VITE_GOOGLE_CLIENT_ID: ${VITE_GOOGLE_CLIENT_ID:-}
         VITE_RECAPTCHA_SITE_KEY: ${VITE_RECAPTCHA_SITE_KEY:-}
@@ -60,9 +60,9 @@ services:
       - VIRTUAL_WALLET_CLIENT_ID=${VIRTUAL_WALLET_CLIENT_ID:-}
       - VIRTUAL_WALLET_SECRET_KEY=${VIRTUAL_WALLET_SECRET_KEY:-}
       - PLATFORM_FEE_RATE=${PLATFORM_FEE_RATE:-0.12}
-      - FRONTEND_ORIGIN=${FRONTEND_ORIGIN:-http://127.0.0.1:3000}
-      - FRONTEND_URL=${FRONTEND_URL:-http://127.0.0.1:3000}
-      - PUBLIC_APP_URL=${PUBLIC_APP_URL:-http://127.0.0.1:3000}
+      - FRONTEND_ORIGIN=${FRONTEND_ORIGIN:-http://localhost:3000}
+      - FRONTEND_URL=${FRONTEND_URL:-http://localhost:3000}
+      - PUBLIC_APP_URL=${PUBLIC_APP_URL:-http://localhost:3000}
       - ALLOWED_ORIGINS=${ALLOWED_ORIGINS:-}
     depends_on:
       mysql:
@@ -72,7 +72,7 @@ services:
       timeout: 10s
       retries: 12
       interval: 5s
-      start_period: 20s
+      start_period: 90s
     networks:
       - fixlife-network
 

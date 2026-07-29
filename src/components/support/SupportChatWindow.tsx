@@ -1,4 +1,5 @@
 import React, { useRef, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { SupportThread, SupportMessage } from '../../types/support';
 import { ArrowLeft } from 'lucide-react';
 import { SupportMessageInput } from './SupportMessageInput';
@@ -20,6 +21,7 @@ export const SupportChatWindow: React.FC<SupportChatWindowProps> = ({
   onBack,
   isSending,
 }) => {
+  const { t, i18n } = useTranslation();
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -46,7 +48,7 @@ export const SupportChatWindow: React.FC<SupportChatWindowProps> = ({
         </button>
         <div className="min-w-0 flex-1">
           <div className="font-bold text-gray-900">{thread.subject}</div>
-          <div className="text-xs text-gray-500">Fixlife Support • Response in ~2h</div>
+          <div className="text-xs text-gray-500">{t('serviceRequest.supportWidget.chatHeader')}</div>
         </div>
       </div>
 
@@ -54,7 +56,7 @@ export const SupportChatWindow: React.FC<SupportChatWindowProps> = ({
       <div className="flex-1 space-y-4 overflow-y-auto px-4 py-4 custom-scrollbar">
         {messages.length === 0 && (
           <div className="py-8 text-center text-sm text-gray-500">
-            This is the start of your conversation with the support team.
+            {t('serviceRequest.supportWidget.conversationStart')}
           </div>
         )}
 
@@ -82,7 +84,7 @@ export const SupportChatWindow: React.FC<SupportChatWindowProps> = ({
                 )}
                 {safeMessage && <div>{safeMessage}</div>}
                 <div className={`mt-2 text-right text-[9.5px] ${isMine ? 'text-white/50' : 'text-gray-400'}`}>
-                  {new Date(msg.createdAt).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
+                  {new Date(msg.createdAt).toLocaleTimeString(i18n.language === 'es' ? 'es-SV' : 'en-US', { hour: '2-digit', minute: '2-digit' })}
                 </div>
               </div>
             </div>
@@ -99,3 +101,4 @@ export const SupportChatWindow: React.FC<SupportChatWindowProps> = ({
     </div>
   );
 };
+

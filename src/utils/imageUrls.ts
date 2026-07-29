@@ -6,11 +6,7 @@ export const normalizeImageUrl = (value?: string | null): string => {
   const raw = (value || '').trim();
   if (!raw) return '';
 
-  if (/^https?:\/\/localhost:8000\/uploads\//i.test(raw)) {
-    return raw.replace(/^https?:\/\/localhost:8000/i, 'http://127.0.0.1:8000');
-  }
-
-  if (/^https?:\/\/127\.0\.0\.1:8000\/uploads\//i.test(raw)) {
+  if (/^https?:\/\/(localhost|127\.0\.0\.1):8000\/uploads\//i.test(raw)) {
     return raw;
   }
 

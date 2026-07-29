@@ -1,7 +1,9 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+﻿import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
+import { useTranslation } from 'react-i18next';
 import { showSweetToast } from '../../utils/sweetAlert';
 import { addResilientTileLayer } from '../../utils/leafletLoader';
+import { localizeClientServiceName } from '../../utils/clientTranslations';
 import {
     buildRouteDistanceProfile,
     focusRouteViewport,
@@ -118,60 +120,60 @@ const statusToStage = (statusRaw: RequestStatus): TrackerStage => {
     return 'worker_accepted';
 };
 
-const stageVisual = (stage: TrackerStage) => {
+const stageVisual = (stage: TrackerStage, isSpanish: boolean) => {
     if (stage === 'completed') {
         return {
-            label: 'Completed',
+            label: isSpanish ? 'Completado' : 'Completed',
             toneClass: 'bg-gray-100 text-gray-700 border-gray-200',
-            note: 'The service is complete and saved in your history.',
+            note: isSpanish ? 'El servicio está completo y guardado en tu historial.' : 'The service is complete and saved in your history.',
         };
     }
     if (stage === 'work_in_progress') {
         return {
-            label: 'Work in progress',
+            label: isSpanish ? 'Trabajo en progreso' : 'Work in progress',
             toneClass: 'bg-gray-100 text-gray-700 border-gray-200',
-            note: 'The worker arrived and is actively working on the service.',
+            note: isSpanish ? 'El profesional ya llegó y está trabajando en el servicio.' : 'The worker arrived and is actively working on the service.',
         };
     }
     if (stage === 'arrived') {
         return {
-            label: 'Arrived',
+            label: isSpanish ? 'Llegó' : 'Arrived',
             toneClass: 'bg-gray-100 text-gray-700 border-gray-200',
-            note: 'Your worker is already at the destination.',
+            note: isSpanish ? 'Tu profesional ya está en el destino.' : 'Your worker is already at the destination.',
         };
     }
     if (stage === 'nearby') {
         return {
-            label: 'Arriving now',
+            label: isSpanish ? 'Está por llegar' : 'Arriving now',
             toneClass: 'bg-gray-100 text-gray-700 border-gray-200',
-            note: 'The worker is very close to your location.',
+            note: isSpanish ? 'El profesional está muy cerca de tu ubicación.' : 'The worker is very close to your location.',
         };
     }
     if (stage === 'on_the_way') {
         return {
-            label: 'On the way',
+            label: isSpanish ? 'En camino' : 'On the way',
             toneClass: 'bg-gray-100 text-gray-700 border-gray-200',
-            note: 'The worker is heading to your address right now.',
+            note: isSpanish ? 'El profesional va en camino a tu dirección.' : 'The worker is heading to your address right now.',
         };
     }
     if (stage === 'payment_secured') {
         return {
-            label: 'Payment completed',
+            label: isSpanish ? 'Pago completado' : 'Payment completed',
             toneClass: 'bg-gray-100 text-gray-700 border-gray-200',
-            note: 'Payment succeeded. Both parties must approve final service closure.',
+            note: isSpanish ? 'El pago fue exitoso. Ambas partes deben aprobar el cierre final del servicio.' : 'Payment succeeded. Both parties must approve final service closure.',
         };
     }
     if (stage === 'awaiting_payment') {
         return {
-            label: 'Work finished - payment due',
+            label: isSpanish ? 'Trabajo finalizado - pago pendiente' : 'Work finished - payment due',
             toneClass: 'bg-gray-100 text-gray-700 border-gray-200',
-            note: 'Both parties confirmed work finish. Complete payment to continue.',
+            note: isSpanish ? 'Ambas partes confirmaron el fin del trabajo. Completa el pago para continuar.' : 'Both parties confirmed work finish. Complete payment to continue.',
         };
     }
     return {
-        label: 'Worker accepted',
+        label: isSpanish ? 'Profesional aceptó' : 'Worker accepted',
         toneClass: 'bg-gray-100 text-gray-700 border-gray-200',
-        note: 'A worker is assigned and standing by for this service.',
+        note: isSpanish ? 'Un profesional fue asignado y está listo para este servicio.' : 'A worker is assigned and standing by for this service.',
     };
 };
 
@@ -198,6 +200,8 @@ const createTrackerIcon = (L: any, kind: 'worker' | 'client') =>
     });
 
 const ClientLiveRequestTracker: React.FC<ClientLiveRequestTrackerProps> = ({ leafletReady, request, onClose }) => {
+    const { i18n } = useTranslation();
+    const isSpanish = i18n.language.startsWith('es');
     const mapContainerRef = useRef<HTMLDivElement | null>(null);
     const mapInstanceRef = useRef<any>(null);
     const routeGlowRef = useRef<any>(null);
@@ -249,10 +253,10 @@ const ClientLiveRequestTracker: React.FC<ClientLiveRequestTrackerProps> = ({ lea
         return (
             <div className="h-full w-full flex items-center justify-center rounded-2xl border border-slate-200 bg-slate-50 p-8 text-center">
                 <div>
-                    <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-white text-2xl">📍</div>
-                    <p className="text-sm font-bold text-slate-700">No live location available</p>
-                    <p className="mt-1 text-[11px] text-slate-500">Request #{request.id_request} • {request.service_name}</p>
-                    <p className="mt-2 text-[10px] uppercase tracking-[0.12em] text-slate-400">This service does not have coordinates for map tracking.</p>
+                    <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-white text-xs font-black text-bird-blue">PIN</div>
+                    <p className="text-sm font-bold text-slate-700">{isSpanish ? 'Ubicación en vivo no disponible' : 'No live location available'}</p>
+                    <p className="mt-1 text-[11px] text-slate-500">{isSpanish ? 'Solicitud' : 'Request'} #{request.id_request} • {localizeClientServiceName(request.service_name, i18n.language)}</p>
+                    <p className="mt-2 text-[10px] uppercase tracking-[0.12em] text-slate-400">{isSpanish ? 'Este servicio no tiene coordenadas para seguimiento en mapa.' : 'This service does not have coordinates for map tracking.'}</p>
                 </div>
             </div>
         );
@@ -633,8 +637,8 @@ const ClientLiveRequestTracker: React.FC<ClientLiveRequestTrackerProps> = ({ lea
             clientMarkerRef.current.setLatLng([destinationCoords.lat, destinationCoords.lng]);
         }
 
-        clientMarkerRef.current.bindPopup(`<b>Your location</b><br/>${request.location_text}`);
-    }, [destinationCoords, request.location_text]);
+        clientMarkerRef.current.bindPopup(`<b>${isSpanish ? 'Tu ubicación' : 'Your location'}</b><br/>${request.location_text}`);
+    }, [destinationCoords, isSpanish, request.location_text]);
 
     useEffect(() => {
         if (!mapInstanceRef.current || !window.L || !displayedWorkerCoords) return;
@@ -652,8 +656,8 @@ const ClientLiveRequestTracker: React.FC<ClientLiveRequestTrackerProps> = ({ lea
             workerMarkerRef.current.setLatLng([displayedWorkerCoords.lat, displayedWorkerCoords.lng]);
         }
 
-        workerMarkerRef.current.bindPopup(`<b>${request.assigned_worker?.name || 'Worker'}</b><br/>Live position`);
-    }, [displayedWorkerCoords, request.assigned_worker?.name]);
+        workerMarkerRef.current.bindPopup(`<b>${request.assigned_worker?.name || (isSpanish ? 'Profesional' : 'Worker')}</b><br/>${isSpanish ? 'Posición en vivo' : 'Live position'}`);
+    }, [displayedWorkerCoords, isSpanish, request.assigned_worker?.name]);
 
     useEffect(() => {
         if (typeof document === 'undefined') return undefined;
@@ -696,13 +700,36 @@ const ClientLiveRequestTracker: React.FC<ClientLiveRequestTrackerProps> = ({ lea
         };
     }, [cameraMode, isMapExpanded, isLiveRoute, liveViewportPoints, routePreview?.points, visibleRoutePoints]);
 
-    const visual = stageVisual(trackerStage);
-    const workerName = request.assigned_worker?.name || 'Your worker';
+    const trackerCopy = {
+        status: isSpanish ? 'Estado' : 'Status',
+        request: isSpanish ? 'Solicitud' : 'Request',
+        scheduled: isSpanish ? 'Programado' : 'Scheduled',
+        scheduledVisit: isSpanish ? 'Visita programada' : 'Scheduled visit',
+        scheduledNote: isSpanish ? 'Tu visita está reservada para el horario seleccionado.' : 'Your visit is reserved for the selected time.',
+        syncing: isSpanish ? 'Sincronizando' : 'Syncing',
+        visit: isSpanish ? 'Visita' : 'Visit',
+        eta: 'ETA',
+        updating: isSpanish ? 'Actualizando' : 'Updating',
+        distance: isSpanish ? 'Distancia' : 'Distance',
+        destination: isSpanish ? 'Destino' : 'Dest.',
+        viewRoute: isSpanish ? 'Ver ruta' : 'View Route',
+        followWorker: isSpanish ? 'Seguir profesional' : 'Follow Worker',
+        yourLocation: isSpanish ? 'Tu ubicación' : 'Your location',
+        worker: isSpanish ? 'Profesional' : 'Worker',
+        yourWorker: isSpanish ? 'Tu profesional' : 'Your worker',
+        livePosition: isSpanish ? 'Posición en vivo' : 'Live position',
+        onTheWay: (name: string) => isSpanish ? `${name} va en camino a tu dirección.` : `${name} is on the way to your address.`,
+        arriving: (name: string) => isSpanish ? `${name} está por llegar.` : `${name} is arriving now.`,
+        arrived: (name: string) => isSpanish ? `${name} llegó.` : `${name} has arrived.`,
+    };
+    const localizedServiceName = localizeClientServiceName(request.service_name, i18n.language);
+    const visual = stageVisual(trackerStage, isSpanish);
+    const workerName = request.assigned_worker?.name || trackerCopy.yourWorker;
     const displayedVisual = isScheduledFuture
         ? {
             ...visual,
-            label: 'Scheduled visit',
-            note: scheduledWindow || 'Your visit is reserved for the selected time.',
+            label: trackerCopy.scheduledVisit,
+            note: scheduledWindow || trackerCopy.scheduledNote,
         }
         : visual;
 
@@ -740,23 +767,23 @@ const ClientLiveRequestTracker: React.FC<ClientLiveRequestTrackerProps> = ({ lea
         }
 
         if (trackerStage === 'on_the_way') {
-            showTrackerToast('info', `${workerName} is on the way to your address.`);
+            showTrackerToast('info', trackerCopy.onTheWay(workerName));
         } else if (trackerStage === 'nearby') {
-            showTrackerToast('info', `${workerName} is arriving now.`);
+            showTrackerToast('info', trackerCopy.arriving(workerName));
         } else if (trackerStage === 'arrived') {
-            showTrackerToast('success', `${workerName} has arrived.`);
+            showTrackerToast('success', trackerCopy.arrived(workerName));
         }
 
         previousStageRef.current = trackerStage;
-    }, [request.id_request, request.service_name, trackerStage, workerName]);
+    }, [request.id_request, request.service_name, trackerCopy, trackerStage, workerName]);
 
     const etaLabel = isScheduledFuture
-        ? scheduledWindow || 'Scheduled'
+        ? scheduledWindow || trackerCopy.scheduled
         : routeLoading
-          ? 'Syncing'
+          ? trackerCopy.syncing
           : formatEta(metrics?.durationMin ?? routePreview?.durationMin ?? 0);
-    const etaMetaLabel = isScheduledFuture ? 'Visit' : 'ETA';
-    const distanceLabel = routeLoading ? 'Updating' : `${(metrics?.distanceKm ?? routePreview?.distanceKm ?? 0).toFixed(1)} km`;
+    const etaMetaLabel = isScheduledFuture ? trackerCopy.visit : trackerCopy.eta;
+    const distanceLabel = routeLoading ? trackerCopy.updating : `${(metrics?.distanceKm ?? routePreview?.distanceKm ?? 0).toFixed(1)} km`;
 
     return (
         <div className={`relative h-full min-h-[600px] w-full overflow-hidden bg-slate-100 ${isMapExpanded ? 'fixed inset-4 z-[70] rounded-[2rem] border border-slate-200/70 shadow-2xl' : 'rounded-[1.5rem]'}`}>
@@ -798,7 +825,7 @@ const ClientLiveRequestTracker: React.FC<ClientLiveRequestTrackerProps> = ({ lea
                             <div className="h-2 w-2 sm:h-2.5 sm:w-2.5 rounded-full bg-blue-500 relative z-10 animate-pulse"></div>
                         </div>
                         <div className="min-w-0">
-                            <p className="text-[9px] sm:text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 leading-none mb-1 sm:mb-1.5">Status</p>
+                            <p className="text-[9px] sm:text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 leading-none mb-1 sm:mb-1.5">{trackerCopy.status}</p>
                             <p className="text-xs sm:text-sm font-black text-slate-900 leading-none truncate">{displayedVisual.label}</p>
                         </div>
                     </motion.div>
@@ -810,7 +837,7 @@ const ClientLiveRequestTracker: React.FC<ClientLiveRequestTrackerProps> = ({ lea
                     animate={{ y: 0, opacity: 1 }}
                     className="pointer-events-auto self-end rounded-2xl border border-slate-200 bg-white/95 px-4 py-2.5 text-right shadow-[0_10px_28px_rgba(15,23,42,0.12)] backdrop-blur-md sm:self-auto"
                 >
-                    <p className="text-[9px] sm:text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 leading-none mb-1 sm:mb-1.5">Request</p>
+                    <p className="text-[9px] sm:text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 leading-none mb-1 sm:mb-1.5">{trackerCopy.request}</p>
                     <p className="text-xs sm:text-sm font-black text-slate-900 leading-none">#{request.id_request}</p>
                 </motion.div>
             </div>
@@ -837,7 +864,7 @@ const ClientLiveRequestTracker: React.FC<ClientLiveRequestTrackerProps> = ({ lea
                             </div>
                             <div className="min-w-0">
                                 <h3 className="truncate text-base font-black text-slate-950 sm:text-lg">{workerName}</h3>
-                                <p className="truncate text-sm font-semibold text-slate-500">{request.service_name}</p>
+                                <p className="truncate text-sm font-semibold text-slate-500">{localizedServiceName}</p>
                                 {isScheduledRequest(request) && scheduledWindow && (
                                     <p className="mt-0.5 truncate text-xs font-bold text-bird-blue">{scheduledWindow}</p>
                                 )}
@@ -858,14 +885,14 @@ const ClientLiveRequestTracker: React.FC<ClientLiveRequestTrackerProps> = ({ lea
                         <div className="rounded-2xl border border-slate-100 bg-slate-50 p-3">
                             <div className="flex items-center gap-2 mb-1">
                                 <svg className="w-4 h-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" /></svg>
-                                <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Distance</p>
+                                <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">{trackerCopy.distance}</p>
                             </div>
                             <p className="text-sm font-black text-slate-950">{distanceLabel}</p>
                         </div>
                         <div className="rounded-2xl border border-slate-100 bg-slate-50 p-3">
                             <div className="flex items-center gap-2 mb-1">
                                 <svg className="w-4 h-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.243-4.243a8 8 0 1111.314 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
-                                <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Dest.</p>
+                                <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">{trackerCopy.destination}</p>
                             </div>
                             <p className="truncate text-xs font-black text-slate-950">{request.location_text.split(',')[0]}</p>
                         </div>
@@ -878,7 +905,7 @@ const ClientLiveRequestTracker: React.FC<ClientLiveRequestTrackerProps> = ({ lea
                             className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-slate-950 py-3 text-sm font-black text-white shadow-md transition-colors hover:bg-black"
                         >
                             <svg className="w-4 h-4 opacity-70" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
-                            {cameraMode === 'close' ? 'View Route' : 'Follow Worker'}
+                            {cameraMode === 'close' ? trackerCopy.viewRoute : trackerCopy.followWorker}
                         </button>
                     </div>
                 </motion.div>
@@ -888,3 +915,4 @@ const ClientLiveRequestTracker: React.FC<ClientLiveRequestTrackerProps> = ({ lea
 };
 
 export default ClientLiveRequestTracker;
+

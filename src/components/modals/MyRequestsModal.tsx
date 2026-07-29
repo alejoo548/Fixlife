@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+﻿import React, { useMemo, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, MapPin, Calendar, User, CheckCircle2 } from 'lucide-react';
 
@@ -167,7 +167,7 @@ export const MyRequestsModal: React.FC<MyRequestsModalProps> = ({ isOpen, onClos
           <div className="flex-1 flex flex-col min-h-0 bg-slate-50 p-4 lg:p-6 overflow-hidden">
             {!trackableRequest && (
               <div className="flex h-full flex-col items-center justify-center text-center">
-                <div className="mx-auto mb-4 h-16 w-16 rounded-2xl bg-white flex items-center justify-center shadow-sm text-3xl">📋</div>
+                <div className="mx-auto mb-4 h-16 w-16 rounded-2xl bg-white flex items-center justify-center shadow-sm text-3xl">ðŸ“‹</div>
                 <p className="text-xl font-black text-slate-900">Select a request</p>
                 <p className="mt-2 max-w-sm text-sm text-slate-600">
                   Choose an active request from the list to see live tracking on the map, or browse your completed history.

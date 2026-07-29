@@ -1,4 +1,5 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import { SupportThread } from '../../types/support';
 import { Clock, MessageCircle } from 'lucide-react';
 
@@ -15,10 +16,11 @@ export const SupportThreadList: React.FC<SupportThreadListProps> = ({
   onOpenThread,
   onNewThread,
 }) => {
+  const { t, i18n } = useTranslation();
   if (isLoading) {
     return (
       <div className="flex h-full items-center justify-center">
-        <div className="text-sm font-medium text-gray-500">Loading your cases...</div>
+        <div className="text-sm font-medium text-gray-500">{t('serviceRequest.supportWidget.loadingCases')}</div>
       </div>
     );
   }
@@ -29,15 +31,15 @@ export const SupportThreadList: React.FC<SupportThreadListProps> = ({
         <div className="mb-4 rounded-2xl bg-gray-100 p-4">
           <MessageCircle size={32} className="text-gray-400" />
         </div>
-        <div className="text-lg font-black text-gray-900">You have no open cases</div>
+        <div className="text-lg font-black text-gray-900">{t('serviceRequest.supportWidget.noOpenCases')}</div>
         <p className="mt-2 max-w-[240px] text-sm text-gray-500">
-          Have a question or problem? Open a new support case.
+          {t('serviceRequest.supportWidget.noOpenCasesHelp')}
         </p>
         <button
           onClick={onNewThread}
           className="mt-6 rounded-2xl bg-bird-blue px-6 py-3 text-sm font-bold text-white transition hover:bg-bird-darkBlue"
         >
-          Open new case
+          {t('serviceRequest.supportWidget.openNewCase')}
         </button>
       </div>
     );
@@ -75,11 +77,11 @@ export const SupportThreadList: React.FC<SupportThreadListProps> = ({
                 <Clock size={13} />
                 <span>
                   {isRecent
-                    ? lastDate.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
-                    : lastDate.toLocaleDateString()}
+                    ? lastDate.toLocaleTimeString(i18n.language.startsWith('es') ? 'es-SV' : 'en-US', { hour: '2-digit', minute: '2-digit' })
+                    : lastDate.toLocaleDateString(i18n.language.startsWith('es') ? 'es-SV' : 'en-US')}
                 </span>
                 <span className="text-gray-300">•</span>
-                <span className="capitalize">{thread.status.replace('_', ' ')}</span>
+                <span className="capitalize">{t(`serviceRequest.supportWidget.status.${thread.status}`, { defaultValue: thread.status.replace('_', ' ') })}</span>
               </div>
             </div>
           </button>
@@ -88,3 +90,4 @@ export const SupportThreadList: React.FC<SupportThreadListProps> = ({
     </div>
   );
 };
+

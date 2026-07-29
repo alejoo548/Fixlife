@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { API_ENDPOINTS } from '../../../config/api';
+import i18n from '../../../i18n';
 
 type ToastType = 'success' | 'error' | 'info';
 
@@ -158,8 +159,8 @@ export function useServiceRequestLocation({
 
   const detectCurrentLocation = () => {
     if (!navigator.geolocation) {
-      setGeoError('Geolocation is not supported in this browser.');
-      showToast('error', 'Geolocation not supported.');
+      setGeoError(i18n.t('serviceRequest.location.geolocationNotSupported'));
+      showToast('error', i18n.t('serviceRequest.location.geolocationNotSupportedToast'));
       return;
     }
 
@@ -196,7 +197,9 @@ export function useServiceRequestLocation({
           await reverseGeocodeCoords(
             { lat, lng },
             {
-              toastMessage: accuracy ? `Current location detected within ~${accuracy} m.` : 'Current location detected.',
+              toastMessage: accuracy
+                ? i18n.t('serviceRequest.location.currentLocationDetectedAccuracy', { accuracy })
+                : i18n.t('serviceRequest.location.currentLocationDetected'),
               fallbackLabel: `${lat}, ${lng}`,
             }
           );
@@ -223,8 +226,8 @@ export function useServiceRequestLocation({
           return;
         }
         clearWatch();
-        setGeoError('Could not access your exact location. Allow permission and try again.');
-        showToast('error', 'Could not read your exact location.');
+        setGeoError(i18n.t('serviceRequest.location.exactLocationError'));
+        showToast('error', i18n.t('serviceRequest.location.exactLocationToast'));
         setGeoLoading(false);
       },
       { enableHighAccuracy: true, timeout: GEOLOCATION_TIMEOUT_MS, maximumAge: 0 }
@@ -237,8 +240,8 @@ export function useServiceRequestLocation({
         return;
       }
       clearWatch();
-      setGeoError('Still looking for GPS signal. Try outdoors, enable precise location, or enter the address.');
-      showToast('info', 'Still looking for a precise GPS signal. You can enter and confirm the address instead.');
+      setGeoError(i18n.t('serviceRequest.location.gpsStillLooking'));
+      showToast('info', i18n.t('serviceRequest.location.gpsStillLookingToast'));
       setGeoLoading(false);
     }, GEOLOCATION_SAMPLE_MS);
   };

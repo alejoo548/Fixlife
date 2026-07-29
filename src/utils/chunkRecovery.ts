@@ -43,7 +43,7 @@ export const installChunkRecovery = (
   reload: () => void = () => window.location.reload(),
 ): (() => void) => {
   const handlePreloadError = (event: Event) => {
-    const error = (event as CustomEvent<unknown>).payload;
+    const error = (event as CustomEvent<{ payload?: unknown }>).detail?.payload;
     if (recoverFromChunkError(error, reload)) event.preventDefault();
   };
 

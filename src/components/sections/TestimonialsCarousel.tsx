@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import { API_ENDPOINTS } from '../../config/api';
 
 const AVATAR_COLORS = ['#0090ff', '#f59e0b', '#10b981', '#8b5cf6', '#ef4444'];
@@ -6,7 +7,7 @@ const AVATAR_COLORS = ['#0090ff', '#f59e0b', '#10b981', '#8b5cf6', '#ef4444'];
 const buildAvatarUri = (name: string, index: number): string => {
   const initials = name
     .split(' ')
-    .map((w) => w[0])
+    .map((word) => word[0])
     .join('')
     .slice(0, 2)
     .toUpperCase();
@@ -14,54 +15,6 @@ const buildAvatarUri = (name: string, index: number): string => {
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="80" height="80"><rect width="80" height="80" rx="40" fill="${bg}"/><text x="50%" y="54%" dominant-baseline="middle" text-anchor="middle" fill="#fff" font-family="Inter,system-ui,sans-serif" font-weight="700" font-size="28">${initials}</text></svg>`;
   return `data:image/svg+xml,${encodeURIComponent(svg)}`;
 };
-
-const testimonials = [
-  {
-    id: 1,
-    name: 'Sarah Mitchell',
-    role: 'Homeowner',
-    image: buildAvatarUri('Sarah Mitchell', 0),
-    rating: 5,
-    text: 'Fixlife connected me with an amazing plumber who fixed my leak in under an hour. The whole process was seamless and professional. Highly recommend!',
-    service: 'Plumbing',
-  },
-  {
-    id: 2,
-    name: 'Michael Chen',
-    role: 'Business Owner',
-    image: buildAvatarUri('Michael Chen', 1),
-    rating: 5,
-    text: 'I needed urgent electrical work done at my office. The electrician arrived within 30 minutes and solved the issue quickly. Outstanding service!',
-    service: 'Electrical',
-  },
-  {
-    id: 3,
-    name: 'Emily Rodriguez',
-    role: 'Property Manager',
-    image: buildAvatarUri('Emily Rodriguez', 2),
-    rating: 5,
-    text: 'Managing multiple properties means I need reliable professionals. Fixlife has become my go-to platform for all maintenance needs. Simply the best!',
-    service: 'Multiple Services',
-  },
-  {
-    id: 4,
-    name: 'David Thompson',
-    role: 'Homeowner',
-    image: buildAvatarUri('David Thompson', 3),
-    rating: 5,
-    text: "The transparency in pricing and the quality of work exceeded my expectations. I've used Fixlife three times now and will continue to do so.",
-    service: 'Carpentry',
-  },
-  {
-    id: 5,
-    name: 'Jessica Park',
-    role: 'Apartment Resident',
-    image: buildAvatarUri('Jessica Park', 4),
-    rating: 5,
-    text: 'Fast, affordable, and trustworthy. The professional was courteous and cleaned up after the job. This is how home services should be!',
-    service: 'Cleaning',
-  },
-];
 
 interface LiveReview {
   id_review: number;
@@ -98,26 +51,66 @@ const defaultStats: ReviewStats = {
   satisfaction_rate: 98,
 };
 
+const DEFAULT_TESTIMONIALS: Array<{ role: string; text: string; service: string }> = [
+  {
+    role: 'Homeowner',
+    text: 'Fixlife connected me with a great plumber who solved the issue fast and professionally.',
+    service: 'Plumbing',
+  },
+  {
+    role: 'Business owner',
+    text: 'We booked electrical help for our office and the whole experience felt clear and reliable.',
+    service: 'Electrical',
+  },
+  {
+    role: 'Property manager',
+    text: 'Having one place to coordinate maintenance has saved me a lot of time across multiple properties.',
+    service: 'Multiple services',
+  },
+];
+
+const DEFAULT_NAMES = ['Sarah Mitchell', 'Michael Chen', 'Emily Rodriguez', 'David Thompson', 'Jessica Park'];
+
 const formatCompact = (value: number) =>
   new Intl.NumberFormat('en', {
     notation: 'compact',
     maximumFractionDigits: value >= 1000 ? 1 : 0,
   }).format(value);
 
-const toDisplayTestimonial = (r: LiveReview, idx: number): DisplayTestimonial => ({
-  id: r.id_review,
-  name: r.author_name,
-  role: r.author_role === 'worker'
-    ? `Professional${r.service_category ? ` · ${r.service_category}` : ''}`
+const toDisplayTestimonial = (review: LiveReview, index: number): DisplayTestimonial => ({
+  id: review.id_review,
+  name: review.author_name,
+  role: review.author_role === 'worker'
+    ? `Professional${review.service_category ? ` - ${review.service_category}` : ''}`
     : 'Client',
-  authorRole: r.author_role,
-  image: buildAvatarUri(r.author_name, idx),
-  rating: Math.max(1, Math.min(5, Number(r.rating))),
-  text: r.review_text,
-  service: r.service_category ?? 'Platform Review',
+  authorRole: review.author_role,
+  image: buildAvatarUri(review.author_name, index),
+  rating: Math.max(1, Math.min(5, Number(review.rating))),
+  text: review.review_text,
+  service: review.service_category ?? 'Platform Review',
 });
 
 export const TestimonialsCarousel: React.FC = () => {
+  const { t } = useTranslation();
+  const testimonials = useMemo(() => {
+    const translatedTestimonials = t('testimonials.items', { returnObjects: true });
+    const source = Array.isArray(translatedTestimonials)
+      ? translatedTestimonials as Array<{ role: string; text: string; service: string }>
+      : DEFAULT_TESTIMONIALS;
+
+    return source.map((item, index) => {
+      const name = DEFAULT_NAMES[index] || `Client ${index + 1}`;
+      return {
+        id: index + 1,
+        name,
+        role: item.role,
+        image: buildAvatarUri(name, index),
+        rating: 5,
+        text: item.text,
+        service: item.service,
+      };
+    });
+  }, [t]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isAutoPlaying, setIsAutoPlaying] = useState(true);
   const [animating, setAnimating] = useState(false);
@@ -127,8 +120,8 @@ export const TestimonialsCarousel: React.FC = () => {
 
   const fetchLiveReviews = useCallback(async () => {
     try {
-      const res = await fetch(API_ENDPOINTS.reviews.public);
-      const data = await res.json() as {
+      const response = await fetch(API_ENDPOINTS.reviews.public);
+      const data = await response.json() as {
         success: boolean;
         reviews?: LiveReview[];
         stats?: Partial<ReviewStats>;
@@ -150,9 +143,13 @@ export const TestimonialsCarousel: React.FC = () => {
         });
       }
     } catch {
-      // keep static fallback
+      // Keep the local fallback content.
     }
   }, []);
+
+  useEffect(() => {
+    setDisplayItems(testimonials);
+  }, [testimonials]);
 
   useEffect(() => {
     void fetchLiveReviews();
@@ -160,9 +157,11 @@ export const TestimonialsCarousel: React.FC = () => {
 
   useEffect(() => {
     if (!isAutoPlaying || displayItems.length <= 1) return;
+
     const interval = window.setInterval(() => {
-      setCurrentIndex((prev) => (prev + 1) % displayItems.length);
+      setCurrentIndex((previous) => (previous + 1) % displayItems.length);
     }, 5000);
+
     return () => window.clearInterval(interval);
   }, [isAutoPlaying, displayItems.length]);
 
@@ -187,49 +186,41 @@ export const TestimonialsCarousel: React.FC = () => {
   const nextSlide = () => goToSlide((currentIndex + 1) % displayItems.length);
   const prevSlide = () => goToSlide((currentIndex - 1 + displayItems.length) % displayItems.length);
 
-  const t = displayItems[currentIndex] ?? displayItems[0];
+  const activeTestimonial = displayItems[currentIndex] ?? displayItems[0];
 
   const stats = useMemo(() => ([
     {
       value: `${formatCompact(reviewStats.total_reviews)}+`,
-      label: 'Verified reviews',
-      detail: 'From real clients and pros',
-      accent: 'from-sky-500/20 to-cyan-400/10',
+      label: t('testimonials.stats.happyCustomers'),
       valueClass: 'text-sky-600 dark:text-sky-400',
     },
     {
       value: reviewStats.average_rating.toFixed(1),
-      label: 'Average rating',
-      detail: 'Platform-wide trust signal',
-      accent: 'from-amber-400/20 to-orange-400/10',
+      label: t('testimonials.stats.averageRating'),
       valueClass: 'text-amber-500 dark:text-amber-400',
     },
     {
       value: `${formatCompact(reviewStats.completed_jobs)}+`,
-      label: 'Jobs completed',
-      detail: 'Successful services delivered',
-      accent: 'from-emerald-500/20 to-teal-400/10',
+      label: t('testimonials.stats.jobsCompleted'),
       valueClass: 'text-emerald-600 dark:text-emerald-400',
     },
     {
       value: `${Math.min(100, Math.max(0, reviewStats.satisfaction_rate))}%`,
-      label: '5-star satisfaction',
-      detail: 'Share of top-rated reviews',
-      accent: 'from-fuchsia-500/20 to-violet-400/10',
+      label: t('testimonials.stats.satisfactionRate'),
       valueClass: 'text-fuchsia-600 dark:text-fuchsia-400',
     },
-  ]), [reviewStats]);
+  ]), [reviewStats, t]);
 
-  if (!t) return null;
+  if (!activeTestimonial) return null;
 
   return (
     <div className="relative">
       <div className="mb-6 px-1">
         <p className="mb-2 text-xs font-semibold uppercase tracking-[0.2em] text-bird-blue">
-          Client Reviews
+          {t('testimonials.subtitle')}
         </p>
         <h3 className="text-2xl font-black text-slate-900 md:text-3xl dark:text-slate-100">
-          What customers say
+          {t('testimonials.title')}
         </h3>
       </div>
 
@@ -241,8 +232,8 @@ export const TestimonialsCarousel: React.FC = () => {
           <div className="mb-4 flex items-center justify-between gap-4">
             <div className="flex items-center gap-3">
               <div className="flex gap-1">
-                {[...Array(t.rating)].map((_, i) => (
-                  <svg key={i} className="h-4 w-4 fill-current text-amber-400" viewBox="0 0 20 20">
+                {[...Array(activeTestimonial.rating)].map((_, index) => (
+                  <svg key={index} className="h-4 w-4 fill-current text-amber-400" viewBox="0 0 20 20">
                     <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
                   </svg>
                 ))}
@@ -250,7 +241,7 @@ export const TestimonialsCarousel: React.FC = () => {
 
               <span className="inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/10 px-2.5 py-1 text-[11px] font-semibold text-slate-300">
                 <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
-                {t.service}
+                {activeTestimonial.service}
               </span>
             </div>
 
@@ -282,19 +273,19 @@ export const TestimonialsCarousel: React.FC = () => {
             className="min-h-[88px] text-lg leading-8 text-white/90 transition-opacity duration-300 md:text-xl"
             style={{ opacity: animating ? 0.35 : 1 }}
           >
-            “{t.text}”
+            "{activeTestimonial.text}"
           </blockquote>
 
           <div className="mt-6 flex items-center justify-between gap-4 border-t border-white/10 pt-5">
             <div className="flex items-center gap-3">
               <div className="h-12 w-12 overflow-hidden rounded-full ring-2 ring-white/10">
-                <img src={t.image} alt={t.name} className="h-full w-full object-cover" />
+                <img src={activeTestimonial.image} alt={activeTestimonial.name} className="h-full w-full object-cover" />
               </div>
               <div>
-                <p className="text-sm font-bold text-white md:text-base">{t.name}</p>
+                <p className="text-sm font-bold text-white md:text-base">{activeTestimonial.name}</p>
                 <div className="flex items-center gap-2">
-                  <p className="text-xs text-slate-400 md:text-sm">{t.role}</p>
-                  {t.authorRole === 'worker' && (
+                  <p className="text-xs text-slate-400 md:text-sm">{activeTestimonial.role}</p>
+                  {activeTestimonial.authorRole === 'worker' && (
                     <span className="rounded-full border border-bird-blue/30 bg-bird-blue/15 px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.16em] text-bird-blue">
                       Pro
                     </span>

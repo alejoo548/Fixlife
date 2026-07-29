@@ -1,4 +1,5 @@
-import React from 'react';
+﻿import React from 'react';
+import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { TextHoverEffect } from '../common/TextHoverEffect';
 
@@ -18,18 +19,23 @@ export const Footer: React.FC<FooterProps> = ({
   onNavigateSection,
 }) => {
   const navigate = useNavigate();
-  const platformLinks = [
-    { label: 'Explore Services', target: 'services' },
-    { label: 'How it Works', target: 'steps' },
-    { label: 'Pricing', target: 'services' },
-    { label: 'Help Center', target: 'faq' },
-    { label: 'FAQ', target: 'faq' },
-  ];
+  const { i18n, t } = useTranslation();
+  const translatedPlatformLinks = t('footer.platformLinks', { returnObjects: true });
+  const platformLinks = Array.isArray(translatedPlatformLinks)
+    ? translatedPlatformLinks as Array<{ label: string; target: string }>
+    : [
+        { label: 'Explore services', target: 'services' },
+        { label: 'How it works', target: 'steps' },
+        { label: 'Pricing', target: 'services' },
+        { label: 'Help center', target: 'faq' },
+        { label: 'Frequently asked questions', target: 'faq' },
+      ];
+  const isSpanish = (i18n.resolvedLanguage || i18n.language || 'en').startsWith('es');
 
   const companyLinks = [
-    { label: 'Reviews', target: 'testimonials' },
-    { label: 'Leave a Review', onClick: () => navigate('/leave-review') },
-    { label: 'Become a Pro', onClick: onOpenPro },
+    { label: t('footer.companyLinks.0.label'), target: 'testimonials' },
+    { label: isSpanish ? 'Dejar una reseña' : 'Leave a Review', onClick: () => navigate('/leave-review') },
+    { label: t('footer.companyLinks.1.label'), onClick: onOpenPro },
   ];
 
   return (
@@ -58,12 +64,12 @@ export const Footer: React.FC<FooterProps> = ({
               </div>
               <div>
                 <span className="font-bold text-2xl tracking-tight text-white block">Fixlife</span>
-                <span className="text-xs text-bird-blue font-semibold">Your Home Hero</span>
+                <span className="text-xs text-bird-blue font-semibold">{t('footer.tagline')}</span>
               </div>
             </button>
 
             <p className="text-slate-400 text-sm leading-relaxed max-w-sm dark:text-slate-500">
-              The leading platform connecting local talent with real needs. Safety, trust, and speed in every service.
+              {t('footer.description')}
             </p>
 
             <div className="flex items-center gap-3 mt-2">
@@ -90,7 +96,7 @@ export const Footer: React.FC<FooterProps> = ({
           <div className="col-span-1 lg:col-span-3">
             <h4 className="text-white font-bold text-base mb-5 flex items-center gap-2">
               <div className="w-1 h-5 bg-bird-blue rounded-full" />
-              Platform
+              {t('footer.platformTitle')}
             </h4>
             <ul className="flex flex-col gap-3">
               {platformLinks.map((item) => (
@@ -113,7 +119,7 @@ export const Footer: React.FC<FooterProps> = ({
           <div className="col-span-1 lg:col-span-3">
             <h4 className="text-white font-bold text-base mb-5 flex items-center gap-2">
               <div className="w-1 h-5 bg-bird-yellow rounded-full" />
-              Company
+              {t('footer.companyTitle')}
             </h4>
             <ul className="flex flex-col gap-3">
               {companyLinks.map((item) => (
@@ -141,9 +147,9 @@ export const Footer: React.FC<FooterProps> = ({
 
         <div className="pt-8 border-t border-slate-800 flex flex-col md:flex-row items-center justify-between gap-4 text-xs text-slate-500 text-center md:text-left dark:border-white/10">
           <div className="flex items-center gap-2 text-slate-500">
-            <p>(c) 2024 Fixlife Inc. All rights reserved.</p>
+            <p>{t('footer.copyright')}</p>
             <span className="hidden md:inline">|</span>
-            <p className="hidden md:inline">Built for your home.</p>
+            <p className="hidden md:inline">{t('footer.builtForHome')}</p>
           </div>
           <div className="flex flex-wrap justify-center gap-6 md:gap-8 items-center">
             <button
@@ -155,7 +161,7 @@ export const Footer: React.FC<FooterProps> = ({
                 <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 11c0 3.517-1.009 6.799-2.753 9.571m-3.44-2.04l.054-.09A13.916 13.916 0 008 11a4 4 0 118 0c0 1.017-.07 2.019-.203 3m-2.118 6.844A21.88 21.88 0 0015.171 17m3.839 1.132c.645-2.266.99-4.659.99-7.132A8 8 0 008 4.07M3 15.364c.64-1.319 1-2.8 1-4.364 0-1.457.39-2.823 1.07-4" />
                 </svg>
-                Admin Area
+                {t('footer.adminArea')}
               </span>
             </button>
             <span className="text-slate-700 hidden md:inline dark:text-slate-600">|</span>
@@ -164,10 +170,10 @@ export const Footer: React.FC<FooterProps> = ({
               onClick={() => onNavigateSection?.('faq')}
               className="text-slate-500 hover:text-white transition-colors font-medium"
             >
-              Help Center
+              {t('footer.helpCenter')}
             </button>
             <button type="button" onClick={onBookService} className="hover:text-bird-blue transition-colors font-medium">
-              Book a Service
+              {t('footer.bookService')}
             </button>
           </div>
         </div>

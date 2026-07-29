@@ -41,12 +41,16 @@ export const AdminSchema = {
     name: nameLikeText(100).refine(v => v.length >= 1, 'Service name is required.'),
     description: messageText(500).optional().or(z.literal('')),
     icon: strictText(100).optional().or(z.literal('')),
+    min_budget: z.coerce.number().min(1).max(10000).optional(),
+    max_budget: z.coerce.number().min(1).max(10000).optional(),
   }),
 
   updateService: z.object({
     name: nameLikeText(100).optional(),
     description: messageText(500).optional().or(z.literal('')),
     icon: strictText(100).optional().or(z.literal('')),
+    min_budget: z.coerce.number().min(1).max(10000).optional(),
+    max_budget: z.coerce.number().min(1).max(10000).optional(),
     is_active: z
       .union([z.boolean(), z.literal(0), z.literal(1), z.literal('0'), z.literal('1')])
       .optional(),

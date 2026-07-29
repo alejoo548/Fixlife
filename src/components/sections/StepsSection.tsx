@@ -1,42 +1,34 @@
 import React from 'react';
 import { motion } from 'framer-motion';
+import { useTranslation } from 'react-i18next';
 
 export const StepsSection: React.FC = () => {
-  const steps = [
+  const { t } = useTranslation();
+  const translatedSteps = t('steps.items', { returnObjects: true }) as Array<{ id: string; title: string; desc: string }>;
+  const stepMeta = [
     {
-      id: "01",
-      title: "Request",
-      desc: "Choose the service you need and describe your problem. Quick and simple.",
-      icon: "M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z",
-      color: "blue",
-      gradient: "from-bird-blue to-bird-lightBlue"
+      icon: 'M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z',
+      gradient: 'from-bird-blue to-bird-lightBlue',
     },
     {
-      id: "02",
-      title: "Connect",
-      desc: "We show you the best professionals near you with transparent pricing.",
-      icon: "M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z",
-      color: "yellow",
-      gradient: "from-bird-yellow to-bird-orange"
+      icon: 'M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z',
+      gradient: 'from-bird-yellow to-bird-orange',
     },
     {
-      id: "03",
-      title: "Solve",
-      desc: "The expert arrives, fixes it, and you pay securely through the app.",
-      icon: "M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z",
-      color: "green",
-      gradient: "from-green-400 to-emerald-500"
-    }
+      icon: 'M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z',
+      gradient: 'from-green-400 to-emerald-500',
+    },
   ];
+  const steps = translatedSteps.map((step, index) => ({ ...step, ...stepMeta[index] }));
 
   return (
     <div className="w-full relative">
       <div className="text-center mb-7">
         <h3 className="text-2xl md:text-3xl font-black text-gray-900 mb-2">
-          How It Works
+          {t('steps.title')}
         </h3>
         <p className="text-gray-600 text-sm md:text-base font-medium">
-          Get your problem solved in three simple steps
+          {t('steps.subtitle')}
         </p>
       </div>
 
