@@ -1771,6 +1771,21 @@ export const ensureServiceRequestTables = async () => {
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
   `);
 
+  const [paymentCols] = await pool.execute<RowDataPacket[]>(
+    `SELECT COLUMN_NAME
+     FROM information_schema.columns
+     WHERE table_schema = DATABASE()
+       AND table_name = 'service_request_payments'
+       AND column_name IN ('provider_capture_id', 'currency_code')`
+  );
+  const paymentColSet = new Set(paymentCols.map((c: any) => String(c.COLUMN_NAME)));
+  if (!paymentColSet.has('provider_capture_id')) {
+    await pool.execute(`ALTER TABLE service_request_payments ADD COLUMN provider_capture_id VARCHAR(120) NULL AFTER provider_payment_id`);
+  }
+  if (!paymentColSet.has('currency_code')) {
+    await pool.execute(`ALTER TABLE service_request_payments ADD COLUMN currency_code VARCHAR(8) NOT NULL DEFAULT 'USD' AFTER provider_capture_id`);
+  }
+
   const [wompiTokenCols] = await pool.execute<RowDataPacket[]>(
     `SELECT COLUMN_NAME
      FROM information_schema.columns
@@ -1811,21 +1826,6 @@ export const ensureServiceRequestTables = async () => {
       `ALTER TABLE service_request_workers
       ADD COLUMN counter_status ENUM('pending', 'accepted', 'declined') NULL`
     );
-  }
-
-  const [paymentCols] = await pool.execute<RowDataPacket[]>(
-    `SELECT COLUMN_NAME
-     FROM information_schema.columns
-     WHERE table_schema = DATABASE()
-       AND table_name = 'service_request_payments'
-       AND column_name IN ('provider_capture_id', 'currency_code')`
-  );
-  const paymentColSet = new Set(paymentCols.map((c: any) => String(c.COLUMN_NAME)));
-  if (!paymentColSet.has('provider_capture_id')) {
-    await pool.execute(`ALTER TABLE service_request_payments ADD COLUMN provider_capture_id VARCHAR(120) NULL AFTER provider_payment_id`);
-  }
-  if (!paymentColSet.has('currency_code')) {
-    await pool.execute(`ALTER TABLE service_request_payments ADD COLUMN currency_code VARCHAR(8) NOT NULL DEFAULT 'USD' AFTER provider_capture_id`);
   }
 
   await ensureCommissionEngineTables();
