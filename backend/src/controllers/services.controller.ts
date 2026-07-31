@@ -467,7 +467,7 @@ const ensureServiceBudgetColumns = async () => {
        AND table_name = 'services'
        AND column_name IN ('min_budget', 'max_budget')`
   );
-  const existingColumns = new Set(rows.map((row) => String(row.column_name)));
+  const existingColumns = new Set(rows.map((row) => String(row.COLUMN_NAME)));
 
   if (!existingColumns.has('min_budget')) {
     await pool.execute(`ALTER TABLE services ADD COLUMN min_budget DECIMAL(10,2) NULL`);
