@@ -1,4 +1,5 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 
 type SaveLocationKind = 'home' | 'work' | 'favorite';
 type PreviewLocationKind = 'home' | 'work' | 'favorite' | 'recent';
@@ -76,12 +77,13 @@ export function ServiceRequestLocationSection({
     onUseSavedLocation,
     onRadiusChange,
 }: ServiceRequestLocationSectionProps) {
+    const { t } = useTranslation();
     return (
         <div className="space-y-4">
             <div className="rounded-2xl border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900 p-4">
-                <label className="block text-sm font-black text-slate-900 dark:text-slate-100">Service address</label>
+                <label className="block text-sm font-black text-slate-900 dark:text-slate-100">{t('serviceRequest.location.title')}</label>
                 <p className="mt-1 text-xs font-semibold text-slate-500 dark:text-slate-400">
-                    Search an address, landmark or use your current location.
+                    {t('serviceRequest.location.subtitle')}
                 </p>
 
                 <div className="relative mt-3">
@@ -91,7 +93,7 @@ export function ServiceRequestLocationSection({
                     </svg>
                     <input
                         type="text"
-                        placeholder="Search your address"
+                        placeholder={t('serviceRequest.location.searchPlaceholder')}
                         autoComplete="off"
                         maxLength={255}
                         className="w-full rounded-xl border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-slate-800 py-3 pl-11 pr-4 text-sm font-bold text-slate-900 dark:text-slate-100 outline-none transition focus:border-bird-blue focus:bg-white dark:focus:bg-slate-800 focus:ring-4 focus:ring-bird-blue/10"
@@ -111,7 +113,7 @@ export function ServiceRequestLocationSection({
                         disabled={geoLoading}
                         className="rounded-xl border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-800 px-3 py-3 text-xs font-black text-slate-700 dark:text-slate-200 transition hover:border-bird-blue hover:text-bird-blue disabled:opacity-50"
                     >
-                        {geoLoading ? 'Detecting...' : 'Use my location'}
+                        {geoLoading ? t('serviceRequest.location.detecting') : t('serviceRequest.location.useMyLocation')}
                     </button>
                     <button
                         type="button"
@@ -119,7 +121,7 @@ export function ServiceRequestLocationSection({
                         disabled={resolvingLocation || !location.trim()}
                         className="rounded-xl bg-bird-blue px-3 py-3 text-xs font-black text-white transition hover:bg-blue-600 disabled:opacity-50"
                     >
-                        {resolvingLocation ? 'Locating...' : 'Confirm address'}
+                        {resolvingLocation ? t('serviceRequest.location.locating') : t('serviceRequest.location.confirmAddress')}
                     </button>
                 </div>
             </div>
@@ -127,7 +129,7 @@ export function ServiceRequestLocationSection({
             {currentCoords ? (
                 <div className="flex items-center justify-between gap-3 rounded-2xl border border-emerald-200 dark:border-emerald-900/40 bg-emerald-50 dark:bg-emerald-950/30 p-4">
                     <div className="min-w-0">
-                        <p className="text-sm font-black text-emerald-900 dark:text-emerald-300">Pin confirmed on the map</p>
+                        <p className="text-sm font-black text-emerald-900 dark:text-emerald-300">{t('serviceRequest.location.pinConfirmed')}</p>
                         <p className="mt-1 truncate text-xs font-semibold text-emerald-700 dark:text-emerald-400">{location}</p>
                     </div>
                     <button
@@ -136,12 +138,12 @@ export function ServiceRequestLocationSection({
                         disabled={resolvingLocation || geoLoading}
                         className="shrink-0 rounded-xl border border-emerald-200 dark:border-emerald-800 bg-white dark:bg-slate-800 px-3 py-2 text-xs font-black text-emerald-700 dark:text-emerald-300"
                     >
-                        Save place
+                        {t('serviceRequest.location.savePlace')}
                     </button>
                 </div>
             ) : (
                 <div className="rounded-2xl border border-dashed border-slate-300 dark:border-white/10 bg-slate-50 dark:bg-slate-800/50 p-4 text-xs font-semibold text-slate-500 dark:text-slate-400">
-                    Confirm an address to place the pin and see nearby professionals on the map.
+                    {t('serviceRequest.location.confirmToPin')}
                 </div>
             )}
 
@@ -149,11 +151,11 @@ export function ServiceRequestLocationSection({
                 <div className="rounded-2xl border border-bird-blue/20 bg-sky-50 dark:bg-slate-800/80 p-4">
                     <div className="flex items-center justify-between gap-3">
                         <div>
-                            <p className="text-sm font-black text-slate-900 dark:text-slate-100">Save this place</p>
-                            <p className="mt-1 text-xs font-semibold text-slate-500 dark:text-slate-400">Reuse it on your next request.</p>
+                            <p className="text-sm font-black text-slate-900 dark:text-slate-100">{t('serviceRequest.location.savePlaceTitle')}</p>
+                            <p className="mt-1 text-xs font-semibold text-slate-500 dark:text-slate-400">{t('serviceRequest.location.savePlaceSubtitle')}</p>
                         </div>
                         <button type="button" onClick={onCloseSaveLocationPanel} className="text-xs font-black text-slate-500 dark:text-slate-400">
-                            Close
+                            {t('serviceRequest.location.close')}
                         </button>
                     </div>
 
@@ -181,7 +183,7 @@ export function ServiceRequestLocationSection({
                                         : 'border-slate-200 dark:border-white/10 bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300'
                                 }`}
                             >
-                                {kind === 'home' ? 'Home' : kind === 'work' ? 'Work' : 'Favorite'}
+                                {kind === 'home' ? t('serviceRequest.location.home') : kind === 'work' ? t('serviceRequest.location.work') : t('serviceRequest.location.favorite')}
                             </button>
                         ))}
                     </div>
@@ -192,13 +194,13 @@ export function ServiceRequestLocationSection({
                             value={saveLocationTitle}
                             maxLength={80}
                             onChange={(event) => onSaveLocationTitleChange(event.target.value)}
-                            placeholder="Place name"
+                            placeholder={t('serviceRequest.location.placeName')}
                             className="mt-3 w-full rounded-xl border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900 px-4 py-3 text-sm font-bold text-slate-900 dark:text-slate-100 outline-none focus:border-bird-blue"
                         />
                     )}
 
                     <button type="button" onClick={onSaveLocation} className="mt-3 w-full rounded-xl bg-slate-950 dark:bg-slate-800 px-4 py-3 text-sm font-black text-white">
-                        Save place
+                        {t('serviceRequest.location.savePlace')}
                     </button>
                 </div>
             )}
@@ -208,11 +210,11 @@ export function ServiceRequestLocationSection({
             <div className="rounded-2xl border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900 p-4">
                 <div className="flex items-center justify-between gap-3">
                     <div>
-                        <p className="text-sm font-black text-slate-900 dark:text-slate-100">Saved places</p>
-                        <p className="mt-1 text-xs font-semibold text-slate-500 dark:text-slate-400">Choose one without typing again.</p>
+                        <p className="text-sm font-black text-slate-900 dark:text-slate-100">{t('serviceRequest.location.savedPlaces')}</p>
+                        <p className="mt-1 text-xs font-semibold text-slate-500 dark:text-slate-400">{t('serviceRequest.location.savedPlacesSubtitle')}</p>
                     </div>
                     <button type="button" onClick={onOpenSavedPlacesModal} className="rounded-xl bg-slate-100 dark:bg-slate-800 px-3 py-2 text-xs font-black text-slate-700 dark:text-slate-200">
-                        View all
+                        {t('serviceRequest.location.viewAll')}
                     </button>
                 </div>
 
@@ -231,13 +233,13 @@ export function ServiceRequestLocationSection({
                         ))}
                     </div>
                 ) : (
-                    <p className="mt-3 text-xs font-semibold text-slate-400 dark:text-slate-500">You do not have saved places yet.</p>
+                    <p className="mt-3 text-xs font-semibold text-slate-400 dark:text-slate-500">{t('serviceRequest.location.noSavedPlaces')}</p>
                 )}
             </div>
 
             <div className="rounded-2xl border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900 p-4">
-                <p className="text-sm font-black text-slate-900 dark:text-slate-100">Search distance</p>
-                <p className="mt-1 text-xs font-semibold text-slate-500 dark:text-slate-400">A wider radius may find more professionals.</p>
+                <p className="text-sm font-black text-slate-900 dark:text-slate-100">{t('serviceRequest.location.searchDistance')}</p>
+                <p className="mt-1 text-xs font-semibold text-slate-500 dark:text-slate-400">{t('serviceRequest.location.searchDistanceSubtitle')}</p>
                 <div className="mt-3 grid grid-cols-5 gap-2">
                     {[3, 5, 8, 12, 15].map((value) => (
                         <button

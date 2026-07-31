@@ -1,5 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useTranslation } from 'react-i18next';
 import { isAuthenticated } from '../../utils/session';
 
 interface ProBentoProps {
@@ -7,59 +8,39 @@ interface ProBentoProps {
   onOpenWorkerAuth?: (mode: 'signin' | 'signup') => void;
 }
 
-const PRO_PROFILES = [
-  {
-    id: 1,
-    name: "Carlos Méndez",
-    role: "Industrial Electrician",
-    bio: "Specialist in structured cabling. 6-month guarantee.",
-    image: "/landing-home-repair.jpg",
-    stats: ["certified", "5.0", "verified"],
-    jobs: 124,
-    color: "blue"
-  },
-  {
-    id: 2,
-    name: "Ana Julia R.",
-    role: "Plumbing & Gas",
-    bio: "Quick solutions for leaks and preventive maintenance.",
-    image: "/landing-carpentry.jpg",
-    stats: ["top-rated", "4.9", "fast"],
-    jobs: 98,
-    color: "yellow"
-  },
-  {
-    id: 3,
-    name: "Roberto Díaz",
-    role: "HVAC Technician",
-    bio: "Air conditioning installation and repair.",
-    image: "/landing-renovation.jpg",
-    stats: ["expert", "4.8", "insured"],
-    jobs: 156,
-    color: "orange"
-  }
+const PRO_PROFILE_META = [
+  { id: 1, name: "Carlos Méndez", image: "/landing-home-repair.jpg", jobs: 124, color: "blue" },
+  { id: 2, name: "Ana Julia R.", image: "/landing-carpentry.jpg", jobs: 98, color: "yellow" },
+  { id: 3, name: "Roberto Díaz", image: "/landing-renovation.jpg", jobs: 156, color: "orange" },
 ];
 
-const StatIcon = ({ type }: { type: string }) => {
+const StatIcon = ({ type, statLabels }: { type: string; statLabels: Record<string, string> }) => {
   if (type === '5.0' || type === '4.9' || type === '4.8') return <span className="text-bird-yellow font-bold text-lg drop-shadow-sm">★ {type}</span>;
-  if (type === 'verified') return <span className="text-blue-500 bg-blue-50 px-2.5 py-1 rounded-lg text-[10px] font-bold border border-blue-200 tracking-wider">VERIFIED</span>;
-  if (type === 'certified') return <span className="text-emerald-500 bg-emerald-50 px-2.5 py-1 rounded-lg text-[10px] font-bold border border-emerald-200 tracking-wider">CERTIFIED</span>;
-  if (type === 'expert') return <span className="text-purple-500 bg-purple-50 px-2.5 py-1 rounded-lg text-[10px] font-bold border border-purple-200 tracking-wider">EXPERT</span>;
-  if (type === 'top-rated') return <span className="text-orange-500 bg-orange-50 px-2.5 py-1 rounded-lg text-[10px] font-bold border border-orange-200 tracking-wider">TOP RATED</span>;
-  if (type === 'fast') return <span className="text-cyan-500 bg-cyan-50 px-2.5 py-1 rounded-lg text-[10px] font-bold border border-cyan-200 tracking-wider">FAST</span>;
-  if (type === 'insured') return <span className="text-indigo-500 bg-indigo-50 px-2.5 py-1 rounded-lg text-[10px] font-bold border border-indigo-200 tracking-wider">INSURED</span>;
+  if (type === 'verified') return <span className="text-blue-500 bg-blue-50 px-2.5 py-1 rounded-lg text-[10px] font-bold border border-blue-200 tracking-wider">{statLabels.verified}</span>;
+  if (type === 'certified') return <span className="text-emerald-500 bg-emerald-50 px-2.5 py-1 rounded-lg text-[10px] font-bold border border-emerald-200 tracking-wider">{statLabels.certified}</span>;
+  if (type === 'expert') return <span className="text-purple-500 bg-purple-50 px-2.5 py-1 rounded-lg text-[10px] font-bold border border-purple-200 tracking-wider">{statLabels.expert}</span>;
+  if (type === 'top-rated') return <span className="text-orange-500 bg-orange-50 px-2.5 py-1 rounded-lg text-[10px] font-bold border border-orange-200 tracking-wider">{statLabels.topRated}</span>;
+  if (type === 'fast') return <span className="text-cyan-500 bg-cyan-50 px-2.5 py-1 rounded-lg text-[10px] font-bold border border-cyan-200 tracking-wider">{statLabels.fast}</span>;
+  if (type === 'insured') return <span className="text-indigo-500 bg-indigo-50 px-2.5 py-1 rounded-lg text-[10px] font-bold border border-indigo-200 tracking-wider">{statLabels.insured}</span>;
   return null;
 };
 
 export const ProBento: React.FC<ProBentoProps> = ({ onOpenPro, onOpenWorkerAuth }) => {
+  const { t } = useTranslation();
   const [activeProfile, setActiveProfile] = useState(0);
+  const translatedProfiles = t('pros.profiles', { returnObjects: true }) as Array<{ role: string; bio: string; stats: string[] }>;
+  const statLabels = t('pros.statLabels', { returnObjects: true }) as Record<string, string>;
+  const PRO_PROFILES = useMemo(
+    () => PRO_PROFILE_META.map((meta, idx) => ({ ...meta, ...translatedProfiles[idx] })),
+    [translatedProfiles]
+  );
 
   useEffect(() => {
     const interval = setInterval(() => {
       setActiveProfile((prev) => (prev + 1) % PRO_PROFILES.length);
     }, 5000);
     return () => clearInterval(interval);
-  }, []);
+  }, [PRO_PROFILES.length]);
 
   const profile = PRO_PROFILES[activeProfile];
 
@@ -103,26 +84,26 @@ export const ProBento: React.FC<ProBentoProps> = ({ onOpenPro, onOpenWorkerAuth 
               transition={{ duration: 2, repeat: Infinity }}
               className="w-2 h-2 rounded-full bg-bird-blue"
             />
-            FOR PROFESSIONALS
+            {t('pros.badge')}
           </div>
 
           <h2 className="text-4xl md:text-5xl lg:text-6xl font-black text-slate-900 dark:text-slate-100 mb-6 leading-[1.1] tracking-tight">
-            Your work.<br />
+            {t('pros.titleLine1')}<br />
             <span className="text-transparent bg-clip-text bg-gradient-to-r from-bird-blue via-bird-lightBlue to-bird-blue animate-gradient">
-              Your rules.
+              {t('pros.titleAccent')}
             </span>
           </h2>
 
           <p className="text-slate-600 dark:text-slate-300 text-base md:text-lg mb-8 leading-relaxed font-medium">
-            Join the platform that values your craft. No bosses, manage your own schedule and get paid securely every week.
+            {t('pros.description')}
           </p>
 
           {/* Benefits list */}
           <div className="mb-8 space-y-3">
             {[
-              { icon: "M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z", text: "Earn up to $5,000/month" },
-              { icon: "M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z", text: "Flexible schedule" },
-              { icon: "M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z", text: "Insurance included" }
+              { icon: "M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z", text: (t('pros.benefits', { returnObjects: true }) as string[])[0] },
+              { icon: "M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z", text: (t('pros.benefits', { returnObjects: true }) as string[])[1] },
+              { icon: "M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z", text: (t('pros.benefits', { returnObjects: true }) as string[])[2] }
             ].map((benefit, i) => (
               <div
                 key={i}
@@ -146,7 +127,7 @@ export const ProBento: React.FC<ProBentoProps> = ({ onOpenPro, onOpenWorkerAuth 
               onClick={() => onOpenWorkerAuth?.('signup')}
               className="w-full sm:w-auto px-8 py-4 rounded-xl bg-gradient-to-r from-bird-blue to-bird-lightBlue text-white font-bold text-base shadow-xl shadow-bird-blue/30 flex items-center justify-center gap-2 group hover:shadow-2xl hover:shadow-bird-blue/40 transition-all"
             >
-              Apply as Pro
+              {t('pros.ctas.apply')}
               <svg className="w-5 h-5 group-hover:translate-x-1 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" />
               </svg>
@@ -157,7 +138,7 @@ export const ProBento: React.FC<ProBentoProps> = ({ onOpenPro, onOpenWorkerAuth 
               onClick={() => onOpenWorkerAuth?.('signin')}
               className="w-full sm:w-auto px-8 py-4 rounded-xl bg-white dark:bg-slate-900 border-2 border-gray-200 dark:border-white/10 text-slate-900 dark:text-slate-100 font-bold hover:border-bird-blue hover:text-bird-blue dark:hover:text-bird-blue transition-all"
             >
-              Pro Sign In
+              {t('pros.ctas.signIn')}
             </motion.button>
           </div>
           )}
@@ -213,7 +194,7 @@ export const ProBento: React.FC<ProBentoProps> = ({ onOpenPro, onOpenWorkerAuth 
                           transition={{ duration: 2, repeat: Infinity }}
                           className="w-2 h-2 rounded-full bg-white"
                         />
-                        ONLINE
+                        {statLabels.online}
                       </motion.div>
                     </motion.div>
 
@@ -224,7 +205,7 @@ export const ProBento: React.FC<ProBentoProps> = ({ onOpenPro, onOpenWorkerAuth 
                       transition={{ delay: 0.3, type: "spring" }}
                       className="absolute -bottom-4 -right-4 sm:-bottom-4 sm:-right-8 z-30 bg-gradient-to-br from-bird-blue to-bird-lightBlue border-4 border-white dark:border-slate-800 p-4 rounded-2xl shadow-xl flex flex-col items-center min-w-[100px]"
                     >
-                      <span className="text-[10px] text-white/80 uppercase tracking-widest font-bold">JOBS</span>
+                      <span className="text-[10px] text-white/80 uppercase tracking-widest font-bold">{statLabels.jobs}</span>
                       <span className="text-2xl font-black text-white">{profile.jobs}</span>
                     </motion.div>
                   </div>
@@ -271,7 +252,7 @@ export const ProBento: React.FC<ProBentoProps> = ({ onOpenPro, onOpenWorkerAuth 
                           animate={{ opacity: 1, scale: 1 }}
                           transition={{ delay: 0.6 + i * 0.1, type: "spring" }}
                         >
-                          <StatIcon type={stat} />
+                          <StatIcon type={stat} statLabels={statLabels} />
                         </motion.div>
                       ))}
                     </motion.div>
@@ -291,7 +272,7 @@ export const ProBento: React.FC<ProBentoProps> = ({ onOpenPro, onOpenWorkerAuth 
                       ? 'w-8 bg-bird-blue'
                       : 'w-2 bg-gray-300 hover:bg-gray-400'
                   }`}
-                  aria-label={`View profile ${index + 1}`}
+                  aria-label={t('pros.a11y.viewProfile', { index: index + 1 })}
                 />
               ))}
             </div>

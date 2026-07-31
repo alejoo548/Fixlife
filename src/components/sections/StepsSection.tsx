@@ -1,42 +1,31 @@
 import React from 'react';
 import { motion } from 'framer-motion';
+import { useTranslation } from 'react-i18next';
+
+const stepIcons = [
+  "M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z",
+  "M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z",
+  "M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z",
+];
+const stepGradients = ["from-bird-blue to-bird-lightBlue", "from-bird-yellow to-bird-orange", "from-green-400 to-emerald-500"];
 
 export const StepsSection: React.FC = () => {
-  const steps = [
-    {
-      id: "01",
-      title: "Request",
-      desc: "Choose the service you need and describe your problem. Quick and simple.",
-      icon: "M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z",
-      color: "blue",
-      gradient: "from-bird-blue to-bird-lightBlue"
-    },
-    {
-      id: "02",
-      title: "Connect",
-      desc: "We show you the best professionals near you with transparent pricing.",
-      icon: "M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z",
-      color: "yellow",
-      gradient: "from-bird-yellow to-bird-orange"
-    },
-    {
-      id: "03",
-      title: "Solve",
-      desc: "The expert arrives, fixes it, and you pay securely through the app.",
-      icon: "M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z",
-      color: "green",
-      gradient: "from-green-400 to-emerald-500"
-    }
-  ];
+  const { t } = useTranslation();
+  const stepItems = t('steps.items', { returnObjects: true }) as Array<{ id: string; title: string; desc: string }>;
+  const steps = stepItems.map((item, index) => ({
+    ...item,
+    icon: stepIcons[index],
+    gradient: stepGradients[index],
+  }));
 
   return (
     <div className="w-full relative">
       <div className="text-center mb-10">
         <h3 className="text-2xl md:text-3xl font-black text-slate-900 dark:text-slate-100 mb-2">
-          How It Works
+          {t('steps.title')}
         </h3>
         <p className="text-slate-600 dark:text-slate-400 text-sm md:text-base font-medium">
-          Get your problem solved in three simple steps
+          {t('steps.subtitle')}
         </p>
       </div>
 

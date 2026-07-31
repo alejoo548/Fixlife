@@ -1,5 +1,6 @@
 import React from 'react';
 import type { LocationSuggestion, SavedLocation } from './ServiceRequestWizard.types';
+import i18n from '../../i18n';
 
 const SAVED_LOCATIONS_KEY = 'fixlife.saved_locations.v1';
 const HOME_ICON = "M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6";
@@ -97,7 +98,7 @@ export const writeSavedLocations = (payload: {
 
 export const compactLocationTitle = (label: string) => {
     const firstPart = String(label || '').split(',')[0]?.trim();
-    if (!firstPart) return 'Recent';
+    if (!firstPart) return i18n.t('serviceRequest.location.recentLabel');
     return firstPart.slice(0, 28);
 };
 
@@ -109,7 +110,7 @@ export const toSavedLocation = (row: any): SavedLocation | null => {
     return {
         id_saved_location: row?.id_saved_location != null ? Number(row.id_saved_location) : null,
         kind: String(row?.kind || 'recent') as SavedLocation['kind'],
-        title: String(row?.title || 'Saved place'),
+        title: String(row?.title || i18n.t('serviceRequest.location.savedPlaceFallback')),
         label: String(row?.label || ''),
         lat,
         lng,
@@ -170,8 +171,8 @@ export const distanceKmBetween = (
 
 export const formatDistanceLabel = (distanceKm: number | null) => {
     if (distanceKm == null || !Number.isFinite(distanceKm)) return null;
-    if (distanceKm < 1) return `${Math.round(distanceKm * 1000)} m away`;
-    return `${distanceKm.toFixed(1)} km away`;
+    if (distanceKm < 1) return i18n.t('serviceRequest.location.metersAway', { count: Math.round(distanceKm * 1000) });
+    return i18n.t('serviceRequest.location.kmAway', { count: Number(distanceKm.toFixed(1)) });
 };
 
 export const getSuggestionDisplay = (suggestion: LocationSuggestion) => {
@@ -182,7 +183,7 @@ export const getSuggestionDisplay = (suggestion: LocationSuggestion) => {
         .filter((part) => part.toLowerCase() !== 'el salvador');
 
     return {
-        title: (suggestion.short_label || fallbackParts[0] || suggestion.label || 'Saved place').trim(),
+        title: (suggestion.short_label || fallbackParts[0] || suggestion.label || i18n.t('serviceRequest.location.savedPlaceFallback')).trim(),
         context:
             (suggestion.context_label ||
                 fallbackParts.slice(1, 3).join(' - ') ||
@@ -191,13 +192,13 @@ export const getSuggestionDisplay = (suggestion: LocationSuggestion) => {
 };
 
 const getSuggestionKindLabel = (kind?: string) => {
-    if (!kind) return 'Place';
-    if (kind === 'centro-comercial') return 'Mall';
-    if (kind === 'residencial') return 'Residential';
-    if (kind === 'colonia') return 'Colonia';
-    if (kind === 'parque') return 'Park';
-    if (kind === 'zona') return 'Zone';
-    return 'Place';
+    if (!kind) return i18n.t('serviceRequest.location.kinds.place');
+    if (kind === 'centro-comercial') return i18n.t('serviceRequest.location.kinds.mall');
+    if (kind === 'residencial') return i18n.t('serviceRequest.location.kinds.residential');
+    if (kind === 'colonia') return i18n.t('serviceRequest.location.kinds.colonia');
+    if (kind === 'parque') return i18n.t('serviceRequest.location.kinds.park');
+    if (kind === 'zona') return i18n.t('serviceRequest.location.kinds.zone');
+    return i18n.t('serviceRequest.location.kinds.place');
 };
 
 export const getSuggestionBadgeLabel = (suggestion: LocationSuggestion) => {
@@ -209,14 +210,14 @@ export const getSuggestionBadgeLabel = (suggestion: LocationSuggestion) => {
         return getSuggestionKindLabel(suggestion.kind);
     }
 
-    return 'Map';
+    return i18n.t('serviceRequest.location.kinds.map');
 };
 
 export const getLocationVisual = (kind: SavedLocation['kind'] | 'current') => {
     if (kind === 'home') {
         return {
             color: '#10b981',
-            label: 'Home',
+            label: i18n.t('serviceRequest.location.home'),
             iconPath: HOME_ICON,
             filled: false,
             badgeClass: 'from-emerald-500 via-emerald-500 to-teal-500',
@@ -227,7 +228,7 @@ export const getLocationVisual = (kind: SavedLocation['kind'] | 'current') => {
     if (kind === 'work') {
         return {
             color: '#f59e0b',
-            label: 'Work',
+            label: i18n.t('serviceRequest.location.work'),
             iconPath: WORK_ICON,
             filled: false,
             badgeClass: 'from-amber-400 via-amber-500 to-orange-500',
@@ -238,7 +239,7 @@ export const getLocationVisual = (kind: SavedLocation['kind'] | 'current') => {
     if (kind === 'favorite') {
         return {
             color: '#ec4899',
-            label: 'Favorite',
+            label: i18n.t('serviceRequest.location.favorite'),
             iconPath: FAVORITE_ICON,
             filled: true,
             badgeClass: 'from-fuchsia-500 via-pink-500 to-rose-500',
@@ -249,7 +250,7 @@ export const getLocationVisual = (kind: SavedLocation['kind'] | 'current') => {
     if (kind === 'recent') {
         return {
             color: '#64748b',
-            label: 'Recent',
+            label: i18n.t('serviceRequest.location.recentLabel'),
             iconPath: RECENT_ICON,
             filled: false,
             badgeClass: 'from-slate-500 via-slate-500 to-slate-600',
@@ -259,7 +260,7 @@ export const getLocationVisual = (kind: SavedLocation['kind'] | 'current') => {
     }
     return {
         color: '#0ea5e9',
-        label: 'Selected',
+        label: i18n.t('serviceRequest.location.selectedLabel'),
         iconPath: CURRENT_ICON,
         filled: true,
         badgeClass: 'from-sky-500 via-cyan-500 to-blue-500',

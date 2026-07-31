@@ -1,5 +1,7 @@
 import React, { Suspense, lazy, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
+import { useTranslation } from 'react-i18next';
+import i18n from '../../i18n';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useSSE } from '../../hooks/useSSE';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -102,12 +104,12 @@ class TrackerErrorBoundary extends React.Component<
         if (this.state.hasError) {
             return (
                 <div className="rounded-3xl border border-amber-200 dark:border-amber-900/50 bg-gradient-to-r from-amber-50 via-white to-sky-50 p-5 shadow-sm">
-                    <p className="text-[11px] font-black uppercase tracking-[0.18em] text-amber-700 dark:text-amber-400">Tracker paused</p>
+                    <p className="text-[11px] font-black uppercase tracking-[0.18em] text-amber-700 dark:text-amber-400">{i18n.t('serviceRequest.ui.trackerPaused')}</p>
                     <p className="mt-2 text-sm font-semibold text-slate-900 dark:text-slate-100">
-                        The live route hit a temporary issue and was reset safely.
+                        {i18n.t('serviceRequest.ui.trackerIssue')}
                     </p>
                     <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-                        Refresh the page or reopen the request to continue tracking.
+                        {i18n.t('serviceRequest.ui.trackerRefresh')}
                     </p>
                 </div>
             );
@@ -121,7 +123,7 @@ const InlineTrackerFallback: React.FC = () => (
     <div className="rounded-[28px] border border-bird-blue/10 bg-white/95 dark:bg-slate-900/70 p-4 shadow-[0_18px_38px_rgba(15,23,42,0.05)]">
         <div className="flex items-center gap-3">
             <div className="h-3.5 w-3.5 rounded-full border-2 border-bird-blue/20 border-t-bird-blue animate-spin" />
-            <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-900 dark:text-slate-100">Preparing live tracker</p>
+            <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-900 dark:text-slate-100">{i18n.t('serviceRequest.ui.preparingTracker')}</p>
         </div>
     </div>
 );
@@ -137,11 +139,11 @@ const formatScheduledServiceWindow = (
             ? `${request.scheduled_date}T${request.scheduled_time}`
             : null
     );
-    if (!startValue) return 'Time pending';
+    if (!startValue) return i18n.t('serviceRequest.scheduling.visitLabels.timePending');
 
     const start = new Date(startValue);
     const end = request.scheduled_end_time ? new Date(request.scheduled_end_time) : null;
-    if (Number.isNaN(start.getTime())) return 'Time pending';
+    if (Number.isNaN(start.getTime())) return i18n.t('serviceRequest.scheduling.visitLabels.timePending');
 
     const dateLabel = start.toLocaleDateString('en-US', {
         weekday: 'short',
@@ -163,10 +165,10 @@ declare global {
 }
 
 const REQUEST_FLOW_STEPS = [
-    { label: 'Problem', shortLabel: '1' },
-    { label: 'Location', shortLabel: '2' },
-    { label: 'Schedule', shortLabel: '3' },
-    { label: 'Review', shortLabel: '4' },
+    { label: i18n.t('serviceRequest.ui.problem'), shortLabel: '1' },
+    { label: i18n.t('serviceRequest.ui.location'), shortLabel: '2' },
+    { label: i18n.t('serviceRequest.ui.schedule'), shortLabel: '3' },
+    { label: i18n.t('serviceRequest.ui.review'), shortLabel: '4' },
 ] as const;
 
 const MAX_REQUEST_BUDGET = 1000;
@@ -186,7 +188,7 @@ const formatSubmittedRequestSchedule = (request: {
     scheduled_date: string | null;
     scheduled_time: string | null;
 }) => {
-    if (String(request.booking_type || '').toLowerCase() !== 'scheduled') return 'Express request';
+    if (String(request.booking_type || '').toLowerCase() !== 'scheduled') return i18n.t('serviceRequest.wizard.submitted.expressRequest');
 
     return formatScheduledServiceWindow({
         scheduled_start_time: request.scheduled_start_time,
@@ -217,45 +219,45 @@ const buildSubmittedRequestSummaryHtml = (request: {
         request.status === 'assigned' &&
         request.selection_mode === 'auto_assign' &&
         request.assigned_worker_profile != null;
-    const requestNumber = request.id_request ? `#${request.id_request}` : 'Created';
+    const requestNumber = request.id_request ? `#${request.id_request}` : i18n.t('serviceRequest.wizard.submitted.created');
     const scheduleLabel = formatSubmittedRequestSchedule(request);
-    const modeLabel = String(request.booking_type || 'express').toLowerCase() === 'scheduled' ? 'Scheduled' : 'Express';
-    const statusLabelText = autoAssigned ? 'Pro assigned' : 'Waiting for Pro';
+    const modeLabel = String(request.booking_type || 'express').toLowerCase() === 'scheduled' ? i18n.t('serviceRequest.scheduling.scheduled') : i18n.t('serviceRequest.scheduling.express');
+    const statusLabelText = autoAssigned ? i18n.t('serviceRequest.wizard.submitted.proAssigned') : i18n.t('serviceRequest.wizard.submitted.waitingForPro');
 
     return `
         <div class="mt-2 text-left">
             <div class="rounded-3xl border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-white/[0.04] p-4">
                 <div class="flex items-start justify-between gap-3">
                     <div>
-                        <p class="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">Request ${escapeHtml(requestNumber)}</p>
+                        <p class="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">${escapeHtml(i18n.t('serviceRequest.wizard.submitted.request'))} ${escapeHtml(requestNumber)}</p>
                         <h3 class="mt-1 text-lg font-black leading-tight text-slate-950 dark:text-slate-100">${escapeHtml(request.service_name)}</h3>
                     </div>
                     <span class="shrink-0 rounded-full bg-emerald-100 dark:bg-emerald-900/40 px-3 py-1 text-[10px] font-black uppercase tracking-[0.12em] text-emerald-700 dark:text-emerald-400">${escapeHtml(statusLabelText)}</span>
                 </div>
                 <div class="mt-4 grid grid-cols-2 gap-2">
                     <div class="rounded-2xl border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900/70 p-3">
-                        <p class="text-[10px] font-black uppercase tracking-[0.14em] text-slate-400 dark:text-slate-500">Type</p>
+                        <p class="text-[10px] font-black uppercase tracking-[0.14em] text-slate-400 dark:text-slate-500">${escapeHtml(i18n.t('serviceRequest.wizard.submitted.type'))}</p>
                         <p class="mt-1 text-sm font-black text-slate-950 dark:text-slate-100">${escapeHtml(modeLabel)}</p>
                     </div>
                     <div class="rounded-2xl border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900/70 p-3">
-                        <p class="text-[10px] font-black uppercase tracking-[0.14em] text-slate-400 dark:text-slate-500">Budget</p>
+                        <p class="text-[10px] font-black uppercase tracking-[0.14em] text-slate-400 dark:text-slate-500">${escapeHtml(i18n.t('serviceRequest.wizard.submitted.budget'))}</p>
                         <p class="mt-1 text-sm font-black text-slate-950 dark:text-slate-100">$${Number(request.budget || 0).toFixed(2)}</p>
                     </div>
                     <div class="rounded-2xl border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900/70 p-3">
-                        <p class="text-[10px] font-black uppercase tracking-[0.14em] text-slate-400 dark:text-slate-500">Schedule</p>
+                        <p class="text-[10px] font-black uppercase tracking-[0.14em] text-slate-400 dark:text-slate-500">${escapeHtml(i18n.t('serviceRequest.wizard.submitted.schedule'))}</p>
                         <p class="mt-1 text-sm font-black text-slate-950 dark:text-slate-100">${escapeHtml(scheduleLabel)}</p>
                     </div>
                     <div class="rounded-2xl border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900/70 p-3">
-                        <p class="text-[10px] font-black uppercase tracking-[0.14em] text-slate-400 dark:text-slate-500">Photos</p>
+                        <p class="text-[10px] font-black uppercase tracking-[0.14em] text-slate-400 dark:text-slate-500">${escapeHtml(i18n.t('serviceRequest.wizard.submitted.photos'))}</p>
                         <p class="mt-1 text-sm font-black text-slate-950 dark:text-slate-100">${request.image_count}</p>
                     </div>
                 </div>
                 <div class="mt-3 rounded-2xl border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900/70 p-3">
-                    <p class="text-[10px] font-black uppercase tracking-[0.14em] text-slate-400 dark:text-slate-500">Location</p>
+                    <p class="text-[10px] font-black uppercase tracking-[0.14em] text-slate-400 dark:text-slate-500">${escapeHtml(i18n.t('serviceRequest.wizard.submitted.location'))}</p>
                     <p class="mt-1 break-words text-sm font-bold leading-5 text-slate-700 dark:text-slate-300">${escapeHtml(request.location)}</p>
                 </div>
                 <p class="mt-3 text-center text-xs font-bold leading-5 text-slate-500 dark:text-slate-400">
-                    You will return to the main map now. You can reopen this request from notifications or My Requests later.
+                    ${escapeHtml(i18n.t('serviceRequest.wizard.submitted.returnNotice'))}
                 </p>
             </div>
         </div>
@@ -285,9 +287,9 @@ const areValidCoordinates = (coords: { lat: number; lng: number } | null | undef
     coords.lng <= 180;
 
 const formatRequestVisit = (data: ServiceRequestData) => {
-    if (data.booking_type === 'express') return 'As soon as possible';
+    if (data.booking_type === 'express') return i18n.t('serviceRequest.scheduling.visitLabels.asSoonAsPossible');
     const start = new Date(`${data.scheduled_date}T${data.scheduled_time}:00`);
-    if (Number.isNaN(start.getTime())) return 'Schedule needs review';
+    if (Number.isNaN(start.getTime())) return i18n.t('serviceRequest.scheduling.visitLabels.scheduleNeedsReview');
     return start.toLocaleString('en-US', {
         weekday: 'short',
         month: 'short',
@@ -372,6 +374,7 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
     const [ratingModalRequest, setRatingModalRequest] = useState<MyServiceRequest | null>(null);
     const [fixesSuccessRequest, setFixesSuccessRequest] = useState<MyServiceRequest | null>(null);
     const [reportRequest, setReportRequest] = useState<MyServiceRequest | null>(null);
+    const { t } = useTranslation();
     const isDesktopSheet = useResponsiveSheet();
     const lastToastRef = useRef<{ type: 'success' | 'error' | 'info'; message: string; at: number } | null>(null);
     const previousRequestStatusesRef = useRef<Record<number, string>>({});
@@ -574,13 +577,13 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
             });
             const payload = await res.json();
             if (!res.ok || !payload?.success) {
-                if (!silent) showToast('error', payload?.error || 'Could not load saved locations.');
+                if (!silent) showToast('error', payload?.error || t('serviceRequest.toastMessages.loadSavedLocationsError'));
                 return null;
             }
             applySavedLocationsPayload(payload.locations);
             return Array.isArray(payload.locations) ? payload.locations.length : 0;
         } catch {
-            if (!silent) showToast('error', 'Could not load saved locations.');
+            if (!silent) showToast('error', t('serviceRequest.toastMessages.loadSavedLocationsError'));
             return null;
         }
     };
@@ -645,14 +648,14 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
             });
             const payload = await res.json();
             if (!res.ok || !payload?.success) {
-                showToast('error', payload?.error || 'Could not save this place.');
+                showToast('error', payload?.error || t('serviceRequest.toastMessages.savePlaceError'));
                 return false;
             }
             applySavedLocationsPayload(payload.locations);
             if (successMessage) showToast('success', successMessage);
             return true;
         } catch {
-            showToast('error', 'Could not save this place.');
+            showToast('error', t('serviceRequest.toastMessages.savePlaceError'));
             return false;
         }
     };
@@ -676,14 +679,14 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
             });
             const payload = await res.json();
             if (!res.ok || !payload?.success) {
-                showToast('error', payload?.error || 'Could not update this saved place.');
+                showToast('error', payload?.error || t('serviceRequest.toastMessages.updatePlaceError'));
                 return false;
             }
             applySavedLocationsPayload(payload.locations);
             if (successMessage) showToast('success', successMessage);
             return true;
         } catch {
-            showToast('error', 'Could not update this saved place.');
+            showToast('error', t('serviceRequest.toastMessages.updatePlaceError'));
             return false;
         }
     };
@@ -701,14 +704,14 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
             });
             const payload = await res.json();
             if (!res.ok || !payload?.success) {
-                showToast('error', payload?.error || 'Could not remove this saved place.');
+                showToast('error', payload?.error || t('serviceRequest.toastMessages.removePlaceError'));
                 return false;
             }
             await fetchSavedLocationsFromBackend(true);
             if (successMessage) showToast('success', successMessage);
             return true;
         } catch {
-            showToast('error', 'Could not remove this saved place.');
+            showToast('error', t('serviceRequest.toastMessages.removePlaceError'));
             return false;
         }
     };
@@ -726,14 +729,14 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
             });
             const payload = await res.json();
             if (!res.ok || !payload?.success) {
-                showToast('error', payload?.error || 'Could not clear recent locations.');
+                showToast('error', payload?.error || t('serviceRequest.notifications.recentLocationsClearError'));
                 return false;
             }
             await fetchSavedLocationsFromBackend(true);
-            showToast('success', 'Recent locations cleared.');
+            showToast('success', t('serviceRequest.notifications.recentLocationsCleared'));
             return true;
         } catch {
-            showToast('error', 'Could not clear recent locations.');
+            showToast('error', t('serviceRequest.notifications.recentLocationsClearError'));
             return false;
         }
     };
@@ -771,7 +774,7 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
 
     const saveCurrentLocationAs = async (kind: 'home' | 'work') => {
         if (!currentCoords || !data.location.trim()) {
-            showToast('error', 'Resolve a location first, then save it.');
+            showToast('error', t('serviceRequest.notifications.resolveLocationFirst'));
             return;
         }
 
@@ -791,12 +794,12 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
             return;
         }
         persistSavedLocations(nextHome, nextWork, favoriteLocations, recentLocations);
-        showToast('success', `${entry.title} location saved.`);
+        showToast('success', t('serviceRequest.notifications.locationSaved', { name: entry.title }));
     };
 
     const saveCurrentLocationAsFavorite = async (customTitle?: string) => {
         if (!currentCoords || !data.location.trim()) {
-            showToast('error', 'Resolve a location first, then save it.');
+            showToast('error', t('serviceRequest.notifications.resolveLocationFirst'));
             return;
         }
 
@@ -826,12 +829,12 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
             return;
         }
         persistSavedLocations(savedHome, savedWork, nextFavorites, recentLocations);
-        showToast('success', `Favorite "${normalizedName}" saved.`);
+        showToast('success', t('serviceRequest.notifications.favoriteSaved', { name: normalizedName }));
     };
 
     const openSaveLocationPanel = () => {
         if (!currentCoords || !data.location.trim()) {
-            showToast('error', 'Resolve a location first, then save it.');
+            showToast('error', t('serviceRequest.notifications.resolveLocationFirst'));
             return;
         }
 
@@ -842,7 +845,7 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
 
     const handleSaveLocationFromPanel = async () => {
         if (!currentCoords || !data.location.trim()) {
-            showToast('error', 'Resolve a location first, then save it.');
+            showToast('error', t('serviceRequest.notifications.resolveLocationFirst'));
             return;
         }
 
@@ -855,7 +858,7 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
 
         const normalizedTitle = saveLocationTitle.trim();
         if (!normalizedTitle) {
-            showToast('error', 'Add a name for this location.');
+            showToast('error', t('serviceRequest.notifications.addLocationName'));
             return;
         }
 
@@ -884,7 +887,7 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
             : recentLocations;
 
         persistSavedLocations(nextHome, nextWork, nextFavorites, nextRecent);
-        showToast('success', `${location.title} removed.`);
+        showToast('success', t('serviceRequest.notifications.locationRemoved', { name: location.title }));
     };
 
     const clearRecentLocations = async () => {
@@ -894,7 +897,7 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
         }
         if (recentLocations.length === 0) return;
         persistSavedLocations(savedHome, savedWork, favoriteLocations, []);
-        showToast('success', 'Recent locations cleared.');
+        showToast('success', t('serviceRequest.notifications.recentLocationsCleared'));
     };
 
     const requestDeleteSavedLocation = (location: SavedLocation) => {
@@ -904,7 +907,7 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
     const closeDeleteSavedLocationPrompt = (notify = true) => {
         setPendingDeleteLocation(null);
         if (notify) {
-            showToast('info', 'Delete cancelled.');
+            showToast('info', t('serviceRequest.notifications.deleteCancelled'));
         }
     };
 
@@ -924,7 +927,7 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
         setPendingRenameLocation(null);
         setPendingRenameTitle('');
         if (notify) {
-            showToast('info', 'Rename cancelled.');
+            showToast('info', t('serviceRequest.notifications.renameCancelled'));
         }
     };
 
@@ -933,7 +936,7 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
         if (!normalizedName || normalizedName === location.title) return;
 
         if (location.id_saved_location && isAuthenticated() && getToken()) {
-            await updateSavedLocationOnBackend(location.id_saved_location, { title: normalizedName }, 'Saved place renamed.');
+            await updateSavedLocationOnBackend(location.id_saved_location, { title: normalizedName }, t('serviceRequest.notifications.placeRenamed'));
             return;
         }
 
@@ -959,7 +962,7 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
         );
 
         persistSavedLocations(nextHome, nextWork, nextFavorites, nextRecent);
-        showToast('success', 'Saved place renamed.');
+        showToast('success', t('serviceRequest.notifications.placeRenamed'));
     };
 
     const confirmRenameSavedLocation = async () => {
@@ -978,7 +981,7 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
     const closeRequestActionPrompt = (notify = true) => {
         setPendingRequestAction(null);
         if (notify) {
-            showToast('info', 'Action cancelled.');
+            showToast('info', t('serviceRequest.notifications.actionCancelled'));
         }
     };
 
@@ -1089,7 +1092,7 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
         setShowLocationSuggestions(false);
         setShowSaveLocationPanel(false);
         setShowSavedPlacesModal(false);
-        showToast('success', `${location.title} location loaded.`);
+        showToast('success', t('serviceRequest.toastMessages.locationLoaded', { name: location.title }));
     };
 
     const quickAccessLocations = useMemo(() => {
@@ -1357,7 +1360,7 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
         return (
             <div className="mt-2 rounded-2xl border-none bg-gray-50/80 dark:bg-white/[0.04] hover:bg-gray-100 dark:hover:bg-white/[0.06] transition-colors shadow-lg overflow-hidden">
                 {suggestionsLoading ? (
-                    <div className="px-4 py-3 text-sm font-medium text-gray-500 dark:text-slate-400">Searching places in El Salvador...</div>
+                    <div className="px-4 py-3 text-sm font-medium text-gray-500 dark:text-slate-400">{t('serviceRequest.wizardExtra.searchingPlacesInElSalvador')}</div>
                 ) : (
                     locationSuggestions.map((suggestion, suggestionIndex) => {
                         const display = getSuggestionDisplay(suggestion);
@@ -1549,15 +1552,15 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
 
     const moveRequestFlowForward = () => {
         if (requestFlowStep === 0 && !problemStepReady) {
-            showToast('info', 'Describe the problem and add at least one photo to continue.');
+            showToast('info', t('serviceRequest.notifications.describeProblemFirst'));
             return;
         }
         if (requestFlowStep === 1 && !locationStepReady) {
-            showToast('info', 'Confirm the service location on the map to continue.');
+            showToast('info', t('serviceRequest.notifications.confirmLocationFirst'));
             return;
         }
         if (requestFlowStep === 2 && !scheduleStepReady) {
-            showToast('info', 'Choose a valid visit date and time to continue.');
+            showToast('info', t('serviceRequest.toastMessages.scheduleTimeInvalid'));
             return;
         }
         setRequestFlowStep((current) => Math.min(current + 1, REQUEST_FLOW_STEPS.length - 1));
@@ -1577,13 +1580,13 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
         setNoNearbyProsNotice('');
         const workers = await fetchNearbyPros();
         if (workers.length === 0) {
-            const message = 'We could not find available pros near this address right now. Try again later, increase the search radius, or choose another time.';
+            const message = t('serviceRequest.notifications.noNearbyProsMessage');
             setNoNearbyProsNotice(message);
             void showSweetAlert({
-                title: 'No nearby pros available right now',
+                title: t('serviceRequest.notifications.noNearbyProsTitle'),
                 message,
                 tone: 'warning',
-                confirmText: 'Try another option',
+                confirmText: t('serviceRequest.notifications.tryAnotherOption'),
             });
         }
         setTimeout(() => setIsSearching(false), 700);
@@ -1630,7 +1633,7 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
 
     const getRequestStageNotification = (request: MyServiceRequest) => {
         const status = String(request.status || '').toLowerCase();
-        const workerName = request.assigned_worker?.name || 'Your worker';
+        const workerName = request.assigned_worker?.name || t('clientLiveTracker.yourWorkerFallback');
 
         if (status === 'assigned') {
             return {
@@ -1687,11 +1690,11 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
 
         for (const file of incoming) {
             if (!allowedMime.has(file.type)) {
-                showToast('error', `Invalid file: ${file.name}. Only PNG/JPG/WEBP.`);
+                showToast('error', t('serviceRequest.toastMessages.invalidFileType', { name: file.name }));
                 continue;
             }
             if (file.size > 8 * 1024 * 1024) {
-                showToast('error', `Image too large: ${file.name} (max 8MB).`);
+                showToast('error', t('serviceRequest.toastMessages.imageTooLarge', { name: file.name }));
                 continue;
             }
             valid.push(file);
@@ -1699,9 +1702,9 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
 
         const totalAfterAdd = problemFiles.length + valid.length;
         if (totalAfterAdd > 5) {
-            showToast('error', 'Maximum 5 problem images.');
+            showToast('error', t('serviceRequest.toastMessages.maxProblemImages'));
         } else if (valid.length > 0) {
-            showToast('success', `${valid.length} image(s) added.`);
+            showToast('success', t('serviceRequest.wizard.toasts.imagesAdded', { count: valid.length }));
         }
 
         setProblemFiles((prev) => [...prev, ...valid].slice(0, 5));
@@ -1711,7 +1714,7 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
 
     const removeProblemImage = (index: number) => {
         setProblemFiles((prev) => prev.filter((_, i) => i !== index));
-        showToast('success', 'Image removed.');
+        showToast('success', t('serviceRequest.toastMessages.imageRemoved'));
     };
 
     const handleLocationChange = (value: string) => {
@@ -1743,7 +1746,7 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
         if (!areValidCoordinates(nextCoords)) {
             setCurrentCoords(null);
             setGeoError('The selected location has invalid coordinates. Please choose it again.');
-            showToast('error', 'That location could not be verified.');
+            showToast('error', t('serviceRequest.notifications.locationVerificationError'));
             return;
         }
         setCurrentCoords(nextCoords);
@@ -1846,13 +1849,13 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
         const trimmedLocation = data.location.trim();
         if (!trimmedLocation) {
             setGeoError('Enter an address reference or paste coordinates.');
-            if (!silent) showToast('error', 'Enter an address or coordinates first.');
+            if (!silent) showToast('error', t('serviceRequest.toastMessages.enterAddressFirst'));
             return null;
         }
         if (!isSpecificLocationLabel(trimmedLocation)) {
             setCurrentCoords(null);
             setGeoError('Enter a specific address, landmark, or coordinates instead of only the country.');
-            if (!silent) showToast('error', 'Please enter a more specific service location.');
+            if (!silent) showToast('error', t('serviceRequest.toastMessages.moreSpecificLocation'));
             return null;
         }
 
@@ -1885,7 +1888,7 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
             if (!areValidCoordinates(resolved) || !isSpecificLocationLabel(resolvedLabel)) {
                 setCurrentCoords(null);
                 setGeoError('We found only a general area. Add a street, neighborhood, landmark, or coordinates.');
-                if (!silent) showToast('error', 'Please choose a more precise service location.');
+                if (!silent) showToast('error', t('serviceRequest.toastMessages.morePreciseLocation'));
                 return null;
             }
 
@@ -1894,8 +1897,8 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
             });
             return resolved;
         } catch {
-            setGeoError('Could not resolve that address in El Salvador right now.');
-            if (!silent) showToast('error', 'Could not resolve that address in El Salvador right now.');
+            setGeoError(t('serviceRequest.toastMessages.addressResolveError'));
+            if (!silent) showToast('error', t('serviceRequest.toastMessages.addressResolveError'));
             return null;
         } finally {
             setResolvingLocation(false);
@@ -1929,17 +1932,17 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
             const { id_request, status, selection_mode, assigned_worker_profile } = createdRequest;
             const autoAssigned = status === 'assigned' && selection_mode === 'auto_assign' && assigned_worker_profile != null;
             await showSweetAlert({
-                title: autoAssigned ? 'Pro matched successfully' : 'Request sent successfully',
+                title: autoAssigned ? t('serviceRequest.submitted.proMatchedTitle') : t('serviceRequest.submitted.requestSentTitle'),
                 message: autoAssigned
                     ? id_request
-                        ? `Request #${id_request} was assigned to a verified Pro.`
-                        : 'Your request was assigned to a verified Pro.'
+                        ? t('serviceRequest.submitted.assignedMessage', { id: id_request })
+                        : t('serviceRequest.submitted.assignedMessageNoId')
                     : id_request
-                        ? `Request #${id_request} was created successfully.`
-                        : 'Your request was created successfully.',
+                        ? t('serviceRequest.submitted.createdMessage', { id: id_request })
+                        : t('serviceRequest.submitted.createdMessageNoId'),
                 html: buildSubmittedRequestSummaryHtml(createdRequest),
                 tone: 'success',
-                confirmText: 'Back to main map',
+                confirmText: t('serviceRequest.submitted.backToMainMap'),
             });
             setIsHistoryModalOpen(false);
             navigate('/app');
@@ -1954,7 +1957,7 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
     const handleWorkerApprovalDecision = async (request: MyServiceRequest, decision: 'accept' | 'decline') => {
         const token = getToken();
         if (!token) {
-            showToast('error', 'Login required.');
+            showToast('error', t('serviceRequest.notifications.loginRequired'));
             return;
         }
 
@@ -1971,22 +1974,22 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
             });
             const payload = await res.json();
             if (!res.ok || !payload?.success) {
-                showToast('error', payload?.error || `Could not ${decision} this worker.`);
+                showToast('error', payload?.error || t('serviceRequest.toastMessages.workerDecisionError', { decision }));
                 return;
             }
 
             showToast(
                 'success',
                 decision === 'accept'
-                    ? 'Worker approved. You can continue with payment now.'
-                    : 'Worker declined. We will keep looking for another pro.'
+                    ? t('serviceRequest.toastMessages.workerApproved')
+                    : t('serviceRequest.toastMessages.workerDeclined')
             );
             setWorkerProfileRequest(null);
             setWorkerProfileData(null);
             setWorkerProfileLoading(false);
             await fetchMyRequests(historyStatus, true);
         } catch {
-            showToast('error', `Network error trying to ${decision} this worker.`);
+            showToast('error', t('serviceRequest.toastMessages.workerDecisionNetworkError', { decision }));
         } finally {
             setWorkerApprovalBusyId(null);
         }
@@ -1995,7 +1998,7 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
     const handleCounterDecision = async (request: MyServiceRequest, decision: 'accept' | 'decline') => {
         const token = getToken();
         if (!token) {
-            showToast('error', 'Login required.');
+            showToast('error', t('serviceRequest.notifications.loginRequired'));
             return;
         }
 
@@ -2012,14 +2015,14 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
             });
             const payload = await res.json();
             if (!res.ok || !payload?.success) {
-                showToast('error', payload?.error || `Could not ${decision} counter offer.`);
+                showToast('error', payload?.error || t('serviceRequest.toastMessages.counterDecisionError', { decision }));
                 return;
             }
 
-            showToast('success', decision === 'accept' ? 'Counter offer accepted.' : 'Counter offer declined.');
+            showToast('success', decision === 'accept' ? t('serviceRequest.toastMessages.counterAcceptedToast') : t('serviceRequest.toastMessages.counterDeclinedToast'));
             await fetchMyRequests(historyStatus);
         } catch {
-            showToast('error', `Network error trying to ${decision} counter offer.`);
+            showToast('error', t('serviceRequest.toastMessages.counterDecisionNetworkError', { decision }));
         } finally {
             setCounterBusyId(null);
         }
@@ -2028,7 +2031,7 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
     const submitClientCompletion = async (request: MyServiceRequest) => {
         const token = getToken();
         if (!token) {
-            showToast('error', 'Login required.');
+            showToast('error', t('serviceRequest.notifications.loginRequired'));
             return;
         }
 
@@ -2040,14 +2043,14 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
             });
             const payload = await res.json();
             if (!res.ok || !payload?.success) {
-                showToast('error', payload?.error || 'Could not confirm completion.');
+                showToast('error', payload?.error || t('serviceRequest.notifications.confirmCompletionError'));
                 return;
             }
 
-            showToast('success', 'Work completed. You can now leave a review.');
+            showToast('success', t('serviceRequest.toastMessages.workCompletedReview'));
             await fetchMyRequests(historyStatus, true);
         } catch {
-            showToast('error', 'Network error confirming completion.');
+            showToast('error', t('serviceRequest.toastMessages.confirmCompletionNetworkError'));
         } finally {
             setCompletionBusyId(null);
         }
@@ -2059,7 +2062,7 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
     ) => {
         const token = getToken();
         if (!token) {
-            showToast('error', 'Login required.');
+            showToast('error', t('serviceRequest.notifications.loginRequired'));
             return;
         }
         setWorkflowBusyId(request.id_request);
@@ -2071,16 +2074,16 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
             });
             const payload = await res.json();
             if (!res.ok || !payload?.success) {
-                showToast('error', payload?.error || 'Could not save approval.');
+                showToast('error', payload?.error || t('serviceRequest.requestPanel.messages.saveApprovalError'));
                 return;
             }
-            showToast(payload.both_approved ? 'success' : 'info', payload.message || 'Approval saved.');
+            showToast(payload.both_approved ? 'success' : 'info', payload.message || t('serviceRequest.requestPanel.messages.approvalSaved'));
             await fetchMyRequests(historyStatus, true);
             if (action === 'complete_service' && !request.has_rating) {
                 setRatingModalRequest(request);
             }
         } catch {
-            showToast('error', 'Network error saving approval.');
+            showToast('error', t('serviceRequest.notifications.networkApprovalError'));
         } finally {
             setWorkflowBusyId(null);
         }
@@ -2088,13 +2091,13 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
 
     const openWorkerProfileModal = async (request: MyServiceRequest) => {
         if (!request.assigned_worker) {
-            showToast('info', 'This request does not have an assigned worker yet.');
+            showToast('info', t('serviceRequest.toastMessages.noAssignedWorkerYet'));
             return;
         }
 
         const token = getToken();
         if (!token) {
-            showToast('error', 'Login required.');
+            showToast('error', t('serviceRequest.notifications.loginRequired'));
             return;
         }
 
@@ -2110,7 +2113,7 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
             const payload = await res.json();
 
             if (!res.ok || !payload?.success || !payload?.worker) {
-                showToast('error', payload?.error || 'Could not load that worker profile.');
+                showToast('error', payload?.error || t('serviceRequest.toastMessages.workerProfileLoadError'));
                 setWorkerProfileRequest(null);
                 return;
             }
@@ -2121,7 +2124,7 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
             });
             setWorkerPortfolioIndex(0);
         } catch {
-            showToast('error', 'Network error loading worker profile.');
+            showToast('error', t('serviceRequest.toastMessages.workerProfileNetworkError'));
             setWorkerProfileRequest(null);
         } finally {
             setWorkerProfileLoading(false);
@@ -2135,13 +2138,13 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
     const submitCancelRequest = async (request: MyServiceRequest) => {
         const token = getToken();
         if (!token) {
-            showToast('error', 'Please sign in again.');
+            showToast('error', t('serviceRequest.toastMessages.pleaseSignInAgain'));
             return;
         }
 
         const requestStatus = String(request.status || '').toLowerCase();
         if (!['pending', 'assigned', 'payment_pending'].includes(requestStatus)) {
-            showToast('error', 'This request can no longer be cancelled.');
+            showToast('error', t('serviceRequest.toastMessages.requestNoLongerCancellable'));
             return;
         }
 
@@ -2155,7 +2158,7 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
             });
             const payload = await res.json();
             if (!res.ok || !payload?.success) {
-                showToast('error', payload?.error || 'Could not cancel this request.');
+                showToast('error', payload?.error || t('serviceRequest.toastMessages.cancelRequestError'));
                 return;
             }
 
@@ -2163,10 +2166,10 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                 setOpenChatRequestId(null);
             }
 
-            showToast('success', payload?.message || 'Request cancelled.');
+            showToast('success', payload?.message || t('serviceRequest.toastMessages.requestCancelledToast'));
             await fetchMyRequests(historyStatus, true);
         } catch {
-            showToast('error', 'Network error cancelling request.');
+            showToast('error', t('serviceRequest.toastMessages.cancelRequestNetworkError'));
         } finally {
             setCancelBusyId(null);
         }
@@ -2175,7 +2178,7 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
     const handleCancelRequest = async (request: MyServiceRequest) => {
         const requestStatus = String(request.status || '').toLowerCase();
         if (!['pending', 'assigned', 'payment_pending'].includes(requestStatus)) {
-            showToast('error', 'This request can no longer be cancelled.');
+            showToast('error', t('serviceRequest.toastMessages.requestNoLongerCancellable'));
             return;
         }
 
@@ -2204,14 +2207,14 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
             });
             const payload = await res.json();
             if (!res.ok || !payload?.success) {
-                showToast('error', payload?.error || 'Could not submit rating.');
+                showToast('error', payload?.error || t('serviceRequest.toastMessages.submitRatingError'));
                 return;
             }
-            showToast('success', 'Fixes submitted.');
+            showToast('success', t('serviceRequest.toastMessages.fixesSubmitted'));
             setRatingModalRequest(null);
             setFixesSuccessRequest(request);
         } catch {
-            showToast('error', 'Network error submitting rating.');
+            showToast('error', t('serviceRequest.toastMessages.submitRatingNetworkError'));
         } finally {
             setRatingBusyId(null);
         }
@@ -2280,16 +2283,16 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                     <div className="flex items-start justify-between gap-4">
                                         <div className="min-w-0">
                                             <p className="text-[10px] font-black uppercase tracking-[0.2em] text-bird-blue">
-                                                {requestFlowStep + 1} of {REQUEST_FLOW_STEPS.length}
+                                                {t('serviceRequest.wizard.progress', { current: requestFlowStep + 1, total: REQUEST_FLOW_STEPS.length })}
                                             </p>
                                             <h2 className="mt-1 text-2xl font-black text-slate-950 dark:text-slate-100">
-                                                {requestFlowStep === 0 && 'Tell us what needs fixing'}
-                                                {requestFlowStep === 1 && 'Where should the pro go?'}
-                                                {requestFlowStep === 2 && 'When should we visit?'}
-                                                {requestFlowStep === 3 && 'Review your request'}
+                                                {requestFlowStep === 0 && t('serviceRequest.wizard.headings.problem')}
+                                                {requestFlowStep === 1 && t('serviceRequest.wizard.headings.location')}
+                                                {requestFlowStep === 2 && t('serviceRequest.wizard.headings.schedule')}
+                                                {requestFlowStep === 3 && t('serviceRequest.wizard.headings.review')}
                                             </h2>
                                             <p className="mt-1 truncate text-sm font-bold text-slate-500 dark:text-slate-400">
-                                                {selectedServiceTitle || 'Selected service'}
+                                                {selectedServiceTitle || t('serviceRequest.serviceStep.selectedService')}
                                             </p>
                                         </div>
                                         <button
@@ -2300,7 +2303,7 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                             }}
                                             className="shrink-0 rounded-xl border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900/70 px-3 py-2 text-xs font-black text-slate-600 dark:text-slate-300 hover:border-bird-blue hover:text-bird-blue"
                                         >
-                                            Change service
+                                            {t('serviceRequest.serviceStep.changeService')}
                                         </button>
                                     </div>
 
@@ -2461,36 +2464,36 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                             >
                                                 <div className="grid gap-3 sm:grid-cols-2">
                                                     <div className="rounded-2xl border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900/70 p-4">
-                                                        <p className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400 dark:text-slate-500">Service</p>
+                                                        <p className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400 dark:text-slate-500">{t('serviceRequest.wizard.review.service')}</p>
                                                         <p className="mt-2 text-base font-black text-slate-900 dark:text-slate-100">{selectedServiceTitle}</p>
                                                         <p className="mt-1 line-clamp-3 text-sm font-semibold leading-6 text-slate-500 dark:text-slate-400">{data.description}</p>
                                                     </div>
                                                     <div className="rounded-2xl border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900/70 p-4">
                                                         <div className="flex items-center justify-between gap-3">
-                                                            <p className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400 dark:text-slate-500">Location</p>
+                                                            <p className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400 dark:text-slate-500">{t('serviceRequest.wizard.review.location')}</p>
                                                             <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 dark:bg-emerald-900/40 px-2 py-1 text-[10px] font-black text-emerald-700 dark:text-emerald-400">
                                                                 <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
-                                                                Confirmed
+                                                                {t('serviceRequest.wizard.review.confirmed')}
                                                             </span>
                                                         </div>
                                                         <p className="mt-2 line-clamp-3 text-sm font-black leading-6 text-slate-900 dark:text-slate-100">{data.location}</p>
-                                                        <p className="mt-2 text-xs font-bold text-bird-blue">{radiusKm} km search radius</p>
+                                                        <p className="mt-2 text-xs font-bold text-bird-blue">{t('serviceRequest.wizard.review.searchRadius', { count: radiusKm })}</p>
                                                     </div>
                                                     <div className="rounded-2xl border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900/70 p-4">
-                                                        <p className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400 dark:text-slate-500">Visit</p>
+                                                        <p className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400 dark:text-slate-500">{t('serviceRequest.wizard.review.visit')}</p>
                                                         <p className="mt-2 text-sm font-black text-slate-900 dark:text-slate-100">
                                                             {formatRequestVisit(data)}
                                                         </p>
                                                         {data.booking_type === 'scheduled' && (
                                                             <p className="mt-1 text-xs font-bold text-slate-500 dark:text-slate-400">
-                                                                Estimated duration: {data.scheduled_duration_minutes / 60}h
+                                                                {t('serviceRequest.wizard.review.estimatedDuration', { hours: data.scheduled_duration_minutes / 60 })}
                                                             </p>
                                                         )}
                                                     </div>
                                                     <div className="rounded-2xl border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900/70 p-4">
-                                                        <p className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400 dark:text-slate-500">Photos</p>
-                                                        <p className="mt-2 text-sm font-black text-slate-900 dark:text-slate-100">{problemFiles.length} attached</p>
-                                                        <p className="mt-1 text-xs font-semibold text-slate-500 dark:text-slate-400">Verified before upload</p>
+                                                        <p className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400 dark:text-slate-500">{t('serviceRequest.wizard.review.photos')}</p>
+                                                        <p className="mt-2 text-sm font-black text-slate-900 dark:text-slate-100">{t('serviceRequest.wizard.review.attached', { count: problemFiles.length })}</p>
+                                                        <p className="mt-1 text-xs font-semibold text-slate-500 dark:text-slate-400">{t('serviceRequest.wizard.review.verifiedBeforeUpload')}</p>
                                                     </div>
                                                 </div>
 
@@ -2498,14 +2501,14 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                                     <div className="flex flex-wrap items-start justify-between gap-3">
                                                         <div>
                                                             <p className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400 dark:text-slate-500">
-                                                                Hiring preference
+                                                                {t('serviceRequest.wizard.review.hiringPreference')}
                                                             </p>
                                                             <h3 className="mt-1 text-lg font-black text-slate-950 dark:text-slate-100">
-                                                                How should Fixlife match your Pro?
+                                                                {t('serviceRequest.wizard.review.matchQuestion')}
                                                             </h3>
                                                         </div>
                                                         <span className="rounded-full border border-bird-blue/20 bg-sky-50 dark:bg-sky-900/40 px-3 py-1 text-[10px] font-black uppercase tracking-[0.14em] text-bird-blue">
-                                                            Protected match
+                                                            {t('serviceRequest.wizard.review.protectedMatch')}
                                                         </span>
                                                     </div>
 
@@ -2513,15 +2516,15 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                                         {[
                                                             {
                                                                 mode: 'auto_assign' as const,
-                                                                title: 'Fast Match',
-                                                                eyebrow: data.booking_type === 'express' ? 'Recommended for express' : 'Fastest option',
-                                                                body: 'Fixlife assigns the best verified Pro using distance, availability, rating and schedule safety.',
+                                                                title: t('serviceRequest.wizard.review.fastMatchTitle'),
+                                                                eyebrow: data.booking_type === 'express' ? t('serviceRequest.wizard.review.fastMatchRecommendedExpress') : t('serviceRequest.wizard.review.fastMatchFastest'),
+                                                                body: t('serviceRequest.wizard.review.fastMatchBody'),
                                                             },
                                                             {
                                                                 mode: 'client_review' as const,
-                                                                title: 'Review & Choose',
-                                                                eyebrow: data.booking_type === 'scheduled' ? 'Recommended for scheduled' : 'More control',
-                                                                body: 'Compare Pro profiles, portfolio and experience before approving who can start the route.',
+                                                                title: t('serviceRequest.wizard.review.reviewChooseTitle'),
+                                                                eyebrow: data.booking_type === 'scheduled' ? t('serviceRequest.wizard.review.reviewChooseRecommendedScheduled') : t('serviceRequest.wizard.review.reviewChooseMoreControl'),
+                                                                body: t('serviceRequest.wizard.review.reviewChooseBody'),
                                                             },
                                                         ].map((option) => {
                                                             const selected = data.selection_mode === option.mode;
@@ -2562,13 +2565,13 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                                     </div>
 
                                                     <p className="mt-3 text-xs font-semibold leading-5 text-slate-500 dark:text-slate-400">
-                                                        Fast Match is still protected: unverified, unavailable or conflicting workers are rejected by the backend.
+                                                        {t('serviceRequest.wizard.review.fastMatchProtectedNote')}
                                                     </p>
                                                 </div>
 
                                                 <div className="rounded-2xl border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900/70 p-4">
                                                     <label className="block text-[10px] font-black uppercase tracking-[0.16em] text-slate-400 dark:text-slate-500">
-                                                        Your estimated budget
+                                                        {t('serviceRequest.wizard.review.budget')}
                                                     </label>
                                                     <div className="relative mt-2">
                                                         <span className="absolute left-4 top-1/2 -translate-y-1/2 text-lg font-black text-slate-400 dark:text-slate-500">$</span>
@@ -2584,25 +2587,25 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                                         <span className="absolute right-4 top-1/2 -translate-y-1/2 text-xs font-black text-slate-400 dark:text-slate-500">USD</span>
                                                     </div>
                                                     <p className="mt-2 text-xs font-semibold text-slate-500 dark:text-slate-400">
-                                                        This is your starting estimate. Maximum allowed: $1,000.00.
+                                                        {t('serviceRequest.wizard.review.budgetHelp')}
                                                     </p>
                                                     {!hasValidBudget && (
                                                         <p className="mt-2 text-xs font-black text-amber-700 dark:text-amber-400">
-                                                            Enter an amount greater than $0 to send the request.
+                                                            {t('serviceRequest.wizard.review.budgetError')}
                                                         </p>
                                                     )}
                                                 </div>
 
                                                 <div className="rounded-2xl border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-white/[0.04] p-4">
                                                     <p className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400 dark:text-slate-500">
-                                                        Ready to send
+                                                        {t('serviceRequest.wizard.review.readyToSend')}
                                                     </p>
                                                     <div className="mt-3 grid gap-2 sm:grid-cols-2">
                                                         {[
-                                                            { label: 'Problem and photo', ready: problemStepReady },
-                                                            { label: 'Exact address confirmed', ready: locationStepReady },
-                                                            { label: 'Visit time selected', ready: scheduleStepReady },
-                                                            { label: 'Estimated budget added', ready: hasValidBudget },
+                                                            { label: t('serviceRequest.wizard.review.checklist.problemPhoto'), ready: problemStepReady },
+                                                            { label: t('serviceRequest.wizard.review.checklist.exactAddress'), ready: locationStepReady },
+                                                            { label: t('serviceRequest.wizard.review.checklist.visitTime'), ready: scheduleStepReady },
+                                                            { label: t('serviceRequest.wizard.review.checklist.budget'), ready: hasValidBudget },
                                                         ].map(({ label, ready }) => (
                                                             <div
                                                                 key={label}
@@ -2626,14 +2629,14 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                                 {nearbyWorkers.length > 0 && (
                                                     <div className="rounded-2xl border border-emerald-200 dark:border-emerald-900/50 bg-emerald-50 dark:bg-emerald-900/40 p-4">
                                                         <p className="text-sm font-black text-emerald-900 dark:text-emerald-200">
-                                                            {nearbyWorkers.length} verified pro{nearbyWorkers.length === 1 ? '' : 's'} found nearby
+                                                            {t('serviceRequest.wizard.review.prosFound', { count: nearbyWorkers.length })}
                                                         </p>
-                                                        <p className="mt-1 text-xs font-semibold text-emerald-700 dark:text-emerald-400">Your request is ready to send.</p>
+                                                        <p className="mt-1 text-xs font-semibold text-emerald-700 dark:text-emerald-400">{t('serviceRequest.wizard.review.requestReady')}</p>
                                                     </div>
                                                 )}
                                                 {noNearbyProsNotice && nearbyWorkers.length === 0 && (
                                                     <div className="rounded-2xl border border-amber-200 dark:border-amber-900/50 bg-amber-50 dark:bg-amber-900/40 p-4">
-                                                        <p className="text-sm font-black text-amber-900 dark:text-amber-200">Matching may take a little longer</p>
+                                                        <p className="text-sm font-black text-amber-900 dark:text-amber-200">{t('serviceRequest.wizard.review.matchingDelay')}</p>
                                                         <p className="mt-1 text-xs font-semibold leading-5 text-amber-700 dark:text-amber-400">{noNearbyProsNotice}</p>
                                                     </div>
                                                 )}
@@ -2648,7 +2651,7 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                         onClick={moveRequestFlowBack}
                                         className="rounded-xl border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900/70 px-5 py-3 text-sm font-black text-slate-700 dark:text-slate-300 hover:border-slate-300 dark:hover:border-white/10 hover:bg-slate-50 dark:hover:bg-white/[0.04]"
                                     >
-                                        Back
+                                        {t('serviceRequest.ui.back')}
                                     </button>
                                     <button
                                         type="button"
@@ -2665,7 +2668,7 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                                         setNoNearbyProsNotice('');
                                                         const workers = await fetchNearbyPros();
                                                         if (workers.length === 0) {
-                                                            setNoNearbyProsNotice('No nearby pros are available right now. You can still send the request and we will keep matching.');
+                                                            setNoNearbyProsNotice(t('serviceRequest.toastMessages.noNearbyProsAvailableMessage'));
                                                         }
                                                         setIsSearching(false);
                                                         moveRequestFlowForward();
@@ -2679,14 +2682,14 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                         }
                                         title={
                                             requestFlowStep === REQUEST_FLOW_STEPS.length - 1 && !canSubmitRequest
-                                                ? 'Complete the items marked above before sending.'
+                                                ? t('serviceRequest.wizard.review.completeBeforeSending')
                                                 : undefined
                                         }
                                         className="min-w-36 rounded-xl bg-bird-blue px-6 py-3 text-sm font-black text-white shadow-lg shadow-bird-blue/20 transition hover:bg-blue-600 disabled:cursor-not-allowed disabled:opacity-45"
                                     >
                                         {requestFlowStep === REQUEST_FLOW_STEPS.length - 1
-                                            ? isSubmittingRequest ? 'Sending...' : 'Send request'
-                                            : 'Continue'}
+                                            ? isSubmittingRequest ? t('serviceRequest.actions.sending') : t('serviceRequest.actions.sendRequest')
+                                            : t('serviceRequest.actions.continue')}
                                     </button>
                                 </div>
                             </motion.div>
@@ -2711,10 +2714,10 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                     <div className="bg-gradient-to-r from-bird-blue via-sky-500 to-bird-yellow px-6 py-5 text-white">
                                         <div className="flex items-start justify-between gap-4">
                                             <div>
-                                                <p className="text-[11px] font-black uppercase tracking-[0.2em] text-white/80">Fixes review</p>
-                                                <h3 className="mt-1 text-2xl font-black">Rate this completed job</h3>
+                                                <p className="text-[11px] font-black uppercase tracking-[0.2em] text-white/80">{t('serviceRequest.rating.reviewLabel')}</p>
+                                                <h3 className="mt-1 text-2xl font-black">{t('serviceRequest.rating.rateThisJob')}</h3>
                                                 <p className="mt-2 text-sm text-white/85">
-                                                    Share how the pro did after finishing <span className="font-black">{ratingModalRequest.service_name}</span>.
+                                                    {t('serviceRequest.rating.shareHowProDid', { service: ratingModalRequest.service_name })}
                                                 </p>
                                             </div>
                                             <button
@@ -2722,7 +2725,7 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                                 onClick={() => setRatingModalRequest(null)}
                                                 className="rounded-full border border-white/30 bg-white/10 px-3 py-1.5 text-xs font-black uppercase tracking-wide text-white hover:bg-white/20"
                                             >
-                                                Close
+                                                {t('serviceRequest.location.close')}
                                             </button>
                                         </div>
                                     </div>
@@ -2731,16 +2734,16 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                         <div className="rounded-3xl border border-bird-blue/10 bg-gradient-to-r from-sky-50 via-white to-amber-50 p-4">
                                             <div className="flex flex-wrap items-center justify-between gap-3">
                                                 <div>
-                                                    <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-900 dark:text-slate-100">Completed service</p>
+                                                    <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-900 dark:text-slate-100">{t('serviceRequest.rating.completedService')}</p>
                                                     <p className="mt-1 text-lg font-black text-slate-900 dark:text-slate-100">
                                                         {ratingModalRequest.service_name}
                                                     </p>
                                                     <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
-                                                        {ratingModalRequest.assigned_worker?.name || 'Your pro'}
+                                                        {ratingModalRequest.assigned_worker?.name || t('serviceRequest.rating.yourProFallback')}
                                                     </p>
                                                 </div>
                                                 <span className="rounded-full border border-emerald-200 dark:border-emerald-900/50 bg-emerald-50 dark:bg-emerald-900/40 px-3 py-1.5 text-[11px] font-black uppercase tracking-[0.18em] text-emerald-700 dark:text-emerald-400">
-                                                    Unlocked
+                                                    {t('serviceRequest.actions.unlocked')}
                                                 </span>
                                             </div>
                                         </div>
@@ -2754,7 +2757,7 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                                             <div>
                                                                 <p className="text-sm font-black text-slate-900 dark:text-slate-100">{RATING_METRIC_LABELS[key]}</p>
                                                                 <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-                                                                    Leave your Fixes stars for this part of the service.
+                                                                    {t('serviceRequest.rating.leaveFixesStarsHelp')}
                                                                 </p>
                                                             </div>
                                                             <span className="rounded-full border border-bird-yellow/25 bg-bird-yellow/10 px-3 py-1 text-[11px] font-black text-amber-700 dark:text-amber-400">
@@ -2787,11 +2790,11 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                         </div>
 
                                         <div className="mt-5 rounded-3xl border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900/70 p-4">
-                                            <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400 dark:text-slate-500">Comment</p>
+                                            <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400 dark:text-slate-500">{t('serviceRequest.rating.comment')}</p>
                                             <textarea
                                                 value={getRatingDraft(ratingModalRequest.id_request).comment}
                                                 onChange={(e) => updateRatingDraft(ratingModalRequest.id_request, { comment: e.target.value.slice(0, 255) })}
-                                                placeholder="Tell us how the service went, what stood out, or what could be better..."
+                                                placeholder={t('serviceRequest.rating.commentPlaceholder')}
                                                 maxLength={255}
                                                 className="mt-3 min-h-[120px] w-full rounded-2xl border border-slate-200 dark:border-white/10 px-4 py-3 text-sm text-slate-700 dark:text-slate-300 outline-none transition focus:border-bird-blue/40 focus:ring-2 focus:ring-bird-blue/10"
                                             />
@@ -2803,7 +2806,7 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                                 onClick={() => setRatingModalRequest(null)}
                                                 className="rounded-2xl border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900/70 px-5 py-3 text-sm font-black text-slate-600 dark:text-slate-300 transition hover:border-slate-300 dark:hover:border-white/10 hover:bg-slate-50 dark:hover:bg-white/[0.04]"
                                             >
-                                                Maybe later
+                                                {t('serviceRequest.rating.maybeLater')}
                                             </button>
                                             <button
                                                 type="button"
@@ -2811,7 +2814,7 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                                 disabled={ratingBusyId === ratingModalRequest.id_request}
                                                 className="rounded-2xl bg-bird-blue px-5 py-3 text-sm font-black text-white shadow-[0_16px_30px_rgba(0,144,255,0.18)] transition hover:-translate-y-0.5 hover:bg-blue-700 disabled:opacity-50"
                                             >
-                                                {ratingBusyId === ratingModalRequest.id_request ? 'Sending Fixes...' : 'Submit Fixes'}
+                                                {ratingBusyId === ratingModalRequest.id_request ? t('serviceRequest.actions.sendingFixes') : t('serviceRequest.actions.submitFixes')}
                                             </button>
                                         </div>
                                     </div>
@@ -2819,9 +2822,9 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                         {workerProfileRequest && hasPendingWorkerApproval(workerProfileRequest) ? (
                                             <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
                                                 <div className="min-w-0">
-                                                    <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-900 dark:text-slate-100">Approve this pro</p>
+                                                    <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-900 dark:text-slate-100">{t('serviceRequest.rating.approveThisPro')}</p>
                                                     <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-                                                        Review the profile and portfolio, then confirm this worker to move the request to payment.
+                                                        {t('serviceRequest.rating.reviewProfileConfirmHelp')}
                                                     </p>
                                                 </div>
                                                 <div className="grid grid-cols-2 gap-3 lg:w-[380px]">
@@ -2831,7 +2834,7 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                                         onClick={() => handleWorkerApprovalDecision(workerProfileRequest, 'decline')}
                                                         className="rounded-2xl border border-red-200 dark:border-red-900/50 bg-red-50 dark:bg-red-900/40 px-4 py-3 text-sm font-black text-red-600 dark:text-red-400 transition hover:bg-red-100 disabled:opacity-50"
                                                     >
-                                                        {workerApprovalBusyId === workerProfileRequest.id_request ? 'Saving...' : 'Decline worker'}
+                                                        {workerApprovalBusyId === workerProfileRequest.id_request ? t('serviceRequest.actions.save') : t('serviceRequest.actions.declineWorker')}
                                                     </button>
                                                     <button
                                                         type="button"
@@ -2839,7 +2842,7 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                                         onClick={() => handleWorkerApprovalDecision(workerProfileRequest, 'accept')}
                                                         className="rounded-2xl bg-gradient-to-r from-bird-blue to-sky-500 px-4 py-3 text-sm font-black text-white shadow-[0_14px_30px_rgba(14,165,233,0.22)] transition hover:translate-y-[-1px] disabled:opacity-50"
                                                     >
-                                                        {workerApprovalBusyId === workerProfileRequest.id_request ? 'Saving...' : 'Accept this worker'}
+                                                        {workerApprovalBusyId === workerProfileRequest.id_request ? t('serviceRequest.actions.save') : t('serviceRequest.actions.acceptWorker')}
                                                     </button>
                                                 </div>
                                             </div>
@@ -2854,7 +2857,7 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                                     }}
                                                     className="rounded-2xl bg-slate-100 dark:bg-white/[0.06] px-5 py-3 text-sm font-black text-slate-700 dark:text-slate-300 transition hover:bg-slate-200 dark:hover:bg-white/[0.08]"
                                                 >
-                                                    Close profile
+                                                    {t('serviceRequest.workerProfileModal.closeProfile')}
                                                 </button>
                                             </div>
                                         )}
@@ -2895,8 +2898,8 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                         <div className="border-b border-gray-200 dark:border-white/10 px-5 py-4">
                                             <div className="flex items-center justify-between gap-4">
                                                 <div>
-                                                    <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-gray-400 dark:text-slate-500">Saved places</p>
-                                                    <h3 className="mt-1 text-lg font-black text-gray-900 dark:text-slate-100">Your location library</h3>
+                                                    <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-gray-400 dark:text-slate-500">{t('serviceRequest.wizardExtra.savedPlaces')}</p>
+                                                    <h3 className="mt-1 text-lg font-black text-gray-900 dark:text-slate-100">{t('serviceRequest.wizardExtra.yourLocationLibrary')}</h3>
                                                 </div>
                                                 <button
                                                     type="button"
@@ -2917,7 +2920,7 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                                         value={savedPlacesSearch}
                                                         maxLength={120}
                                                         onChange={(e) => setSavedPlacesSearch(e.target.value)}
-                                                        placeholder="Search by name, address or type"
+                                                        placeholder={t('serviceRequest.wizardExtra.searchSavedPlaces')}
                                                         className="w-full rounded-2xl border border-gray-200 dark:border-white/10 bg-gray-50 dark:bg-white/[0.04] pl-10 pr-10 py-3 text-sm text-gray-900 dark:text-slate-100 focus:border-bird-blue focus:bg-white focus:outline-none"
                                                     />
                                                     {savedPlacesSearch.trim() && (
@@ -2965,11 +2968,11 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                         <div className="flex-1 overflow-y-auto p-5 space-y-5">
                                             {quickAccessLocations.length === 0 ? (
                                                 <div className="rounded-2xl border border-dashed border-gray-300 dark:border-white/10 bg-gray-50 dark:bg-white/[0.04] px-4 py-5 text-sm text-gray-500 dark:text-slate-400">
-                                                    You do not have saved places yet. Resolve a location first, then use <span className="font-bold text-gray-700 dark:text-slate-300">Add location</span>.
+                                                    {t('serviceRequest.location.noSavedPlacesHelp')}
                                                 </div>
                                             ) : filteredSavedLocations.total === 0 ? (
                                                 <div className="rounded-2xl border border-dashed border-gray-300 dark:border-white/10 bg-gray-50 dark:bg-white/[0.04] px-4 py-5 text-sm text-gray-500 dark:text-slate-400">
-                                                    No saved places match your current search or filter.
+                                                    {t('serviceRequest.location.noSavedPlacesMatch')}
                                                 </div>
                                             ) : (
                                                 <>
@@ -3016,7 +3019,7 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
 
                                                     {filteredSavedLocations.favorites.length > 0 && (
                                                         <div>
-                                                            <p className="mb-3 text-[11px] font-bold uppercase tracking-wide text-gray-400 dark:text-slate-500">Favorites</p>
+                                                            <p className="mb-3 text-[11px] font-bold uppercase tracking-wide text-gray-400 dark:text-slate-500">{t('serviceRequest.wizardExtra.favorites')}</p>
                                                             <div className="space-y-3">
                                                                 {filteredSavedLocations.favorites.map((location, index) => {
                                                                     const visual = getLocationVisual(location.kind);
@@ -3062,7 +3065,7 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                                     {filteredSavedLocations.recents.length > 0 && (
                                                         <div>
                                                             <div className="mb-3 flex items-center justify-between gap-3">
-                                                                <p className="text-[11px] font-bold uppercase tracking-wide text-gray-400 dark:text-slate-500">Recent</p>
+                                                                <p className="text-[11px] font-bold uppercase tracking-wide text-gray-400 dark:text-slate-500">{t('serviceRequest.wizardExtra.recent')}</p>
                                                                 <button
                                                                     type="button"
                                                                     onClick={() => void clearRecentLocations()}
@@ -3162,7 +3165,7 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                             )}
                                             <div className="min-w-0 flex-1">
                                                 <div className="flex items-center gap-2 mb-1">
-                                                    <span className="text-[10px] font-black uppercase tracking-widest text-blue-400">Verified Pro</span>
+                                                    <span className="text-[10px] font-black uppercase tracking-widest text-blue-400">{t('serviceRequest.wizardExtra.verifiedPro')}</span>
                                                     {selectedWorkerProfile?.is_online && (
                                                         <span className="flex items-center gap-1 text-[10px] font-bold text-emerald-400">
                                                             <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
@@ -3204,14 +3207,14 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                         {workerProfileLoading ? (
                                             <div className="flex items-center justify-center gap-3 py-16">
                                                 <div className="h-5 w-5 rounded-full border-2 border-slate-200 dark:border-white/10 border-t-slate-700 animate-spin" />
-                                                <p className="text-sm font-bold text-slate-500 dark:text-slate-400">Loading profile...</p>
+                                                <p className="text-sm font-bold text-slate-500 dark:text-slate-400">{t('serviceRequest.wizardExtra.loadingProfile')}</p>
                                             </div>
                                         ) : (
                                             <div className="divide-y divide-slate-100 dark:divide-white/5">
                                                 {/* Bio */}
                                                 {selectedWorkerProfile?.bio && (
                                                     <div className="px-6 py-5">
-                                                        <p className="text-[11px] font-black uppercase tracking-widest text-slate-400 dark:text-slate-500 mb-2">About</p>
+                                                        <p className="text-[11px] font-black uppercase tracking-widest text-slate-400 dark:text-slate-500 mb-2">{t('serviceRequest.wizardExtra.about')}</p>
                                                         <p className="text-sm leading-relaxed text-slate-700 dark:text-slate-300">{selectedWorkerProfile.bio}</p>
                                                     </div>
                                                 )}
@@ -3219,11 +3222,11 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                                 {/* Info row */}
                                                 <div className="px-6 py-5 grid grid-cols-2 gap-4">
                                                     <div>
-                                                        <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 dark:text-slate-500 mb-1">Phone</p>
+                                                        <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 dark:text-slate-500 mb-1">{t('serviceRequest.wizardExtra.phone')}</p>
                                                         <p className="text-sm font-bold text-slate-900 dark:text-slate-100">{selectedWorkerProfile?.phone_number || 'Hidden'}</p>
                                                     </div>
                                                     <div>
-                                                        <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 dark:text-slate-500 mb-1">Level</p>
+                                                        <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 dark:text-slate-500 mb-1">{t('serviceRequest.wizardExtra.level')}</p>
                                                         <p className="text-sm font-bold text-slate-900 dark:text-slate-100">{selectedWorkerProfile?.experience_label || '—'}</p>
                                                     </div>
                                                 </div>
@@ -3231,7 +3234,7 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                                 {/* Services */}
                                                 {(selectedWorkerProfile?.services_offered || []).length > 0 && (
                                                     <div className="px-6 py-5">
-                                                        <p className="text-[11px] font-black uppercase tracking-widest text-slate-400 dark:text-slate-500 mb-3">Services</p>
+                                                        <p className="text-[11px] font-black uppercase tracking-widest text-slate-400 dark:text-slate-500 mb-3">{t('serviceRequest.wizardExtra.services')}</p>
                                                         <div className="flex flex-wrap gap-2">
                                                             {selectedWorkerProfile!.services_offered.map((s) => (
                                                                 <span key={s} className="rounded-xl bg-slate-100 dark:bg-white/[0.06] border border-slate-200 dark:border-white/10 px-3 py-1.5 text-xs font-bold text-slate-700 dark:text-slate-300">
@@ -3245,13 +3248,13 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                                 {/* Portfolio */}
                                                 <div className="px-6 py-5">
                                                     <div className="flex items-center justify-between mb-4">
-                                                        <p className="text-[11px] font-black uppercase tracking-widest text-slate-400 dark:text-slate-500">Portfolio</p>
+                                                        <p className="text-[11px] font-black uppercase tracking-widest text-slate-400 dark:text-slate-500">{t('serviceRequest.wizardExtra.portfolio')}</p>
                                                         <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-white/[0.06] px-2.5 py-1 rounded-full">{workerPortfolio.length} photos</span>
                                                     </div>
                                                     {workerPortfolio.length === 0 ? (
                                                         <div className="border-2 border-dashed border-slate-200 dark:border-white/10 rounded-2xl p-8 flex flex-col items-center text-center">
                                                             <svg className="w-8 h-8 text-slate-300 dark:text-slate-400 mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
-                                                            <p className="text-sm font-bold text-slate-500 dark:text-slate-400">No portfolio yet</p>
+                                                            <p className="text-sm font-bold text-slate-500 dark:text-slate-400">{t('serviceRequest.wizardExtra.noPortfolioYet')}</p>
                                                         </div>
                                                     ) : (
                                                         <div className="grid grid-cols-3 gap-2 pb-2">
@@ -3272,7 +3275,7 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                                                     ) : (
                                                                         <div className="w-full h-full flex flex-col items-center justify-center bg-slate-100 dark:bg-white/[0.06] text-slate-400 dark:text-slate-500">
                                                                             <svg className="w-6 h-6 mb-1" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
-                                                                            <span className="text-[9px] font-bold uppercase tracking-wider">Unavailable</span>
+                                                                            <span className="text-[9px] font-bold uppercase tracking-wider">{t('serviceRequest.wizardExtra.unavailable')}</span>
                                                                         </div>
                                                                     )}
                                                                     <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center">
@@ -3317,7 +3320,7 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                 >
                                     <div className="absolute inset-x-0 top-0 z-20 flex items-center justify-between gap-3 p-5">
                                         <div className="rounded-full border border-white/15 bg-slate-950/70 px-4 py-2 text-white backdrop-blur">
-                                            <p className="text-[10px] font-black uppercase tracking-[0.2em] text-white/60">Portfolio</p>
+                                            <p className="text-[10px] font-black uppercase tracking-[0.2em] text-white/60">{t('serviceRequest.wizardExtra.portfolio')}</p>
                                             <p className="mt-1 text-sm font-black">
                                                 {activeWorkerPortfolioIndex + 1} / {workerPortfolio.length}
                                             </p>
@@ -3410,7 +3413,7 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                                         </div>
                                                     </div>
                                                     <div>
-                                                        <p className="text-[11px] font-black uppercase tracking-[0.18em] text-white/55">Image note</p>
+                                                        <p className="text-[11px] font-black uppercase tracking-[0.18em] text-white/55">{t('serviceRequest.wizardExtra.imageNote')}</p>
                                                         <p className="mt-2 text-lg font-black">
                                                             {activeWorkerPortfolioPhoto.description || 'Recent portfolio work'}
                                                         </p>
@@ -3509,7 +3512,7 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                         <div className="flex items-center gap-4">
                                             {renderLocationBadge(pendingDeleteLocation.kind, 'lg')}
                                             <div className="text-slate-900 dark:text-slate-100">
-                                                <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-700 dark:text-slate-300">Delete saved place</p>
+                                                <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-700 dark:text-slate-300">{t('serviceRequest.wizardExtra.deleteSavedPlace')}</p>
                                                 <h3 className="mt-1 text-xl font-black">{pendingDeleteLocation.title}</h3>
                                             </div>
                                         </div>
@@ -3517,7 +3520,7 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
 
                                     <div className="p-6">
                                         <div className="rounded-2xl border border-amber-100 dark:border-amber-900/40 bg-amber-50/70 dark:bg-amber-900/40 p-4">
-                                            <p className="text-sm font-bold text-slate-900 dark:text-slate-100">Are you sure you want to remove this location?</p>
+                                            <p className="text-sm font-bold text-slate-900 dark:text-slate-100">{t('serviceRequest.wizardExtra.confirmRemoveLocation')}</p>
                                             <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">{pendingDeleteLocation.label}</p>
                                             <div className="mt-3 inline-flex rounded-full border border-bird-blue/20 bg-bird-blue/10 px-3 py-1 text-[11px] font-bold text-slate-900 dark:text-slate-100">
                                                 {pendingDeleteLocation.lat.toFixed(4)}, {pendingDeleteLocation.lng.toFixed(4)}
@@ -3571,7 +3574,7 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                         <div className="flex items-center gap-4">
                                             {renderLocationBadge(pendingRenameLocation.kind, 'lg')}
                                             <div className="text-slate-900 dark:text-slate-100">
-                                                <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-700 dark:text-slate-300">Rename saved place</p>
+                                                <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-700 dark:text-slate-300">{t('serviceRequest.wizardExtra.renameSavedPlace')}</p>
                                                 <h3 className="mt-1 text-xl font-black">{pendingRenameLocation.title}</h3>
                                             </div>
                                         </div>
@@ -3599,7 +3602,7 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                                 }
                                             }}
                                             className="mt-2 w-full rounded-2xl border border-gray-200 dark:border-white/10 bg-gray-50 dark:bg-white/[0.04] px-4 py-3 text-sm text-gray-900 dark:text-slate-100 focus:border-bird-blue focus:bg-white focus:outline-none"
-                                            placeholder="Ex: Home, Office, Mom's house"
+                                            placeholder={t('serviceRequest.wizardExtra.placeNameExample')}
                                         />
                                         <p className="mt-3 text-sm text-gray-500 dark:text-slate-400">
                                             Update the name without touching the saved coordinates.
@@ -3784,8 +3787,8 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                     <div className="absolute inset-0 z-[2] flex items-center justify-center bg-slate-100 p-8 text-center dark:bg-slate-900">
                         <div>
                             <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-white text-2xl dark:bg-slate-800">🗺️</div>
-                            <p className="text-sm font-bold text-slate-700 dark:text-slate-200">Map failed to load</p>
-                            <p className="mt-1 text-[11px] text-slate-500 dark:text-slate-400">Check your connection and try again.</p>
+                            <p className="text-sm font-bold text-slate-700 dark:text-slate-200">{t('serviceRequest.wizardExtra.mapFailedToLoad')}</p>
+                            <p className="mt-1 text-[11px] text-slate-500 dark:text-slate-400">{t('serviceRequest.wizardExtra.checkConnectionRetry')}</p>
                             <button
                                 type="button"
                                 onClick={retryLeafletLoad}
@@ -3832,8 +3835,8 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                 >
                                     <div className="flex items-center justify-between px-6 py-5 border-b border-slate-100 dark:border-white/5 shrink-0">
                                         <div>
-                                            <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400 dark:text-slate-500">History</p>
-                                            <h2 className="text-xl font-black text-slate-900 dark:text-slate-100 mt-1">My Request Story</h2>
+                                            <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400 dark:text-slate-500">{t('serviceRequest.wizardExtra.history')}</p>
+                                            <h2 className="text-xl font-black text-slate-900 dark:text-slate-100 mt-1">{t('serviceRequest.wizardExtra.myRequestStory')}</h2>
                                         </div>
                                         <button
                                             type="button"
@@ -3873,7 +3876,7 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                                     Loading requests
                                                 </div>
                                             ) : !historyLoading && myRequests.length === 0 ? (
-                                                <div className="text-sm font-semibold text-slate-500 dark:text-slate-400 bg-slate-50 dark:bg-white/[0.04] border border-slate-100 dark:border-white/5 rounded-xl p-4 text-center">No requests yet.</div>
+                                                <div className="text-sm font-semibold text-slate-500 dark:text-slate-400 bg-slate-50 dark:bg-white/[0.04] border border-slate-100 dark:border-white/5 rounded-xl p-4 text-center">{t('serviceRequest.wizardExtra.noRequestsYet')}</div>
                                             ) : (
                                                 <div className="space-y-4 max-h-[600px] overflow-y-auto pr-2 custom-scrollbar">
                                             {myRequests.map((request) => {
@@ -3960,8 +3963,8 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                                                         <div className="h-2.5 w-2.5 rounded-full bg-blue-500 relative z-10 animate-ping"></div>
                                                                     </div>
                                                                     <div className="min-w-0 flex-1">
-                                                                        <p className="text-xs font-black text-slate-900 dark:text-slate-100">Live Tracking Active</p>
-                                                                        <p className="text-[11px] font-medium text-slate-600 dark:text-slate-300 truncate">Check the main map to see your pro's location</p>
+                                                                        <p className="text-xs font-black text-slate-900 dark:text-slate-100">{t('serviceRequest.wizardExtra.liveTrackingActive')}</p>
+                                                                        <p className="text-[11px] font-medium text-slate-600 dark:text-slate-300 truncate">{t('serviceRequest.wizardExtra.checkMapForProLocation')}</p>
                                                                     </div>
                                                                 </div>
                                                             </div>
@@ -3980,7 +3983,7 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                                                         </svg>
                                                                     </span>
                                                                     <div className="min-w-0">
-                                                                        <p className="text-sm font-black text-slate-900 dark:text-slate-100">Waiting for worker responses</p>
+                                                                        <p className="text-sm font-black text-slate-900 dark:text-slate-100">{t('serviceRequest.wizardExtra.waitingForWorkerResponses')}</p>
                                                                         <p className="mt-1 text-xs font-semibold leading-5 text-slate-600 dark:text-slate-300">
                                                                             When a verified Pro accepts, their rating, experience and portfolio will appear here for your approval.
                                                                         </p>
@@ -4036,7 +4039,7 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                                                     </span>
                                                                     <div className="min-w-0 flex-1">
                                                                         <div className="flex flex-wrap items-center justify-between gap-2">
-                                                                            <p className="text-sm font-black text-amber-950 dark:text-amber-200">Need help with this request?</p>
+                                                                            <p className="text-sm font-black text-amber-950 dark:text-amber-200">{t('serviceRequest.wizardExtra.needHelpWithRequest')}</p>
                                                                             <span className="rounded-full border border-amber-200 dark:border-amber-900/50 bg-white dark:bg-slate-900/70 px-3 py-1 text-[10px] font-black uppercase tracking-[0.14em] text-amber-700 dark:text-amber-400">
                                                                                 Support
                                                                             </span>
@@ -4114,7 +4117,7 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
 
                                                         {isWorkflowV2 && ['arrived', 'start_pending', 'in_progress', 'finish_pending'].includes(requestStatus) && (
                                                             <div className="mt-4 rounded-2xl border border-blue-200 dark:border-blue-900/50 bg-blue-50 dark:bg-blue-900/40 p-4">
-                                                                <p className="text-[10px] font-black uppercase tracking-[0.18em] text-blue-700 dark:text-blue-400">Double approval</p>
+                                                                <p className="text-[10px] font-black uppercase tracking-[0.18em] text-blue-700 dark:text-blue-400">{t('serviceRequest.wizardExtra.doubleApproval')}</p>
                                                                 <p className="mt-2 text-sm font-bold text-slate-900 dark:text-slate-100">
                                                                     {['arrived', 'start_pending'].includes(requestStatus)
                                                                         ? startApproved ? 'Your start approval is saved. Waiting for worker.' : 'Approve starting work when both are ready.'
@@ -4139,7 +4142,7 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                                             <div className="mt-4 rounded-2xl border border-slate-100 dark:border-white/5 bg-slate-50 dark:bg-white/[0.04] p-4">
                                                                 <div className="flex items-start justify-between gap-2">
                                                                     <div>
-                                                                        <p className="text-[10px] uppercase tracking-[0.18em] font-black text-slate-400 dark:text-slate-500">Payment Status</p>
+                                                                        <p className="text-[10px] uppercase tracking-[0.18em] font-black text-slate-400 dark:text-slate-500">{t('serviceRequest.wizardExtra.paymentStatus')}</p>
                                                                         <div className="mt-1 flex items-baseline gap-2">
                                                                             <span className="text-xl font-black text-slate-900 dark:text-slate-100">
                                                                                 {request.payment?.amount != null ? `$${Number(request.payment.amount).toFixed(2)}` : `$${Number(request.final_budget ?? request.budget ?? 0).toFixed(2)}`}
@@ -4187,17 +4190,17 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
 
                                                         <div className="mt-4 grid grid-cols-3 gap-3">
                                                             <div className="rounded-xl border border-slate-100 dark:border-white/5 bg-white dark:bg-slate-900/70 p-3 shadow-sm">
-                                                                <p className="text-[10px] uppercase font-black tracking-widest text-slate-400 dark:text-slate-500">Initial</p>
+                                                                <p className="text-[10px] uppercase font-black tracking-widest text-slate-400 dark:text-slate-500">{t('serviceRequest.wizardExtra.initial')}</p>
                                                                 <p className="font-black text-slate-800 dark:text-slate-100 mt-0.5">${Number(request.initial_budget ?? request.budget ?? 0).toFixed(2)}</p>
                                                             </div>
                                                             <div className="rounded-xl border border-amber-100 dark:border-amber-900/40 bg-amber-50 dark:bg-amber-900/40 p-3 shadow-sm">
-                                                                <p className="text-[10px] uppercase font-black tracking-widest text-amber-600 dark:text-amber-400">Counter</p>
+                                                                <p className="text-[10px] uppercase font-black tracking-widest text-amber-600 dark:text-amber-400">{t('serviceRequest.wizardExtra.counter')}</p>
                                                                 <p className="font-black text-amber-800 dark:text-amber-400 mt-0.5">
                                                                     {request.proposed_budget != null ? `$${request.proposed_budget.toFixed(2)}` : '--'}
                                                                 </p>
                                                             </div>
                                                             <div className="rounded-xl border border-emerald-100 dark:border-emerald-900/40 bg-emerald-50 dark:bg-emerald-900/40 p-3 shadow-sm">
-                                                                <p className="text-[10px] uppercase font-black tracking-widest text-emerald-600 dark:text-emerald-400">Final</p>
+                                                                <p className="text-[10px] uppercase font-black tracking-widest text-emerald-600 dark:text-emerald-400">{t('serviceRequest.wizardExtra.final')}</p>
                                                                 <p className="font-black text-emerald-800 dark:text-emerald-400 mt-0.5">
                                                                     {request.final_budget != null ? `$${request.final_budget.toFixed(2)}` : '--'}
                                                                 </p>
@@ -4206,7 +4209,7 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
 
                                                         <div className="mt-4 rounded-2xl border border-slate-100 dark:border-white/5 bg-slate-50 dark:bg-white/[0.04] p-4">
                                                             <div className="mb-4 flex items-center justify-between">
-                                                                <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400 dark:text-slate-500">Service timeline</p>
+                                                                <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400 dark:text-slate-500">{t('serviceRequest.wizardExtra.serviceTimeline')}</p>
                                                                 <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 bg-white dark:bg-slate-900/70 px-2 py-1 rounded-md border border-slate-200 dark:border-white/10">
                                                                     {requestStatus === 'pending' ? 'Waiting for pro' : 'Live track'}
                                                                 </span>
@@ -4241,7 +4244,7 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                                                     <span className="flex h-5 w-5 items-center justify-center rounded-full bg-amber-200 text-amber-700 dark:text-amber-400">
                                                                         <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
                                                                     </span>
-                                                                    <p className="text-[11px] uppercase tracking-[0.15em] font-black text-amber-700 dark:text-amber-400">Counter offer received</p>
+                                                                    <p className="text-[11px] uppercase tracking-[0.15em] font-black text-amber-700 dark:text-amber-400">{t('serviceRequest.wizardExtra.counterOfferReceived')}</p>
                                                                 </div>
                                                                 <p className="text-xl font-black text-amber-900 dark:text-amber-200 mt-1">${request.proposed_budget.toFixed(2)}</p>
                                                                 {request.counter_message && (
@@ -4309,13 +4312,13 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                                                 </button>
                                                             )}
                                                             {isWorkflowV2 && ['paid', 'completion_pending'].includes(requestStatus) && completeApproved && (
-                                                                <p className="text-xs font-bold text-emerald-700 dark:text-emerald-400">Your final approval is saved. Waiting for worker.</p>
+                                                                <p className="text-xs font-bold text-emerald-700 dark:text-emerald-400">{t('serviceRequest.wizardExtra.finalApprovalSavedWaiting')}</p>
                                                             )}
                                                         </div>
 
                                                         <div className="mt-4 rounded-2xl border-none bg-slate-50 dark:bg-white/[0.04] hover:bg-slate-100 dark:hover:bg-white/[0.06] transition-colors p-4">
                                                             <div className="flex items-center justify-between">
-                                                                <p className="text-[11px] uppercase tracking-widest font-black text-slate-500 dark:text-slate-400">Chat</p>
+                                                                <p className="text-[11px] uppercase tracking-widest font-black text-slate-500 dark:text-slate-400">{t('serviceRequest.wizardExtra.chat')}</p>
                                                                 <button
                                                                     type="button"
                                                                     onClick={async () => {
@@ -4344,7 +4347,7 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                                                 <div className="mt-4 space-y-3">
                                                                     <div className="max-h-96 min-h-[180px] overflow-y-auto rounded-xl border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900/70 p-4 space-y-4 flex flex-col">
                                                                         {(chatByRequest[request.id_request] || []).length === 0 ? (
-                                                                            <p className="text-sm text-slate-500 dark:text-slate-400 font-medium text-center py-6">No messages yet. Say hi!</p>
+                                                                            <p className="text-sm text-slate-500 dark:text-slate-400 font-medium text-center py-6">{t('serviceRequest.wizardExtra.noMessagesYetSayHi')}</p>
                                                                         ) : (
                                                                             <AnimatePresence>
                                                                                 {(chatByRequest[request.id_request] || []).map((msg) => {
@@ -4362,7 +4365,7 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                                                                             {msg.message && <p className="leading-relaxed">{msg.message}</p>}
                                                                                             {msg.image_url && (
                                                                                                 <a href={normalizeImageUrl(msg.image_url)} target="_blank" rel="noreferrer" className="mt-2 block rounded-xl overflow-hidden border border-black/10 shadow-sm">
-                                                                                                    <img src={normalizeImageUrl(msg.image_url)} alt="Chat attachment" loading="lazy" className="max-h-40 w-full object-cover hover:scale-105 transition-transform" />
+                                                                                                    <img src={normalizeImageUrl(msg.image_url)} alt={t('serviceRequest.wizardExtra.chatAttachmentAlt')} loading="lazy" className="max-h-40 w-full object-cover hover:scale-105 transition-transform" />
                                                                                                 </a>
                                                                                             )}
                                                                                             <p className={`text-[10px] text-right mt-1.5 ${isMe ? 'text-slate-400 dark:text-slate-500' : 'text-slate-400 dark:text-slate-500'}`}>
@@ -4389,7 +4392,7 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                                                                         void sendRequestChat(request.id_request);
                                                                                     }
                                                                                 }}
-                                                                                placeholder="Write a message..."
+                                                                                placeholder={t('serviceRequest.wizardExtra.writeMessage')}
                                                                                 className="w-full pl-4 pr-10 py-3 rounded-xl border border-slate-200 dark:border-white/10 text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 outline-none transition-all shadow-sm"
                                                                             />
                                                                             <label className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 rounded-lg text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-white/[0.06] cursor-pointer transition-colors">

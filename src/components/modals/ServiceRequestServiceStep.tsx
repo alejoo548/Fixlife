@@ -21,7 +21,7 @@ export function ServiceRequestServiceStep({
     services,
     onSelectService,
 }: ServiceRequestServiceStepProps) {
-    const { i18n } = useTranslation();
+    const { t, i18n } = useTranslation();
 
     return (
         <motion.div
@@ -31,8 +31,8 @@ export function ServiceRequestServiceStep({
             exit={{ opacity: 0, y: -20 }}
             className="p-6 pb-24"
         >
-            <h1 className="text-3xl font-black text-slate-900 dark:text-slate-100 mb-1 tracking-tight">What do you need?</h1>
-            <p className="text-slate-500 dark:text-slate-400 font-medium mb-6">Choose a service to continue</p>
+            <h1 className="text-3xl font-black text-slate-900 dark:text-slate-100 mb-1 tracking-tight">{t('serviceRequest.serviceStep.title')}</h1>
+            <p className="text-slate-500 dark:text-slate-400 font-medium mb-6">{t('serviceRequest.serviceStep.subtitle')}</p>
 
             {servicesLoading ? (
                 <div className="flex justify-center py-8">
@@ -40,7 +40,7 @@ export function ServiceRequestServiceStep({
                 </div>
             ) : services.length === 0 ? (
                 <div className="rounded-2xl border border-dashed border-gray-200 dark:border-white/10 bg-white dark:bg-slate-900 px-4 py-6 text-center text-sm font-medium text-gray-500 dark:text-slate-400">
-                    No active services available.
+                    {t('serviceRequest.serviceStep.empty')}
                 </div>
             ) : (
                 <div className="space-y-3">

@@ -116,19 +116,22 @@ const LANDING_SECTION_IDS = {
 type LandingSectionTarget = keyof typeof LANDING_SECTION_IDS;
 
 const AppRouteFallback: React.FC<{ title?: string; subtitle?: string }> = ({
-  title = 'Loading experience...',
-  subtitle = 'Preparing this view for you.',
-}) => (
-  <div className="pointer-events-none fixed right-4 top-4 z-[120]">
-    <div className="flex items-center gap-2 rounded-full border border-white/70 bg-white/82 px-3 py-2 shadow-[0_14px_34px_rgba(15,23,42,0.08)] backdrop-blur-xl">
-      <div className="h-3.5 w-3.5 rounded-full border-2 border-bird-blue/20 border-t-bird-blue animate-spin" />
-      <div className="min-w-0">
-        <p className="text-[10px] font-black uppercase tracking-[0.18em] text-bird-blue">{title}</p>
-        <p className="text-[11px] text-slate-500">{subtitle}</p>
+  title,
+  subtitle,
+}) => {
+  const { t } = useTranslation();
+  return (
+    <div className="pointer-events-none fixed right-4 top-4 z-[120]">
+      <div className="flex items-center gap-2 rounded-full border border-white/70 bg-white/82 px-3 py-2 shadow-[0_14px_34px_rgba(15,23,42,0.08)] backdrop-blur-xl">
+        <div className="h-3.5 w-3.5 rounded-full border-2 border-bird-blue/20 border-t-bird-blue animate-spin" />
+        <div className="min-w-0">
+          <p className="text-[10px] font-black uppercase tracking-[0.18em] text-bird-blue">{title ?? t('landing.routeFallback.default.title')}</p>
+          <p className="text-[11px] text-slate-500">{subtitle ?? t('landing.routeFallback.default.subtitle')}</p>
+        </div>
       </div>
     </div>
-  </div>
-);
+  );
+};
 
 const SessionAwareRouteFallback: React.FC = () => {
   const location = useLocation();
@@ -325,7 +328,7 @@ const App: React.FC = () => {
 
   useEffect(() => {
     if (consumeLogoutNotice()) {
-      void showSweetToast({ tone: 'success', message: 'Logged out successfully.' });
+      void showSweetToast({ tone: 'success', message: t('userProfile.messages.logoutSuccess') });
     }
   }, []);
 
@@ -568,7 +571,7 @@ const App: React.FC = () => {
           path="/app"
           element={(
             <ProtectedRoute>
-              <Suspense fallback={<AppRouteFallback title="Loading booking flow..." subtitle="Getting the service wizard ready." />}>
+              <Suspense fallback={<AppRouteFallback title={t('landing.routeFallback.bookingFlow.title')} subtitle={t('landing.routeFallback.bookingFlow.subtitle')} />}>
                 <ServiceRequestRoute
                   onClose={handleBackToLanding}
                   onOpenCheckout={handleOpenCheckout}
@@ -581,7 +584,7 @@ const App: React.FC = () => {
           path="/checkout/:requestId"
           element={(
             <ProtectedRoute lockHistory>
-              <Suspense fallback={<AppRouteFallback title="Loading checkout..." subtitle="Preparing secure payment." />}>
+              <Suspense fallback={<AppRouteFallback title={t('landing.routeFallback.checkout.title')} subtitle={t('landing.routeFallback.checkout.subtitle')} />}>
                 <CheckoutRoute onBack={handleBackToRequests} />
               </Suspense>
             </ProtectedRoute>
@@ -591,7 +594,7 @@ const App: React.FC = () => {
           path="/pro-dashboard"
           element={(
             <ProtectedRoute scope="worker" role="worker" lockHistory>
-              <Suspense fallback={<AppRouteFallback title="Loading worker dashboard..." subtitle="Preparing requests, maps and tools." />}>
+              <Suspense fallback={<AppRouteFallback title={t('landing.routeFallback.workerDashboard.title')} subtitle={t('landing.routeFallback.workerDashboard.subtitle')} />}>
                 <ProDashboard
                   isOpen={true}
                   onClose={handleBackToLanding}
@@ -605,7 +608,7 @@ const App: React.FC = () => {
           path="/admin-dashboard/*"
           element={(
             <ProtectedRoute scope="admin" role="admin" lockHistory>
-              <Suspense fallback={<AppRouteFallback title="Loading admin dashboard..." subtitle="Preparing management tools." />}>
+              <Suspense fallback={<AppRouteFallback title={t('landing.routeFallback.adminDashboard.title')} subtitle={t('landing.routeFallback.adminDashboard.subtitle')} />}>
                 <AdminApp
                   isOpen={true}
                   onClose={handleBackToLanding}
@@ -627,7 +630,7 @@ const App: React.FC = () => {
                 onNavigateSection={handleNavigateSection}
                 onSelectCategory={handleSelectCategory}
               />
-              <Suspense fallback={<AppRouteFallback title="Loading your services..." subtitle="Fetching your service history." />}>
+              <Suspense fallback={<AppRouteFallback title={t('landing.routeFallback.myServices.title')} subtitle={t('landing.routeFallback.myServices.subtitle')} />}>
                 <MyServicesHistory onGoHome={handleBackToLanding} />
               </Suspense>
             </ProtectedRoute>
@@ -653,7 +656,7 @@ const App: React.FC = () => {
         <Route
           path="/forgot-password"
           element={(
-            <Suspense fallback={<AppRouteFallback title="Loading recovery..." subtitle="Opening password reset." />}>
+            <Suspense fallback={<AppRouteFallback title={t('landing.routeFallback.recovery.title')} subtitle={t('landing.routeFallback.recovery.subtitle')} />}>
               <ForgotPassword />
             </Suspense>
           )}
@@ -661,7 +664,7 @@ const App: React.FC = () => {
         <Route
           path="/reset-password"
           element={(
-            <Suspense fallback={<AppRouteFallback title="Loading recovery..." subtitle="Opening password reset." />}>
+            <Suspense fallback={<AppRouteFallback title={t('landing.routeFallback.recovery.title')} subtitle={t('landing.routeFallback.recovery.subtitle')} />}>
               <ResetPassword />
             </Suspense>
           )}
@@ -669,7 +672,7 @@ const App: React.FC = () => {
         <Route
           path="/leave-review"
           element={(
-            <Suspense fallback={<AppRouteFallback title="Loading review form..." subtitle="Getting the form ready." />}>
+            <Suspense fallback={<AppRouteFallback title={t('landing.routeFallback.reviewForm.title')} subtitle={t('landing.routeFallback.reviewForm.subtitle')} />}>
               <LeaveReview onOpenAuth={handleOpenAuth} />
             </Suspense>
           )}
@@ -733,8 +736,8 @@ const App: React.FC = () => {
                   transition={{ duration: 0.5 }}
                   className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-white/10 border border-white/20 text-xs font-semibold text-white mb-8 backdrop-blur-md"
                 >
-                  <span className="px-2 py-0.5 rounded-full bg-white text-[10px] font-black text-slate-900 uppercase tracking-wider">NEW</span>
-                  <span className="font-semibold tracking-tight">Fixlife Assist</span>
+                  <span className="px-2 py-0.5 rounded-full bg-white text-[10px] font-black text-slate-900 uppercase tracking-wider">{t('landing.newBadge')}</span>
+                  <span className="font-semibold tracking-tight">{t('landing.assistBadge')}</span>
                 </motion.div>
 
                 <motion.h1
@@ -804,7 +807,7 @@ const App: React.FC = () => {
                     <svg className="relative z-20 w-5 h-5 text-bird-yellow shrink-0 fill-current drop-shadow-[0_2px_5px_rgba(0,0,0,0.3)] group-hover:scale-110 group-hover:rotate-6 transition-all duration-300" viewBox="0 0 24 24">
                       <path d="M20 2H4c-1.1 0-1.99.9-1.99 2L2 22l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zM6 9h12v2H6V9zm8 5H6v-2h8v2zm4-6H6V6h12v2z" />
                     </svg>
-                    <span className="relative z-20 text-white tracking-widest text-xs font-black drop-shadow-[0_2px_5px_rgba(0,0,0,0.3)]">Get Started</span>
+                    <span className="relative z-20 text-white tracking-widest text-xs font-black drop-shadow-[0_2px_5px_rgba(0,0,0,0.3)]">{t('landing.getStarted')}</span>
                   </button>
                 </motion.div>
               </div>
@@ -848,10 +851,10 @@ const App: React.FC = () => {
                   <div>
                     <h3 className="text-3xl md:text-4xl font-black text-slate-900 flex items-center gap-4 dark:text-slate-100">
                       <span className="w-1.5 h-8 rounded-full bg-bird-blue shadow-[0_0_15px_rgba(0,144,255,0.4)] origin-bottom" />
-                      Professional Services
+                      {t('landing.servicesTitle')}
                     </h3>
                     <p className="text-slate-600 mt-2 ml-6 text-sm font-medium dark:text-slate-400">
-                      Expert solutions for every home need
+                      {t('landing.servicesSubtitle')}
                     </p>
                   </div>
                   <Button
@@ -865,7 +868,7 @@ const App: React.FC = () => {
                       </svg>
                     }
                   >
-                    View All
+                    {t('landing.servicesViewAll')}
                   </Button>
                 </div>
               </ScrollReveal>

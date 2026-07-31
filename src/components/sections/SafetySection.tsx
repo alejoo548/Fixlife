@@ -1,47 +1,22 @@
 import React from 'react';
 import { motion } from 'framer-motion';
+import { useTranslation } from 'react-i18next';
 
-const safetyFeatures = [
-  {
-    title: "Background Verified",
-    description: "Every professional undergoes comprehensive background checks including criminal records, identity verification, and employment history.",
-    icon: "M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z",
-    color: "blue",
-    stat: "100%",
-    statLabel: "Verified"
-  },
-  {
-    title: "Licensed & Insured",
-    description: "All professionals carry valid licenses for their trade and maintain liability insurance to protect you and your property.",
-    icon: "M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z",
-    color: "yellow",
-    stat: "$2M",
-    statLabel: "Coverage"
-  },
-  {
-    title: "Secure Payments",
-    description: "Your payment information is encrypted and secure. We hold funds in escrow until the job is completed to your satisfaction.",
-    icon: "M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z",
-    color: "orange",
-    stat: "256-bit",
-    statLabel: "Encryption"
-  },
-  {
-    title: "Satisfaction Guarantee",
-    description: "If you're not completely satisfied with the service, we'll make it right or provide a full refund. Your happiness is guaranteed.",
-    icon: "M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z",
-    color: "blue",
-    stat: "98%",
-    statLabel: "Satisfied"
-  }
+const safetyFeatureIcons = [
+  "M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z",
+  "M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z",
+  "M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z",
+  "M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z",
 ];
+const safetyFeatureColors = ["blue", "yellow", "orange", "blue"];
 
-const trustBadges = [
-  { name: "SSL Secured", icon: "M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" },
-  { name: "PCI Compliant", icon: "M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" },
-  { name: "GDPR Ready", icon: "M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" },
-  { name: "24/7 Support", icon: "M18.364 5.636l-3.536 3.536m0 5.656l3.536 3.536M9.172 9.172L5.636 5.636m3.536 9.192l-3.536 3.536M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-5 0a4 4 0 11-8 0 4 4 0 018 0z" }
+const trustBadgeIcons = [
+  "M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z",
+  "M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z",
+  "M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z",
+  "M18.364 5.636l-3.536 3.536m0 5.656l3.536 3.536M9.172 9.172L5.636 5.636m3.536 9.192l-3.536 3.536M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-5 0a4 4 0 11-8 0 4 4 0 018 0z",
 ];
+const trustBadgeKeys = ['ssl', 'pci', 'gdpr', 'support'] as const;
 
 const getColorClasses = (color: string) => {
   const colors = {
@@ -71,6 +46,14 @@ const getColorClasses = (color: string) => {
 };
 
 export const SafetySection: React.FC = () => {
+  const { t } = useTranslation();
+  const safetyFeatures = (t('safety.features', { returnObjects: true }) as Array<{ title: string; description: string; stat: string; statLabel: string }>).map((feature, index) => ({
+    ...feature,
+    icon: safetyFeatureIcons[index],
+    color: safetyFeatureColors[index],
+  }));
+  const trustBadgeLabels = t('safety.trustBadges', { returnObjects: true }) as Record<string, string>;
+  const trustBadges = trustBadgeKeys.map((key, index) => ({ name: trustBadgeLabels[key], icon: trustBadgeIcons[index] }));
   return (
     <div className="relative">
       <div className="text-center mb-12 md:mb-16">
@@ -78,14 +61,14 @@ export const SafetySection: React.FC = () => {
           <svg className="w-5 h-5 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
           </svg>
-          <span className="text-sm font-bold text-green-600 dark:text-green-400 uppercase tracking-wider">Your Safety is Our Priority</span>
+          <span className="text-sm font-bold text-green-600 dark:text-green-400 uppercase tracking-wider">{t('safety.eyebrow')}</span>
         </div>
 
         <h3 className="text-3xl md:text-4xl lg:text-5xl font-black text-slate-900 dark:text-slate-100 mb-4">
-          Trust & Safety Guaranteed
+          {t('safety.title')}
         </h3>
         <p className="text-slate-600 dark:text-slate-400 text-base md:text-lg max-w-2xl mx-auto font-medium">
-          We take security seriously. Every professional is thoroughly vetted, and every transaction is protected.
+          {t('safety.subtitle')}
         </p>
       </div>
 
@@ -134,8 +117,8 @@ export const SafetySection: React.FC = () => {
 
         <div className="relative z-10">
           <div className="text-center mb-8">
-            <h4 className="text-2xl md:text-3xl font-bold text-slate-900 dark:text-slate-100 mb-2">Industry-Leading Security</h4>
-            <p className="text-slate-600 dark:text-slate-400 text-sm md:text-base font-medium">Certified and compliant with the highest standards</p>
+            <h4 className="text-2xl md:text-3xl font-bold text-slate-900 dark:text-slate-100 mb-2">{t('safety.securityTitle')}</h4>
+            <p className="text-slate-600 dark:text-slate-400 text-sm md:text-base font-medium">{t('safety.securitySubtitle')}</p>
           </div>
 
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-6">
@@ -165,13 +148,13 @@ export const SafetySection: React.FC = () => {
           </svg>
         </div>
         <div className="flex-1 text-center md:text-left">
-          <h5 className="text-xl md:text-2xl font-bold text-slate-900 dark:text-slate-100 mb-2">Our Commitment to You</h5>
+          <h5 className="text-xl md:text-2xl font-bold text-slate-900 dark:text-slate-100 mb-2">{t('safety.commitmentTitle')}</h5>
           <p className="text-slate-700 dark:text-slate-300 text-sm md:text-base font-medium leading-relaxed">
-            We continuously monitor and improve our safety standards. If anything goes wrong, our dedicated support team is available 24/7 to help resolve any issues immediately.
+            {t('safety.commitmentDescription')}
           </p>
         </div>
         <a href="#" className="px-6 py-3 rounded-xl bg-green-600 text-white font-bold hover:bg-green-700 transition-all shadow-lg shadow-green-600/20 whitespace-nowrap">
-          Learn More
+          {t('safety.cta')}
         </a>
       </div>
     </div>

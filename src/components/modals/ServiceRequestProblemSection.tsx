@@ -1,5 +1,6 @@
 import React from 'react';
 import { motion } from 'framer-motion';
+import { useTranslation } from 'react-i18next';
 
 type NearbyWorkerPreview = {
     id_worker_profile: number;
@@ -53,13 +54,14 @@ export function ServiceRequestProblemSection({
     onFindPro,
     onSubmitRequest,
 }: ServiceRequestProblemSectionProps) {
+    const { t } = useTranslation();
     return (
         <>
             <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}>
-                <label className="block text-sm font-bold text-gray-700 dark:text-slate-300 mb-2">What's the problem?</label>
+                <label className="block text-sm font-bold text-gray-700 dark:text-slate-300 mb-2">{t('serviceRequest.problem.title')}</label>
                 <textarea
                     className="w-full h-32 bg-gray-100 dark:bg-slate-800 border-none rounded-xl p-4 text-gray-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-gray-300 dark:focus:ring-white/20 transition-all resize-none placeholder-gray-400 dark:placeholder-slate-500"
-                    placeholder="Describe what needs fixing..."
+                    placeholder={t('serviceRequest.problem.placeholder')}
                     value={description}
                     maxLength={1000}
                     onChange={(e) => onDescriptionChange(e.target.value)}
@@ -68,7 +70,7 @@ export function ServiceRequestProblemSection({
 
             <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.25 }}>
                 <div className="flex items-center justify-between mb-2">
-                    <label className="block text-sm font-bold text-slate-900 dark:text-slate-100">Problem Images (max 5)</label>
+                    <label className="block text-sm font-bold text-slate-900 dark:text-slate-100">{t('serviceRequest.problem.images')}</label>
                     <span className="text-xs font-bold text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded-full">{problemFilesCount}/5</span>
                 </div>
                 <label className="block cursor-pointer">
@@ -78,8 +80,8 @@ export function ServiceRequestProblemSection({
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
                             </svg>
                         </div>
-                        <div className="text-slate-900 dark:text-slate-100 font-bold text-[15px]">Upload Photos</div>
-                        <div className="text-[13px] text-slate-500 dark:text-slate-400 mt-1">PNG, JPG, WEBP</div>
+                        <div className="text-slate-900 dark:text-slate-100 font-bold text-[15px]">{t('serviceRequest.problem.uploadPhotos')}</div>
+                        <div className="text-[13px] text-slate-500 dark:text-slate-400 mt-1">{t('serviceRequest.problem.imageTypes')}</div>
                     </div>
                     <input
                         type="file"
@@ -99,7 +101,7 @@ export function ServiceRequestProblemSection({
                                 key={url}
                                 className="relative rounded-xl overflow-hidden border border-slate-200 dark:border-white/10 shadow-sm group aspect-square"
                             >
-                                <img src={url} alt={`Problem ${index + 1}`} className="w-full h-full object-cover" />
+                                <img src={url} alt={t('serviceRequest.problem.imageAlt', { index: index + 1 })} className="w-full h-full object-cover" />
                                 <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
                                     <button
                                         type="button"
@@ -121,7 +123,7 @@ export function ServiceRequestProblemSection({
             </motion.div>
 
             {showBudget && <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}>
-                <label className="block text-sm font-bold text-slate-900 dark:text-slate-100 mb-2">Your budget</label>
+                <label className="block text-sm font-bold text-slate-900 dark:text-slate-100 mb-2">{t('serviceRequest.problem.budget')}</label>
                 <div className="relative group">
                     <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500 font-bold text-lg group-focus-within:text-slate-900 dark:group-focus-within:text-slate-100 transition-colors">$</span>
                     <input
@@ -148,7 +150,7 @@ export function ServiceRequestProblemSection({
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                     </svg>
                     <p id="request-budget-help" className="text-xs font-semibold text-slate-500 dark:text-slate-400">
-                        Suggested: <span className="text-slate-700 dark:text-slate-300">$40 - $80</span> · Maximum: $1,000.00
+                        {t('serviceRequest.problem.suggested')} <span className="text-slate-700 dark:text-slate-300">$40 - $80</span> · {t('serviceRequest.problem.maximum')} $1,000.00
                     </p>
                 </div>
             </motion.div>}
@@ -156,14 +158,14 @@ export function ServiceRequestProblemSection({
             {showResults && nearbyWorkers.length > 0 && (
                 <div className="mt-4 rounded-xl border border-gray-100 dark:border-white/10 bg-white dark:bg-slate-900 p-3">
                     <p className="text-xs uppercase tracking-wider font-bold text-emerald-700 dark:text-emerald-400 mb-2">
-                        Nearby workers in range
+                        {t('serviceRequest.problem.nearbyWorkers')}
                     </p>
                     <div className="space-y-2">
                         {nearbyWorkers.slice(0, 5).map((worker) => (
                             <div key={worker.id_worker_profile} className="flex items-center justify-between rounded-lg bg-gray-50 dark:bg-slate-800 border border-gray-100 dark:border-white/10 px-3 py-2">
                                 <div className="min-w-0">
                                     <p className="text-[15px] font-bold text-slate-800 dark:text-slate-100 truncate">{worker.name}</p>
-                                    <p className="text-xs text-gray-500 dark:text-slate-400 truncate">{worker.bio || 'Available now'}</p>
+                                    <p className="text-xs text-gray-500 dark:text-slate-400 truncate">{worker.bio || t('serviceRequest.problem.availableNow')}</p>
                                 </div>
                                 <span className="text-xs font-bold text-emerald-700 dark:text-emerald-400">
                                     {worker.distance_km != null ? `${worker.distance_km.toFixed(1)} km` : '--'}
@@ -180,7 +182,7 @@ export function ServiceRequestProblemSection({
                     animate={{ opacity: 1, y: 0 }}
                     className="mt-4 rounded-2xl border border-amber-200 dark:border-amber-900/40 bg-amber-50 dark:bg-amber-950/30 p-4 shadow-sm"
                 >
-                    <p className="text-sm font-black text-amber-900 dark:text-amber-300">No nearby pros available right now</p>
+                    <p className="text-sm font-black text-amber-900 dark:text-amber-300">{t('serviceRequest.problem.noNearbyTitle')}</p>
                     <p className="mt-1 text-sm font-semibold text-amber-800 dark:text-amber-400">{noNearbyProsNotice}</p>
                 </motion.div>
             )}
@@ -196,7 +198,7 @@ export function ServiceRequestProblemSection({
                     disabled={!canSearchPros}
                     className="w-full py-4 rounded-xl bg-slate-900 dark:bg-slate-800 text-white font-bold text-[15px] hover:bg-black dark:hover:bg-slate-700 transition-all disabled:opacity-50 disabled:hover:bg-slate-900 flex items-center justify-center gap-3 shadow-lg shadow-slate-900/20"
                 >
-                    <span>Find a Pro</span>
+                    <span>{t('serviceRequest.problem.findPro')}</span>
                     <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" />
                     </svg>
@@ -212,7 +214,7 @@ export function ServiceRequestProblemSection({
                     disabled={!canSubmitRequest}
                     className="w-full py-4 rounded-xl bg-white dark:bg-slate-800 border-2 border-slate-200 dark:border-white/10 text-slate-700 dark:text-slate-200 font-bold text-[15px] hover:bg-slate-50 dark:hover:bg-slate-700 hover:border-slate-300 hover:text-slate-900 dark:hover:text-slate-100 transition-all disabled:opacity-50 disabled:bg-white dark:disabled:bg-slate-800"
                 >
-                    {!isAuthenticated ? 'Login Required' : isSubmittingRequest ? 'Submitting...' : 'Submit Request'}
+                    {!isAuthenticated ? t('serviceRequest.problem.loginRequired') : isSubmittingRequest ? t('serviceRequest.problem.submitting') : t('serviceRequest.problem.submitRequest')}
                 </motion.button>
             </div>}
         </>

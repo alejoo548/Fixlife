@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { API_ENDPOINTS } from '../../config/api';
 import { AuthMode } from '../../types';
 import { showSweetToast } from '../../utils/sweetAlert';
@@ -28,6 +29,7 @@ interface AuthModalProps {
 
 export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMode, onAdminLogin, onClientLogin, onWorkerLogin }) => {
   const navigate = useNavigate();
+  const { t } = useTranslation();
   type AuthView = AuthMode | 'forgot';
   const [view, setView] = useState<AuthView>(initialMode);
 
@@ -144,7 +146,7 @@ const GoogleSignInButton = ({ onCredential }: { onCredential: (credential: strin
           }}
         >
           <span aria-hidden="true" className="text-base font-black text-bird-blue">G</span>
-          Sign in with Google
+          {t('auth.googleFallback')}
         </button>
       )}
     </div>
@@ -186,9 +188,9 @@ const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (view === 'signup') {
-      void showSweetToast({ tone: 'success', message: 'Account created successfully!' });
+      void showSweetToast({ tone: 'success', message: t('auth.messages.accountCreated') });
     } else {
-      void showSweetToast({ tone: 'success', message: 'Welcome back!' });
+      void showSweetToast({ tone: 'success', message: t('auth.messages.welcomeBack') });
     }
     setTimeout(() => onClose(), 1500);
   };
@@ -202,12 +204,12 @@ const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
   e.preventDefault();
 
   if (formData.password !== formData.confirmPassword) {
-    void showSweetToast({ tone: 'error', message: 'Passwords do not match' });
+    void showSweetToast({ tone: 'error', message: t('auth.messages.passwordsDoNotMatch') });
     return;
   }
 
   if (isCaptchaEnabled && !captchaToken) {
-    void showSweetToast({ tone: 'error', message: 'Please complete the captcha verification.' });
+    void showSweetToast({ tone: 'error', message: t('auth.messages.completeCaptcha') });
     return;
   }
 
@@ -229,19 +231,19 @@ const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const data = await res.json();
 
     if (!res.ok) {
-      void showSweetToast({ tone: 'error', message: data.error || 'Registration failed' });
+      void showSweetToast({ tone: 'error', message: data.error || t('auth.messages.registrationFailed') });
       return;
     }
 
     login(data.user, data.token);
-    void showSweetToast({ tone: 'success', message: 'Account created successfully!' });
+    void showSweetToast({ tone: 'success', message: t('auth.messages.accountCreated') });
 
     setCaptchaToken(null);
     onClose();
     setTimeout(() => onClientLogin?.(), 100);
   } catch (err) {
     console.error(err);
-    void showSweetToast({ tone: 'error', message: 'Connection error' });
+    void showSweetToast({ tone: 'error', message: t('auth.messages.connectionError') });
   }
 };
 
@@ -250,7 +252,7 @@ const handleAuthSuccess = (data: any) => {
 
   if (role === 'admin' || role === 'root') {
     setAuthSession(data.user, data.token, 'admin');
-    void showSweetToast({ tone: 'success', message: 'Admin session ready.' });
+    void showSweetToast({ tone: 'success', message: t('auth.messages.adminSessionReady') });
     onClose();
     setTimeout(() => {
       if (onAdminLogin) {
@@ -264,7 +266,7 @@ const handleAuthSuccess = (data: any) => {
 
   if (data.user?.rol === 'worker' || data.user?.role === 'worker') {
     setAuthSession(data.user, data.token, 'worker');
-    void showSweetToast({ tone: 'success', message: 'Worker session ready.' });
+    void showSweetToast({ tone: 'success', message: t('auth.messages.workerSessionReady') });
     onClose();
     setTimeout(() => {
       if (onWorkerLogin) {
@@ -277,7 +279,7 @@ const handleAuthSuccess = (data: any) => {
   }
 
   login(data.user, data.token);
-  void showSweetToast({ tone: 'success', message: 'Welcome back!' });
+  void showSweetToast({ tone: 'success', message: t('auth.messages.welcomeBack') });
   onClose();
   setTimeout(() => onClientLogin?.(), 100);
 };
@@ -293,14 +295,14 @@ const handleGoogleSignin = async (credential: string) => {
     const data = await res.json();
 
     if (!res.ok) {
-      void showSweetToast({ tone: 'error', message: data.error || 'Google login failed' });
+      void showSweetToast({ tone: 'error', message: data.error || t('auth.messages.googleLoginFailed') });
       return;
     }
 
     handleAuthSuccess(data);
   } catch (err) {
     console.error(err);
-    void showSweetToast({ tone: 'error', message: 'Connection error' });
+    void showSweetToast({ tone: 'error', message: t('auth.messages.connectionError') });
   }
 };
 
@@ -308,13 +310,13 @@ const handleSignin = async (e: React.FormEvent<HTMLFormElement>) => {
   e.preventDefault();
 
   if (!formData.email || !formData.password) {
-  void showSweetToast({ tone: 'error', message: 'Email and password are required' });
+  void showSweetToast({ tone: 'error', message: t('auth.messages.emailPasswordRequired') });
   return;
 }
 
 const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 if (!emailRegex.test(formData.email)) {
-  void showSweetToast({ tone: 'error', message: 'Invalid email format' });
+  void showSweetToast({ tone: 'error', message: t('auth.messages.invalidEmailFormat') });
   return;
 }
 
@@ -331,14 +333,14 @@ if (!emailRegex.test(formData.email)) {
     const data = await res.json();
 
     if (!res.ok) {
-      void showSweetToast({ tone: 'error', message: data.error || 'Login failed' });
+      void showSweetToast({ tone: 'error', message: data.error || t('auth.messages.loginFailed') });
       return;
     }
 
     handleAuthSuccess(data);
   } catch (err) {
     console.error(err);
-    void showSweetToast({ tone: 'error', message: 'Connection error' });
+    void showSweetToast({ tone: 'error', message: t('auth.messages.connectionError') });
   }
 };
 
@@ -382,12 +384,12 @@ if (!emailRegex.test(formData.email)) {
             className={`absolute top-0 left-0 w-1/2 h-full z-30 flex flex-col items-center justify-center text-center px-12 gap-6 ${transitionClass}
              ${isSignup ? 'translate-x-0 opacity-100 pointer-events-auto' : '-translate-x-[20%] opacity-0 pointer-events-none'}`}
           >
-            <h2 className="text-4xl font-bold tracking-tight text-white">Welcome Back!</h2>
+            <h2 className="text-4xl font-bold tracking-tight text-white">{t('auth.welcomeBackTitle')}</h2>
             <p className="text-sm text-blue-100/80 leading-relaxed">
-              To keep connected with us please login with your personal info
+              {t('auth.welcomeBackDescription')}
             </p>
             <button onClick={toggleView} className="mt-2 px-10 py-3 rounded-full border border-white/40 bg-white/10 text-white font-semibold hover:bg-white hover:text-bird-blue transition-all duration-300 backdrop-blur-sm">
-              SIGN IN
+              {t('auth.actions.signIn')}
             </button>
           </div>
 
@@ -395,37 +397,37 @@ if (!emailRegex.test(formData.email)) {
             className={`absolute top-0 left-1/2 w-1/2 h-full z-10 flex flex-col items-center justify-center px-10 ${transitionClass}
              ${isSignup ? 'translate-x-0 opacity-100 z-10' : 'translate-x-[20%] opacity-0 z-0'}`}
           >
-            <h2 className="text-3xl font-bold mb-4 text-bird-blue dark:text-sky-400">Create Account</h2>
-            <p className="text-xs text-gray-500 dark:text-slate-400 mb-4">or use your email for registration</p>
+            <h2 className="text-3xl font-bold mb-4 text-bird-blue dark:text-sky-400">{t('auth.createAccountTitle')}</h2>
+            <p className="text-xs text-gray-500 dark:text-slate-400 mb-4">{t('auth.registerWithEmail')}</p>
             <form className="w-full flex flex-col gap-2.5" onSubmit={handleSignup}>
               <div className="grid grid-cols-2 gap-2.5">
                 <div className="bg-gray-50 dark:bg-slate-800 rounded-lg p-1 border border-gray-200 dark:border-white/10 focus-within:border-bird-blue/50 transition-colors">
-                  <input type="text" name="name" maxLength={50} value={formData.name} onChange={handleChange} placeholder="First Name" className="w-full bg-transparent px-3 py-2 text-sm text-gray-900 dark:text-slate-100 outline-none placeholder-gray-500 dark:placeholder-slate-400" />
+                  <input type="text" name="name" maxLength={50} value={formData.name} onChange={handleChange} placeholder={t('auth.fields.firstName')} className="w-full bg-transparent px-3 py-2 text-sm text-gray-900 dark:text-slate-100 outline-none placeholder-gray-500 dark:placeholder-slate-400" />
                 </div>
                 <div className="bg-gray-50 dark:bg-slate-800 rounded-lg p-1 border border-gray-200 dark:border-white/10 focus-within:border-bird-blue/50 transition-colors">
-                  <input type="text" name="lastname" maxLength={50} value={formData.lastname} onChange={handleChange} placeholder="Last Name" className="w-full bg-transparent px-3 py-2 text-sm text-gray-900 dark:text-slate-100 outline-none placeholder-gray-500 dark:placeholder-slate-400" />
+                  <input type="text" name="lastname" maxLength={50} value={formData.lastname} onChange={handleChange} placeholder={t('auth.fields.lastName')} className="w-full bg-transparent px-3 py-2 text-sm text-gray-900 dark:text-slate-100 outline-none placeholder-gray-500 dark:placeholder-slate-400" />
                 </div>
               </div>
 
               <div className="grid grid-cols-2 gap-2.5">
                 <div className="bg-gray-50 dark:bg-slate-800 rounded-lg p-1 border border-gray-200 dark:border-white/10 focus-within:border-bird-blue/50 transition-colors">
-                  <input type="text" name="username" maxLength={30} value={formData.username} onChange={handleChange} placeholder="Username" className="w-full bg-transparent px-3 py-2 text-sm text-gray-900 dark:text-slate-100 outline-none placeholder-gray-500 dark:placeholder-slate-400" />
+                  <input type="text" name="username" maxLength={30} value={formData.username} onChange={handleChange} placeholder={t('auth.fields.username')} className="w-full bg-transparent px-3 py-2 text-sm text-gray-900 dark:text-slate-100 outline-none placeholder-gray-500 dark:placeholder-slate-400" />
                 </div>
                 <div className="bg-gray-50 dark:bg-slate-800 rounded-lg p-1 border border-gray-200 dark:border-white/10 focus-within:border-bird-blue/50 transition-colors">
-                  <input type="tel" name="phone_number" maxLength={15} value={formData.phone_number} onChange={handleChange} placeholder="Phone" className="w-full bg-transparent px-3 py-2 text-sm text-gray-900 dark:text-slate-100 outline-none placeholder-gray-500 dark:placeholder-slate-400" />
+                  <input type="tel" name="phone_number" maxLength={15} value={formData.phone_number} onChange={handleChange} placeholder={t('auth.fields.phone')} className="w-full bg-transparent px-3 py-2 text-sm text-gray-900 dark:text-slate-100 outline-none placeholder-gray-500 dark:placeholder-slate-400" />
                 </div>
               </div>
 
               <div className="bg-gray-50 dark:bg-slate-800 rounded-lg p-1 border border-gray-200 dark:border-white/10 focus-within:border-bird-blue/50 transition-colors">
-                <input type="email" name="email" maxLength={100} value={formData.email} onChange={handleChange} placeholder="Email" className="w-full bg-transparent px-3 py-2 text-sm text-gray-900 dark:text-slate-100 outline-none placeholder-gray-500 dark:placeholder-slate-400" />
+                <input type="email" name="email" maxLength={100} value={formData.email} onChange={handleChange} placeholder={t('auth.fields.email')} className="w-full bg-transparent px-3 py-2 text-sm text-gray-900 dark:text-slate-100 outline-none placeholder-gray-500 dark:placeholder-slate-400" />
               </div>
 
               <div className="grid grid-cols-2 gap-2.5">
                 <div className="bg-gray-50 dark:bg-slate-800 rounded-lg p-1 border border-gray-200 dark:border-white/10 focus-within:border-bird-blue/50 transition-colors">
-                  <PasswordInput maxLength={128}  name="password" value={formData.password} onChange={handleChange} placeholder="Password" className="w-full bg-transparent px-3 py-2 text-sm text-gray-900 dark:text-slate-100 outline-none placeholder-gray-500 dark:placeholder-slate-400" />
+                  <PasswordInput maxLength={128}  name="password" value={formData.password} onChange={handleChange} placeholder={t('auth.fields.password')} className="w-full bg-transparent px-3 py-2 text-sm text-gray-900 dark:text-slate-100 outline-none placeholder-gray-500 dark:placeholder-slate-400" />
                 </div>
                 <div className="bg-gray-50 dark:bg-slate-800 rounded-lg p-1 border border-gray-200 dark:border-white/10 focus-within:border-bird-blue/50 transition-colors">
-                  <PasswordInput maxLength={128}  name="confirmPassword" value={formData.confirmPassword} onChange={handleChange} placeholder="Confirm" className="w-full bg-transparent px-3 py-2 text-sm text-gray-900 dark:text-slate-100 outline-none placeholder-gray-500 dark:placeholder-slate-400" />
+                  <PasswordInput maxLength={128}  name="confirmPassword" value={formData.confirmPassword} onChange={handleChange} placeholder={t('auth.fields.confirm')} className="w-full bg-transparent px-3 py-2 text-sm text-gray-900 dark:text-slate-100 outline-none placeholder-gray-500 dark:placeholder-slate-400" />
                 </div>
               </div>
 
@@ -440,7 +442,7 @@ if (!emailRegex.test(formData.email)) {
               )}
 
               <button className="mt-2 w-full py-3 rounded-full bg-bird-yellow text-gray-900 font-bold text-sm tracking-wide shadow-lg shadow-bird-yellow/20 hover:bg-bird-orange hover:scale-[1.02] transition-all duration-300">
-                SIGN UP
+                {t('auth.actions.signUp')}
               </button>
             </form>
           </div>
@@ -449,12 +451,12 @@ if (!emailRegex.test(formData.email)) {
             className={`absolute top-0 left-1/2 w-1/2 h-full z-30 flex flex-col items-center justify-center text-center px-12 gap-6 ${transitionClass}
              ${!isSignup ? 'translate-x-0 opacity-100 pointer-events-auto' : 'translate-x-[20%] opacity-0 pointer-events-none'}`}
           >
-            <h2 className="text-4xl font-bold tracking-tight text-white">Hello, Friend!</h2>
+            <h2 className="text-4xl font-bold tracking-tight text-white">{t('auth.helloFriendTitle')}</h2>
             <p className="text-sm text-blue-100/80 leading-relaxed">
-              Enter your personal details and start your journey with us
+              {t('auth.helloFriendDescription')}
             </p>
             <button onClick={toggleView} className="mt-2 px-10 py-3 rounded-full border border-white/40 bg-white/10 text-white font-semibold hover:bg-white hover:text-bird-blue transition-all duration-300 backdrop-blur-sm">
-              SIGN UP
+              {t('auth.actions.signUp')}
             </button>
           </div>
 
@@ -462,22 +464,22 @@ if (!emailRegex.test(formData.email)) {
             className={`absolute top-0 left-0 w-1/2 h-full z-10 flex flex-col items-center justify-center px-14 ${transitionClass}
              ${!isSignup ? 'translate-x-0 opacity-100 z-10' : '-translate-x-[20%] opacity-0 z-0'}`}
           >
-            <h2 className="text-3xl font-bold mb-6 text-bird-blue dark:text-sky-400">Sign in to Fixlife</h2>
+            <h2 className="text-3xl font-bold mb-6 text-bird-blue dark:text-sky-400">{t('auth.signInTitle')}</h2>
             <div className="flex flex-col gap-3 w-full mb-6">
               <GoogleSignInButton onCredential={handleGoogleSignin} />
             </div>
 
-            <p className="text-xs text-gray-500 dark:text-slate-400 mb-4">or use your email account</p>
+            <p className="text-xs text-gray-500 dark:text-slate-400 mb-4">{t('auth.signInWithEmail')}</p>
             <form className="w-full flex flex-col gap-3" onSubmit={handleSignin}>
               <div className="bg-gray-50 dark:bg-slate-800 rounded-lg p-1 border border-gray-200 dark:border-white/10 focus-within:border-bird-blue/50 transition-colors">
-                <input type="email" name="email" maxLength={100} value={formData.email} onChange={handleChange} placeholder="Email" className="w-full bg-transparent px-3 py-2 text-sm text-gray-900 dark:text-slate-100 outline-none placeholder-gray-500 dark:placeholder-slate-400" />
+                <input type="email" name="email" maxLength={100} value={formData.email} onChange={handleChange} placeholder={t('auth.fields.email')} className="w-full bg-transparent px-3 py-2 text-sm text-gray-900 dark:text-slate-100 outline-none placeholder-gray-500 dark:placeholder-slate-400" />
               </div>
               <div className="bg-gray-50 dark:bg-slate-800 rounded-lg p-1 border border-gray-200 dark:border-white/10 focus-within:border-bird-blue/50 transition-colors">
-                <PasswordInput maxLength={128}  name="password" value={formData.password} onChange={handleChange} placeholder="Password" className="w-full bg-transparent px-3 py-2 text-sm text-gray-900 dark:text-slate-100 outline-none placeholder-gray-500 dark:placeholder-slate-400" />
+                <PasswordInput maxLength={128}  name="password" value={formData.password} onChange={handleChange} placeholder={t('auth.fields.password')} className="w-full bg-transparent px-3 py-2 text-sm text-gray-900 dark:text-slate-100 outline-none placeholder-gray-500 dark:placeholder-slate-400" />
               </div>
-              <button type="button" onClick={() => setView('forgot')} className="text-xs text-gray-500 dark:text-slate-400 hover:text-bird-blue transition-colors self-end my-1"> Forgot your password? </button>
+              <button type="button" onClick={() => setView('forgot')} className="text-xs text-gray-500 dark:text-slate-400 hover:text-bird-blue transition-colors self-end my-1"> {t('auth.forgotPassword')} </button>
               <button className="w-full py-3.5 rounded-full bg-bird-blue text-white font-bold text-sm tracking-wide shadow-lg shadow-bird-blue/20 hover:bg-bird-darkBlue hover:scale-[1.02] transition-all duration-300">
-                SIGN IN
+                {t('auth.actions.signIn')}
               </button>
             </form>
           </div>
@@ -493,20 +495,20 @@ if (!emailRegex.test(formData.email)) {
             <div className="w-full h-12 bg-gray-100 dark:bg-slate-800 rounded-full p-1 flex relative mb-6 shrink-0 backdrop-blur-sm border border-gray-200 dark:border-white/10">
               <div className={`absolute top-1 bottom-1 w-[calc(50%-4px)] rounded-full shadow-lg transition-all duration-500 ease-[cubic-bezier(0.23,1,0.32,1)] ${isSignup ? 'left-[50%] bg-bird-yellow' : 'left-1 bg-bird-blue'}`} />
               <button onClick={() => setView('signin')} className={`flex-1 relative z-10 text-xs font-bold tracking-wide transition-colors duration-300 flex items-center justify-center ${!isSignup ? 'text-white' : 'text-gray-600 dark:text-slate-300 hover:text-gray-900 dark:hover:text-slate-100'}`}>
-                SIGN IN
+                {t('auth.actions.signIn')}
               </button>
               <button onClick={() => setView('signup')} className={`flex-1 relative z-10 text-xs font-bold tracking-wide transition-colors duration-300 flex items-center justify-center ${isSignup ? 'text-gray-900' : 'text-gray-600 dark:text-slate-300 hover:text-gray-900 dark:hover:text-slate-100'}`}>
-                SIGN UP
+                {t('auth.actions.signUp')}
               </button>
             </div>
 
             <div className="flex-1 flex flex-col justify-center transition-all duration-500">
               <div className="text-center mb-6">
                 <h2 className="text-2xl font-bold text-gray-900 dark:text-slate-100 mb-2">
-                  {isSignup ? 'Create Account' : 'Welcome Back'}
+                  {isSignup ? t('auth.createAccountTitle') : t('auth.welcomeBackMobileTitle')}
                 </h2>
                 <p className="text-xs text-gray-600 dark:text-slate-400 px-4">
-                  {isSignup ? 'Sign up to get started.' : 'Enter your credentials to access.'}
+                  {isSignup ? t('auth.createAccountMobileDescription') : t('auth.signInMobileDescription')}
                 </p>
               </div>
 
@@ -518,7 +520,7 @@ if (!emailRegex.test(formData.email)) {
 
               <div className="relative flex py-2 items-center mb-6">
                 <div className="flex-grow border-t border-gray-200 dark:border-white/10"></div>
-                <span className="flex-shrink-0 mx-4 text-xs text-gray-500 dark:text-slate-400">Or continue with email</span>
+                <span className="flex-shrink-0 mx-4 text-xs text-gray-500 dark:text-slate-400">{t('auth.continueWithEmail')}</span>
                 <div className="flex-grow border-t border-gray-200 dark:border-white/10"></div>
               </div>
 
@@ -527,32 +529,32 @@ if (!emailRegex.test(formData.email)) {
                   <div className="animate-fade-in-up space-y-3">
                     <div className="grid grid-cols-2 gap-3">
                       <div className="bg-gray-50 dark:bg-slate-800 rounded-xl px-4 py-3 border border-gray-200 dark:border-white/10 focus-within:border-bird-blue/50 transition-colors">
-                        <input type="text" name="name" maxLength={50} value={formData.name} onChange={handleChange} placeholder="Name" className="w-full bg-transparent text-sm text-gray-900 dark:text-slate-100 outline-none placeholder-gray-500 dark:placeholder-slate-400" />
+                        <input type="text" name="name" maxLength={50} value={formData.name} onChange={handleChange} placeholder={t('auth.fields.name')} className="w-full bg-transparent text-sm text-gray-900 dark:text-slate-100 outline-none placeholder-gray-500 dark:placeholder-slate-400" />
                       </div>
                       <div className="bg-gray-50 dark:bg-slate-800 rounded-xl px-4 py-3 border border-gray-200 dark:border-white/10 focus-within:border-bird-blue/50 transition-colors">
-                        <input type="text" name="lastname" maxLength={50} value={formData.lastname} onChange={handleChange} placeholder="Surname" className="w-full bg-transparent text-sm text-gray-900 dark:text-slate-100 outline-none placeholder-gray-500 dark:placeholder-slate-400" />
+                        <input type="text" name="lastname" maxLength={50} value={formData.lastname} onChange={handleChange} placeholder={t('auth.fields.surname')} className="w-full bg-transparent text-sm text-gray-900 dark:text-slate-100 outline-none placeholder-gray-500 dark:placeholder-slate-400" />
                       </div>
                     </div>
                     <div className="bg-gray-50 dark:bg-slate-800 rounded-xl px-4 py-3 border border-gray-200 dark:border-white/10 focus-within:border-bird-blue/50 transition-colors">
-                      <input type="text" name="username" maxLength={30} value={formData.username} onChange={handleChange} placeholder="Username" className="w-full bg-transparent text-sm text-gray-900 dark:text-slate-100 outline-none placeholder-gray-500 dark:placeholder-slate-400" />
+                      <input type="text" name="username" maxLength={30} value={formData.username} onChange={handleChange} placeholder={t('auth.fields.username')} className="w-full bg-transparent text-sm text-gray-900 dark:text-slate-100 outline-none placeholder-gray-500 dark:placeholder-slate-400" />
                     </div>
                     <div className="bg-gray-50 dark:bg-slate-800 rounded-xl px-4 py-3 border border-gray-200 dark:border-white/10 focus-within:border-bird-blue/50 transition-colors">
-                      <input type="tel" name="phone_number" maxLength={15} value={formData.phone_number} onChange={handleChange} placeholder="Phone Number" className="w-full bg-transparent text-sm text-gray-900 dark:text-slate-100 outline-none placeholder-gray-500 dark:placeholder-slate-400" />
+                      <input type="tel" name="phone_number" maxLength={15} value={formData.phone_number} onChange={handleChange} placeholder={t('auth.fields.phoneNumber')} className="w-full bg-transparent text-sm text-gray-900 dark:text-slate-100 outline-none placeholder-gray-500 dark:placeholder-slate-400" />
                     </div>
                   </div>
                 )}
 
                 <div className="bg-gray-50 dark:bg-slate-800 rounded-xl px-4 py-3 border border-gray-200 dark:border-white/10 focus-within:border-bird-blue/50 transition-colors">
-                  <input type="email" name="email" maxLength={100} value={formData.email} onChange={handleChange} placeholder="Email Address" className="w-full bg-transparent text-sm text-gray-900 dark:text-slate-100 outline-none placeholder-gray-500 dark:placeholder-slate-400" />
+                  <input type="email" name="email" maxLength={100} value={formData.email} onChange={handleChange} placeholder={t('auth.fields.emailAddress')} className="w-full bg-transparent text-sm text-gray-900 dark:text-slate-100 outline-none placeholder-gray-500 dark:placeholder-slate-400" />
                 </div>
 
                 <div className="grid grid-cols-1 gap-3">
                   <div className="bg-gray-50 dark:bg-slate-800 rounded-xl px-4 py-3 border border-gray-200 dark:border-white/10 focus-within:border-bird-blue/50 transition-colors">
-                    <PasswordInput maxLength={128}  name="password" value={formData.password} onChange={handleChange} placeholder="Password" className="w-full bg-transparent text-sm text-gray-900 dark:text-slate-100 outline-none placeholder-gray-500 dark:placeholder-slate-400" />
+                    <PasswordInput maxLength={128}  name="password" value={formData.password} onChange={handleChange} placeholder={t('auth.fields.password')} className="w-full bg-transparent text-sm text-gray-900 dark:text-slate-100 outline-none placeholder-gray-500 dark:placeholder-slate-400" />
                   </div>
                   {isSignup && (
                     <div className="bg-gray-50 dark:bg-slate-800 rounded-xl px-4 py-3 border border-gray-200 dark:border-white/10 focus-within:border-bird-blue/50 transition-colors animate-fade-in-up">
-                      <PasswordInput maxLength={128}  name="confirmPassword" value={formData.confirmPassword} onChange={handleChange} placeholder="Confirm Password" className="w-full bg-transparent text-sm text-gray-900 dark:text-slate-100 outline-none placeholder-gray-500 dark:placeholder-slate-400" />
+                      <PasswordInput maxLength={128}  name="confirmPassword" value={formData.confirmPassword} onChange={handleChange} placeholder={t('auth.fields.confirmPassword')} className="w-full bg-transparent text-sm text-gray-900 dark:text-slate-100 outline-none placeholder-gray-500 dark:placeholder-slate-400" />
                     </div>
                   )}
                 </div>
@@ -569,12 +571,12 @@ if (!emailRegex.test(formData.email)) {
 
                 {!isSignup && (
                   <div className="flex justify-end">
-                    <button type="button" onClick={() => setView('forgot')} className="text-xs text-gray-500 dark:text-slate-400 hover:text-bird-blue transition-colors self-end my-1"> Forgot your password?</button>
+                    <button type="button" onClick={() => setView('forgot')} className="text-xs text-gray-500 dark:text-slate-400 hover:text-bird-blue transition-colors self-end my-1"> {t('auth.forgotPassword')}</button>
                   </div>
                 )}
 
                 <button className={`mt-4 w-full py-4 rounded-xl font-bold text-sm tracking-wide shadow-lg active:scale-[0.98] transition-all duration-300 ${isSignup ? 'bg-gradient-to-r from-bird-yellow to-bird-orange text-gray-900 shadow-bird-yellow/20' : 'bg-gradient-to-r from-bird-blue to-bird-darkBlue text-white shadow-bird-blue/20'}`}>
-                  {isSignup ? 'Create Account' : 'Sign In'}
+                  {isSignup ? t('auth.createAccountTitle') : t('auth.signInButton')}
                 </button>
               </form>
             </div>

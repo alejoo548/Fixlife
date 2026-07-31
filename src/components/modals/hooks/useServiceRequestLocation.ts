@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { API_ENDPOINTS } from '../../../config/api';
+import i18n from '../../../i18n';
 
 type ToastType = 'success' | 'error' | 'info';
 
@@ -223,8 +224,8 @@ export function useServiceRequestLocation({
           return;
         }
         clearWatch();
-        setGeoError('Could not access your exact location. Allow permission and try again.');
-        showToast('error', 'Could not read your exact location.');
+        setGeoError(i18n.t('serviceRequest.location.exactLocationError'));
+        showToast('error', i18n.t('serviceRequest.location.exactLocationToast'));
         setGeoLoading(false);
       },
       { enableHighAccuracy: true, timeout: GEOLOCATION_TIMEOUT_MS, maximumAge: 0 }

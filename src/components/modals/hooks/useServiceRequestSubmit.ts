@@ -4,6 +4,7 @@ import { API_ENDPOINTS } from '../../../config/api';
 import type { ServiceRequestData } from '../../../types';
 import { clearAuthSession, getAuthUser, getToken, isAuthenticated } from '../../../utils/session';
 import type { ServiceRequestHistoryStatus } from './useServiceRequestHistory';
+import i18n from '../../../i18n';
 
 interface Coordinates {
   lat: number;
@@ -91,24 +92,24 @@ export const useServiceRequestSubmit = ({
 }: UseServiceRequestSubmitOptions) =>
   useCallback(async () => {
     const msg = {
-      authRequired: 'You need an account and active session to create a request.',
-      selectServiceFirst: 'Select a service first.',
-      locationRequired: 'Location is required.',
-      confirmLocation: 'Confirm the exact service location before sending.',
-      specificLocation: 'Choose a specific address, landmark, or coordinates.',
-      descriptionRequired: 'Description must have at least 10 characters.',
-      budgetInvalid: 'Budget must be between $0.01 and $1,000.00.',
-      imageRequired: 'Add at least one problem image.',
-      scheduleRequired: 'Select a date and time window for the scheduled visit.',
-      scheduleDurationInvalid: 'Estimated visit duration must be between 1 and 7 hours.',
-      scheduleInvalid: 'Select a valid date and time for the scheduled visit.',
-      sessionExpiredTitle: 'Session expired',
-      sessionExpiredMessage: 'Please sign in again before creating a service request.',
-      signInAgain: 'Sign in again',
-      activeRequestExists: 'You already have an active request (#{{id}}).',
-      createError: 'Could not create request.',
-      networkError: 'Network error creating request.',
-      incompleteRequest: 'Complete the missing information before sending.',
+      authRequired: i18n.t('serviceRequest.wizard.submit.authRequired'),
+      selectServiceFirst: i18n.t('serviceRequest.wizard.submit.selectServiceFirst'),
+      locationRequired: i18n.t('serviceRequest.wizard.submit.locationRequired'),
+      confirmLocation: i18n.t('serviceRequest.wizard.submit.confirmLocation'),
+      specificLocation: i18n.t('serviceRequest.wizard.submit.specificLocation'),
+      descriptionRequired: i18n.t('serviceRequest.wizard.submit.descriptionRequired'),
+      budgetInvalid: i18n.t('serviceRequest.wizard.submit.budgetInvalid'),
+      imageRequired: i18n.t('serviceRequest.wizard.submit.imageRequired'),
+      scheduleRequired: i18n.t('serviceRequest.wizard.submit.scheduleRequired'),
+      scheduleDurationInvalid: i18n.t('serviceRequest.wizard.submit.scheduleDurationInvalid'),
+      scheduleInvalid: i18n.t('serviceRequest.wizard.submit.scheduleInvalid'),
+      sessionExpiredTitle: i18n.t('serviceRequest.wizard.submit.sessionExpiredTitle'),
+      sessionExpiredMessage: i18n.t('serviceRequest.wizard.submit.sessionExpiredMessage'),
+      signInAgain: i18n.t('serviceRequest.wizard.submit.signInAgain'),
+      activeRequestExists: i18n.t('serviceRequest.wizard.submit.activeRequestExists'),
+      createError: i18n.t('serviceRequest.wizard.submit.createError'),
+      networkError: i18n.t('serviceRequest.wizard.submit.networkError'),
+      incompleteRequest: i18n.t('serviceRequest.wizard.submit.incompleteRequest'),
       ...messages,
     };
 

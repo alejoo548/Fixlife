@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, MapPin, Calendar, User, CheckCircle2, ShieldAlert } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 
 import { useServiceRequestHistory } from './hooks/useServiceRequestHistory';
 import { useActiveTrackedRequest } from './hooks/useActiveTrackedRequest';
@@ -17,6 +18,7 @@ interface MyRequestsModalProps {
 }
 
 export const MyRequestsModal: React.FC<MyRequestsModalProps> = ({ isOpen, onClose }) => {
+  const { t } = useTranslation();
   const token = getToken();
   const {
     myRequests,
@@ -139,13 +141,13 @@ export const MyRequestsModal: React.FC<MyRequestsModalProps> = ({ isOpen, onClos
             {/* Header */}
             <div className="flex items-center justify-between border-b border-slate-200 dark:border-white/10 px-6 py-4">
               <div>
-                <p className="text-[10px] font-black uppercase tracking-[0.18em] text-bird-blue">Your services</p>
-                <h2 className="text-2xl font-black text-slate-950 dark:text-slate-100">My Requests &amp; History</h2>
+                <p className="text-[10px] font-black uppercase tracking-[0.18em] text-bird-blue">{t('serviceRequest.history.yourServices')}</p>
+                <h2 className="text-2xl font-black text-slate-950 dark:text-slate-100">{t('serviceRequest.history.requestsAndHistory')}</h2>
               </div>
               <button
                 onClick={onClose}
                 className="rounded-full p-2 text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-slate-100 transition-colors"
-                aria-label="Close"
+                aria-label={t('serviceRequest.history.close')}
               >
                 <X size={20} />
               </button>
@@ -154,7 +156,7 @@ export const MyRequestsModal: React.FC<MyRequestsModalProps> = ({ isOpen, onClos
         {/* Filters */}
         <div className="flex items-center gap-2 border-b border-slate-200 dark:border-white/10 px-6 py-3 bg-slate-50 dark:bg-slate-950/50">
           {['all', 'in_progress', 'done', 'cancelled'].map((s) => {
-            const label = s === 'all' ? 'All' : s === 'in_progress' ? 'Active' : s === 'done' ? 'Completed' : 'Cancelled';
+            const label = s === 'all' ? t('serviceRequest.history.filters.all') : s === 'in_progress' ? t('serviceRequest.history.active') : s === 'done' ? t('serviceRequest.history.completed') : t('serviceRequest.history.filters.cancelled');
             const active = historyStatus === s;
             return (
               <button
@@ -166,16 +168,16 @@ export const MyRequestsModal: React.FC<MyRequestsModalProps> = ({ isOpen, onClos
               </button>
             );
           })}
-          <div className="ml-auto text-xs text-slate-500 dark:text-slate-400">{visibleRequests.length} requests</div>
+          <div className="ml-auto text-xs text-slate-500 dark:text-slate-400">{t('serviceRequest.history.requestsCount', { count: visibleRequests.length })}</div>
         </div>
 
         <div className="flex flex-1 min-h-0 flex-col lg:flex-row overflow-hidden">
           {/* Requests List */}
           <div className="w-full lg:w-96 border-r border-slate-200 dark:border-white/10 overflow-y-auto p-5 bg-white dark:bg-slate-900 custom-scrollbar">
-            {historyLoading && <div className="p-4 text-sm text-slate-500 dark:text-slate-400">Loading your requests...</div>}
+            {historyLoading && <div className="p-4 text-sm text-slate-500 dark:text-slate-400">{t('serviceRequest.history.loading')}</div>}
 
             {visibleRequests.length === 0 && !historyLoading && (
-              <div className="p-8 text-center text-sm text-slate-500 dark:text-slate-400">No requests in this filter.</div>
+              <div className="p-8 text-center text-sm text-slate-500 dark:text-slate-400">{t('serviceRequest.history.empty')}</div>
             )}
 
             <div className="space-y-2">
@@ -194,7 +196,7 @@ export const MyRequestsModal: React.FC<MyRequestsModalProps> = ({ isOpen, onClos
                         <div className="min-w-0 flex-1">
                           <div className="font-black text-slate-950 dark:text-slate-100 truncate">{req.service_name}</div>
                           <div className="mt-0.5 flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400">
-                            <MapPin size={12} /> <span className="truncate">{req.location_text || 'Location on file'}</span>
+                            <MapPin size={12} /> <span className="truncate">{req.location_text || t('serviceRequest.history.locationOnFile')}</span>
                           </div>
                         </div>
                         <span className={`shrink-0 rounded-full border px-2.5 py-0.5 text-[10px] font-black uppercase tracking-wider ${statusBadgeClasses(req.status)}`}>
@@ -210,7 +212,7 @@ export const MyRequestsModal: React.FC<MyRequestsModalProps> = ({ isOpen, onClos
 
                       {isCompleted && (
                         <div className="mt-2 inline-flex items-center gap-1 rounded-full bg-emerald-100 dark:bg-emerald-900/40 px-2 py-0.5 text-[10px] font-bold text-emerald-700 dark:text-emerald-400">
-                          <CheckCircle2 size={12} /> Completed
+                          <CheckCircle2 size={12} /> {t('serviceRequest.history.completed')}
                         </div>
                       )}
                     </button>
@@ -223,7 +225,7 @@ export const MyRequestsModal: React.FC<MyRequestsModalProps> = ({ isOpen, onClos
                       }}
                       className="mt-2 inline-flex items-center gap-1.5 rounded-full border border-slate-200 dark:border-white/10 px-2.5 py-1 text-[10px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400 transition hover:border-amber-300 hover:bg-amber-50 hover:text-amber-700 dark:hover:border-amber-900/50 dark:hover:bg-amber-900/30 dark:hover:text-amber-300"
                     >
-                      <ShieldAlert size={12} /> Report
+                      <ShieldAlert size={12} /> {t('serviceRequest.history.report')}
                     </button>
                   </div>
                 );
@@ -236,11 +238,11 @@ export const MyRequestsModal: React.FC<MyRequestsModalProps> = ({ isOpen, onClos
             {!trackableRequest && (
               <div className="flex h-full flex-col items-center justify-center text-center">
                 <div className="mx-auto mb-4 h-16 w-16 rounded-2xl bg-white dark:bg-slate-800 flex items-center justify-center shadow-sm text-3xl">📋</div>
-                <p className="text-xl font-black text-slate-900 dark:text-slate-100">Select a request</p>
+                <p className="text-xl font-black text-slate-900 dark:text-slate-100">{t('serviceRequest.history.selectRequest')}</p>
                 <p className="mt-2 max-w-sm text-sm text-slate-600 dark:text-slate-400">
-                  Choose an active request from the list to see live tracking on the map, or browse your completed history.
+                  {t('serviceRequest.history.selectRequestSubtitle')}
                 </p>
-                <p className="mt-4 text-xs text-emerald-600 dark:text-emerald-400 font-medium">Completed services are clearly marked and removed from active tracking.</p>
+                <p className="mt-4 text-xs text-emerald-600 dark:text-emerald-400 font-medium">{t('serviceRequest.history.completedNote')}</p>
               </div>
             )}
 
@@ -248,7 +250,7 @@ export const MyRequestsModal: React.FC<MyRequestsModalProps> = ({ isOpen, onClos
               <div className="flex h-full flex-col">
                 <div className="mb-3 flex items-center justify-between">
                   <div>
-                    <div className="text-sm font-bold text-slate-500 dark:text-slate-400">Live tracking</div>
+                    <div className="text-sm font-bold text-slate-500 dark:text-slate-400">{t('serviceRequest.history.liveTracking')}</div>
                     <div className="font-black text-xl text-slate-950 dark:text-slate-100">{trackableRequest.service_name}</div>
                   </div>
                   <div className={`rounded-full px-3 py-1 text-xs font-black uppercase tracking-wider ${statusBadgeClasses(trackableRequest.status)}`}>
@@ -265,7 +267,7 @@ export const MyRequestsModal: React.FC<MyRequestsModalProps> = ({ isOpen, onClos
                 </div>
 
                 <div className="mt-3 text-[10px] text-slate-500 dark:text-slate-400 px-1">
-                  Map updates live while the service is in progress. Completed services appear only in the list on the left.
+                  {t('serviceRequest.history.mapUpdates')}
                 </div>
               </div>
             )}
@@ -273,7 +275,7 @@ export const MyRequestsModal: React.FC<MyRequestsModalProps> = ({ isOpen, onClos
         </div>
 
         <div className="border-t border-slate-200 dark:border-white/10 px-6 py-3 text-right text-xs text-slate-400 dark:text-slate-500">
-          Your requests are updated in real time • Separate view from booking flow
+          {t('serviceRequest.history.footer')}
         </div>
       </motion.div>
     </div>

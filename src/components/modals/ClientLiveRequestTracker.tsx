@@ -1,6 +1,8 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
+import { useTranslation } from 'react-i18next';
 import { showSweetToast } from '../../utils/sweetAlert';
+import i18n from '../../i18n';
 import { addResilientTileLayer, loadLeaflet } from '../../utils/leafletLoader';
 import { API_ENDPOINTS } from '../../config/api';
 import { useIsDarkTheme } from '../../hooks/useIsDarkTheme';
@@ -124,55 +126,55 @@ const statusToStage = (statusRaw: RequestStatus): TrackerStage => {
 const stageVisual = (stage: TrackerStage) => {
     if (stage === 'completed') {
         return {
-            label: 'Completed',
+            label: i18n.t('clientLiveTracker.stages.completed'),
             toneClass: 'bg-gray-100 text-gray-700 border-gray-200',
             note: 'The service is complete and saved in your history.',
         };
     }
     if (stage === 'work_in_progress') {
         return {
-            label: 'Work in progress',
+            label: i18n.t('clientLiveTracker.stages.workInProgress'),
             toneClass: 'bg-gray-100 text-gray-700 border-gray-200',
             note: 'The worker arrived and is actively working on the service.',
         };
     }
     if (stage === 'arrived') {
         return {
-            label: 'Arrived',
+            label: i18n.t('clientLiveTracker.stages.arrived'),
             toneClass: 'bg-gray-100 text-gray-700 border-gray-200',
             note: 'Your worker is already at the destination.',
         };
     }
     if (stage === 'nearby') {
         return {
-            label: 'Arriving now',
+            label: i18n.t('clientLiveTracker.stages.arrivingNow'),
             toneClass: 'bg-gray-100 text-gray-700 border-gray-200',
             note: 'The worker is very close to your location.',
         };
     }
     if (stage === 'on_the_way') {
         return {
-            label: 'On the way',
+            label: i18n.t('clientLiveTracker.stages.onTheWay'),
             toneClass: 'bg-gray-100 text-gray-700 border-gray-200',
             note: 'The worker is heading to your address right now.',
         };
     }
     if (stage === 'payment_secured') {
         return {
-            label: 'Payment completed',
+            label: i18n.t('clientLiveTracker.stages.paymentCompleted'),
             toneClass: 'bg-gray-100 text-gray-700 border-gray-200',
             note: 'Payment succeeded. Both parties must approve final service closure.',
         };
     }
     if (stage === 'awaiting_payment') {
         return {
-            label: 'Work finished - payment due',
+            label: i18n.t('clientLiveTracker.stages.workFinishedPaymentDue'),
             toneClass: 'bg-gray-100 text-gray-700 border-gray-200',
             note: 'Both parties confirmed work finish. Complete payment to continue.',
         };
     }
     return {
-        label: 'Worker accepted',
+        label: i18n.t('clientLiveTracker.stages.workerAccepted'),
         toneClass: 'bg-gray-100 text-gray-700 border-gray-200',
         note: 'A worker is assigned and standing by for this service.',
     };
@@ -201,6 +203,7 @@ const createTrackerIcon = (L: any, kind: 'worker' | 'client') =>
     });
 
 const ClientLiveRequestTracker: React.FC<ClientLiveRequestTrackerProps> = ({ leafletReady, request, onClose }) => {
+    const { t } = useTranslation();
     const mapContainerRef = useRef<HTMLDivElement | null>(null);
     const mapInstanceRef = useRef<any>(null);
     const routeGlowRef = useRef<any>(null);
@@ -280,9 +283,9 @@ const ClientLiveRequestTracker: React.FC<ClientLiveRequestTrackerProps> = ({ lea
             <div className="h-full w-full flex items-center justify-center rounded-2xl border border-slate-200 bg-slate-50 p-8 text-center">
                 <div>
                     <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-white text-2xl">📍</div>
-                    <p className="text-sm font-bold text-slate-700">No live location available</p>
-                    <p className="mt-1 text-[11px] text-slate-500">Request #{request.id_request} • {request.service_name}</p>
-                    <p className="mt-2 text-[10px] uppercase tracking-[0.12em] text-slate-400">This service does not have coordinates for map tracking.</p>
+                    <p className="text-sm font-bold text-slate-700">{t('clientLiveTracker.noLiveLocationTitle')}</p>
+                    <p className="mt-1 text-[11px] text-slate-500">{t('clientLiveTracker.requestRef', { id: request.id_request, service: request.service_name })}</p>
+                    <p className="mt-2 text-[10px] uppercase tracking-[0.12em] text-slate-400">{t('clientLiveTracker.noCoordinatesHelp')}</p>
                 </div>
             </div>
         );
@@ -690,7 +693,7 @@ const ClientLiveRequestTracker: React.FC<ClientLiveRequestTrackerProps> = ({ lea
                 icon: createTrackerIcon(L, 'client'),
                 zIndexOffset: 900,
             }).addTo(map);
-            clientMarkerRef.current.bindTooltip('Your location', {
+            clientMarkerRef.current.bindTooltip(i18n.t('clientLiveTracker.yourLocation'), {
                 permanent: true,
                 direction: 'bottom',
                 offset: [0, 8],
@@ -700,7 +703,7 @@ const ClientLiveRequestTracker: React.FC<ClientLiveRequestTrackerProps> = ({ lea
             clientMarkerRef.current.setLatLng([destinationCoords.lat, destinationCoords.lng]);
         }
 
-        clientMarkerRef.current.bindPopup(`<b>Your location</b><br/>${request.location_text}`);
+        clientMarkerRef.current.bindPopup(`<b>${i18n.t('clientLiveTracker.yourLocation')}</b><br/>${request.location_text}`);
     }, [destinationCoords, request.location_text]);
 
     useEffect(() => {
@@ -710,7 +713,7 @@ const ClientLiveRequestTracker: React.FC<ClientLiveRequestTrackerProps> = ({ lea
         const L = window.L;
         const map = mapInstanceRef.current;
 
-        const workerLabel = request.assigned_worker?.name || 'Worker';
+        const workerLabel = request.assigned_worker?.name || i18n.t('clientLiveTracker.workerFallback');
 
         if (!workerMarkerRef.current) {
             workerMarkerRef.current = L.marker([displayedWorkerCoords.lat, displayedWorkerCoords.lng], {
@@ -729,7 +732,7 @@ const ClientLiveRequestTracker: React.FC<ClientLiveRequestTrackerProps> = ({ lea
         }
 
         workerMarkerRef.current.bindPopup(
-            `<b>${workerLabel}</b><br/>${isPlaceholderWorkerCoords ? 'Waiting for GPS…' : 'Live position'}`
+            `<b>${workerLabel}</b><br/>${isPlaceholderWorkerCoords ? i18n.t('clientLiveTracker.waitingForGps') : i18n.t('clientLiveTracker.livePosition')}`
         );
     }, [displayedWorkerCoords, isPlaceholderWorkerCoords, request.assigned_worker?.name]);
 
@@ -775,11 +778,11 @@ const ClientLiveRequestTracker: React.FC<ClientLiveRequestTrackerProps> = ({ lea
     }, [cameraMode, isMapExpanded, isLiveRoute, liveViewportPoints, routePreview?.points, visibleRoutePoints]);
 
     const visual = stageVisual(trackerStage);
-    const workerName = request.assigned_worker?.name || 'Your worker';
+    const workerName = request.assigned_worker?.name || t('clientLiveTracker.yourWorkerFallback');
     const displayedVisual = isScheduledFuture
         ? {
             ...visual,
-            label: 'Scheduled visit',
+            label: t('clientLiveTracker.scheduledVisit'),
             note: scheduledWindow || 'Your visit is reserved for the selected time.',
         }
         : visual;
@@ -831,10 +834,10 @@ const ClientLiveRequestTracker: React.FC<ClientLiveRequestTrackerProps> = ({ lea
     const etaLabel = isScheduledFuture
         ? scheduledWindow || 'Scheduled'
         : routeLoading
-          ? 'Syncing'
+          ? t('clientLiveTracker.syncing')
           : formatEta(metrics?.durationMin ?? routePreview?.durationMin ?? 0);
-    const etaMetaLabel = isScheduledFuture ? 'Visit' : 'ETA';
-    const distanceLabel = routeLoading ? 'Updating' : `${(metrics?.distanceKm ?? routePreview?.distanceKm ?? 0).toFixed(1)} km`;
+    const etaMetaLabel = isScheduledFuture ? t('clientLiveTracker.visit') : t('clientLiveTracker.eta');
+    const distanceLabel = routeLoading ? t('clientLiveTracker.updating') : `${(metrics?.distanceKm ?? routePreview?.distanceKm ?? 0).toFixed(1)} km`;
 
     return (
         <div className={`relative h-full min-h-[620px] w-full overflow-hidden bg-slate-100 dark:bg-slate-900 ${isMapExpanded ? 'fixed inset-4 z-[70] rounded-[2.5rem] border border-slate-200/70 dark:border-white/10 shadow-2xl' : 'rounded-[1.8rem]'}`}>
@@ -853,14 +856,14 @@ const ClientLiveRequestTracker: React.FC<ClientLiveRequestTrackerProps> = ({ lea
                 <div className="absolute inset-0 z-30 flex items-center justify-center bg-slate-100 dark:bg-slate-900 p-8 text-center">
                     <div>
                         <div className="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-2xl bg-white dark:bg-slate-800 text-3xl shadow-sm">🗺️</div>
-                        <p className="text-base font-black text-slate-800 dark:text-slate-100">Map failed to load</p>
-                        <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">Check your connection and try again.</p>
+                        <p className="text-base font-black text-slate-800 dark:text-slate-100">{t('clientLiveTracker.mapFailedTitle')}</p>
+                        <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">{t('clientLiveTracker.mapFailedHelp')}</p>
                         <button
                             type="button"
                             onClick={retryLeafletLoad}
                             className="mt-4 rounded-full bg-slate-900 dark:bg-slate-700 px-6 py-2.5 text-xs font-black text-white shadow-md transition-colors hover:bg-slate-800 dark:hover:bg-slate-600"
                         >
-                            Retry
+                            {t('clientLiveTracker.retry')}
                         </button>
                     </div>
                 </div>
@@ -893,7 +896,7 @@ const ClientLiveRequestTracker: React.FC<ClientLiveRequestTrackerProps> = ({ lea
                             <div className="h-3 w-3 rounded-full bg-bird-blue relative z-10 animate-pulse"></div>
                         </div>
                         <div className="min-w-0">
-                            <p className="text-[9px] sm:text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 dark:text-slate-500 leading-none mb-1">Status</p>
+                            <p className="text-[9px] sm:text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 dark:text-slate-500 leading-none mb-1">{t('clientLiveTracker.status')}</p>
                             <p className="text-xs sm:text-sm font-black text-slate-950 dark:text-slate-100 leading-none truncate">{displayedVisual.label}</p>
                         </div>
                     </motion.div>
@@ -905,7 +908,7 @@ const ClientLiveRequestTracker: React.FC<ClientLiveRequestTrackerProps> = ({ lea
                     animate={{ y: 0, opacity: 1 }}
                     className="pointer-events-auto self-end rounded-full border border-slate-200/80 dark:border-white/10 bg-white/95 dark:bg-slate-900/95 px-5 py-3 text-right shadow-[0_10px_28px_rgba(15,23,42,0.12)] backdrop-blur-md sm:self-auto"
                 >
-                    <p className="text-[9px] sm:text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 dark:text-slate-500 leading-none mb-1">Request</p>
+                    <p className="text-[9px] sm:text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 dark:text-slate-500 leading-none mb-1">{t('clientLiveTracker.request')}</p>
                     <p className="text-xs sm:text-sm font-black text-slate-950 dark:text-slate-100 leading-none">#{request.id_request}</p>
                 </motion.div>
             </div>
@@ -954,14 +957,14 @@ const ClientLiveRequestTracker: React.FC<ClientLiveRequestTrackerProps> = ({ lea
                         <div className="rounded-2xl border border-slate-200/70 dark:border-white/10 bg-slate-50/80 dark:bg-slate-800/60 p-3.5">
                             <div className="flex items-center gap-2 mb-1.5">
                                 <svg className="w-4 h-4 text-bird-blue" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" /></svg>
-                                <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 dark:text-slate-500">Distance</p>
+                                <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 dark:text-slate-500">{t('clientLiveTracker.distance')}</p>
                             </div>
                             <p className="text-base font-black text-slate-950 dark:text-slate-100">{distanceLabel}</p>
                         </div>
                         <div className="rounded-2xl border border-slate-200/70 dark:border-white/10 bg-slate-50/80 dark:bg-slate-800/60 p-3.5">
                             <div className="flex items-center gap-2 mb-1.5">
                                 <svg className="w-4 h-4 text-bird-blue" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.243-4.243a8 8 0 1111.314 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
-                                <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 dark:text-slate-500">Destination</p>
+                                <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 dark:text-slate-500">{t('clientLiveTracker.destination')}</p>
                             </div>
                             <p className="truncate text-xs sm:text-sm font-black text-slate-950 dark:text-slate-100">{request.location_text.split(',')[0]}</p>
                         </div>
@@ -974,7 +977,7 @@ const ClientLiveRequestTracker: React.FC<ClientLiveRequestTrackerProps> = ({ lea
                             className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-slate-950 dark:bg-bird-blue hover:bg-black dark:hover:bg-bird-darkBlue py-3.5 text-sm font-black text-white shadow-md transition-all active:scale-[0.98]"
                         >
                             <svg className="w-4 h-4 opacity-80" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
-                            {cameraMode === 'close' ? 'View Full Route' : 'Follow Worker'}
+                            {cameraMode === 'close' ? t('clientLiveTracker.viewFullRoute') : t('clientLiveTracker.followWorker')}
                         </button>
                     </div>
                 </motion.div>

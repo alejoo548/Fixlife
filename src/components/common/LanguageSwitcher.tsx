@@ -115,31 +115,27 @@ export const LanguageSwitcher: React.FC<LanguageSwitcherProps> = ({ mobile = fal
   }
 
   return (
-    <div className="group relative flex items-center justify-center h-16 cursor-pointer text-gray-700 hover:text-bird-blue transition-all duration-300">
+    <div className="group relative flex items-center justify-center h-16" onMouseLeave={() => setIsOpen(false)}>
       <button
         type="button"
         onClick={() => setIsOpen((current) => !current)}
-        className="flex items-center gap-2 z-20 transform group-hover:scale-105 transition-transform duration-200"
         aria-label={t('common.language.label')}
+        aria-haspopup="listbox"
+        aria-expanded={isOpen}
+        className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border transition-all duration-200 shadow-sm ${
+          isOpen
+            ? 'border-bird-blue/40 bg-bird-blue/10 ring-2 ring-bird-blue/20'
+            : 'border-gray-200/50 dark:border-white/10 bg-white/50 dark:bg-slate-900/50 hover:border-bird-blue/30 hover:bg-bird-blue/5'
+        }`}
       >
         <FlagIcon code={activeLanguage.code} />
-        <span className="font-bold text-sm tracking-wide">
-          {t(activeLanguage.labelKey)}
-        </span>
-        <svg
-          className={`w-4 h-4 transition-transform duration-300 ${isOpen ? 'rotate-180 text-bird-blue' : 'group-hover:text-bird-blue'}`}
-          fill="none"
-          stroke="currentColor"
-          viewBox="0 0 24 24"
-        >
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-        </svg>
       </button>
 
       <div
-        className={`absolute top-14 right-0 w-48 bg-white border border-gray-200 rounded-xl shadow-xl overflow-hidden transition-all duration-300 origin-top-right z-50 cursor-default
+        className={`absolute top-14 right-0 w-44 bg-white dark:bg-slate-900 border border-gray-200 dark:border-white/10 rounded-xl shadow-xl overflow-hidden transition-all duration-300 origin-top-right z-50 cursor-default
           ${isOpen ? 'opacity-100 scale-100 translate-y-0 pointer-events-auto' : 'opacity-0 scale-95 -translate-y-2 pointer-events-none'}`}
         onClick={(event) => event.stopPropagation()}
+        role="listbox"
       >
         <div className="p-1">
           {languageOptions.map((option) => {
@@ -149,11 +145,13 @@ export const LanguageSwitcher: React.FC<LanguageSwitcherProps> = ({ mobile = fal
               <button
                 key={option.code}
                 type="button"
+                role="option"
+                aria-selected={isActive}
                 onClick={() => handleChangeLanguage(option.code)}
-                className={`flex w-full items-center justify-between rounded-lg px-4 py-3 text-left text-sm font-medium transition-colors ${
+                className={`flex w-full items-center justify-between rounded-lg px-3 py-2.5 text-left text-sm font-medium transition-colors ${
                   isActive
                     ? 'bg-bird-blue/10 text-bird-blue'
-                    : 'text-gray-600 hover:bg-bird-blue/5 hover:text-bird-blue'
+                    : 'text-gray-600 dark:text-slate-300 hover:bg-bird-blue/5 hover:text-bird-blue'
                 }`}
               >
                 <span className="flex items-center gap-2">
@@ -161,7 +159,9 @@ export const LanguageSwitcher: React.FC<LanguageSwitcherProps> = ({ mobile = fal
                   <span>{t(option.labelKey)}</span>
                 </span>
                 {isActive && (
-                  <span className="text-xs font-black uppercase tracking-[0.12em]">OK</span>
+                  <svg className="h-4 w-4 text-bird-blue" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
+                  </svg>
                 )}
               </button>
             );

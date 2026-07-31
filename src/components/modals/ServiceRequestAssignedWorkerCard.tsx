@@ -1,4 +1,5 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import { normalizeImageUrl } from '../../utils/imageUrls';
 
 interface AssignedWorker {
@@ -34,16 +35,28 @@ export function ServiceRequestAssignedWorkerCard({
     onDecline,
     onAccept,
 }: ServiceRequestAssignedWorkerCardProps) {
+    const { t } = useTranslation();
     const ratingLabel = worker.rating_average != null
-        ? `${Number(worker.rating_average).toFixed(1)} rating`
-        : 'New pro';
-    const reviewLabel = `${Number(worker.rating_count || 0)} review${Number(worker.rating_count || 0) === 1 ? '' : 's'}`;
-    const jobsLabel = `${Number(worker.completed_jobs || 0)} job${Number(worker.completed_jobs || 0) === 1 ? '' : 's'}`;
-    const portfolioLabel = `${Number(worker.portfolio_count || 0)} portfolio photo${Number(worker.portfolio_count || 0) === 1 ? '' : 's'}`;
+        ? `${Number(worker.rating_average).toFixed(1)} ${t('serviceRequest.assignedWorkerCard.ratingSuffix')}`
+        : t('serviceRequest.assignedWorkerCard.newPro');
+    const reviewCount = Number(worker.rating_count || 0);
+    const reviewLabel = reviewCount === 1
+        ? t('serviceRequest.assignedWorkerCard.review_one', { count: reviewCount })
+        : t('serviceRequest.assignedWorkerCard.review_other', { count: reviewCount });
+    const jobsCount = Number(worker.completed_jobs || 0);
+    const jobsLabel = jobsCount === 1
+        ? t('serviceRequest.assignedWorkerCard.job_one', { count: jobsCount })
+        : t('serviceRequest.assignedWorkerCard.job_other', { count: jobsCount });
+    const portfolioCount = Number(worker.portfolio_count || 0);
+    const portfolioLabel = portfolioCount === 1
+        ? t('serviceRequest.assignedWorkerCard.portfolioPhoto_one', { count: portfolioCount })
+        : t('serviceRequest.assignedWorkerCard.portfolioPhoto_other', { count: portfolioCount });
     const experienceLabel = worker.experience_label || (
         worker.years_of_experience != null
-            ? `${worker.years_of_experience}+ year${worker.years_of_experience === 1 ? '' : 's'}`
-            : 'Experience not available'
+            ? (worker.years_of_experience === 1
+                ? t('serviceRequest.assignedWorkerCard.yearOne', { count: worker.years_of_experience })
+                : t('serviceRequest.assignedWorkerCard.yearOther', { count: worker.years_of_experience }))
+            : t('serviceRequest.assignedWorkerCard.experienceNotAvailable')
     );
 
     return (
@@ -64,19 +77,19 @@ export function ServiceRequestAssignedWorkerCard({
                     <div className="min-w-0 flex-1">
                         <div className="flex flex-wrap items-center gap-2">
                             <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">
-                                Worker response
+                                {t('serviceRequest.assignedWorkerCard.workerResponse')}
                             </p>
                             <span className={`rounded-full px-2 py-0.5 text-[9px] font-black uppercase tracking-[0.12em] ${
                                 pendingWorkerApproval
                                     ? 'bg-blue-100 text-blue-700'
                                     : 'bg-emerald-100 text-emerald-700'
                             }`}>
-                                {pendingWorkerApproval ? 'Needs review' : 'Approved'}
+                                {pendingWorkerApproval ? t('serviceRequest.assignedWorkerCard.needsReview') : t('serviceRequest.assignedWorkerCard.approved')}
                             </span>
                             {worker.is_online && (
                                 <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[9px] font-black uppercase tracking-[0.12em] text-emerald-700">
                                     <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
-                                    Online
+                                    {t('serviceRequest.assignedWorkerCard.online')}
                                 </span>
                             )}
                         </div>
@@ -89,16 +102,16 @@ export function ServiceRequestAssignedWorkerCard({
                     onClick={onViewProfile}
                     className="w-full sm:w-auto shrink-0 rounded-xl border-2 border-slate-200 bg-white px-3 py-2.5 sm:py-2 text-[11px] font-black text-slate-900 shadow-sm transition hover:border-slate-900 hover:bg-slate-900 hover:text-white text-center"
                 >
-                    View profile & portfolio
+                    {t('serviceRequest.assignedWorkerCard.viewProfilePortfolio')}
                 </button>
             </div>
 
             <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
                 {[
-                    { label: 'Rating', value: ratingLabel, detail: reviewLabel },
-                    { label: 'Completed', value: jobsLabel, detail: 'on Fixlife' },
-                    { label: 'Experience', value: experienceLabel, detail: 'declared level' },
-                    { label: 'Portfolio', value: portfolioLabel, detail: 'tap profile' },
+                    { label: t('serviceRequest.assignedWorkerCard.rating'), value: ratingLabel, detail: reviewLabel },
+                    { label: t('serviceRequest.assignedWorkerCard.completed'), value: jobsLabel, detail: t('serviceRequest.assignedWorkerCard.onFixlife') },
+                    { label: t('serviceRequest.assignedWorkerCard.experience'), value: experienceLabel, detail: t('serviceRequest.assignedWorkerCard.declaredLevel') },
+                    { label: t('serviceRequest.assignedWorkerCard.portfolio'), value: portfolioLabel, detail: t('serviceRequest.assignedWorkerCard.tapProfile') },
                 ].map((item) => (
                     <div key={item.label} className="rounded-xl border border-slate-100 bg-white px-3 py-2">
                         <p className="text-[9px] font-black uppercase tracking-[0.14em] text-slate-400">{item.label}</p>
@@ -122,10 +135,10 @@ export function ServiceRequestAssignedWorkerCard({
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
                             </svg>
                         </span>
-                        <p className="text-xs font-black uppercase tracking-widest text-slate-900">Action Required</p>
+                        <p className="text-xs font-black uppercase tracking-widest text-slate-900">{t('serviceRequest.assignedWorkerCard.actionRequired')}</p>
                     </div>
                     <p className="text-[13px] font-medium text-slate-600 mb-3">
-                        Review the profile and portfolio. Approve to move to payment, or decline to find another pro.
+                        {t('serviceRequest.assignedWorkerCard.reviewApproveHelp')}
                     </p>
                     <div className="grid grid-cols-2 gap-2">
                         <button
@@ -134,7 +147,7 @@ export function ServiceRequestAssignedWorkerCard({
                             onClick={onDecline}
                             className="rounded-xl border-2 border-red-200 bg-white px-4 py-2.5 text-xs font-bold text-red-600 transition hover:bg-red-50 disabled:opacity-50 text-center"
                         >
-                            {workerApprovalBusy ? 'Saving...' : 'Decline'}
+                            {workerApprovalBusy ? t('serviceRequest.assignedWorkerCard.saving') : t('serviceRequest.assignedWorkerCard.decline')}
                         </button>
                         <button
                             type="button"
@@ -142,7 +155,7 @@ export function ServiceRequestAssignedWorkerCard({
                             onClick={onAccept}
                             className="rounded-xl bg-slate-900 px-4 py-2.5 text-xs font-bold text-white transition hover:bg-black disabled:opacity-50 shadow-md text-center"
                         >
-                            {workerApprovalBusy ? 'Saving...' : 'Approve Pro'}
+                            {workerApprovalBusy ? t('serviceRequest.assignedWorkerCard.saving') : t('serviceRequest.assignedWorkerCard.approvePro')}
                         </button>
                     </div>
                 </div>

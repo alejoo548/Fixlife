@@ -1,6 +1,7 @@
 import { useCallback } from 'react';
 import type { Dispatch, SetStateAction } from 'react';
 import { API_ENDPOINTS } from '../../../config/api';
+import i18n from '../../../i18n';
 
 interface Coordinates {
   lat: number;
@@ -41,7 +42,7 @@ export const useNearbyProsSearch = <TWorker,>({
   useCallback(async () => {
     const selectedService = services.find((svc) => svc.name === selectedCategory);
     if (!selectedService?.id_service) {
-      showToast('error', messages?.selectServiceFirst || 'Select a service first.');
+      showToast('error', messages?.selectServiceFirst || i18n.t('serviceRequest.wizard.toasts.selectServiceFirst'));
       return [];
     }
 
@@ -60,17 +61,17 @@ export const useNearbyProsSearch = <TWorker,>({
       const res = await fetch(`${API_ENDPOINTS.services.nearbyWorkers}?${params.toString()}`);
       const payload = await res.json();
       if (!res.ok || !payload?.success) {
-        showToast('error', payload?.error || messages?.searchError || 'Could not search nearby workers.');
+        showToast('error', payload?.error || messages?.searchError || i18n.t('serviceRequest.wizard.toasts.nearbySearchError'));
         return [];
       }
       const workers = Array.isArray(payload.workers) ? payload.workers : [];
       setNearbyWorkers(workers);
       if (workers.length > 0) {
-        showToast('success', messages?.nearbyWorkersLoaded || 'Nearby workers loaded.');
+        showToast('success', messages?.nearbyWorkersLoaded || i18n.t('serviceRequest.wizard.toasts.nearbyWorkersLoaded'));
       }
       return workers as TWorker[];
     } catch {
-      showToast('error', messages?.networkError || 'Network error searching nearby workers.');
+      showToast('error', messages?.networkError || i18n.t('serviceRequest.wizard.toasts.nearbyNetworkError'));
       return [];
     }
   }, [currentCoords, messages, radiusKm, resolveLocationInput, selectedCategory, services, setNearbyWorkers, showToast]);

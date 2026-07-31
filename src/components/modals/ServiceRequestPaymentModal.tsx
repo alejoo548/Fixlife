@@ -1,6 +1,7 @@
 import React from 'react';
 import { motion } from 'framer-motion';
 import { AlertCircle, Banknote, CreditCard, ShieldCheck, Wallet } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import PasswordInput from '../common/PasswordInput';
 
 type PaymentMethod = 'card' | 'paypal' | 'cash';
@@ -37,39 +38,17 @@ interface ServiceRequestPaymentModalProps {
     onConfirmPayment: () => void;
 }
 
-const METHODS: Array<{
-    id: PaymentMethod;
-    icon: React.ComponentType<{ className?: string }>;
-    title: string;
-    subtitle: string;
-    badge: { label: string; tone: string };
-    accent: string;
-}> = [
-    {
-        id: 'card',
-        icon: CreditCard,
-        title: 'Tarjeta de credito o debito',
-        subtitle: 'Checkout seguro dentro de Fixlife.',
-        badge: { label: 'Activo', tone: 'bg-emerald-100 text-emerald-700' },
-        accent: 'cyan',
-    },
-    {
-        id: 'cash',
-        icon: Banknote,
-        title: 'Efectivo',
-        subtitle: 'Paga directo al profesional al finalizar.',
-        badge: { label: 'Activo', tone: 'bg-emerald-100 text-emerald-700' },
-        accent: 'emerald',
-    },
-    {
-        id: 'paypal',
-        icon: Wallet,
-        title: 'PayPal',
-        subtitle: 'Disponible proximamente.',
-        badge: { label: 'Pronto', tone: 'bg-amber-100 text-amber-700' },
-        accent: 'blue',
-    },
-];
+const METHOD_ICONS: Record<PaymentMethod, React.ComponentType<{ className?: string }>> = {
+    card: CreditCard,
+    cash: Banknote,
+    paypal: Wallet,
+};
+
+const METHOD_ACCENTS: Record<PaymentMethod, string> = {
+    card: 'cyan',
+    cash: 'emerald',
+    paypal: 'blue',
+};
 
 const ACCENT_RING: Record<string, string> = {
     cyan: 'border-cyan-500 bg-cyan-50/70 ring-1 ring-cyan-500/20',
@@ -94,10 +73,44 @@ export function ServiceRequestPaymentModal({
     onPaymentFormChange,
     onConfirmPayment,
 }: ServiceRequestPaymentModalProps) {
+    const { t } = useTranslation();
     const amount = Number(
         paymentModalRequest.final_budget ?? paymentModalRequest.proposed_budget ?? paymentModalRequest.budget ?? 0
     ).toFixed(2);
     const isBusy = paymentBusyId === paymentModalRequest.id_request;
+    const METHODS: Array<{
+        id: PaymentMethod;
+        icon: React.ComponentType<{ className?: string }>;
+        title: string;
+        subtitle: string;
+        badge: { label: string; tone: string };
+        accent: string;
+    }> = [
+        {
+            id: 'card',
+            icon: METHOD_ICONS.card,
+            title: t('serviceRequest.paymentModal.methods.card.title'),
+            subtitle: t('serviceRequest.paymentModal.methods.card.subtitle'),
+            badge: { label: t('serviceRequest.paymentModal.badgeActive'), tone: 'bg-emerald-100 text-emerald-700' },
+            accent: METHOD_ACCENTS.card,
+        },
+        {
+            id: 'cash',
+            icon: METHOD_ICONS.cash,
+            title: t('serviceRequest.paymentModal.methods.cash.title'),
+            subtitle: t('serviceRequest.paymentModal.methods.cash.subtitle'),
+            badge: { label: t('serviceRequest.paymentModal.badgeActive'), tone: 'bg-emerald-100 text-emerald-700' },
+            accent: METHOD_ACCENTS.cash,
+        },
+        {
+            id: 'paypal',
+            icon: METHOD_ICONS.paypal,
+            title: t('serviceRequest.paymentModal.methods.paypal.title'),
+            subtitle: t('serviceRequest.paymentModal.methods.paypal.subtitle'),
+            badge: { label: t('serviceRequest.paymentModal.badgeSoon'), tone: 'bg-amber-100 text-amber-700' },
+            accent: METHOD_ACCENTS.paypal,
+        },
+    ];
 
     return (
         <motion.div
@@ -120,35 +133,35 @@ export function ServiceRequestPaymentModal({
                             className="pointer-events-none absolute -right-24 -top-24 h-64 w-64 rounded-full bg-cyan-400/20 blur-3xl"
                         />
                         <div className="relative flex items-center gap-3">
-                            <div className="rounded-2xl bg-white/15 px-4 py-2 text-sm font-black tracking-wide">FIXLIFE PAY</div>
+                            <div className="rounded-2xl bg-white/15 px-4 py-2 text-sm font-black tracking-wide">{t('serviceRequest.paymentModal.fixlifePay')}</div>
                             <div className="flex items-center gap-1.5 rounded-2xl bg-white/10 px-3 py-2 text-xs font-bold text-cyan-100">
                                 <ShieldCheck className="h-3.5 w-3.5" />
-                                Checkout seguro
+                                {t('serviceRequest.paymentModal.secureCheckout')}
                             </div>
                         </div>
 
                         <div className="relative mt-10">
                             <p className="text-sm font-semibold uppercase tracking-[0.18em] text-cyan-200/80">
-                                Reserva tu servicio de forma segura
+                                {t('serviceRequest.paymentModal.bookSecurely')}
                             </p>
                             <h3 className="mt-3 text-4xl font-black leading-tight sm:text-[2.6rem]">
-                                Elige como pagar
+                                {t('serviceRequest.paymentModal.chooseHowToPay')}
                             </h3>
-                            <p className="mt-2 text-lg font-medium text-slate-300">sin salir de Fixlife</p>
+                            <p className="mt-2 text-lg font-medium text-slate-300">{t('serviceRequest.paymentModal.withoutLeavingFixlife')}</p>
                         </div>
 
                         <div className="relative mt-10 rounded-3xl border border-white/10 bg-white/[0.06] p-5 backdrop-blur-sm">
-                            <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-300">Solicitud actual</p>
+                            <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-300">{t('serviceRequest.paymentModal.currentRequest')}</p>
                             <p className="mt-2 text-2xl font-black">{paymentModalRequest.service_name}</p>
                             <p className="mt-2 line-clamp-3 text-sm text-slate-300">{paymentModalRequest.description}</p>
                             <div className="mt-5 grid grid-cols-2 gap-3">
                                 <div className="rounded-2xl border border-white/10 bg-white/[0.06] px-4 py-3">
-                                    <p className="text-[11px] uppercase tracking-wide text-slate-300">Monto</p>
+                                    <p className="text-[11px] uppercase tracking-wide text-slate-300">{t('serviceRequest.paymentModal.amount')}</p>
                                     <p className="mt-1 text-2xl font-black text-cyan-300">${amount}</p>
                                 </div>
                                 <div className="rounded-2xl border border-white/10 bg-white/[0.06] px-4 py-3">
-                                    <p className="text-[11px] uppercase tracking-wide text-slate-300">Estado</p>
-                                    <p className="mt-1 text-lg font-black">Pago pendiente</p>
+                                    <p className="text-[11px] uppercase tracking-wide text-slate-300">{t('serviceRequest.paymentModal.status')}</p>
+                                    <p className="mt-1 text-lg font-black">{t('serviceRequest.paymentModal.paymentPending')}</p>
                                 </div>
                             </div>
                         </div>
@@ -157,15 +170,15 @@ export function ServiceRequestPaymentModal({
                     <div className="max-h-[85vh] overflow-y-auto p-6 sm:p-8 bg-white dark:bg-slate-900 text-gray-900 dark:text-slate-100 custom-scrollbar">
                         <div className="flex items-start justify-between gap-4">
                             <div>
-                                <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-gray-400 dark:text-slate-400">Checkout</p>
-                                <h3 className="mt-1 text-2xl font-black text-gray-900 dark:text-slate-100">Elige tu metodo de pago</h3>
+                                <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-gray-400 dark:text-slate-400">{t('serviceRequest.paymentModal.checkout')}</p>
+                                <h3 className="mt-1 text-2xl font-black text-gray-900 dark:text-slate-100">{t('serviceRequest.paymentModal.choosePaymentMethod')}</h3>
                             </div>
                             <button
                                 type="button"
                                 onClick={onClose}
                                 className="rounded-2xl border-none bg-gray-50/80 dark:bg-slate-800 px-3 py-2 text-xs font-bold text-gray-500 dark:text-slate-400 transition-colors hover:bg-gray-100 dark:hover:bg-slate-700 hover:text-gray-700 dark:hover:text-slate-200"
                             >
-                                Cerrar
+                                {t('serviceRequest.paymentModal.close')}
                             </button>
                         </div>
 
@@ -206,26 +219,26 @@ export function ServiceRequestPaymentModal({
 
                         {paymentMethod === 'paypal' ? (
                             <div className="mt-5 rounded-3xl border border-blue-200 dark:border-blue-900/40 bg-blue-50 dark:bg-blue-950/30 p-6">
-                                <p className="text-sm font-black text-[#003087] dark:text-blue-300">PayPal proximamente</p>
+                                <p className="text-sm font-black text-[#003087] dark:text-blue-300">{t('serviceRequest.paymentModal.paypalComingSoonTitle')}</p>
                                 <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">
-                                    Ya dejamos visible la opcion de PayPal en la UI, pero la integracion real todavia no esta configurada.
+                                    {t('serviceRequest.paymentModal.paypalComingSoonHelp')}
                                 </p>
                                 <button
                                     type="button"
                                     disabled
                                     className="mt-5 w-full rounded-2xl bg-[#0070ba] px-4 py-3 text-sm font-black text-white opacity-60"
                                 >
-                                    Paga con PayPal
+                                    {t('serviceRequest.paymentModal.payWithPaypal')}
                                 </button>
                             </div>
                         ) : paymentMethod === 'cash' ? (
                             <div className="mt-5 rounded-3xl border border-emerald-200 dark:border-emerald-900/40 bg-emerald-50 dark:bg-emerald-950/30 p-6">
-                                <p className="text-sm font-black text-emerald-800 dark:text-emerald-300">Pago en efectivo</p>
+                                <p className="text-sm font-black text-emerald-800 dark:text-emerald-300">{t('serviceRequest.paymentModal.cashPaymentTitle')}</p>
                                 <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">
-                                    Pagaras en efectivo directamente al profesional cuando finalice el trabajo. Fixlife reserva tu cupo pero no procesa ningun cobro; el profesional confirmara el cobro desde su panel.
+                                    {t('serviceRequest.paymentModal.cashPaymentHelp')}
                                 </p>
                                 <div className="mt-5 rounded-2xl border border-emerald-100 dark:border-emerald-900/50 bg-white dark:bg-slate-800 p-4">
-                                    <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-gray-400 dark:text-slate-400">Monto a pagar en efectivo</p>
+                                    <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-gray-400 dark:text-slate-400">{t('serviceRequest.paymentModal.cashAmountLabel')}</p>
                                     <p className="mt-2 text-3xl font-black text-gray-900 dark:text-slate-100">${amount}</p>
                                 </div>
                                 <button
@@ -234,20 +247,20 @@ export function ServiceRequestPaymentModal({
                                     disabled={isBusy}
                                     className="mt-5 w-full rounded-2xl bg-emerald-600 px-4 py-3 text-sm font-black text-white shadow-sm transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"
                                 >
-                                    {isBusy ? 'Confirmando...' : 'Confirmar efectivo'}
+                                    {isBusy ? t('serviceRequest.paymentModal.confirming') : t('serviceRequest.paymentModal.confirmCash')}
                                 </button>
                             </div>
                         ) : (
                             <div className="mt-5 space-y-4">
                                 <div className="rounded-2xl border border-gray-200 dark:border-white/10 bg-gray-50 dark:bg-slate-800 p-4">
-                                    <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-gray-400 dark:text-slate-400">Resumen del cobro</p>
+                                    <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-gray-400 dark:text-slate-400">{t('serviceRequest.paymentModal.chargeSummary')}</p>
                                     <p className="mt-2 text-3xl font-black text-gray-900 dark:text-slate-100">${amount}</p>
-                                    <p className="mt-1 text-sm text-gray-500 dark:text-slate-400">El cobro se asegura para este trabajo en modo demo.</p>
+                                    <p className="mt-1 text-sm text-gray-500 dark:text-slate-400">{t('serviceRequest.paymentModal.chargeSecuredDemo')}</p>
                                 </div>
 
                                 <div className="grid gap-4 sm:grid-cols-2">
                                     <label className="text-xs font-bold text-gray-600 dark:text-slate-300">
-                                        Nombre
+                                        {t('serviceRequest.paymentModal.fields.name')}
                                         <input
                                             type="text"
                                             value={paymentForm.fullName}
@@ -258,7 +271,7 @@ export function ServiceRequestPaymentModal({
                                         />
                                     </label>
                                     <label className="text-xs font-bold text-gray-600 dark:text-slate-300">
-                                        Correo electronico
+                                        {t('serviceRequest.paymentModal.fields.email')}
                                         <input
                                             type="email"
                                             value={paymentForm.email}
@@ -269,7 +282,7 @@ export function ServiceRequestPaymentModal({
                                         />
                                     </label>
                                     <label className="text-xs font-bold text-gray-600 dark:text-slate-300">
-                                        Telefono
+                                        {t('serviceRequest.paymentModal.fields.phone')}
                                         <input
                                             type="text"
                                             value={paymentForm.phone}
@@ -280,7 +293,7 @@ export function ServiceRequestPaymentModal({
                                         />
                                     </label>
                                     <label className="text-xs font-bold text-gray-600 dark:text-slate-300">
-                                        Ciudad
+                                        {t('serviceRequest.paymentModal.fields.city')}
                                         <input
                                             type="text"
                                             value={paymentForm.city}
@@ -293,7 +306,7 @@ export function ServiceRequestPaymentModal({
                                 </div>
 
                                 <label className="text-xs font-bold text-gray-600 dark:text-slate-300">
-                                    Pais
+                                    {t('serviceRequest.paymentModal.fields.country')}
                                     <select
                                         value={paymentForm.country}
                                         onChange={(e) => onPaymentFormChange({ country: e.target.value })}
@@ -307,7 +320,7 @@ export function ServiceRequestPaymentModal({
                                 </label>
 
                                 <label className="text-xs font-bold text-gray-600 dark:text-slate-300">
-                                    Tarjeta de credito o debito
+                                    {t('serviceRequest.paymentModal.fields.card')}
                                     <input
                                         type="text"
                                         inputMode="numeric"
@@ -321,7 +334,7 @@ export function ServiceRequestPaymentModal({
 
                                 <div className="grid gap-4 sm:grid-cols-2">
                                     <label className="text-xs font-bold text-gray-600 dark:text-slate-300">
-                                        MM / AA
+                                        {t('serviceRequest.paymentModal.fields.expiry')}
                                         <input
                                             type="text"
                                             inputMode="numeric"
@@ -333,7 +346,7 @@ export function ServiceRequestPaymentModal({
                                         />
                                     </label>
                                     <label className="text-xs font-bold text-gray-600 dark:text-slate-300">
-                                        CVV
+                                        {t('serviceRequest.paymentModal.fields.cvv')}
                                         <PasswordInput
                                             value={paymentForm.cvv}
                                             maxLength={4}
@@ -350,7 +363,7 @@ export function ServiceRequestPaymentModal({
                                     disabled={isBusy}
                                     className="w-full rounded-2xl bg-cyan-600 px-4 py-3 text-sm font-black text-white shadow-sm transition hover:bg-cyan-700 disabled:cursor-not-allowed disabled:opacity-60"
                                 >
-                                    {isBusy ? 'Procesando pago...' : 'Pagar y asegurar reserva'}
+                                    {isBusy ? t('serviceRequest.paymentModal.processingPayment') : t('serviceRequest.paymentModal.payAndSecureBooking')}
                                 </button>
                             </div>
                         )}

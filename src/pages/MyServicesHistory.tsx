@@ -174,10 +174,10 @@ const MyServicesHistory: React.FC<Props> = ({ onOpenReview, onGoHome }) => {
                     requestId: idRequest,
                 });
             } else {
-                showSweetToast({ tone: 'error', message: payload?.error || 'Could not load worker profile.' });
+                showSweetToast({ tone: 'error', message: payload?.error || t('common.serviceHistory.errors.workerProfileLoadError') });
             }
         } catch {
-            showSweetToast({ tone: 'error', message: 'Error loading worker profile.' });
+            showSweetToast({ tone: 'error', message: t('common.serviceHistory.errors.workerProfileError') });
         } finally {
             setWorkerProfileLoading(false);
             setFetchingWorkerId(null);
@@ -187,7 +187,7 @@ const MyServicesHistory: React.FC<Props> = ({ onOpenReview, onGoHome }) => {
     const loadRequests = async (silent = false) => {
         const token = getToken();
         if (!token) {
-            setError('Login required.');
+            setError(t('common.serviceHistory.errors.loginRequired'));
             setLoading(false);
             return;
         }
@@ -198,13 +198,13 @@ const MyServicesHistory: React.FC<Props> = ({ onOpenReview, onGoHome }) => {
             });
             const payload = await res.json();
             if (!res.ok || !payload?.success || !Array.isArray(payload?.requests)) {
-                setError(payload?.error || 'Could not load your service history.');
+                setError(payload?.error || t('common.serviceHistory.errors.loadError'));
                 return;
             }
             setRequests(payload.requests as MyServiceRequest[]);
             setError(null);
         } catch {
-            setError('Network error loading your service history.');
+            setError(t('common.serviceHistory.errors.networkLoadError'));
         } finally {
             setLoading(false);
         }
@@ -379,11 +379,11 @@ const MyServicesHistory: React.FC<Props> = ({ onOpenReview, onGoHome }) => {
                 {/* List */}
                 <section className="mt-6">
                     {loading ? (
-                        <LoadingState />
+                        <LoadingState t={t} />
                     ) : error ? (
-                        <ErrorState message={error} onRetry={() => void loadRequests()} />
+                        <ErrorState message={error} onRetry={() => void loadRequests()} t={t} />
                     ) : filtered.length === 0 ? (
-                        <EmptyState filter={filter} onGoHome={handleBack} />
+                        <EmptyState filter={filter} onGoHome={handleBack} t={t} />
                     ) : (
                         <ul className="grid gap-4">
                             <AnimatePresence initial={false}>
@@ -427,7 +427,7 @@ const MyServicesHistory: React.FC<Props> = ({ onOpenReview, onGoHome }) => {
                 onSubmitted={() => {
                     setRatingRequest(null);
                     void loadRequests(true);
-                    showSweetToast({ tone: 'success', message: 'Review submitted. Thanks!' });
+                    showSweetToast({ tone: 'success', message: t('common.serviceHistory.messages.reviewSubmitted') });
                 }}
             />
 
@@ -460,15 +460,15 @@ const MyServicesHistory: React.FC<Props> = ({ onOpenReview, onGoHome }) => {
                                 <div className="flex items-center gap-3">
                                     <span className="flex h-3 w-3 rounded-full bg-emerald-500 ring-4 ring-emerald-500/20 animate-pulse" />
                                     <div>
-                                        <p className="text-[10px] font-black uppercase tracking-[0.2em] text-bird-blue">Verified Fixlife Pro</p>
-                                        <h3 className="text-xl font-black text-slate-950 dark:text-slate-100">Professional Profile &amp; Portfolio</h3>
+                                        <p className="text-[10px] font-black uppercase tracking-[0.2em] text-bird-blue">{t('navbar.myRequestTracker.verifiedFixlifePro')}</p>
+                                        <h3 className="text-xl font-black text-slate-950 dark:text-slate-100">{t('navbar.myRequestTracker.professionalProfilePortfolio')}</h3>
                                     </div>
                                 </div>
                                 <button
                                     type="button"
                                     onClick={() => setSelectedWorkerProfile(null)}
                                     className="flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 dark:border-white/10 text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-white/10 hover:text-slate-950 dark:hover:text-white transition-all"
-                                    aria-label="Close worker profile"
+                                    aria-label={t('navbar.myRequestTracker.closeWorkerProfileAria')}
                                 >
                                     <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.4} d="M6 18L18 6M6 6l12 12" />
@@ -493,7 +493,7 @@ const MyServicesHistory: React.FC<Props> = ({ onOpenReview, onGoHome }) => {
                                                     {selectedWorkerProfile.worker.name.charAt(0).toUpperCase()}
                                                 </div>
                                             )}
-                                            <span className="absolute -bottom-1 -right-1 flex h-6 w-6 items-center justify-center rounded-full bg-emerald-500 text-white text-xs font-bold ring-2 ring-slate-950" title="Verified Professional">
+                                            <span className="absolute -bottom-1 -right-1 flex h-6 w-6 items-center justify-center rounded-full bg-emerald-500 text-white text-xs font-bold ring-2 ring-slate-950" title={t('navbar.myRequestTracker.verifiedProfessionalTitle')}>
                                                 ✓
                                             </span>
                                         </div>
@@ -502,11 +502,11 @@ const MyServicesHistory: React.FC<Props> = ({ onOpenReview, onGoHome }) => {
                                             <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2">
                                                 <h2 className="text-2xl font-black tracking-tight text-white">{selectedWorkerProfile.worker.name}</h2>
                                                 <span className="rounded-full bg-emerald-500/20 border border-emerald-500/30 px-3 py-0.5 text-[10px] font-black uppercase tracking-wider text-emerald-300">
-                                                    Verified Identity
+                                                    {t('navbar.myRequestTracker.verifiedIdentity')}
                                                 </span>
                                             </div>
                                             <p className="mt-1 text-xs font-semibold text-slate-300">
-                                                Fixlife Partner Pro • {selectedWorkerProfile.worker.experience_label || 'Expert Service Provider'}
+                                                {t('navbar.myRequestTracker.fixlifePartnerPro')} • {selectedWorkerProfile.worker.experience_label || t('navbar.myRequestTracker.expertServiceProvider')}
                                             </p>
 
                                             {/* Phone contact if available */}
@@ -534,7 +534,7 @@ const MyServicesHistory: React.FC<Props> = ({ onOpenReview, onGoHome }) => {
                                                 className="inline-flex items-center gap-2 rounded-xl bg-bird-blue hover:bg-bird-darkBlue px-4 py-2.5 text-xs font-black uppercase tracking-wider text-white shadow-lg transition active:scale-95"
                                             >
                                                 <Sparkles className="h-4 w-4" />
-                                                Open Live Tracker Map
+                                                {t('common.serviceHistory.card.openLiveTracker')}
                                             </button>
                                         </div>
                                     </div>
@@ -542,30 +542,30 @@ const MyServicesHistory: React.FC<Props> = ({ onOpenReview, onGoHome }) => {
                                     {/* Quick Stats Grid */}
                                     <div className="mt-6 grid grid-cols-2 sm:grid-cols-4 gap-3 border-t border-white/10 pt-5">
                                         <div className="rounded-2xl border border-white/10 bg-white/5 p-3 text-center sm:text-left">
-                                            <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">Rating</p>
+                                            <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">{t('navbar.myRequestTracker.rating')}</p>
                                             <p className="mt-1 text-xl font-black text-amber-300 flex items-center justify-center sm:justify-start gap-1">
                                                 <span>★</span>
                                                 <span>{selectedWorkerProfile.worker.rating_average != null ? Number(selectedWorkerProfile.worker.rating_average).toFixed(1) : '5.0'}</span>
                                             </p>
-                                            <p className="text-[10px] text-slate-400 font-semibold mt-0.5">{selectedWorkerProfile.worker.rating_count || 0} client reviews</p>
+                                            <p className="text-[10px] text-slate-400 font-semibold mt-0.5">{t('navbar.myRequestTracker.clientReviews', { count: selectedWorkerProfile.worker.rating_count || 0 })}</p>
                                         </div>
 
                                         <div className="rounded-2xl border border-white/10 bg-white/5 p-3 text-center sm:text-left">
-                                            <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">Completed Jobs</p>
+                                            <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">{t('navbar.myRequestTracker.completedJobs')}</p>
                                             <p className="mt-1 text-xl font-black text-emerald-400">{selectedWorkerProfile.worker.completed_jobs || 0}</p>
-                                            <p className="text-[10px] text-slate-400 font-semibold mt-0.5">on Fixlife platform</p>
+                                            <p className="text-[10px] text-slate-400 font-semibold mt-0.5">{t('navbar.myRequestTracker.onFixlifePlatform')}</p>
                                         </div>
 
                                         <div className="rounded-2xl border border-white/10 bg-white/5 p-3 text-center sm:text-left">
-                                            <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">Experience</p>
-                                            <p className="mt-1 text-base font-black text-sky-300 truncate">{selectedWorkerProfile.worker.experience_label || 'Verified Level'}</p>
-                                            <p className="text-[10px] text-slate-400 font-semibold mt-0.5">background checked</p>
+                                            <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">{t('navbar.myRequestTracker.experience')}</p>
+                                            <p className="mt-1 text-base font-black text-sky-300 truncate">{selectedWorkerProfile.worker.experience_label || t('navbar.myRequestTracker.verifiedLevel')}</p>
+                                            <p className="text-[10px] text-slate-400 font-semibold mt-0.5">{t('navbar.myRequestTracker.backgroundChecked')}</p>
                                         </div>
 
                                         <div className="rounded-2xl border border-white/10 bg-white/5 p-3 text-center sm:text-left">
-                                            <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">Portfolio</p>
+                                            <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">{t('navbar.myRequestTracker.portfolio')}</p>
                                             <p className="mt-1 text-xl font-black text-indigo-300">{Array.isArray(selectedWorkerProfile.portfolio) ? selectedWorkerProfile.portfolio.length : 0}</p>
-                                            <p className="text-[10px] text-slate-400 font-semibold mt-0.5">project samples</p>
+                                            <p className="text-[10px] text-slate-400 font-semibold mt-0.5">{t('navbar.myRequestTracker.projectSamples')}</p>
                                         </div>
                                     </div>
                                 </div>
@@ -573,7 +573,7 @@ const MyServicesHistory: React.FC<Props> = ({ onOpenReview, onGoHome }) => {
                                 {/* Services Offered Badges */}
                                 {Array.isArray(selectedWorkerProfile.worker.services_offered) && selectedWorkerProfile.worker.services_offered.length > 0 && (
                                     <div>
-                                        <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 dark:text-slate-500 mb-2">Specialized Services</p>
+                                        <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 dark:text-slate-500 mb-2">{t('navbar.myRequestTracker.specializedServices')}</p>
                                         <div className="flex flex-wrap gap-2">
                                             {selectedWorkerProfile.worker.services_offered.map((svc: string, i: number) => (
                                                 <span key={i} className="rounded-xl border border-bird-blue/20 bg-bird-blue/10 dark:bg-bird-blue/20 px-3 py-1.5 text-xs font-bold text-bird-blue dark:text-sky-300">
@@ -586,9 +586,9 @@ const MyServicesHistory: React.FC<Props> = ({ onOpenReview, onGoHome }) => {
 
                                 {/* Biography */}
                                 <div className="rounded-2xl border border-slate-200 dark:border-white/10 bg-slate-50/80 dark:bg-slate-800/50 p-5">
-                                    <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 dark:text-slate-500 mb-2">About {selectedWorkerProfile.worker.name}</p>
+                                    <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 dark:text-slate-500 mb-2">{t('navbar.myRequestTracker.aboutWorker', { name: selectedWorkerProfile.worker.name })}</p>
                                     <p className="text-sm font-medium leading-relaxed text-slate-700 dark:text-slate-300 italic">
-                                        "{selectedWorkerProfile.worker.bio || 'This professional is a verified Fixlife partner committed to quality craftsmanship and prompt communication.'}"
+                                        "{selectedWorkerProfile.worker.bio || t('navbar.myRequestTracker.defaultBio')}"
                                     </p>
                                 </div>
 
@@ -597,10 +597,10 @@ const MyServicesHistory: React.FC<Props> = ({ onOpenReview, onGoHome }) => {
                                     <div className="flex items-center justify-between">
                                         <h4 className="text-base font-black text-slate-950 dark:text-slate-100 flex items-center gap-2">
                                             <span>📸</span>
-                                            Work Portfolio &amp; Photos
+                                            {t('navbar.myRequestTracker.workPortfolioPhotos')}
                                         </h4>
                                         <span className="text-xs font-bold text-slate-400">
-                                            {Array.isArray(selectedWorkerProfile.portfolio) ? selectedWorkerProfile.portfolio.length : 0} photos
+                                            {t('navbar.myRequestTracker.photosCount', { count: Array.isArray(selectedWorkerProfile.portfolio) ? selectedWorkerProfile.portfolio.length : 0 })}
                                         </span>
                                     </div>
 
@@ -615,12 +615,12 @@ const MyServicesHistory: React.FC<Props> = ({ onOpenReview, onGoHome }) => {
                                                         <div className="relative h-44 w-full overflow-hidden bg-slate-100 dark:bg-slate-900">
                                                             <img
                                                                 src={normalizeImageUrl(photo.image_url)}
-                                                                alt={photo.description || 'Portfolio sample'}
+                                                                alt={photo.description || t('navbar.myRequestTracker.portfolioSampleAlt')}
                                                                 className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
                                                             />
                                                         </div>
                                                     ) : (
-                                                        <div className="grid h-44 place-items-center bg-slate-100 dark:bg-slate-900 text-xs font-bold text-slate-400">No image</div>
+                                                        <div className="grid h-44 place-items-center bg-slate-100 dark:bg-slate-900 text-xs font-bold text-slate-400">{t('navbar.myRequestTracker.noImage')}</div>
                                                     )}
                                                     {photo.description && (
                                                         <figcaption className="line-clamp-2 p-3 text-xs font-semibold text-slate-700 dark:text-slate-300 border-t border-slate-100 dark:border-white/5">
@@ -632,9 +632,9 @@ const MyServicesHistory: React.FC<Props> = ({ onOpenReview, onGoHome }) => {
                                         </div>
                                     ) : (
                                         <div className="rounded-2xl border border-dashed border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-950/50 p-8 text-center">
-                                            <p className="text-sm font-black text-slate-700 dark:text-slate-300">No portfolio photos uploaded yet</p>
+                                            <p className="text-sm font-black text-slate-700 dark:text-slate-300">{t('navbar.myRequestTracker.noPortfolioPhotos')}</p>
                                             <p className="mt-1 text-xs font-semibold text-slate-500 dark:text-slate-400">
-                                                Rating score and completed jobs verify this professional's quality.
+                                                {t('navbar.myRequestTracker.ratingVerifiesQuality')}
                                             </p>
                                         </div>
                                     )}
@@ -715,6 +715,7 @@ const RequestCard: React.FC<{
                         value={request.assigned_worker?.name || t('common.serviceHistory.card.unassigned')}
                         onClick={request.assigned_worker ? () => onOpenWorkerProfile(request.id_request) : undefined}
                         isClickable={!!request.assigned_worker}
+                        viewProfileLabel={t('common.serviceHistory.card.viewProfile')}
                     />
                     <InfoTile
                         icon={<MapPin className="h-4 w-4" />}
@@ -771,7 +772,7 @@ const RequestCard: React.FC<{
                                 ) : (
                                     <Sparkles className="h-3.5 w-3.5" />
                                 )}
-                                Live Tracker &amp; Pro Details
+                                {t('common.serviceHistory.card.liveTrackerProDetails')}
                             </button>
                         )}
                         {canReview && (
@@ -805,7 +806,7 @@ const RequestCard: React.FC<{
                             className="inline-flex items-center gap-1.5 rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-xs font-black uppercase tracking-[0.14em] text-slate-500 transition hover:border-amber-300 hover:bg-amber-50 hover:text-amber-700 dark:border-white/10 dark:bg-white/[0.04] dark:text-slate-400 dark:hover:border-amber-900/50 dark:hover:bg-amber-900/30 dark:hover:text-amber-300"
                         >
                             <ShieldAlert className="h-3.5 w-3.5" />
-                            Report
+                            {t('common.serviceHistory.card.report')}
                         </button>
                     </div>
                 </div>
@@ -820,7 +821,8 @@ const InfoTile: React.FC<{
     value: string;
     onClick?: () => void;
     isClickable?: boolean;
-}> = ({ icon, label, value, onClick, isClickable = false }) => (
+    viewProfileLabel?: string;
+}> = ({ icon, label, value, onClick, isClickable = false, viewProfileLabel }) => (
     <div
         onClick={onClick}
         className={`flex items-start gap-2.5 rounded-2xl border px-3.5 py-3 transition ${
@@ -836,7 +838,7 @@ const InfoTile: React.FC<{
             <div className="flex items-center justify-between gap-1">
                 <p className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-400 dark:text-slate-500">{label}</p>
                 {isClickable && (
-                    <span className="text-[9px] font-black text-bird-blue uppercase tracking-wider">View Profile →</span>
+                    <span className="text-[9px] font-black text-bird-blue uppercase tracking-wider">{viewProfileLabel ?? 'View Profile →'}</span>
                 )}
             </div>
             <p className="mt-0.5 truncate text-sm font-bold text-slate-800 dark:text-slate-100">{value}</p>
@@ -844,14 +846,14 @@ const InfoTile: React.FC<{
     </div>
 );
 
-const LoadingState: React.FC = () => (
+const LoadingState: React.FC<{ t: (key: string) => string }> = ({ t }) => (
     <div className="flex flex-col items-center justify-center rounded-3xl border border-slate-200 bg-white p-16 text-center shadow-sm dark:border-white/10 dark:bg-slate-900/70">
         <Loader2 className="h-8 w-8 animate-spin text-slate-400 dark:text-slate-500" />
-        <p className="mt-4 text-sm font-bold text-slate-500 dark:text-slate-400">Loading your service history...</p>
+        <p className="mt-4 text-sm font-bold text-slate-500 dark:text-slate-400">{t('common.serviceHistory.loading')}</p>
     </div>
 );
 
-const ErrorState: React.FC<{ message: string; onRetry: () => void }> = ({ message, onRetry }) => (
+const ErrorState: React.FC<{ message: string; onRetry: () => void; t: (key: string) => string }> = ({ message, onRetry, t }) => (
     <div className="rounded-3xl border border-rose-200 bg-rose-50 p-8 text-center dark:border-rose-900/50 dark:bg-rose-900/40">
         <AlertTriangle className="mx-auto h-8 w-8 text-rose-500" />
         <p className="mt-4 text-sm font-bold text-rose-700 dark:text-rose-300">{message}</p>
@@ -860,31 +862,31 @@ const ErrorState: React.FC<{ message: string; onRetry: () => void }> = ({ messag
             onClick={onRetry}
             className="mt-5 inline-flex items-center gap-2 rounded-2xl bg-rose-600 px-5 py-2.5 text-xs font-black uppercase tracking-[0.14em] text-white hover:bg-rose-700 dark:bg-rose-700 dark:hover:bg-rose-600"
         >
-            Retry
+            {t('common.serviceHistory.retry')}
         </button>
     </div>
 );
 
-const EmptyState: React.FC<{ filter: FilterKey; onGoHome: () => void }> = ({ filter, onGoHome }) => {
+const EmptyState: React.FC<{ filter: FilterKey; onGoHome: () => void; t: (key: string) => string }> = ({ filter, onGoHome, t }) => {
     const copy: Record<FilterKey, string> = {
-        all: "You haven't booked any services yet.",
-        active: 'No active services right now.',
-        completed: 'No completed services yet.',
-        cancelled: 'No cancelled services.',
+        all: t('common.serviceHistory.empty.all'),
+        active: t('common.serviceHistory.empty.active'),
+        completed: t('common.serviceHistory.empty.completed'),
+        cancelled: t('common.serviceHistory.empty.cancelled'),
     };
     return (
         <div className="rounded-3xl border border-slate-200 bg-white p-12 text-center shadow-sm dark:border-white/10 dark:bg-slate-900/70">
             <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-slate-50 text-slate-400 dark:bg-white/[0.04] dark:text-slate-500">
                 <Sparkles className="h-6 w-6" />
             </div>
-            <h3 className="mt-5 text-lg font-black text-slate-900 dark:text-slate-100">Nothing here yet</h3>
+            <h3 className="mt-5 text-lg font-black text-slate-900 dark:text-slate-100">{t('common.serviceHistory.empty.title')}</h3>
             <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">{copy[filter]}</p>
             <button
                 type="button"
                 onClick={onGoHome}
                 className="mt-6 inline-flex items-center gap-2 rounded-2xl bg-slate-900 px-5 py-2.5 text-xs font-black uppercase tracking-[0.14em] text-white hover:bg-slate-800 dark:bg-white dark:text-slate-900 dark:hover:bg-slate-100"
             >
-                Book a service
+                {t('common.serviceHistory.empty.bookService')}
             </button>
         </div>
     );

@@ -1,7 +1,10 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import { API_ENDPOINTS } from '../../config/api';
 
 const AVATAR_COLORS = ['#0090ff', '#f59e0b', '#10b981', '#8b5cf6', '#ef4444'];
+
+const TESTIMONIAL_NAMES = ['Sarah Mitchell', 'Michael Chen', 'Emily Rodriguez', 'David Thompson', 'Jessica Park'];
 
 const buildAvatarUri = (name: string, index: number): string => {
   const initials = name
@@ -15,53 +18,22 @@ const buildAvatarUri = (name: string, index: number): string => {
   return `data:image/svg+xml,${encodeURIComponent(svg)}`;
 };
 
-const testimonials = [
-  {
-    id: 1,
-    name: 'Sarah Mitchell',
-    role: 'Homeowner',
-    image: buildAvatarUri('Sarah Mitchell', 0),
+interface FallbackTestimonialTranslation {
+  role: string;
+  text: string;
+  service: string;
+}
+
+const buildFallbackTestimonials = (items: FallbackTestimonialTranslation[]) =>
+  TESTIMONIAL_NAMES.map((name, idx) => ({
+    id: idx + 1,
+    name,
+    role: items[idx]?.role ?? '',
+    image: buildAvatarUri(name, idx),
     rating: 5,
-    text: 'Fixlife connected me with an amazing plumber who fixed my leak in under an hour. The whole process was seamless and professional. Highly recommend!',
-    service: 'Plumbing',
-  },
-  {
-    id: 2,
-    name: 'Michael Chen',
-    role: 'Business Owner',
-    image: buildAvatarUri('Michael Chen', 1),
-    rating: 5,
-    text: 'I needed urgent electrical work done at my office. The electrician arrived within 30 minutes and solved the issue quickly. Outstanding service!',
-    service: 'Electrical',
-  },
-  {
-    id: 3,
-    name: 'Emily Rodriguez',
-    role: 'Property Manager',
-    image: buildAvatarUri('Emily Rodriguez', 2),
-    rating: 5,
-    text: 'Managing multiple properties means I need reliable professionals. Fixlife has become my go-to platform for all maintenance needs. Simply the best!',
-    service: 'Multiple Services',
-  },
-  {
-    id: 4,
-    name: 'David Thompson',
-    role: 'Homeowner',
-    image: buildAvatarUri('David Thompson', 3),
-    rating: 5,
-    text: "The transparency in pricing and the quality of work exceeded my expectations. I've used Fixlife three times now and will continue to do so.",
-    service: 'Carpentry',
-  },
-  {
-    id: 5,
-    name: 'Jessica Park',
-    role: 'Apartment Resident',
-    image: buildAvatarUri('Jessica Park', 4),
-    rating: 5,
-    text: 'Fast, affordable, and trustworthy. The professional was courteous and cleaned up after the job. This is how home services should be!',
-    service: 'Cleaning',
-  },
-];
+    text: items[idx]?.text ?? '',
+    service: items[idx]?.service ?? '',
+  }));
 
 interface LiveReview {
   id_review: number;
@@ -104,18 +76,19 @@ const formatCompact = (value: number) =>
     maximumFractionDigits: value >= 1000 ? 1 : 0,
   }).format(value);
 
-const toDisplayTestimonial = (r: LiveReview, idx: number): DisplayTestimonial => ({
-  id: r.id_review,
-  name: r.author_name,
-  role: r.author_role === 'worker'
-    ? `Professional${r.service_category ? ` · ${r.service_category}` : ''}`
-    : 'Client',
-  authorRole: r.author_role,
-  image: buildAvatarUri(r.author_name, idx),
-  rating: Math.max(1, Math.min(5, Number(r.rating))),
-  text: r.review_text,
-  service: r.service_category ?? 'Platform Review',
-});
+const buildToDisplayTestimonial = (roleProfessional: string, roleClient: string, servicePlatformReview: string) =>
+  (r: LiveReview, idx: number): DisplayTestimonial => ({
+    id: r.id_review,
+    name: r.author_name,
+    role: r.author_role === 'worker'
+      ? `${roleProfessional}${r.service_category ? ` · ${r.service_category}` : ''}`
+      : roleClient,
+    authorRole: r.author_role,
+    image: buildAvatarUri(r.author_name, idx),
+    rating: Math.max(1, Math.min(5, Number(r.rating))),
+    text: r.review_text,
+    service: r.service_category ?? servicePlatformReview,
+  });
 const CATEGORY_THEMES: Record<string, { bg: string; text: string; iconBg: string }> = {
   plumbing: { bg: 'bg-sky-500/10 text-sky-600 dark:text-sky-400', text: 'text-sky-600 dark:text-sky-400', iconBg: 'bg-sky-500' },
   electrical: { bg: 'bg-amber-500/10 text-amber-600 dark:text-amber-400', text: 'text-amber-600 dark:text-amber-400', iconBg: 'bg-amber-500' },
@@ -136,6 +109,19 @@ const getCategoryTheme = (service: string) => {
 };
 
 export const TestimonialsCarousel: React.FC = () => {
+  const { t } = useTranslation();
+  const roleProfessional = t('testimonials.roleProfessional');
+  const roleClient = t('testimonials.roleClient');
+  const servicePlatformReview = t('testimonials.servicePlatformReview');
+  const toDisplayTestimonial = useMemo(
+    () => buildToDisplayTestimonial(roleProfessional, roleClient, servicePlatformReview),
+    [roleProfessional, roleClient, servicePlatformReview]
+  );
+  const testimonials = useMemo(
+    () => buildFallbackTestimonials(t('testimonials.items', { returnObjects: true }) as FallbackTestimonialTranslation[]),
+    [t]
+  );
+
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isAutoPlaying, setIsAutoPlaying] = useState(true);
   const [animating, setAnimating] = useState(false);
@@ -159,7 +145,7 @@ export const TestimonialsCarousel: React.FC = () => {
     } catch {
       // keep static fallback
     }
-  }, []);
+  }, [toDisplayTestimonial]);
 
   useEffect(() => {
     void fetchLiveReviews();
@@ -174,7 +160,7 @@ export const TestimonialsCarousel: React.FC = () => {
       }
     }
     return combined;
-  }, [displayItems]);
+  }, [displayItems, testimonials]);
 
   useEffect(() => {
     if (!isAutoPlaying || itemsToRender.length <= 1) return;
@@ -272,16 +258,16 @@ export const TestimonialsCarousel: React.FC = () => {
       {/* Centered section header */}
       <div className="text-center mb-10 relative z-10">
         <span className="px-3.5 py-1.5 rounded-full bg-bird-blue/10 dark:bg-bird-blue/20 border border-bird-blue/20 text-[10px] font-black uppercase tracking-widest text-bird-blue mb-4 inline-block">
-          Client Testimonials
+          {t('testimonials.badge')}
         </span>
         <h3 className="text-3xl sm:text-4xl md:text-5xl font-sans font-black text-slate-900 dark:text-white tracking-tight leading-none mb-3">
-          Trusted by homeowners, <br />
+          {t('testimonials.headingLine1')} <br />
           <span className="text-transparent bg-clip-text bg-gradient-to-r from-bird-blue via-indigo-500 to-bird-orange">
-            loved by everyone.
+            {t('testimonials.headingLine2')}
           </span>
         </h3>
         <p className="text-slate-500 dark:text-slate-400 text-sm sm:text-base font-medium max-w-xl mx-auto mt-3">
-          See how Fixlife is helping people simplify their daily tasks and keep their homes in perfect condition.
+          {t('testimonials.subtitle')}
         </p>
       </div>
 
@@ -291,7 +277,7 @@ export const TestimonialsCarousel: React.FC = () => {
         <button
           onClick={prevSlide}
           className="absolute -left-2 sm:left-0 top-1/2 -translate-y-1/2 z-20 flex h-10 w-10 items-center justify-center rounded-full border border-slate-200/60 bg-white text-slate-500 shadow-md transition hover:bg-slate-50 hover:text-slate-800 hover:scale-105 active:scale-95 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-400 dark:hover:bg-slate-900 dark:hover:text-white disabled:opacity-30"
-          aria-label="Previous testimonial"
+          aria-label={t('testimonials.a11y.previous')}
           disabled={itemsToRender.length <= 1}
         >
           <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
@@ -303,7 +289,7 @@ export const TestimonialsCarousel: React.FC = () => {
         <button
           onClick={nextSlide}
           className="absolute -right-2 sm:right-0 top-1/2 -translate-y-1/2 z-20 flex h-10 w-10 items-center justify-center rounded-full border border-slate-200/60 bg-white text-slate-500 shadow-md transition hover:bg-slate-50 hover:text-slate-800 hover:scale-105 active:scale-95 dark:border-slate-800 dark:bg-slate-955 dark:text-slate-400 dark:hover:bg-slate-900 dark:hover:text-white disabled:opacity-30"
-          aria-label="Next testimonial"
+          aria-label={t('testimonials.a11y.next')}
           disabled={itemsToRender.length <= 1}
         >
           <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
@@ -324,7 +310,7 @@ export const TestimonialsCarousel: React.FC = () => {
           <button
             key={item.id}
             onClick={() => goToSlide(index)}
-            aria-label={`Go to testimonial ${index + 1}`}
+            aria-label={t('testimonials.a11y.goTo', { index: index + 1 })}
             className={`transition-all duration-300 ${
               index === currentIndex
                 ? 'h-1.5 w-5 rounded-full bg-bird-blue shadow-[0_2px_8px_rgba(0,144,255,0.3)]'

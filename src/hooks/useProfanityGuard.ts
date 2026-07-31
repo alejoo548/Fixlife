@@ -1,7 +1,7 @@
 import { useCallback, useRef, useState } from 'react';
 import { filterProfanity, containsProfanity } from '../utils/profanityFilter';
+import i18n from '../i18n';
 
-const WARNING_MESSAGE = "Offensive language isn't allowed here.";
 const WARNING_TIMEOUT_MS = 2500;
 
 /**
@@ -14,7 +14,7 @@ export const useProfanityGuard = () => {
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const showWarning = useCallback(() => {
-    setWarning(WARNING_MESSAGE);
+    setWarning(i18n.t('common.reviewPage.validation.noOffensiveLanguage'));
     if (timeoutRef.current) clearTimeout(timeoutRef.current);
     timeoutRef.current = setTimeout(() => setWarning(''), WARNING_TIMEOUT_MS);
   }, []);

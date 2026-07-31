@@ -1,5 +1,6 @@
 import React from 'react';
 import { recoverFromChunkError } from '../../utils/chunkRecovery';
+import i18n from '../../i18n';
 
 interface AppErrorBoundaryState {
   error: Error | null;
@@ -30,11 +31,11 @@ export class AppErrorBoundary extends React.Component<React.PropsWithChildren, A
               <img src="/Fixilogo.webp" alt="Fixlife" className="h-12 w-12 object-contain" />
               <div>
                 <p className="text-xs font-black uppercase tracking-[0.22em] text-bird-blue">Fixlife</p>
-                <h1 className="text-2xl font-black">We hit a display issue</h1>
+                <h1 className="text-2xl font-black">{i18n.t('appErrorBoundary.title')}</h1>
               </div>
             </div>
             <p className="text-sm leading-relaxed text-slate-600">
-              The screen did not load correctly. Refresh the page; if it happens again, this panel keeps the app from going blank.
+              {i18n.t('appErrorBoundary.description')}
             </p>
             <pre className="mt-4 max-h-32 overflow-auto rounded-2xl bg-slate-950 p-3 text-[11px] text-sky-100">
               {this.state.error.message}
@@ -44,7 +45,7 @@ export class AppErrorBoundary extends React.Component<React.PropsWithChildren, A
               onClick={() => window.location.reload()}
               className="mt-5 w-full rounded-2xl bg-bird-blue px-4 py-3 text-sm font-black text-white shadow-lg shadow-bird-blue/20"
             >
-              Reload page
+              {i18n.t('appErrorBoundary.reloadPage')}
             </button>
           </div>
         </div>

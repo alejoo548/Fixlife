@@ -145,6 +145,48 @@ const SERVICE_TRANSLATIONS: ServiceTranslation[] = [
     },
   },
   { name: { en: 'Cleaning', es: 'Limpieza' } },
+  {
+    name: { en: 'House Painting Alt', es: 'Pintura de casas' },
+    description: {
+      en: 'Interior and exterior painting with clean, professional finishing.',
+      es: 'Pintura interior y exterior con acabados profesionales.',
+    },
+  },
+  {
+    name: { en: 'Gardening Alt', es: 'Jardinería' },
+    description: {
+      en: 'Lawn care, planting, pruning, and garden maintenance.',
+      es: 'Corte de césped, siembra, poda y mantenimiento de jardines.',
+    },
+  },
+  {
+    name: { en: 'Expert Plumbing', es: 'Plomería' },
+    description: {
+      en: 'Leak repairs, pipe installation, and sanitary maintenance.',
+      es: 'Reparación de fugas, instalación de tuberías y mantenimiento sanitario.',
+    },
+  },
+  {
+    name: { en: 'Auto Mechanics', es: 'Mecánica automotriz' },
+    description: {
+      en: 'Vehicle diagnostics, oil changes, and mobile repairs.',
+      es: 'Diagnóstico vehicular, cambios de aceite y reparaciones a domicilio.',
+    },
+  },
+  {
+    name: { en: 'Electrical Fallback', es: 'Electricidad' },
+    description: {
+      en: 'Safe installations, wiring, panels, and short circuit repairs.',
+      es: 'Instalaciones seguras, cableado, paneles y reparación de cortocircuitos.',
+    },
+  },
+  {
+    name: { en: 'Carpentry Fallback', es: 'Carpintería' },
+    description: {
+      en: 'Furniture design, door repair, and structure assembly.',
+      es: 'Diseño de muebles, reparación de puertas y ensamblaje de estructuras.',
+    },
+  },
 ];
 
 const findServiceTranslation = (value: string) => {

@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { API_ENDPOINTS } from '../../../config/api';
 import { getToken } from '../../../utils/session';
 import type { ServiceRequestHistoryStatus } from './useServiceRequestHistory';
+import i18n from '../../../i18n';
 
 type PaymentMethod = 'card' | 'paypal' | 'cash';
 
@@ -53,7 +54,7 @@ export const useServiceRequestPayment = <TRequest extends PaymentRequestLike>({
   const handleSecurePayment = (request: TRequest) => {
     const token = getToken();
     if (!token) {
-      showToast('error', 'Login required.');
+      showToast('error', i18n.t('serviceRequest.notifications.loginRequired'));
       return;
     }
 
@@ -69,14 +70,14 @@ export const useServiceRequestPayment = <TRequest extends PaymentRequestLike>({
   const confirmPaymentThroughModal = async () => {
     const token = getToken();
     if (!token || !paymentModalRequest) {
-      fail('Login required.');
+      fail(i18n.t('serviceRequest.notifications.loginRequired'));
       return;
     }
 
     setPaymentError(null);
 
     if (paymentMethod === 'paypal') {
-      fail('PayPal is visible in the demo but not configured yet. Use card checkout for now.');
+      fail(i18n.t('serviceRequest.notifications.paypalUnavailable'));
       return;
     }
 
@@ -90,15 +91,15 @@ export const useServiceRequestPayment = <TRequest extends PaymentRequestLike>({
         });
         const checkoutPayload = await checkoutRes.json();
         if (!checkoutRes.ok || !checkoutPayload?.success) {
-          fail(checkoutPayload?.error || 'Could not select cash payment.');
+          fail(checkoutPayload?.error || i18n.t('serviceRequest.notifications.cashSelectError'));
           return;
         }
 
-        showToast('success', 'Pagaras en efectivo directamente al profesional. El confirmara el cobro al finalizar.');
+        showToast('success', i18n.t('serviceRequest.notifications.cashPaymentSuccess'));
         setPaymentModalRequest(null);
         await fetchMyRequests(historyStatus, true);
       } catch {
-        fail('Network error selecting cash payment.');
+        fail(i18n.t('serviceRequest.notifications.cashNetworkError'));
       } finally {
         setPaymentBusyId(null);
       }
@@ -115,7 +116,7 @@ export const useServiceRequestPayment = <TRequest extends PaymentRequestLike>({
       !paymentForm.expiry.trim() ||
       !paymentForm.cvv.trim()
     ) {
-      fail('Complete all card payment fields first.');
+      fail(i18n.t('serviceRequest.notifications.completePaymentFields'));
       return;
     }
 
@@ -128,7 +129,7 @@ export const useServiceRequestPayment = <TRequest extends PaymentRequestLike>({
       });
       const checkoutPayload = await checkoutRes.json();
       if (!checkoutRes.ok || !checkoutPayload?.success) {
-        fail(checkoutPayload?.error || 'Could not initialize payment.');
+        fail(checkoutPayload?.error || i18n.t('serviceRequest.notifications.paymentInitError'));
         return;
       }
 
@@ -139,15 +140,15 @@ export const useServiceRequestPayment = <TRequest extends PaymentRequestLike>({
       });
       const payPayload = await payRes.json();
       if (!payRes.ok || !payPayload?.success) {
-        fail(payPayload?.error || 'Could not confirm payment.');
+        fail(payPayload?.error || i18n.t('serviceRequest.notifications.paymentConfirmError'));
         return;
       }
 
-      showToast('success', 'Payment completed. Final service approval is now available.');
+      showToast('success', i18n.t('serviceRequest.notifications.paymentCompletedApprovalAvailable'));
       setPaymentModalRequest(null);
       await fetchMyRequests(historyStatus, true);
     } catch {
-      fail('Network error processing payment.');
+      fail(i18n.t('serviceRequest.notifications.paymentNetworkError'));
     } finally {
       setPaymentBusyId(null);
     }

@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { createPortal } from 'react-dom';
 import { CheckCircle2, Loader2, Sparkles, Star, X } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { API_ENDPOINTS } from '../../config/api';
 import { getToken } from '../../utils/session';
 
@@ -19,11 +20,7 @@ interface Props {
 
 type MetricKey = 'punctuality' | 'quality' | 'price_fairness';
 
-const METRICS: Array<{ key: MetricKey; label: string; hint: string }> = [
-    { key: 'punctuality', label: 'Punctuality', hint: 'Did the pro arrive on time?' },
-    { key: 'quality', label: 'Quality of work', hint: 'How well was the job done?' },
-    { key: 'price_fairness', label: 'Price fairness', hint: 'Was the price fair for the work?' },
-];
+const METRIC_KEYS: MetricKey[] = ['punctuality', 'quality', 'price_fairness'];
 
 const clampStar = (value: unknown) => {
     const n = Math.round(Number(value) || 0);
@@ -37,6 +34,7 @@ const StarRow: React.FC<{
     onChange: (value: number) => void;
     disabled?: boolean;
 }> = ({ value, onChange, disabled = false }) => {
+    const { t } = useTranslation();
     const [hover, setHover] = useState<number | null>(null);
     const display = hover ?? value;
     return (
@@ -49,7 +47,7 @@ const StarRow: React.FC<{
                         type="button"
                         role="radio"
                         aria-checked={value === star}
-                        aria-label={`${star} star${star === 1 ? '' : 's'}`}
+                        aria-label={star === 1 ? t('workerRatingModal.starLabel_one', { count: star }) : t('workerRatingModal.starLabel_other', { count: star })}
                         disabled={disabled}
                         onMouseEnter={() => setHover(star)}
                         onMouseLeave={() => setHover(null)}
@@ -67,6 +65,12 @@ const StarRow: React.FC<{
 };
 
 export const WorkerRatingModal: React.FC<Props> = ({ request, onClose, onSubmitted }) => {
+    const { t } = useTranslation();
+    const METRICS: Array<{ key: MetricKey; label: string; hint: string }> = METRIC_KEYS.map((key) => ({
+        key,
+        label: t(`workerRatingModal.metrics.${key}.label`),
+        hint: t(`workerRatingModal.metrics.${key}.hint`),
+    }));
     const [ratings, setRatings] = useState<Record<MetricKey, number>>({
         punctuality: 5,
         quality: 5,
@@ -88,7 +92,7 @@ export const WorkerRatingModal: React.FC<Props> = ({ request, onClose, onSubmitt
 
     if (!request) return null;
 
-    const workerName = request.assigned_worker?.name?.trim() || 'your pro';
+    const workerName = request.assigned_worker?.name?.trim() || t('workerRatingModal.yourProFallback');
     const commentTrimmed = comment.trim();
     const commentTooLong = commentTrimmed.length > 255;
     const overallAverage = Number(
@@ -99,18 +103,18 @@ export const WorkerRatingModal: React.FC<Props> = ({ request, onClose, onSubmitt
         if (busy) return;
         const token = getToken();
         if (!token) {
-            setError('Login required.');
+            setError(t('workerRatingModal.loginRequired'));
             return;
         }
         for (const key of Object.keys(ratings) as MetricKey[]) {
             const n = ratings[key];
             if (!Number.isInteger(n) || n < 1 || n > 5) {
-                setError('Please rate every category from 1 to 5 stars.');
+                setError(t('workerRatingModal.rateEveryCategory'));
                 return;
             }
         }
         if (commentTooLong) {
-            setError('Comment must be 255 characters or less.');
+            setError(t('workerRatingModal.commentTooLong'));
             return;
         }
 
@@ -129,9 +133,9 @@ export const WorkerRatingModal: React.FC<Props> = ({ request, onClose, onSubmitt
             });
             const payload = await res.json().catch(() => ({}));
             if (!res.ok || !payload?.success) {
-                const message = payload?.error || 'Could not submit your review.';
+                const message = payload?.error || t('workerRatingModal.submitError');
                 if (payload?.already_rated) {
-                    setError('This service was already reviewed.');
+                    setError(t('workerRatingModal.alreadyRated'));
                 } else {
                     setError(message);
                 }
@@ -140,7 +144,7 @@ export const WorkerRatingModal: React.FC<Props> = ({ request, onClose, onSubmitt
             setSuccess(true);
             onSubmitted?.(request.id_request);
         } catch {
-            setError('Network error submitting your review.');
+            setError(t('workerRatingModal.networkError'));
         } finally {
             setBusy(false);
         }
@@ -171,18 +175,18 @@ export const WorkerRatingModal: React.FC<Props> = ({ request, onClose, onSubmitt
                                 <CheckCircle2 className="h-8 w-8" />
                             </div>
                             <p className="mt-5 text-[11px] font-black uppercase tracking-[0.24em] text-emerald-500">
-                                Review submitted
+                                {t('workerRatingModal.reviewSubmitted')}
                             </p>
-                            <h2 className="mt-2 text-2xl font-black text-slate-900 dark:text-slate-100">Thanks for the feedback</h2>
+                            <h2 className="mt-2 text-2xl font-black text-slate-900 dark:text-slate-100">{t('workerRatingModal.thanksForFeedback')}</h2>
                             <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
-                                Your review helps {workerName} and every future client on Fixlife.
+                                {t('workerRatingModal.reviewHelpsWorker', { workerName })}
                             </p>
                             <button
                                 type="button"
                                 onClick={onClose}
                                 className="mt-6 w-full rounded-2xl bg-slate-900 dark:bg-white px-4 py-3 text-sm font-black uppercase tracking-[0.14em] text-white dark:text-slate-900 hover:bg-slate-800 dark:hover:bg-slate-200"
                             >
-                                Done
+                                {t('workerRatingModal.done')}
                             </button>
                         </div>
                     ) : (
@@ -197,18 +201,18 @@ export const WorkerRatingModal: React.FC<Props> = ({ request, onClose, onSubmitt
                                     onClick={onClose}
                                     disabled={busy}
                                     className="absolute right-4 top-4 rounded-2xl bg-white/10 p-2 text-white/80 transition hover:bg-white/20 hover:text-white disabled:opacity-50"
-                                    aria-label="Close"
+                                    aria-label={t('workerRatingModal.close')}
                                 >
                                     <X className="h-4 w-4" />
                                 </button>
                                 <div className="relative">
                                     <div className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-3 py-1.5 text-[11px] font-black uppercase tracking-[0.18em] text-cyan-100">
                                         <Sparkles className="h-3.5 w-3.5" />
-                                        Rate this service
+                                        {t('workerRatingModal.rateThisService')}
                                     </div>
-                                    <h2 className="mt-4 text-2xl font-black tracking-tight">How was {workerName}?</h2>
+                                    <h2 className="mt-4 text-2xl font-black tracking-tight">{t('workerRatingModal.howWasWorker', { workerName })}</h2>
                                     <p className="mt-2 text-sm text-slate-300">
-                                        Share how the pro handled <span className="font-black text-white">{request.service_name}</span>.
+                                        {t('workerRatingModal.shareHow', { service: request.service_name })}
                                     </p>
                                 </div>
                             </div>
@@ -234,14 +238,14 @@ export const WorkerRatingModal: React.FC<Props> = ({ request, onClose, onSubmitt
                                 </div>
 
                                 <label className="mt-5 block text-xs font-black uppercase tracking-[0.14em] text-slate-500 dark:text-slate-400">
-                                    Optional comment
+                                    {t('workerRatingModal.optionalComment')}
                                     <textarea
                                         value={comment}
                                         onChange={(e) => setComment(e.target.value.slice(0, 255))}
                                         disabled={busy}
                                         rows={3}
                                         maxLength={255}
-                                        placeholder="Share anything future clients should know..."
+                                        placeholder={t('workerRatingModal.commentPlaceholder')}
                                         className="mt-2 w-full resize-none rounded-2xl border border-slate-200 dark:border-white/10 bg-white dark:bg-white/[0.04] px-4 py-3 text-sm font-medium text-slate-900 dark:text-slate-100 outline-none focus:border-slate-400 focus:ring-4 focus:ring-slate-100 dark:focus:ring-white/10"
                                     />
                                     <span className={`mt-1 block text-right text-[10px] font-bold ${commentTooLong ? 'text-rose-500' : 'text-slate-400 dark:text-slate-500'}`}>
@@ -251,7 +255,7 @@ export const WorkerRatingModal: React.FC<Props> = ({ request, onClose, onSubmitt
 
                                 <div className="mt-5 flex items-center justify-between rounded-2xl border border-slate-100 dark:border-white/5 bg-slate-50/60 dark:bg-white/[0.04] px-4 py-3">
                                     <div>
-                                        <p className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-400 dark:text-slate-500">Overall</p>
+                                        <p className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-400 dark:text-slate-500">{t('workerRatingModal.overall')}</p>
                                         <p className="mt-1 text-lg font-black text-slate-900 dark:text-slate-100">{overallAverage.toFixed(1)} / 5</p>
                                     </div>
                                     <div className="flex items-center gap-1">
@@ -277,7 +281,7 @@ export const WorkerRatingModal: React.FC<Props> = ({ request, onClose, onSubmitt
                                         disabled={busy}
                                         className="rounded-2xl border border-slate-200 dark:border-white/10 bg-white dark:bg-white/[0.04] px-4 py-3 text-sm font-black uppercase tracking-[0.14em] text-slate-500 dark:text-slate-400 hover:border-slate-300 hover:text-slate-800 dark:hover:text-slate-100 disabled:opacity-50"
                                     >
-                                        Maybe later
+                                        {t('workerRatingModal.maybeLater')}
                                     </button>
                                     <button
                                         type="button"
@@ -286,7 +290,7 @@ export const WorkerRatingModal: React.FC<Props> = ({ request, onClose, onSubmitt
                                         className="inline-flex items-center justify-center gap-2 rounded-2xl bg-slate-900 dark:bg-white px-6 py-3 text-sm font-black uppercase tracking-[0.14em] text-white dark:text-slate-900 shadow-sm transition hover:bg-slate-800 dark:hover:bg-slate-200 disabled:cursor-not-allowed disabled:opacity-60"
                                     >
                                         {busy && <Loader2 className="h-4 w-4 animate-spin" />}
-                                        {busy ? 'Submitting' : 'Submit review'}
+                                        {busy ? t('workerRatingModal.submitting') : t('workerRatingModal.submitReview')}
                                     </button>
                                 </div>
                             </div>

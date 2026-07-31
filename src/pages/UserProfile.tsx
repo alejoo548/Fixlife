@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { showSweetToast } from '../utils/sweetAlert';
 import { useAuth } from '../context/AuthContext';
 import { API_URL } from '../config/api';
@@ -47,6 +48,7 @@ const normalizeStoredUsername = (username: unknown, email: unknown): string => {
 };
 
 const UserProfile: React.FC<UserProfileProps> = ({ onBack }) => {
+  const { t } = useTranslation();
   const { user, logout, updateUser } = useAuth();
 
   const [formData, setFormData] = useState({
@@ -100,11 +102,11 @@ const UserProfile: React.FC<UserProfileProps> = ({ onBack }) => {
     const phone = formData.phone_number.trim();
     const username = formData.username.trim();
 
-    if (!name || !lastname) return 'Name and lastname are required.';
-    if (name.length < 2 || name.length > 60 || !NAME_REGEX.test(name)) return 'Invalid name format.';
-    if (lastname.length < 2 || lastname.length > 60 || !NAME_REGEX.test(lastname)) return 'Invalid lastname format.';
-    if (phone && !PHONE_REGEX.test(phone)) return 'Invalid phone format. Use 8 to 15 digits.';
-    if (username && !USERNAME_REGEX.test(username)) return 'Invalid username format. Use 3-30 letters, numbers, . _ or -.';
+    if (!name || !lastname) return t('userProfile.validation.required');
+    if (name.length < 2 || name.length > 60 || !NAME_REGEX.test(name)) return t('userProfile.validation.invalidName');
+    if (lastname.length < 2 || lastname.length > 60 || !NAME_REGEX.test(lastname)) return t('userProfile.validation.invalidLastname');
+    if (phone && !PHONE_REGEX.test(phone)) return t('userProfile.validation.invalidPhone');
+    if (username && !USERNAME_REGEX.test(username)) return t('userProfile.validation.invalidUsername');
 
     return null;
   };
@@ -141,7 +143,7 @@ const UserProfile: React.FC<UserProfileProps> = ({ onBack }) => {
 
     const token = localStorage.getItem('token');
     if (!token) {
-      void showSweetToast({ tone: 'error', message: 'Session expired. Please sign in again.' });
+      void showSweetToast({ tone: 'error', message: t('userProfile.messages.sessionExpired') });
       return;
     }
 
@@ -156,10 +158,10 @@ const UserProfile: React.FC<UserProfileProps> = ({ onBack }) => {
 
       const { data } = await updateProfile(payload, token);
       updateUser({ ...user, ...data.user });
-      void showSweetToast({ tone: 'success', message: 'Profile updated successfully. Redirecting to home...' });
+      void showSweetToast({ tone: 'success', message: t('userProfile.messages.updateSuccess') });
       window.setTimeout(() => onBack(), 700);
     } catch (error: any) {
-      void showSweetToast({ tone: 'error', message: getErrorMessage(error, 'Error updating profile.') });
+      void showSweetToast({ tone: 'error', message: getErrorMessage(error, t('userProfile.messages.updateError')) });
     } finally {
       setIsSaving(false);
     }
@@ -173,20 +175,20 @@ const UserProfile: React.FC<UserProfileProps> = ({ onBack }) => {
     const hasValidFormat = ALLOWED_IMAGE_TYPES.has(file.type) && ALLOWED_IMAGE_EXTENSIONS.has(extension);
 
     if (!hasValidFormat) {
-      void showSweetToast({ tone: 'error', message: 'Only JPG, PNG, WEBP or AVIF images are allowed.' });
+      void showSweetToast({ tone: 'error', message: t('userProfile.messages.invalidImage') });
       e.target.value = '';
       return;
     }
 
     if (file.size > 5 * 1024 * 1024) {
-      void showSweetToast({ tone: 'error', message: 'Image size must be 5MB or less.' });
+      void showSweetToast({ tone: 'error', message: t('userProfile.messages.invalidImageSize') });
       e.target.value = '';
       return;
     }
 
     const token = localStorage.getItem('token');
     if (!token) {
-      void showSweetToast({ tone: 'error', message: 'Session expired. Please sign in again.' });
+      void showSweetToast({ tone: 'error', message: t('userProfile.messages.sessionExpired') });
       return;
     }
 
@@ -194,9 +196,9 @@ const UserProfile: React.FC<UserProfileProps> = ({ onBack }) => {
     try {
       const { data } = await uploadProfileImage(file, token);
       updateUser({ ...user, profile_image: data.profile_image });
-      void showSweetToast({ tone: 'success', message: 'Profile image updated successfully.' });
+      void showSweetToast({ tone: 'success', message: t('userProfile.messages.imageUploadSuccess') });
     } catch (error: any) {
-      void showSweetToast({ tone: 'error', message: getErrorMessage(error, 'Error uploading image.') });
+      void showSweetToast({ tone: 'error', message: getErrorMessage(error, t('userProfile.messages.imageUploadError')) });
     } finally {
       setIsUploading(false);
       e.target.value = '';
@@ -208,7 +210,7 @@ const UserProfile: React.FC<UserProfileProps> = ({ onBack }) => {
 
     const token = localStorage.getItem('token');
     if (!token) {
-      void showSweetToast({ tone: 'error', message: 'Session expired. Please sign in again.' });
+      void showSweetToast({ tone: 'error', message: t('userProfile.messages.sessionExpired') });
       return;
     }
 
@@ -216,9 +218,9 @@ const UserProfile: React.FC<UserProfileProps> = ({ onBack }) => {
     try {
       await removeProfileImage(token);
       updateUser({ ...user, profile_image: null });
-      void showSweetToast({ tone: 'success', message: 'Profile image removed successfully.' });
+      void showSweetToast({ tone: 'success', message: t('userProfile.messages.imageRemoveSuccess') });
     } catch (error: any) {
-      void showSweetToast({ tone: 'error', message: getErrorMessage(error, 'Error removing image.') });
+      void showSweetToast({ tone: 'error', message: getErrorMessage(error, t('userProfile.messages.imageRemoveError')) });
     } finally {
       setIsRemovingPhoto(false);
     }
@@ -239,7 +241,7 @@ const UserProfile: React.FC<UserProfileProps> = ({ onBack }) => {
           <svg className="w-4 h-4 group-hover:-translate-x-1 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M15 19l-7-7 7-7" />
           </svg>
-          Back to Home
+          {t('userProfile.back')}
         </button>
 
         {/* Profile Banner Header */}
@@ -253,7 +255,7 @@ const UserProfile: React.FC<UserProfileProps> = ({ onBack }) => {
                 {profileImageUrl ? (
                   <img
                     src={profileImageUrl}
-                    alt="Profile"
+                    alt={t('userProfile.photoTitle')}
                     className="w-full h-full rounded-[14px] object-cover border-2 border-white dark:border-slate-900"
                   />
                 ) : (
@@ -282,9 +284,9 @@ const UserProfile: React.FC<UserProfileProps> = ({ onBack }) => {
             <div className="min-w-0 flex-1">
               <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-500/20 border border-emerald-500/30 text-emerald-400 text-[10px] font-black uppercase tracking-wider mb-2">
                 <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-                Verified Client Account
+                {t('userProfile.verifiedBadge')}
               </div>
-              <h1 className="text-2xl sm:text-4xl font-black tracking-tight text-white truncate">{fullName || 'User Profile'}</h1>
+              <h1 className="text-2xl sm:text-4xl font-black tracking-tight text-white truncate">{fullName || t('userProfile.titleFallback')}</h1>
               <p className="text-slate-300 text-xs sm:text-sm font-semibold mt-1 truncate">{user?.email}</p>
             </div>
 
@@ -298,7 +300,7 @@ const UserProfile: React.FC<UserProfileProps> = ({ onBack }) => {
                   className="hidden"
                   disabled={isUploading || isRemovingPhoto}
                 />
-                {isUploading ? 'Uploading...' : 'Change Photo'}
+                {isUploading ? t('userProfile.uploading') : t('userProfile.upload')}
               </label>
 
               {user?.profile_image && (
@@ -308,7 +310,7 @@ const UserProfile: React.FC<UserProfileProps> = ({ onBack }) => {
                   disabled={isUploading || isRemovingPhoto}
                   className="px-4 py-2.5 rounded-xl bg-white/10 hover:bg-rose-500/20 text-rose-300 border border-white/10 font-black text-xs transition-all active:scale-95 disabled:opacity-50"
                 >
-                  {isRemovingPhoto ? 'Removing...' : 'Remove Photo'}
+                  {isRemovingPhoto ? t('userProfile.removing') : t('userProfile.remove')}
                 </button>
               )}
             </div>
@@ -322,7 +324,7 @@ const UserProfile: React.FC<UserProfileProps> = ({ onBack }) => {
             {/* Name Input */}
             <div className="rounded-2xl border border-slate-200/80 dark:border-white/10 bg-slate-50/70 dark:bg-slate-800/50 p-4 transition-all focus-within:border-bird-blue focus-within:ring-2 focus-within:ring-bird-blue/20">
               <div className="flex items-center justify-between mb-2">
-                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 dark:text-slate-400">First Name</label>
+                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 dark:text-slate-400">{t('userProfile.fields.name')}</label>
                 <svg className="w-4 h-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
                 </svg>
@@ -341,7 +343,7 @@ const UserProfile: React.FC<UserProfileProps> = ({ onBack }) => {
             {/* Lastname Input */}
             <div className="rounded-2xl border border-slate-200/80 dark:border-white/10 bg-slate-50/70 dark:bg-slate-800/50 p-4 transition-all focus-within:border-bird-blue focus-within:ring-2 focus-within:ring-bird-blue/20">
               <div className="flex items-center justify-between mb-2">
-                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 dark:text-slate-400">Last Name</label>
+                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 dark:text-slate-400">{t('userProfile.fields.lastname')}</label>
                 <svg className="w-4 h-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
                 </svg>
@@ -360,7 +362,7 @@ const UserProfile: React.FC<UserProfileProps> = ({ onBack }) => {
             {/* Phone Input */}
             <div className="rounded-2xl border border-slate-200/80 dark:border-white/10 bg-slate-50/70 dark:bg-slate-800/50 p-4 transition-all focus-within:border-bird-blue focus-within:ring-2 focus-within:ring-bird-blue/20">
               <div className="flex items-center justify-between mb-2">
-                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 dark:text-slate-400">Phone Number</label>
+                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 dark:text-slate-400">{t('userProfile.fields.phone')}</label>
                 <svg className="w-4 h-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
                 </svg>
@@ -381,7 +383,7 @@ const UserProfile: React.FC<UserProfileProps> = ({ onBack }) => {
             {/* Username Input */}
             <div className="rounded-2xl border border-slate-200/80 dark:border-white/10 bg-slate-50/70 dark:bg-slate-800/50 p-4 transition-all focus-within:border-bird-blue focus-within:ring-2 focus-within:ring-bird-blue/20">
               <div className="flex items-center justify-between mb-2">
-                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 dark:text-slate-400">Username</label>
+                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 dark:text-slate-400">{t('userProfile.fields.username')}</label>
                 <svg className="w-4 h-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
                 </svg>
@@ -406,7 +408,7 @@ const UserProfile: React.FC<UserProfileProps> = ({ onBack }) => {
               disabled={isSaving || isUploading || isRemovingPhoto}
               className="w-full sm:w-auto px-8 py-3.5 rounded-xl bg-bird-blue hover:bg-bird-darkBlue text-white font-black text-sm tracking-wide shadow-lg shadow-bird-blue/30 transition-all active:scale-95 disabled:opacity-50"
             >
-              {isSaving ? 'Saving Changes...' : 'Save Changes'}
+              {isSaving ? t('userProfile.saving') : t('userProfile.save')}
             </button>
 
             <button
@@ -414,7 +416,7 @@ const UserProfile: React.FC<UserProfileProps> = ({ onBack }) => {
               onClick={logout}
               className="w-full sm:w-auto px-6 py-3.5 rounded-xl bg-rose-50 dark:bg-rose-950/40 text-rose-600 dark:text-rose-400 font-bold text-sm border border-rose-200 dark:border-rose-900/50 hover:bg-rose-100 dark:hover:bg-rose-900/40 transition-colors"
             >
-              Log Out Account
+              {t('userProfile.logout')}
             </button>
           </div>
         </form>

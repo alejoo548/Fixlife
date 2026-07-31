@@ -1,5 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import type { ServiceRequestData } from '../../types';
+import i18n from '../../i18n';
 
 const DEFAULT_VISIT_DURATION_MINUTES = 120;
 const MIN_VISIT_DURATION_MINUTES = 60;
@@ -35,7 +37,9 @@ const normalizeDurationMinutes = (value: number | undefined) => {
 
 const formatDurationLabel = (minutes: number) => {
     const hours = Math.round(minutes / 60);
-    return `${hours} hour${hours === 1 ? '' : 's'}`;
+    return hours === 1
+        ? i18n.t('serviceRequest.scheduling.durationHoursOne', { count: hours })
+        : i18n.t('serviceRequest.scheduling.durationHoursOther', { count: hours });
 };
 
 const formatTimeLabel = (value: string) => {
@@ -98,7 +102,7 @@ const sameMonth = (left: Date, right: Date) =>
     left.getFullYear() === right.getFullYear() && left.getMonth() === right.getMonth();
 
 const monthLabel = (date: Date) =>
-    date.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+    date.toLocaleDateString(i18n.language === 'es' ? 'es-ES' : 'en-US', { month: 'long', year: 'numeric' });
 
 const buildCalendarDays = (visibleMonth: Date, minDate: string, maxDate: string) => {
     const firstOfMonth = new Date(visibleMonth.getFullYear(), visibleMonth.getMonth(), 1);
@@ -155,6 +159,7 @@ export const ServiceRequestSchedulingSection: React.FC<ServiceRequestSchedulingS
     scheduledDurationMinutes,
     onChange,
 }) => {
+    const { t } = useTranslation();
     const isScheduled = bookingType === 'scheduled';
     const durationMinutes = normalizeDurationMinutes(scheduledDurationMinutes);
     const timeWindows = useMemo(() => buildTimeWindows(durationMinutes), [durationMinutes]);
@@ -222,16 +227,16 @@ export const ServiceRequestSchedulingSection: React.FC<ServiceRequestSchedulingS
         <section className="rounded-[26px] border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900 p-4 shadow-sm">
             <div className="flex items-center justify-between gap-3">
                 <div>
-                    <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400 dark:text-slate-500">Service mode</p>
-                    <h3 className="mt-1 text-lg font-black text-slate-900 dark:text-slate-100">Choose when we visit</h3>
-                    <p className="mt-1 text-xs font-semibold text-slate-500 dark:text-slate-400">Book anytime, 24/7. We only show it to pros who are free for that window.</p>
+                    <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400 dark:text-slate-500">{t('serviceRequest.scheduling.modeLabel')}</p>
+                    <h3 className="mt-1 text-lg font-black text-slate-900 dark:text-slate-100">{t('serviceRequest.scheduling.title')}</h3>
+                    <p className="mt-1 text-xs font-semibold text-slate-500 dark:text-slate-400">{t('serviceRequest.scheduling.subtitle')}</p>
                 </div>
                 <div className="flex shrink-0 flex-col items-end gap-2">
                     <span className="rounded-full border border-emerald-100 dark:border-emerald-900/40 bg-emerald-50 dark:bg-emerald-950/40 px-3 py-1 text-[11px] font-black uppercase tracking-[0.14em] text-emerald-700 dark:text-emerald-300">
-                        24/7
+                        {t('serviceRequest.scheduling.aroundTheClock')}
                     </span>
                     <span className="rounded-full border border-sky-100 dark:border-sky-900/40 bg-sky-50 dark:bg-sky-950/40 px-3 py-1 text-[11px] font-black uppercase tracking-[0.14em] text-bird-blue">
-                        {isScheduled ? 'Scheduled' : 'Express'}
+                        {isScheduled ? t('serviceRequest.scheduling.scheduled') : t('serviceRequest.scheduling.express')}
                     </span>
                 </div>
             </div>
@@ -246,8 +251,8 @@ export const ServiceRequestSchedulingSection: React.FC<ServiceRequestSchedulingS
                             : 'border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900 hover:border-slate-300 dark:hover:border-white/20'
                     }`}
                 >
-                    <p className="text-sm font-black text-slate-900 dark:text-slate-100">Express service</p>
-                    <p className="mt-1 text-xs font-semibold leading-5 text-slate-500 dark:text-slate-400">Find an available pro to help as soon as possible.</p>
+                    <p className="text-sm font-black text-slate-900 dark:text-slate-100">{t('serviceRequest.scheduling.expressTitle')}</p>
+                    <p className="mt-1 text-xs font-semibold leading-5 text-slate-500 dark:text-slate-400">{t('serviceRequest.scheduling.expressSubtitle')}</p>
                 </button>
 
                 <button
@@ -267,8 +272,8 @@ export const ServiceRequestSchedulingSection: React.FC<ServiceRequestSchedulingS
                             : 'border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900 hover:border-slate-300 dark:hover:border-white/20'
                     }`}
                 >
-                    <p className="text-sm font-black text-slate-900 dark:text-slate-100">Schedule visit</p>
-                    <p className="mt-1 text-xs font-semibold leading-5 text-slate-500 dark:text-slate-400">Pick any day and start time. The pro is blocked for this window only.</p>
+                    <p className="text-sm font-black text-slate-900 dark:text-slate-100">{t('serviceRequest.scheduling.scheduledTitle')}</p>
+                    <p className="mt-1 text-xs font-semibold leading-5 text-slate-500 dark:text-slate-400">{t('serviceRequest.scheduling.scheduledSubtitle')}</p>
                 </button>
             </div>
 
@@ -281,7 +286,7 @@ export const ServiceRequestSchedulingSection: React.FC<ServiceRequestSchedulingS
                                 onClick={() => moveMonth(-1)}
                                 disabled={!canGoPreviousMonth}
                                 className="grid h-9 w-9 place-items-center rounded-full border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 transition hover:border-bird-blue hover:text-bird-blue disabled:cursor-not-allowed disabled:opacity-35"
-                                aria-label="Previous month"
+                                aria-label={t('serviceRequest.scheduling.previousMonth')}
                             >
                                 <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.4} d="M15 19l-7-7 7-7" />
@@ -289,7 +294,7 @@ export const ServiceRequestSchedulingSection: React.FC<ServiceRequestSchedulingS
                             </button>
 
                             <div className="text-center">
-                                <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400 dark:text-slate-500">Date</p>
+                                <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400 dark:text-slate-500">{t('serviceRequest.scheduling.date')}</p>
                                 <p className="text-sm font-black capitalize text-slate-900 dark:text-slate-100">{monthLabel(visibleMonth)}</p>
                             </div>
 
@@ -298,7 +303,7 @@ export const ServiceRequestSchedulingSection: React.FC<ServiceRequestSchedulingS
                                 onClick={() => moveMonth(1)}
                                 disabled={!canGoNextMonth}
                                 className="grid h-9 w-9 place-items-center rounded-full border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 transition hover:border-bird-blue hover:text-bird-blue disabled:cursor-not-allowed disabled:opacity-35"
-                                aria-label="Next month"
+                                aria-label={t('serviceRequest.scheduling.nextMonth')}
                             >
                                 <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.4} d="M9 5l7 7-7 7" />
@@ -307,7 +312,7 @@ export const ServiceRequestSchedulingSection: React.FC<ServiceRequestSchedulingS
                         </div>
 
                         <div className="grid grid-cols-7 gap-1 px-3 pt-3 text-center text-[10px] font-black uppercase text-slate-400 dark:text-slate-500">
-                            {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((day, index) => (
+                            {(t('serviceRequest.scheduling.weekdayInitials', { returnObjects: true }) as string[]).map((day, index) => (
                                 <span key={`${day}-${index}`} className="py-1">{day}</span>
                             ))}
                         </div>
@@ -344,8 +349,8 @@ export const ServiceRequestSchedulingSection: React.FC<ServiceRequestSchedulingS
                     <div className="rounded-[22px] border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900 p-3">
                         <div className="mb-3 flex items-center justify-between gap-3">
                             <div>
-                                <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400 dark:text-slate-500">Estimated duration</p>
-                                <p className="mt-1 text-xs font-bold text-slate-600 dark:text-slate-400">Pick how long you think the visit may take. Max 7 hours.</p>
+                                <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400 dark:text-slate-500">{t('serviceRequest.scheduling.estimatedDuration')}</p>
+                                <p className="mt-1 text-xs font-bold text-slate-600 dark:text-slate-400">{t('serviceRequest.scheduling.estimatedDurationSubtitle')}</p>
                             </div>
                             <span className="rounded-full bg-sky-50 dark:bg-slate-800 px-2.5 py-1 text-[10px] font-black text-bird-blue">
                                 {formatDurationLabel(durationMinutes)}
@@ -376,9 +381,9 @@ export const ServiceRequestSchedulingSection: React.FC<ServiceRequestSchedulingS
                     <div className="rounded-[22px] border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900 p-3">
                         <div className="mb-3 flex items-center justify-between gap-3">
                             <div>
-                                <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400 dark:text-slate-500">Start time</p>
+                                <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400 dark:text-slate-500">{t('serviceRequest.scheduling.startTime')}</p>
                                 <p className="mt-1 text-xs font-bold text-slate-600 dark:text-slate-400">
-                                    {selectedWindow ? selectedWindow.label : 'Choose a start time'}
+                                    {selectedWindow ? selectedWindow.label : t('serviceRequest.scheduling.chooseTime')}
                                 </p>
                             </div>
                             <div className="text-right">
@@ -387,7 +392,7 @@ export const ServiceRequestSchedulingSection: React.FC<ServiceRequestSchedulingS
                                 </span>
                                 {selectedDate === minDate && (
                                     <span className="mt-1.5 block text-[9px] font-black uppercase tracking-[0.12em] text-emerald-600 dark:text-emerald-400">
-                                        Available from now
+                                        {t('serviceRequest.scheduling.availableFromNow')}
                                     </span>
                                 )}
                             </div>
@@ -405,7 +410,7 @@ export const ServiceRequestSchedulingSection: React.FC<ServiceRequestSchedulingS
                                             : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'
                                     }`}
                                 >
-                                    {period.label}
+                                    {t(`serviceRequest.scheduling.periods.${period.id}`)}
                                 </button>
                             ))}
                         </div>
@@ -431,7 +436,7 @@ export const ServiceRequestSchedulingSection: React.FC<ServiceRequestSchedulingS
                         </div>
                         {periodWindows.length === 0 && (
                             <div className="rounded-xl border border-dashed border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-slate-800/50 px-4 py-5 text-center text-xs font-bold text-slate-500 dark:text-slate-400">
-                                No more times are available in this period today. Choose another period or date.
+                                {t('serviceRequest.scheduling.noTimes')}
                             </div>
                         )}
                     </div>
@@ -440,7 +445,7 @@ export const ServiceRequestSchedulingSection: React.FC<ServiceRequestSchedulingS
                         <div className="flex gap-3">
                             <div className="mt-1 h-2.5 w-2.5 shrink-0 rounded-full bg-bird-blue shadow-[0_0_0_6px_rgba(0,144,255,0.12)]" />
                             <p className="text-xs font-semibold leading-5 text-slate-600 dark:text-slate-300">
-                                You can create more requests on the same day. Each worker is only blocked during the exact estimated time they accept.
+                                {t('serviceRequest.scheduling.schedulingNote')}
                             </p>
                         </div>
                     </div>

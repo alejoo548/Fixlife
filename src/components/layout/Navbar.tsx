@@ -102,36 +102,41 @@ interface NavbarWorkerProfile {
   }>;
 }
 
-const requestStatusCopy = (statusRaw: ClientRequestStatus) => {
+const requestStatusCopy = (statusRaw: ClientRequestStatus, t: (key: string, opts?: any) => string) => {
   const status = String(statusRaw || '').toLowerCase();
-  if (status === 'done') return { label: 'Completed', hint: 'Saved in your service history.', tone: 'bg-slate-100 text-slate-700 border-slate-200' };
-  if (status === 'cancelled') return { label: 'Cancelled', hint: 'This request is closed.', tone: 'bg-red-50 text-red-600 border-red-100' };
-  if (status === 'awaiting_confirmation') return { label: 'Confirm finish', hint: 'Your pro marked the work as complete.', tone: 'bg-amber-50 text-amber-700 border-amber-100' };
-  if (status === 'completion_pending') return { label: 'Final approval', hint: 'Payment completed. Both must close service.', tone: 'bg-emerald-50 text-emerald-700 border-emerald-100' };
-  if (status === 'finish_pending') return { label: 'Finish approval', hint: 'Work ends after both approve.', tone: 'bg-violet-50 text-violet-700 border-violet-100' };
-  if (status === 'in_progress') return { label: 'In progress', hint: 'Your pro is working on it now.', tone: 'bg-blue-50 text-blue-700 border-blue-100' };
-  if (status === 'start_pending') return { label: 'Approve work start', hint: 'Worker approved. Your approval is required.', tone: 'bg-blue-50 text-blue-700 border-blue-100' };
-  if (status === 'arrived') return { label: 'Worker arrived', hint: 'Both must approve before work starts.', tone: 'bg-violet-50 text-violet-700 border-violet-100' };
-  if (status === 'route_in_progress') return { label: 'Worker on route', hint: 'Follow live route to destination.', tone: 'bg-sky-50 text-sky-700 border-sky-100' };
-  if (status === 'paid') return { label: 'Payment completed', hint: 'Final approval required from both.', tone: 'bg-emerald-50 text-emerald-700 border-emerald-100' };
-  if (status === 'payment_pending') return { label: 'Work finished - pay', hint: 'Both approved work finish. Complete payment.', tone: 'bg-orange-50 text-orange-700 border-orange-100' };
-  if (status === 'assigned') return { label: 'Pro assigned', hint: 'Review the assigned professional.', tone: 'bg-sky-50 text-sky-700 border-sky-100' };
-  return { label: 'Finding a pro', hint: 'We are matching your request.', tone: 'bg-slate-100 text-slate-700 border-slate-200' };
+  const tone = (key: string, cls: string) => ({
+    label: t(`navbar.myRequestTracker.status.${key}.label`),
+    hint: t(`navbar.myRequestTracker.status.${key}.hint`),
+    tone: cls,
+  });
+  if (status === 'done') return tone('done', 'bg-slate-100 text-slate-700 border-slate-200');
+  if (status === 'cancelled') return tone('cancelled', 'bg-red-50 text-red-600 border-red-100');
+  if (status === 'awaiting_confirmation') return tone('awaitingConfirmation', 'bg-amber-50 text-amber-700 border-amber-100');
+  if (status === 'completion_pending') return tone('completionPending', 'bg-emerald-50 text-emerald-700 border-emerald-100');
+  if (status === 'finish_pending') return tone('finishPending', 'bg-violet-50 text-violet-700 border-violet-100');
+  if (status === 'in_progress') return tone('inProgress', 'bg-blue-50 text-blue-700 border-blue-100');
+  if (status === 'start_pending') return tone('startPending', 'bg-blue-50 text-blue-700 border-blue-100');
+  if (status === 'arrived') return tone('arrived', 'bg-violet-50 text-violet-700 border-violet-100');
+  if (status === 'route_in_progress') return tone('routeInProgress', 'bg-sky-50 text-sky-700 border-sky-100');
+  if (status === 'paid') return tone('paid', 'bg-emerald-50 text-emerald-700 border-emerald-100');
+  if (status === 'payment_pending') return tone('paymentPending', 'bg-orange-50 text-orange-700 border-orange-100');
+  if (status === 'assigned') return tone('assigned', 'bg-sky-50 text-sky-700 border-sky-100');
+  return tone('default', 'bg-slate-100 text-slate-700 border-slate-200');
 };
 
-const formatRequestSchedule = (request: ClientRequestSummary | null) => {
+const formatRequestSchedule = (request: ClientRequestSummary | null, t: (key: string, opts?: any) => string) => {
   if (!request) return '';
-  if (String(request.booking_type || 'express').toLowerCase() !== 'scheduled') return 'Express visit';
+  if (String(request.booking_type || 'express').toLowerCase() !== 'scheduled') return t('navbar.myRequestTracker.schedule.expressVisit');
 
   const rawStart = request.scheduled_start_time || (
     request.scheduled_date && request.scheduled_time
       ? `${request.scheduled_date}T${request.scheduled_time}`
       : ''
   );
-  if (!rawStart) return 'Scheduled visit';
+  if (!rawStart) return t('navbar.myRequestTracker.schedule.scheduledVisit');
 
   const start = new Date(rawStart);
-  if (Number.isNaN(start.getTime())) return 'Scheduled visit';
+  if (Number.isNaN(start.getTime())) return t('navbar.myRequestTracker.schedule.scheduledVisit');
 
   return start.toLocaleDateString('en-US', {
     month: 'short',
@@ -173,7 +178,8 @@ const sortClientRequests = (requests: ClientRequestSummary[]) =>
 const isCancelledRequest = (request: ClientRequestSummary) =>
   ['cancelled', 'canceled'].includes(String(request.status || '').toLowerCase());
 
-const requestProgressLabels = ['Pro approved', 'On route', 'Arrived', 'Working', 'Work finished', 'Paid', 'Completed'];
+const getRequestProgressLabels = (t: (key: string, opts?: any) => any): string[] =>
+  t('navbar.myRequestTracker.progressLabels', { returnObjects: true }) as string[];
 
 const getRequestStepIndex = (statusRaw: ClientRequestStatus) => {
   const status = String(statusRaw || '').toLowerCase();
@@ -292,7 +298,8 @@ export const Navbar: React.FC<NavbarProps> = ({
   const selectedRequestPosition = primaryRequest
     ? orderedClientRequests.findIndex((request) => request.id_request === primaryRequest.id_request) + 1
     : 0;
-  const primaryRequestStatus = requestStatusCopy(primaryRequest?.status || 'pending');
+  const primaryRequestStatus = requestStatusCopy(primaryRequest?.status || 'pending', t);
+  const requestProgressLabels = useMemo(() => getRequestProgressLabels(t), [t]);
   const primaryRequestStep = getRequestStepIndex(primaryRequest?.status || 'pending');
   const pendingWorkerApproval = primaryRequest ? hasPendingWorkerApproval(primaryRequest) : false;
   const pendingCounter = primaryRequest ? hasPendingCounter(primaryRequest) : false;
@@ -425,7 +432,7 @@ export const Navbar: React.FC<NavbarProps> = ({
       const payload = await response.json().catch(() => ({}));
 
       if (!response.ok) {
-        throw new Error(payload?.error || 'Could not load your request.');
+        throw new Error(payload?.error || t('navbar.myRequestTracker.loadRequestError'));
       }
 
       const requests = Array.isArray(payload?.requests) ? payload.requests : [];
@@ -435,13 +442,13 @@ export const Navbar: React.FC<NavbarProps> = ({
           return !isCancelledRequest(request) && s !== 'done';
         })
       );
-      void showSweetToast({ tone: 'success', message: 'Request updated.' });
+      void showSweetToast({ tone: 'success', message: t('navbar.myRequestTracker.requestUpdated') });
     } catch (error: any) {
       const rawMessage = String(error?.message || '');
       setRequestsError(
         rawMessage.toLowerCase().includes('failed to fetch')
-          ? 'We could not reach the server yet. Check your connection while we try again.'
-          : rawMessage || 'We could not refresh your request right now.'
+          ? t('navbar.myRequestTracker.connectionError')
+          : rawMessage || t('navbar.myRequestTracker.refreshError')
       );
     } finally {
       setRequestsLoading(false);
@@ -710,8 +717,9 @@ export const Navbar: React.FC<NavbarProps> = ({
       if (!requestStateInitializedRef.current) continue;
       const previous = previousRequestStateRef.current[request.id_request];
       if (!previous) {
-        setLiveRequestNotice(`New request #${request.id_request} was added.`);
-        void showSweetToast({ tone: 'info', message: `New request #${request.id_request} was added.` });
+        const newRequestMessage = t('navbar.myRequestTracker.newRequestAdded', { id: request.id_request });
+        setLiveRequestNotice(newRequestMessage);
+        void showSweetToast({ tone: 'info', message: newRequestMessage });
         continue;
       }
       if (
@@ -719,28 +727,32 @@ export const Navbar: React.FC<NavbarProps> = ({
         (request.counter_status == null || request.counter_status === 'pending') &&
         (previous.counterStatus !== counterStatus || previous.proposedBudget !== proposedBudget)
       ) {
-        setLiveRequestNotice(
-          `${request.assigned_worker?.name || 'Your professional'} sent a counter offer for request #${request.id_request}.`
-        );
+        const counterOfferMessage = t('navbar.myRequestTracker.counterOfferReceived', {
+          name: request.assigned_worker?.name || t('navbar.myRequestTracker.yourProfessionalFallback'),
+          id: request.id_request,
+        });
+        setLiveRequestNotice(counterOfferMessage);
         void showSweetToast({
           tone: 'warning',
-          message: `${request.assigned_worker?.name || 'Your professional'} sent a counter offer for request #${request.id_request}.`,
+          message: counterOfferMessage,
         });
         continue;
       }
       if (previous.status !== status) {
-        setLiveRequestNotice(
-          `Request #${request.id_request} changed to ${requestStatusCopy(status).label}.`
-        );
+        const statusChangedMessage = t('navbar.myRequestTracker.statusChanged', {
+          id: request.id_request,
+          status: requestStatusCopy(status, t).label,
+        });
+        setLiveRequestNotice(statusChangedMessage);
         void showSweetToast({
           tone: 'info',
-          message: `Request #${request.id_request} changed to ${requestStatusCopy(status).label}.`,
+          message: statusChangedMessage,
         });
       }
     }
     previousRequestStateRef.current = nextState;
     requestStateInitializedRef.current = true;
-  }, [orderedClientRequests]);
+  }, [orderedClientRequests, t]);
 
   useEffect(() => {
     if (!isRequestModalOpen || !requestsError || requestRetryAttempt >= 2) return undefined;
@@ -893,8 +905,8 @@ export const Navbar: React.FC<NavbarProps> = ({
           <button
             type="button"
             onClick={toggleTheme}
-            aria-label="Toggle Theme"
-            title={isDark ? "Switch to light mode" : "Switch to dark mode"}
+            aria-label={t('navbar.toggleTheme')}
+            title={isDark ? t('navbar.switchToLightMode') : t('navbar.switchToDarkMode')}
             className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-white transition-colors duration-200 border border-gray-200/50 dark:border-white/10 bg-white/50 dark:bg-slate-900/50 shadow-sm"
           >
             {isDark ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
@@ -905,8 +917,8 @@ export const Navbar: React.FC<NavbarProps> = ({
             type="button"
             data-tour="help-tour-button"
             onClick={startTour}
-            aria-label="Replay onboarding tour"
-            title="Replay tour"
+            aria-label={t('navbar.replayTour')}
+            title={t('navbar.replayTourTitle')}
             className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-white transition-colors duration-200 border border-gray-200/50 dark:border-white/10 bg-white/50 dark:bg-slate-900/50 shadow-sm"
           >
             <HelpCircle className="h-4 w-4" />
@@ -923,7 +935,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                 profileImageUrl ? (
                   <img
                     src={profileImageUrl}
-                    alt="Profile"
+                    alt={t('navbar.profileImageAlt')}
                     className="w-8 h-8 rounded-full object-cover border border-gray-200 dark:border-white/10"
                   />
                 ) : (
@@ -969,7 +981,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                       <svg className="w-4 h-4 text-bird-blue" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
                       </svg>
-                      Sign Up
+                      {t('navbar.signUp')}
                     </button>
                   </>
                 ) : (
@@ -1070,7 +1082,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                   onClick={() => handleNavItemClick(item.name)}
                   className="text-xl font-bold text-left text-gray-900 dark:text-slate-100 hover:text-bird-blue transition-colors"
                 >
-                  {item.name}
+                  {translateNavLabel(item.name)}
                 </button>
                 {item.items && (
                   <div className="flex flex-col gap-2 pl-4 border-l-2 border-bird-blue/30">
@@ -1081,7 +1093,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                         onClick={() => handleSubItemClick(item.name, subItem)}
                         className="text-left text-gray-600 dark:text-slate-400 hover:text-bird-blue text-sm py-1 font-medium"
                       >
-                        {subItem}
+                        {translateNavLabel(subItem)}
                       </button>
                     ))}
                   </div>
@@ -1160,11 +1172,11 @@ export const Navbar: React.FC<NavbarProps> = ({
                   <div className="min-w-0">
                     <div className="mb-2 flex flex-wrap items-center gap-2">
                       <span className="inline-flex rounded-full bg-bird-blue/10 dark:bg-bird-blue/20 border border-bird-blue/20 px-3.5 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-bird-blue">
-                        My requests
+                        {t('navbar.myRequestTracker.badge')}
                       </span>
                       {primaryRequest && (
                         <span className="text-xs font-extrabold text-slate-400 dark:text-slate-500">
-                          {selectedRequestPosition} of {orderedClientRequests.length}
+                          {t('navbar.myRequestTracker.positionOf', { position: selectedRequestPosition, total: orderedClientRequests.length })}
                         </span>
                       )}
                     </div>
@@ -1184,7 +1196,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                           }}
                           disabled={selectedRequestPosition <= 1}
                           className="flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 transition-all hover:border-bird-blue hover:text-bird-blue hover:scale-105 active:scale-95 disabled:cursor-not-allowed disabled:opacity-35"
-                          aria-label="Previous request"
+                          aria-label={t('navbar.myRequestTracker.prevRequestAria')}
                         >
                           <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.4} d="M15 19l-7-7 7-7" />
@@ -1198,7 +1210,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                           }}
                           disabled={selectedRequestPosition >= orderedClientRequests.length}
                           className="flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 transition-all hover:border-bird-blue hover:text-bird-blue hover:scale-105 active:scale-95 disabled:cursor-not-allowed disabled:opacity-35"
-                          aria-label="Next request"
+                          aria-label={t('navbar.myRequestTracker.nextRequestAria')}
                         >
                           <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.4} d="M9 5l7 7-7 7" />
@@ -1215,7 +1227,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                       type="button"
                       onClick={() => setIsRequestModalOpen(false)}
                       className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-slate-200/80 dark:border-white/10 bg-white dark:bg-slate-800 text-slate-500 dark:text-slate-400 shadow-sm transition-all hover:bg-slate-100 dark:hover:bg-slate-700 hover:text-slate-950 dark:hover:text-white hover:scale-105 active:scale-95"
-                      aria-label="Close request modal"
+                      aria-label={t('navbar.myRequestTracker.closeModalAria')}
                     >
                       <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.4} d="M6 18L18 6M6 6l12 12" />
@@ -1229,16 +1241,16 @@ export const Navbar: React.FC<NavbarProps> = ({
                 <div className="border-b border-slate-200/80 dark:border-white/10 bg-slate-50/80 dark:bg-slate-950/70 backdrop-blur-sm px-6 py-3.5 sm:px-8">
                   <div className="mb-2 flex items-center justify-between gap-3">
                     <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400 dark:text-slate-500">
-                      All your requests
+                      {t('navbar.myRequestTracker.allRequests')}
                     </p>
                     <p className="text-xs font-extrabold text-slate-500 dark:text-slate-400">
-                      {openRequestsCount} active · {orderedClientRequests.length} total
+                      {t('navbar.myRequestTracker.activeOfTotal', { active: openRequestsCount, total: orderedClientRequests.length })}
                     </p>
                   </div>
                   <div className="flex gap-2.5 overflow-x-auto pb-1.5 custom-scrollbar">
                     {orderedClientRequests.map((request) => {
                       const selected = request.id_request === primaryRequest?.id_request;
-                      const requestStatus = requestStatusCopy(request.status);
+                      const requestStatus = requestStatusCopy(request.status, t);
                       return (
                         <button
                           key={request.id_request}
@@ -1288,7 +1300,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                     onClick={() => setLiveRequestNotice('')}
                     className="shrink-0 text-xs font-black text-blue-700 dark:text-blue-400 hover:text-blue-950 dark:hover:text-blue-200"
                   >
-                    Dismiss
+                    {t('navbar.myRequestTracker.dismiss')}
                   </button>
                 </div>
               )}
@@ -1298,7 +1310,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                   <div className="grid min-h-[520px] place-items-center rounded-[1.8rem] bg-white dark:bg-slate-900 border border-slate-100 dark:border-white/10 shadow-sm">
                     <div className="text-center">
                       <div className="mx-auto mb-4 h-12 w-12 rounded-full border-4 border-bird-blue/20 border-t-bird-blue animate-spin" />
-                      <p className="text-sm font-bold text-slate-500 dark:text-slate-400">Loading your request...</p>
+                      <p className="text-sm font-bold text-slate-500 dark:text-slate-400">{t('navbar.myRequestTracker.loadingRequest')}</p>
                     </div>
                   </div>
                 ) : requestsError ? (
@@ -1309,11 +1321,11 @@ export const Navbar: React.FC<NavbarProps> = ({
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.2} d="M4 4v5h5M20 20v-5h-5M5.7 15a7 7 0 0011.6 2M18.3 9A7 7 0 006.7 7" />
                         </svg>
                       </div>
-                      <h3 className="text-xl font-black text-slate-950 dark:text-slate-100">Reconnecting to your request</h3>
+                      <h3 className="text-xl font-black text-slate-950 dark:text-slate-100">{t('navbar.myRequestTracker.reconnecting')}</h3>
                       <p className="mt-2 text-sm font-semibold leading-6 text-slate-500 dark:text-slate-400">{requestsError}</p>
                       {requestRetryAttempt < 2 && (
                         <p className="mt-3 text-xs font-black uppercase tracking-[0.14em] text-bird-blue">
-                          Retrying automatically...
+                          {t('navbar.myRequestTracker.retryingAutomatically')}
                         </p>
                       )}
                       <button
@@ -1324,7 +1336,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                         }}
                         className="mt-5 rounded-xl bg-bird-blue px-5 py-3 text-sm font-black text-white shadow-lg shadow-bird-blue/20 transition-transform active:scale-95 hover:bg-bird-darkBlue"
                       >
-                        Retry now
+                        {t('navbar.myRequestTracker.retryNow')}
                       </button>
                     </div>
                   </div>
@@ -1336,16 +1348,16 @@ export const Navbar: React.FC<NavbarProps> = ({
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.2} d="M8 7V3m8 4V3M5 11h14M7 21h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v12a2 2 0 002 2z" />
                         </svg>
                       </div>
-                      <h3 className="text-2xl font-black text-slate-950 dark:text-slate-100">No active request yet</h3>
+                      <h3 className="text-2xl font-black text-slate-950 dark:text-slate-100">{t('navbar.myRequestTracker.noActiveRequestTitle')}</h3>
                       <p className="mt-3 text-sm font-semibold leading-6 text-slate-500 dark:text-slate-400">
-                        When you book a service, this space becomes your quick view for status, pro details, route and next steps.
+                        {t('navbar.myRequestTracker.noActiveRequestDesc')}
                       </p>
                       <button
                         type="button"
                         onClick={handleBookingClick}
                         className="mt-6 rounded-xl bg-bird-blue px-6 py-3 text-sm font-black text-white shadow-lg shadow-bird-blue/20 transition-transform active:scale-95 hover:bg-bird-darkBlue"
                       >
-                        Book a service
+                        {t('navbar.myRequestTracker.bookService')}
                       </button>
                     </div>
                   </div>
@@ -1385,18 +1397,18 @@ export const Navbar: React.FC<NavbarProps> = ({
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.2} d="M12 11.5a2.5 2.5 0 100-5 2.5 2.5 0 000 5z" />
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.2} d="M19.5 9c0 7-7.5 12-7.5 12S4.5 16 4.5 9a7.5 7.5 0 1115 0z" />
                               </svg>
-                              <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400 dark:text-slate-500">Location</p>
+                              <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400 dark:text-slate-500">{t('navbar.myRequestTracker.location')}</p>
                             </div>
                             <p className="line-clamp-2 text-sm font-extrabold leading-6 text-slate-900 dark:text-slate-100">{primaryRequest.location_text}</p>
                           </div>
 
                           <div className="grid grid-cols-2 gap-3">
                             <div className="rounded-2xl border border-slate-200/70 dark:border-white/10 bg-white dark:bg-slate-900 p-4 shadow-sm">
-                              <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400 dark:text-slate-500">Visit</p>
-                              <p className="mt-2 text-sm font-black leading-5 text-slate-900 dark:text-slate-100">{formatRequestSchedule(primaryRequest)}</p>
+                              <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400 dark:text-slate-500">{t('navbar.myRequestTracker.visit')}</p>
+                              <p className="mt-2 text-sm font-black leading-5 text-slate-900 dark:text-slate-100">{formatRequestSchedule(primaryRequest, t)}</p>
                             </div>
                             <div className="rounded-2xl border border-slate-200/70 dark:border-white/10 bg-white dark:bg-slate-900 p-4 shadow-sm">
-                              <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400 dark:text-slate-500">Budget</p>
+                              <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400 dark:text-slate-500">{t('navbar.myRequestTracker.budget')}</p>
                               <p className="mt-2 text-lg font-black text-slate-900 dark:text-slate-100">
                                 ${Number(primaryRequest.final_budget ?? primaryRequest.budget ?? 0).toFixed(2)}
                               </p>
@@ -1407,10 +1419,10 @@ export const Navbar: React.FC<NavbarProps> = ({
 
                       <div className="rounded-[1.6rem] border border-slate-200/80 dark:border-white/10 bg-white dark:bg-slate-900 p-5 shadow-sm">
                         <div className="mb-3.5 flex items-center justify-between gap-3">
-                          <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400 dark:text-slate-500">Professional</p>
+                          <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400 dark:text-slate-500">{t('navbar.myRequestTracker.professional')}</p>
                           {!primaryRequest.assigned_worker && (
                             <span className="rounded-full bg-bird-yellow/20 px-2.5 py-1 text-[10px] font-black uppercase tracking-wide text-yellow-700 dark:text-yellow-400">
-                              Matching
+                              {t('navbar.myRequestTracker.matching')}
                             </span>
                           )}
                         </div>
@@ -1432,7 +1444,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                                 <p className="truncate text-base font-black text-slate-950 dark:text-white">{primaryRequest.assigned_worker.name}</p>
                                 <p className="text-xs font-extrabold text-slate-500 dark:text-slate-400 flex items-center gap-1.5 mt-0.5">
                                   <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
-                                  {primaryRequest.assigned_worker.is_online ? 'Online now' : 'Assigned to your request'}
+                                  {primaryRequest.assigned_worker.is_online ? t('navbar.myRequestTracker.onlineNow') : t('navbar.myRequestTracker.assignedToRequest')}
                                 </p>
                               </div>
                             </div>
@@ -1442,7 +1454,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                               disabled={workerProfileLoading}
                               className="mt-4 w-full rounded-xl border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-800 px-4 py-3 text-sm font-black text-slate-900 dark:text-slate-100 hover:border-bird-blue hover:text-bird-blue dark:hover:text-bird-blue transition-all duration-200 active:scale-[0.98] disabled:opacity-50 shadow-sm"
                             >
-                              {workerProfileLoading ? 'Loading profile...' : 'View profile and portfolio'}
+                              {workerProfileLoading ? t('navbar.myRequestTracker.loadingProfile') : t('navbar.myRequestTracker.viewProfilePortfolio')}
                             </button>
                             {canUseRequestChat(primaryRequest) && (
                               <button
@@ -1453,7 +1465,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                                 }}
                                 className="mt-2.5 w-full rounded-xl bg-gradient-to-r from-bird-blue to-indigo-600 px-4 py-3 text-sm font-black text-white shadow-lg shadow-bird-blue/20 hover:shadow-bird-blue/35 transition-all duration-200 active:scale-[0.98]"
                               >
-                                Chat with {primaryRequest.assigned_worker.name}
+                                {t('navbar.myRequestTracker.chatWith', { name: primaryRequest.assigned_worker.name })}
                               </button>
                             )}
                           </div>
@@ -1461,7 +1473,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                           <div className="flex gap-3 items-start">
                             <div className="mt-1.5 h-2.5 w-2.5 shrink-0 rounded-full bg-bird-blue shadow-[0_0_0_6px_rgba(0,144,255,0.12)]" />
                             <p className="text-sm font-semibold leading-6 text-slate-600 dark:text-slate-400">
-                              We are checking nearby verified pros. This updates automatically when someone accepts.
+                              {t('navbar.myRequestTracker.checkingNearbyPros')}
                             </p>
                           </div>
                         )}
@@ -1469,14 +1481,14 @@ export const Navbar: React.FC<NavbarProps> = ({
 
                       {pendingCounter && (
                         <div className="rounded-[1.6rem] border border-amber-200 dark:border-amber-900/40 bg-amber-50/80 dark:bg-amber-950/30 p-5 shadow-sm backdrop-blur-sm">
-                          <p className="text-[10px] font-black uppercase tracking-[0.18em] text-amber-700 dark:text-amber-400">Counter offer</p>
+                          <p className="text-[10px] font-black uppercase tracking-[0.18em] text-amber-700 dark:text-amber-400">{t('navbar.myRequestTracker.counterOffer')}</p>
                           <div className="mt-2 flex items-end justify-between gap-3">
                             <div>
                               <p className="text-3xl font-black text-slate-950 dark:text-slate-100">
                                 ${Number(primaryRequest.proposed_budget || 0).toFixed(2)}
                               </p>
                               <p className="mt-1 text-xs font-bold text-slate-500 dark:text-slate-400">
-                                Your original estimate was ${Number(primaryRequest.budget || 0).toFixed(2)}
+                                {t('navbar.myRequestTracker.originalEstimate', { amount: Number(primaryRequest.budget || 0).toFixed(2) })}
                               </p>
                             </div>
                           </div>
@@ -1492,7 +1504,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                               onClick={() => setPendingDecision({ kind: 'counter', decision: 'decline' })}
                               className="rounded-xl border border-red-200 dark:border-red-900/40 bg-white dark:bg-slate-900 px-4 py-3 text-sm font-black text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30 disabled:opacity-50 transition-all active:scale-[0.98]"
                             >
-                              Decline
+                              {t('navbar.myRequestTracker.decline')}
                             </button>
                             <button
                               type="button"
@@ -1500,7 +1512,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                               onClick={() => setPendingDecision({ kind: 'counter', decision: 'accept' })}
                               className="rounded-xl bg-slate-950 dark:bg-white dark:text-slate-950 px-4 py-3 text-sm font-black text-white hover:bg-black disabled:opacity-50 transition-all active:scale-[0.98]"
                             >
-                              Accept offer
+                              {t('navbar.myRequestTracker.acceptOffer')}
                             </button>
                           </div>
                         </div>
@@ -1508,9 +1520,9 @@ export const Navbar: React.FC<NavbarProps> = ({
 
                       {pendingWorkerApproval && (
                         <div className="rounded-[1.6rem] border border-sky-200 dark:border-sky-900/40 bg-sky-50/80 dark:bg-sky-950/30 p-5 shadow-sm backdrop-blur-sm">
-                          <p className="text-[10px] font-black uppercase tracking-[0.18em] text-sky-700 dark:text-sky-400">Your approval is needed</p>
+                          <p className="text-[10px] font-black uppercase tracking-[0.18em] text-sky-700 dark:text-sky-400">{t('navbar.myRequestTracker.approvalNeeded')}</p>
                           <p className="mt-2 text-sm font-semibold leading-6 text-slate-700 dark:text-slate-300">
-                            Review professional and portfolio. After approval, worker can start route. Payment happens only after work finishes.
+                            {t('navbar.myRequestTracker.approvalNeededDesc')}
                           </p>
                           <div className="mt-4 grid grid-cols-2 gap-2">
                             <button
@@ -1519,7 +1531,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                               onClick={() => setPendingDecision({ kind: 'worker', decision: 'decline' })}
                               className="rounded-xl border border-red-200 dark:border-red-900/40 bg-white dark:bg-slate-900 px-4 py-3 text-sm font-black text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30 disabled:opacity-50 transition-all active:scale-[0.98]"
                             >
-                              Find another
+                              {t('navbar.myRequestTracker.findAnother')}
                             </button>
                             <button
                               type="button"
@@ -1527,7 +1539,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                               onClick={() => setPendingDecision({ kind: 'worker', decision: 'accept' })}
                               className="rounded-xl bg-slate-950 dark:bg-white dark:text-slate-950 px-4 py-3 text-sm font-black text-white hover:bg-black disabled:opacity-50 transition-all active:scale-[0.98]"
                             >
-                              Approve pro
+                              {t('navbar.myRequestTracker.approvePro')}
                             </button>
                           </div>
                         </div>
@@ -1535,14 +1547,14 @@ export const Navbar: React.FC<NavbarProps> = ({
 
                       {primaryRequest.workflow_version === 2 && ['arrived', 'start_pending'].includes(primaryStatus) && (
                         <div className="rounded-[1.6rem] border border-blue-200 dark:border-blue-900/40 bg-blue-50/80 dark:bg-blue-950/30 p-5 shadow-sm backdrop-blur-sm">
-                          <p className="text-[10px] font-black uppercase tracking-[0.18em] text-blue-700 dark:text-blue-400">Start work approval</p>
-                          <h4 className="mt-2 text-xl font-black text-slate-950 dark:text-slate-100">Worker arrived</h4>
+                          <p className="text-[10px] font-black uppercase tracking-[0.18em] text-blue-700 dark:text-blue-400">{t('navbar.myRequestTracker.startWorkApproval')}</p>
+                          <h4 className="mt-2 text-xl font-black text-slate-950 dark:text-slate-100">{t('navbar.myRequestTracker.workerArrived')}</h4>
                           <p className="mt-2 text-sm font-semibold leading-6 text-slate-600 dark:text-slate-400">
-                            {clientStartApproved ? 'Your approval is saved. Waiting for worker approval.' : 'Approve only when worker is present and both are ready to begin.'}
+                            {clientStartApproved ? t('navbar.myRequestTracker.startApprovalSaved') : t('navbar.myRequestTracker.startApprovalPrompt')}
                           </p>
                           {canApproveStart && (
                             <button type="button" disabled={requestActionBusy} onClick={() => void approveWorkflowAction('start_work')} className="mt-4 w-full rounded-xl bg-blue-600 px-5 py-3.5 text-sm font-black text-white disabled:opacity-50 hover:bg-blue-700 transition-all active:scale-[0.98]">
-                              Approve work start
+                              {t('navbar.myRequestTracker.approveWorkStart')}
                             </button>
                           )}
                         </div>
@@ -1550,14 +1562,14 @@ export const Navbar: React.FC<NavbarProps> = ({
 
                       {primaryRequest.workflow_version === 2 && ['in_progress', 'finish_pending'].includes(primaryStatus) && (
                         <div className="rounded-[1.6rem] border border-violet-200 dark:border-violet-900/40 bg-violet-50/80 dark:bg-violet-950/30 p-5 shadow-sm backdrop-blur-sm">
-                          <p className="text-[10px] font-black uppercase tracking-[0.18em] text-violet-700 dark:text-violet-400">Finish work approval</p>
-                          <h4 className="mt-2 text-xl font-black text-slate-950 dark:text-slate-100">Work in progress</h4>
+                          <p className="text-[10px] font-black uppercase tracking-[0.18em] text-violet-700 dark:text-violet-400">{t('navbar.myRequestTracker.finishWorkApproval')}</p>
+                          <h4 className="mt-2 text-xl font-black text-slate-950 dark:text-slate-100">{t('navbar.myRequestTracker.workInProgress')}</h4>
                           <p className="mt-2 text-sm font-semibold leading-6 text-slate-600 dark:text-slate-400">
-                            {clientFinishApproved ? 'Your finish approval is saved. Waiting for worker.' : canApproveFinish ? 'Confirm technical work is finished. Payment unlocks after both approve.' : 'Finish approval unlocks 1 minute after work starts.'}
+                            {clientFinishApproved ? t('navbar.myRequestTracker.finishApprovalSaved') : canApproveFinish ? t('navbar.myRequestTracker.finishApprovalPrompt') : t('navbar.myRequestTracker.finishApprovalLocked')}
                           </p>
                           {canApproveFinish && (
                             <button type="button" disabled={requestActionBusy} onClick={() => void approveWorkflowAction('finish_work')} className="mt-4 w-full rounded-xl bg-violet-600 px-5 py-3.5 text-sm font-black text-white disabled:opacity-50 hover:bg-violet-700 transition-all active:scale-[0.98]">
-                              Approve work finish
+                              {t('navbar.myRequestTracker.approveWorkFinish')}
                             </button>
                           )}
                         </div>
@@ -1571,10 +1583,10 @@ export const Navbar: React.FC<NavbarProps> = ({
 
                       {String(primaryRequest.status || '').toLowerCase() === 'payment_pending' && (
                         <div className="rounded-[1.6rem] border border-emerald-200 dark:border-emerald-900/40 bg-emerald-50/80 dark:bg-emerald-950/30 p-5 shadow-sm backdrop-blur-sm">
-                          <p className="text-[10px] font-black uppercase tracking-[0.18em] text-emerald-700 dark:text-emerald-400">Next step</p>
-                          <h4 className="mt-2 text-xl font-black text-slate-950 dark:text-slate-100">Pay for finished work</h4>
+                          <p className="text-[10px] font-black uppercase tracking-[0.18em] text-emerald-700 dark:text-emerald-400">{t('navbar.myRequestTracker.nextStep')}</p>
+                          <h4 className="mt-2 text-xl font-black text-slate-950 dark:text-slate-100">{t('navbar.myRequestTracker.payForFinishedWork')}</h4>
                           <p className="mt-2 text-sm font-semibold leading-6 text-slate-600 dark:text-slate-400">
-                            Both approved work finish. Pay ${Number(primaryRequest.final_budget ?? primaryRequest.budget ?? 0).toFixed(2)} to continue to final closure.
+                            {t('navbar.myRequestTracker.payToContinue', { amount: Number(primaryRequest.final_budget ?? primaryRequest.budget ?? 0).toFixed(2) })}
                           </p>
                           <button
                             type="button"
@@ -1585,21 +1597,21 @@ export const Navbar: React.FC<NavbarProps> = ({
                             }}
                             className="mt-4 w-full rounded-xl bg-emerald-600 px-5 py-3.5 text-sm font-black text-white shadow-lg shadow-emerald-600/20 hover:bg-emerald-700 transition-all active:scale-[0.98]"
                           >
-                            Continue to payment
+                            {t('navbar.myRequestTracker.continueToPayment')}
                           </button>
                         </div>
                       )}
 
                       {primaryRequest.workflow_version === 2 && ['paid', 'completion_pending'].includes(primaryStatus) && (
                         <div className="rounded-[1.6rem] border border-emerald-200 dark:border-emerald-900/40 bg-emerald-50/80 dark:bg-emerald-950/30 p-5 shadow-sm backdrop-blur-sm">
-                          <p className="text-[10px] font-black uppercase tracking-[0.18em] text-emerald-700 dark:text-emerald-400">Final service approval</p>
-                          <h4 className="mt-2 text-xl font-black text-slate-950 dark:text-slate-100">Payment completed</h4>
+                          <p className="text-[10px] font-black uppercase tracking-[0.18em] text-emerald-700 dark:text-emerald-400">{t('navbar.myRequestTracker.finalServiceApproval')}</p>
+                          <h4 className="mt-2 text-xl font-black text-slate-950 dark:text-slate-100">{t('navbar.myRequestTracker.paymentCompleted')}</h4>
                           <p className="mt-2 text-sm font-semibold leading-6 text-slate-600 dark:text-slate-400">
-                            {clientCompleteApproved ? 'Your final approval is saved. Waiting for worker.' : 'Approve final closure. Service completes only after both approve.'}
+                            {clientCompleteApproved ? t('navbar.myRequestTracker.finalApprovalSaved') : t('navbar.myRequestTracker.finalApprovalPrompt')}
                           </p>
                           {canApproveCompletion && (
                             <button type="button" disabled={requestActionBusy} onClick={() => void approveWorkflowAction('complete_service')} className="mt-4 w-full rounded-xl bg-emerald-600 px-5 py-3.5 text-sm font-black text-white disabled:opacity-50 hover:bg-emerald-700 transition-all active:scale-[0.98]">
-                              Approve service completion
+                              {t('navbar.myRequestTracker.approveServiceCompletion')}
                             </button>
                           )}
                         </div>
@@ -1612,7 +1624,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                         className="flex w-full items-center justify-center gap-2 rounded-xl border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900 px-5 py-3 text-sm font-black text-slate-900 dark:text-slate-100 shadow-sm transition-all hover:border-bird-blue/30 hover:shadow-md active:scale-[0.97] disabled:opacity-60"
                       >
                         <RefreshCw className={`h-4 w-4 ${requestsLoading ? 'animate-spin' : ''}`} />
-                        {requestsLoading ? 'Refreshing...' : 'Refresh request'}
+                        {requestsLoading ? t('navbar.myRequestTracker.refreshing') : t('navbar.myRequestTracker.refreshRequest')}
                       </button>
                       {canCancelRequest && (
                         <button
@@ -1621,7 +1633,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                           onClick={() => setPendingDecision({ kind: 'request', decision: 'decline' })}
                           className="w-full rounded-xl border border-red-200 dark:border-red-900/40 bg-red-50 dark:bg-red-950/30 px-5 py-3 text-sm font-black text-red-700 dark:text-red-400 transition hover:border-red-300 hover:bg-red-100 dark:hover:bg-red-900/40 disabled:opacity-50 active:scale-[0.98]"
                         >
-                          Cancel this request
+                          {t('navbar.myRequestTracker.cancelThisRequest')}
                         </button>
                       )}
                     </aside>
@@ -1631,7 +1643,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                         <Suspense
                           fallback={
                             <div className="grid h-full min-h-[600px] place-items-center bg-slate-100 dark:bg-slate-950 lg:min-h-[640px]">
-                              <p className="text-sm font-bold text-slate-500">Preparing live view...</p>
+                              <p className="text-sm font-bold text-slate-500">{t('navbar.myRequestTracker.preparingLiveView')}</p>
                             </div>
                           }
                         >
@@ -1650,17 +1662,17 @@ export const Navbar: React.FC<NavbarProps> = ({
                               </svg>
                             </div>
                             <p className="mt-5 text-xs font-black uppercase tracking-[0.18em] text-bird-blue">
-                              {isScheduledFuture ? 'Visit confirmed' : 'Professional selected'}
+                              {isScheduledFuture ? t('navbar.myRequestTracker.visitConfirmed') : t('navbar.myRequestTracker.professionalSelected')}
                             </p>
                             <h3 className="mt-2 text-3xl font-black text-slate-950 dark:text-slate-100">
-                              {isScheduledFuture ? 'Your map will open near visit time' : pendingWorkerApproval ? 'Review professional' : 'Waiting for route start'}
+                              {isScheduledFuture ? t('navbar.myRequestTracker.mapOpensNearVisit') : pendingWorkerApproval ? t('navbar.myRequestTracker.reviewProfessional') : t('navbar.myRequestTracker.waitingForRouteStart')}
                             </h3>
                             <p className="mx-auto mt-3 max-w-md text-sm font-semibold leading-7 text-slate-500 dark:text-slate-400">
                               {isScheduledFuture
-                                ? `${formatRequestSchedule(primaryRequest)} is reserved. Live location stays private until the professional starts the trip.`
+                                ? t('navbar.myRequestTracker.visitReservedHint', { schedule: formatRequestSchedule(primaryRequest, t) })
                                 : pendingWorkerApproval
-                                  ? 'Review professional and approve selection. Worker can then start route.'
-                                  : 'Professional is approved. Live route appears as soon as worker starts traveling.'}
+                                  ? t('navbar.myRequestTracker.reviewApproveHint')
+                                  : t('navbar.myRequestTracker.routeAppearsHint')}
                             </p>
                             <div className="mt-6 flex flex-col justify-center gap-2 sm:flex-row">
                               <button
@@ -1668,7 +1680,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                                 onClick={() => void openWorkerProfile()}
                                 className="rounded-xl border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-800 px-6 py-3 text-sm font-black text-slate-900 dark:text-slate-100 hover:border-bird-blue hover:text-bird-blue"
                               >
-                                Review professional
+                                {t('navbar.myRequestTracker.reviewProfessional')}
                               </button>
                               {canUseRequestChat(primaryRequest) && (
                                 <button
@@ -1679,7 +1691,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                                   }}
                                   className="rounded-xl bg-bird-blue px-6 py-3 text-sm font-black text-white shadow-lg shadow-bird-blue/20"
                                 >
-                                  Open chat
+                                  {t('navbar.myRequestTracker.openChat')}
                                 </button>
                               )}
                             </div>
@@ -1702,35 +1714,35 @@ export const Navbar: React.FC<NavbarProps> = ({
                                     <div className="flex flex-wrap items-center gap-2">
                                       <span className="inline-flex items-center gap-2 rounded-full bg-sky-50 dark:bg-sky-950/50 px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.16em] text-bird-blue">
                                         <span className="h-2 w-2 rounded-full bg-bird-blue" />
-                                        Matching in progress
+                                        {t('navbar.myRequestTracker.matchingInProgress')}
                                       </span>
                                       <span className="rounded-full bg-amber-50 dark:bg-amber-950/50 px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.14em] text-amber-700 dark:text-amber-400">
-                                        Request #{primaryRequest.id_request}
+                                        {t('navbar.myRequestTracker.requestHash', { id: primaryRequest.id_request })}
                                       </span>
                                     </div>
                                     <h3 className="mt-4 text-3xl font-black leading-[1.05] text-slate-950 dark:text-slate-100 sm:text-4xl">
-                                      Finding the right pro
+                                      {t('navbar.myRequestTracker.findingRightPro')}
                                     </h3>
                                     <p className="mt-3 max-w-2xl text-sm font-semibold leading-6 text-slate-600 dark:text-slate-400">
-                                      We are checking verified professionals near your address. You can leave this screen open; it updates automatically as soon as someone accepts.
+                                      {t('navbar.myRequestTracker.checkingVerifiedPros')}
                                     </p>
                                   </div>
                                 </div>
                                 <div className="rounded-2xl border border-sky-100 dark:border-sky-900/40 bg-sky-50/80 dark:bg-sky-950/40 px-4 py-3 text-left lg:w-[260px]">
-                                  <p className="text-[10px] font-black uppercase tracking-[0.16em] text-bird-blue">Next step</p>
-                                  <p className="mt-1 text-sm font-black text-slate-950 dark:text-slate-100">Live route opens after matching</p>
+                                  <p className="text-[10px] font-black uppercase tracking-[0.16em] text-bird-blue">{t('navbar.myRequestTracker.nextStep')}</p>
+                                  <p className="mt-1 text-sm font-black text-slate-950 dark:text-slate-100">{t('navbar.myRequestTracker.liveRouteOpensAfterMatching')}</p>
                                 </div>
                               </div>
                             </div>
 
                             <div className="grid gap-4 lg:grid-cols-[1fr_0.9fr]">
                               <section className="rounded-[28px] border border-slate-200/80 dark:border-white/10 bg-white dark:bg-slate-900 p-5 shadow-[0_16px_45px_rgba(15,23,42,0.07)] sm:p-6">
-                                <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400 dark:text-slate-500">Progress</p>
+                                <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400 dark:text-slate-500">{t('navbar.myRequestTracker.progress')}</p>
                                 <div className="mt-5 grid gap-3 sm:grid-cols-3">
                                   {[
-                                    ['Request sent', 'Your request is active.', true],
-                                    ['Pros nearby', 'Checking verified pros.', true],
-                                    ['Route next', 'Starts after approval.', false],
+                                    [t('navbar.myRequestTracker.progressSteps.requestSent.label'), t('navbar.myRequestTracker.progressSteps.requestSent.helper'), true],
+                                    [t('navbar.myRequestTracker.progressSteps.prosNearby.label'), t('navbar.myRequestTracker.progressSteps.prosNearby.helper'), true],
+                                    [t('navbar.myRequestTracker.progressSteps.routeNext.label'), t('navbar.myRequestTracker.progressSteps.routeNext.helper'), false],
                                   ].map(([label, helper, active]) => (
                                     <div
                                       key={String(label)}
@@ -1747,31 +1759,31 @@ export const Navbar: React.FC<NavbarProps> = ({
                                   ))}
                                 </div>
                                 <div className="mt-5 rounded-2xl border border-amber-100 dark:border-amber-900/40 bg-amber-50/80 dark:bg-amber-950/30 p-4">
-                                  <p className="text-sm font-black text-amber-800 dark:text-amber-300">Still searching</p>
+                                  <p className="text-sm font-black text-amber-800 dark:text-amber-300">{t('navbar.myRequestTracker.stillSearching')}</p>
                                   <p className="mt-1 text-xs font-semibold leading-5 text-amber-900/70 dark:text-amber-400/80">
-                                    If nobody accepts immediately, Fixlife keeps your request active and continues checking nearby verified professionals.
+                                    {t('navbar.myRequestTracker.stillSearchingDesc')}
                                   </p>
                                 </div>
                               </section>
 
                               <aside className="rounded-[28px] border border-slate-200/80 dark:border-white/10 bg-white dark:bg-slate-900 p-5 shadow-[0_16px_45px_rgba(15,23,42,0.07)] sm:p-6">
-                                <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400 dark:text-slate-500">Request summary</p>
+                                <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400 dark:text-slate-500">{t('navbar.myRequestTracker.requestSummary')}</p>
                                 <div className="mt-5 space-y-3">
                                   <div className="rounded-2xl border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-slate-950/50 p-4">
-                                    <p className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400 dark:text-slate-500">Service</p>
+                                    <p className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400 dark:text-slate-500">{t('navbar.myRequestTracker.service')}</p>
                                     <p className="mt-1 text-base font-black leading-6 text-slate-950 dark:text-slate-100">{localizeClientServiceName(primaryRequest.service_name, i18n.language)}</p>
                                   </div>
                                   <div className="rounded-2xl border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-slate-950/50 p-4">
-                                    <p className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400 dark:text-slate-500">Location</p>
-                                    <p className="mt-1 text-sm font-bold leading-6 text-slate-700 dark:text-slate-300">{primaryRequest.location_text || 'Location confirmed'}</p>
+                                    <p className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400 dark:text-slate-500">{t('navbar.myRequestTracker.location')}</p>
+                                    <p className="mt-1 text-sm font-bold leading-6 text-slate-700 dark:text-slate-300">{primaryRequest.location_text || t('navbar.myRequestTracker.locationConfirmed')}</p>
                                   </div>
                                   <div className="grid grid-cols-2 gap-3">
                                     <div className="rounded-2xl border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-slate-950/50 p-4">
-                                      <p className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400 dark:text-slate-500">Visit</p>
-                                      <p className="mt-1 text-sm font-black text-slate-950 dark:text-slate-100">{formatRequestSchedule(primaryRequest)}</p>
+                                      <p className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400 dark:text-slate-500">{t('navbar.myRequestTracker.visit')}</p>
+                                      <p className="mt-1 text-sm font-black text-slate-950 dark:text-slate-100">{formatRequestSchedule(primaryRequest, t)}</p>
                                     </div>
                                     <div className="rounded-2xl border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-slate-950/50 p-4">
-                                      <p className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400 dark:text-slate-500">Budget</p>
+                                      <p className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400 dark:text-slate-500">{t('navbar.myRequestTracker.budget')}</p>
                                       <p className="mt-1 text-sm font-black text-slate-950 dark:text-slate-100">${Number(primaryRequest.budget || 0).toFixed(2)}</p>
                                     </div>
                                   </div>
@@ -1805,15 +1817,15 @@ export const Navbar: React.FC<NavbarProps> = ({
                         <div className="flex items-center gap-3">
                           <span className="flex h-3 w-3 rounded-full bg-emerald-500 ring-4 ring-emerald-500/20 animate-pulse" />
                           <div>
-                            <p className="text-[10px] font-black uppercase tracking-[0.2em] text-bird-blue">Verified Fixlife Pro</p>
-                            <h3 className="text-xl font-black text-slate-950 dark:text-slate-100">Professional Profile &amp; Portfolio</h3>
+                            <p className="text-[10px] font-black uppercase tracking-[0.2em] text-bird-blue">{t('navbar.myRequestTracker.verifiedFixlifePro')}</p>
+                            <h3 className="text-xl font-black text-slate-950 dark:text-slate-100">{t('navbar.myRequestTracker.professionalProfilePortfolio')}</h3>
                           </div>
                         </div>
                         <button
                           type="button"
                           onClick={() => setWorkerProfile(null)}
                           className="flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 dark:border-white/10 text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-white/10 hover:text-slate-950 dark:hover:text-white transition-all"
-                          aria-label="Close worker profile"
+                          aria-label={t('navbar.myRequestTracker.closeWorkerProfileAria')}
                         >
                           <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.4} d="M6 18L18 6M6 6l12 12" />
@@ -1838,7 +1850,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                                   {workerProfile.worker.name.charAt(0).toUpperCase()}
                                 </div>
                               )}
-                              <span className="absolute -bottom-1 -right-1 flex h-6 w-6 items-center justify-center rounded-full bg-emerald-500 text-white text-xs font-bold ring-2 ring-slate-950" title="Verified Professional">
+                              <span className="absolute -bottom-1 -right-1 flex h-6 w-6 items-center justify-center rounded-full bg-emerald-500 text-white text-xs font-bold ring-2 ring-slate-950" title={t('navbar.myRequestTracker.verifiedProfessionalTitle')}>
                                 ✓
                               </span>
                             </div>
@@ -1847,11 +1859,11 @@ export const Navbar: React.FC<NavbarProps> = ({
                               <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2">
                                 <h2 className="text-2xl font-black tracking-tight text-white">{workerProfile.worker.name}</h2>
                                 <span className="rounded-full bg-emerald-500/20 border border-emerald-500/30 px-3 py-0.5 text-[10px] font-black uppercase tracking-wider text-emerald-300">
-                                  Verified Identity
+                                  {t('navbar.myRequestTracker.verifiedIdentity')}
                                 </span>
                               </div>
                               <p className="mt-1 text-xs font-semibold text-slate-300">
-                                Fixlife Partner Pro • {workerProfile.worker.experience_label || 'Expert Service Provider'}
+                                {t('navbar.myRequestTracker.fixlifePartnerPro')} • {workerProfile.worker.experience_label || t('navbar.myRequestTracker.expertServiceProvider')}
                               </p>
 
                               {/* Phone contact if available */}
@@ -1872,30 +1884,30 @@ export const Navbar: React.FC<NavbarProps> = ({
                           {/* Quick Stats Grid */}
                           <div className="mt-6 grid grid-cols-2 sm:grid-cols-4 gap-3 border-t border-white/10 pt-5">
                             <div className="rounded-2xl border border-white/10 bg-white/5 p-3 text-center sm:text-left">
-                              <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">Rating</p>
+                              <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">{t('navbar.myRequestTracker.rating')}</p>
                               <p className="mt-1 text-xl font-black text-amber-300 flex items-center justify-center sm:justify-start gap-1">
                                 <span>★</span>
                                 <span>{workerProfile.worker.rating_average != null ? Number(workerProfile.worker.rating_average).toFixed(1) : '5.0'}</span>
                               </p>
-                              <p className="text-[10px] text-slate-400 font-semibold mt-0.5">{workerProfile.worker.rating_count || 0} client reviews</p>
+                              <p className="text-[10px] text-slate-400 font-semibold mt-0.5">{t('navbar.myRequestTracker.clientReviews', { count: workerProfile.worker.rating_count || 0 })}</p>
                             </div>
 
                             <div className="rounded-2xl border border-white/10 bg-white/5 p-3 text-center sm:text-left">
-                              <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">Completed Jobs</p>
+                              <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">{t('navbar.myRequestTracker.completedJobs')}</p>
                               <p className="mt-1 text-xl font-black text-emerald-400">{workerProfile.worker.completed_jobs || 0}</p>
-                              <p className="text-[10px] text-slate-400 font-semibold mt-0.5">on Fixlife platform</p>
+                              <p className="text-[10px] text-slate-400 font-semibold mt-0.5">{t('navbar.myRequestTracker.onFixlifePlatform')}</p>
                             </div>
 
                             <div className="rounded-2xl border border-white/10 bg-white/5 p-3 text-center sm:text-left">
-                              <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">Experience</p>
-                              <p className="mt-1 text-base font-black text-sky-300 truncate">{workerProfile.worker.experience_label || 'Verified Level'}</p>
-                              <p className="text-[10px] text-slate-400 font-semibold mt-0.5">background checked</p>
+                              <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">{t('navbar.myRequestTracker.experience')}</p>
+                              <p className="mt-1 text-base font-black text-sky-300 truncate">{workerProfile.worker.experience_label || t('navbar.myRequestTracker.verifiedLevel')}</p>
+                              <p className="text-[10px] text-slate-400 font-semibold mt-0.5">{t('navbar.myRequestTracker.backgroundChecked')}</p>
                             </div>
 
                             <div className="rounded-2xl border border-white/10 bg-white/5 p-3 text-center sm:text-left">
-                              <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">Portfolio</p>
+                              <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">{t('navbar.myRequestTracker.portfolio')}</p>
                               <p className="mt-1 text-xl font-black text-indigo-300">{Array.isArray(workerProfile.portfolio) ? workerProfile.portfolio.length : 0}</p>
-                              <p className="text-[10px] text-slate-400 font-semibold mt-0.5">project samples</p>
+                              <p className="text-[10px] text-slate-400 font-semibold mt-0.5">{t('navbar.myRequestTracker.projectSamples')}</p>
                             </div>
                           </div>
                         </div>
@@ -1903,7 +1915,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                         {/* Services Offered Badges */}
                         {Array.isArray(workerProfile.worker.services_offered) && workerProfile.worker.services_offered.length > 0 && (
                           <div>
-                            <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 dark:text-slate-500 mb-2">Specialized Services</p>
+                            <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 dark:text-slate-500 mb-2">{t('navbar.myRequestTracker.specializedServices')}</p>
                             <div className="flex flex-wrap gap-2">
                               {workerProfile.worker.services_offered.map((svc: string, i: number) => (
                                 <span key={i} className="rounded-xl border border-bird-blue/20 bg-bird-blue/10 dark:bg-bird-blue/20 px-3 py-1.5 text-xs font-bold text-bird-blue dark:text-sky-300">
@@ -1916,9 +1928,9 @@ export const Navbar: React.FC<NavbarProps> = ({
 
                         {/* Biography */}
                         <div className="rounded-2xl border border-slate-200 dark:border-white/10 bg-slate-50/80 dark:bg-slate-800/50 p-5">
-                          <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 dark:text-slate-500 mb-2">About {workerProfile.worker.name}</p>
+                          <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 dark:text-slate-500 mb-2">{t('navbar.myRequestTracker.aboutWorker', { name: workerProfile.worker.name })}</p>
                           <p className="text-sm font-medium leading-relaxed text-slate-700 dark:text-slate-300 italic">
-                            "{workerProfile.worker.bio || 'This professional is a verified Fixlife partner committed to quality craftsmanship and prompt communication.'}"
+                            "{workerProfile.worker.bio || t('navbar.myRequestTracker.defaultBio')}"
                           </p>
                         </div>
 
@@ -1927,10 +1939,10 @@ export const Navbar: React.FC<NavbarProps> = ({
                           <div className="flex items-center justify-between">
                             <h4 className="text-base font-black text-slate-950 dark:text-slate-100 flex items-center gap-2">
                               <span>📸</span>
-                              Work Portfolio &amp; Photos
+                              {t('navbar.myRequestTracker.workPortfolioPhotos')}
                             </h4>
                             <span className="text-xs font-bold text-slate-400">
-                              {Array.isArray(workerProfile.portfolio) ? workerProfile.portfolio.length : 0} photos
+                              {t('navbar.myRequestTracker.photosCount', { count: Array.isArray(workerProfile.portfolio) ? workerProfile.portfolio.length : 0 })}
                             </span>
                           </div>
 
@@ -1945,12 +1957,12 @@ export const Navbar: React.FC<NavbarProps> = ({
                                     <div className="relative h-44 w-full overflow-hidden bg-slate-100 dark:bg-slate-900">
                                       <img
                                         src={normalizeImageUrl(photo.image_url)}
-                                        alt={photo.description || 'Portfolio sample'}
+                                        alt={photo.description || t('navbar.myRequestTracker.portfolioSampleAlt')}
                                         className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
                                       />
                                     </div>
                                   ) : (
-                                    <div className="grid h-44 place-items-center bg-slate-100 dark:bg-slate-900 text-xs font-bold text-slate-400">No image</div>
+                                    <div className="grid h-44 place-items-center bg-slate-100 dark:bg-slate-900 text-xs font-bold text-slate-400">{t('navbar.myRequestTracker.noImage')}</div>
                                   )}
                                   {photo.description && (
                                     <figcaption className="line-clamp-2 p-3 text-xs font-semibold text-slate-700 dark:text-slate-300 border-t border-slate-100 dark:border-white/5">
@@ -1962,9 +1974,9 @@ export const Navbar: React.FC<NavbarProps> = ({
                             </div>
                           ) : (
                             <div className="rounded-2xl border border-dashed border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-950/50 p-8 text-center">
-                              <p className="text-sm font-black text-slate-700 dark:text-slate-300">No portfolio photos uploaded yet</p>
+                              <p className="text-sm font-black text-slate-700 dark:text-slate-300">{t('navbar.myRequestTracker.noPortfolioPhotos')}</p>
                               <p className="mt-1 text-xs font-semibold text-slate-500 dark:text-slate-400">
-                                Rating score and completed jobs verify this professional's quality.
+                                {t('navbar.myRequestTracker.ratingVerifiesQuality')}
                               </p>
                             </div>
                           )}
@@ -1978,7 +1990,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                                 onClick={() => setPendingDecision({ kind: pendingCounter ? 'counter' : 'worker', decision: 'decline' })}
                                 className="w-full sm:w-auto rounded-xl border border-rose-200 dark:border-rose-900/40 bg-rose-50 dark:bg-rose-950/40 px-6 py-3.5 text-sm font-black text-rose-600 dark:text-rose-400 hover:bg-rose-100 dark:hover:bg-rose-900/50 transition active:scale-95 disabled:opacity-50"
                               >
-                                Decline Pro
+                                {t('navbar.myRequestTracker.declinePro')}
                               </button>
                               <button
                                 type="button"
@@ -1986,7 +1998,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                                 onClick={() => setPendingDecision({ kind: pendingCounter ? 'counter' : 'worker', decision: 'accept' })}
                                 className="w-full sm:w-auto rounded-xl bg-bird-blue hover:bg-bird-darkBlue text-white px-8 py-3.5 text-sm font-black shadow-lg shadow-bird-blue/25 transition active:scale-95 disabled:opacity-50"
                               >
-                                {pendingCounter ? 'Accept Counter Offer' : 'Approve & Hire Professional'}
+                                {pendingCounter ? t('navbar.myRequestTracker.acceptCounterOffer') : t('navbar.myRequestTracker.approveHireProfessional')}
                               </button>
                             </div>
                           )}
@@ -2014,17 +2026,17 @@ export const Navbar: React.FC<NavbarProps> = ({
                       <div className="flex items-center justify-between border-b border-slate-100 dark:border-white/10 px-5 py-4 bg-white/90 dark:bg-slate-900/90 backdrop-blur-md">
                         <div className="min-w-0">
                           <p className="text-[10px] font-black uppercase tracking-[0.18em] text-bird-blue">
-                            Request #{primaryRequest.id_request}
+                            {t('navbar.myRequestTracker.requestHash', { id: primaryRequest.id_request })}
                           </p>
                           <h3 className="truncate text-lg font-black text-slate-950 dark:text-slate-100">
-                            Chat with {primaryRequest.assigned_worker?.name || 'your professional'}
+                            {t('navbar.myRequestTracker.chatWith', { name: primaryRequest.assigned_worker?.name || t('navbar.myRequestTracker.chatWithFallback') })}
                           </h3>
                         </div>
                         <button
                           type="button"
                           onClick={() => setOpenChatRequestId(null)}
                           className="flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 dark:border-white/10 text-slate-500 dark:text-slate-400 hover:text-slate-950 dark:hover:text-white"
-                          aria-label="Close chat"
+                          aria-label={t('navbar.myRequestTracker.closeChatAria')}
                         >
                           <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.4} d="M6 18L18 6M6 6l12 12" />
@@ -2057,8 +2069,8 @@ export const Navbar: React.FC<NavbarProps> = ({
                           ) : (
                             <div className="grid h-full place-items-center text-center p-8 text-slate-400">
                               <div>
-                                <p className="text-sm font-black text-slate-600 dark:text-slate-300">No messages yet</p>
-                                <p className="mt-1 text-xs text-slate-400 dark:text-slate-500">Start the conversation with your assigned professional.</p>
+                                <p className="text-sm font-black text-slate-600 dark:text-slate-300">{t('navbar.myRequestTracker.noMessagesYet')}</p>
+                                <p className="mt-1 text-xs text-slate-400 dark:text-slate-500">{t('navbar.myRequestTracker.startConversation')}</p>
                               </div>
                             </div>
                           )}
@@ -2069,7 +2081,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                             <textarea
                               value={chatMessage[openChatRequestId] || ''}
                               onChange={(event) => setChatMessage((prev) => ({ ...prev, [openChatRequestId]: event.target.value.slice(0, 500) }))}
-                              placeholder="Write a message..."
+                              placeholder={t('navbar.myRequestTracker.writeMessage')}
                               rows={1}
                               maxLength={500}
                               className="min-h-11 flex-1 resize-none rounded-xl border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-800 px-4 py-3 text-sm font-semibold outline-none focus:border-bird-blue dark:text-slate-100"
@@ -2080,7 +2092,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                               onClick={() => void sendRequestChat(openChatRequestId)}
                               className="h-11 shrink-0 rounded-xl bg-bird-blue px-5 text-sm font-black text-white disabled:opacity-50 shadow-md hover:bg-bird-darkBlue"
                             >
-                              {chatBusyId === openChatRequestId ? 'Sending' : 'Send'}
+                              {chatBusyId === openChatRequestId ? t('navbar.myRequestTracker.sending') : t('navbar.myRequestTracker.send')}
                             </button>
                           </div>
                         </div>
@@ -2112,24 +2124,24 @@ export const Navbar: React.FC<NavbarProps> = ({
                       <h4 className="mt-4 text-xl font-black text-slate-950 dark:text-slate-100">
                         {pendingDecision.kind === 'counter'
                           ? pendingDecision.decision === 'accept'
-                            ? 'Accept counter offer?'
-                            : 'Decline counter offer?'
+                            ? t('navbar.myRequestTracker.acceptCounterOfferQ')
+                            : t('navbar.myRequestTracker.declineCounterOfferQ')
                           : pendingDecision.kind === 'worker'
                             ? pendingDecision.decision === 'accept'
-                              ? 'Approve professional?'
-                              : 'Decline professional?'
-                            : 'Cancel service request?'}
+                              ? t('navbar.myRequestTracker.approveProfessionalQ')
+                              : t('navbar.myRequestTracker.declineProfessionalQ')
+                            : t('navbar.myRequestTracker.cancelServiceRequestQ')}
                       </h4>
                       <p className="mt-2 text-sm font-semibold leading-6 text-slate-500 dark:text-slate-400">
                         {pendingDecision.kind === 'counter'
                           ? pendingDecision.decision === 'accept'
-                            ? `Confirm updating budget to $${Number(primaryRequest.proposed_budget || 0).toFixed(2)}. Worker will start route after approval.`
-                            : 'Reject counter offer. The request will stay active while we search for another pro.'
+                            ? t('navbar.myRequestTracker.confirmBudgetUpdate', { amount: Number(primaryRequest.proposed_budget || 0).toFixed(2) })
+                            : t('navbar.myRequestTracker.rejectCounterOfferDesc')
                           : pendingDecision.kind === 'worker'
                             ? pendingDecision.decision === 'accept'
-                              ? `Approve ${primaryRequest.assigned_worker?.name || 'pro'} to start travel.`
-                              : 'Reject pro selection. We will continue matching with other nearby pros.'
-                            : 'This will cancel the active request.'}
+                              ? t('navbar.myRequestTracker.approveProDesc', { name: primaryRequest.assigned_worker?.name || t('navbar.myRequestTracker.approveProFallbackName') })
+                              : t('navbar.myRequestTracker.rejectProDesc')
+                            : t('navbar.myRequestTracker.cancelActiveRequestDesc')}
                       </p>
                       <div className="mt-6 flex justify-end gap-3">
                         <button
@@ -2137,7 +2149,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                           onClick={() => setPendingDecision(null)}
                           className="rounded-xl border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-800 px-4 py-3 text-sm font-black text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700"
                         >
-                          Go back
+                          {t('navbar.myRequestTracker.goBack')}
                         </button>
                         <button
                           type="button"
@@ -2153,7 +2165,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                               : 'bg-slate-950 dark:bg-white dark:text-slate-950 hover:bg-black'
                           }`}
                         >
-                          {requestActionBusy ? 'Saving...' : pendingDecision.kind === 'request' ? 'Cancel request' : 'Confirm'}
+                          {requestActionBusy ? t('navbar.myRequestTracker.saving') : pendingDecision.kind === 'request' ? t('navbar.myRequestTracker.cancelRequest') : t('navbar.myRequestTracker.confirm')}
                         </button>
                       </div>
                     </motion.div>

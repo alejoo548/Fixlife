@@ -1,5 +1,6 @@
 import React, { useMemo, useRef, useState } from 'react';
 import { AlertTriangle, ImagePlus, Send, ShieldAlert, X } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { API_ENDPOINTS } from '../../config/api';
 import { getToken } from '../../utils/session';
 import { showSweetAlert, showSweetToast } from '../../utils/sweetAlert';
@@ -20,29 +21,29 @@ interface ServiceReportModalProps {
   onSubmitted?: () => void;
 }
 
-const CLIENT_REASONS: ReportReason[] = [
-  { value: 'matching_issue', label: 'Problem while finding a Pro' },
-  { value: 'no_show', label: 'Pro did not arrive' },
-  { value: 'late', label: 'Pro is late' },
-  { value: 'not_responding', label: 'Pro is not responding' },
-  { value: 'unsafe', label: 'Unsafe behavior' },
-  { value: 'unprofessional', label: 'Unprofessional behavior' },
-  { value: 'wrong_person', label: 'Wrong person arrived' },
-  { value: 'payment_issue', label: 'Price or payment issue' },
-  { value: 'quality_issue', label: 'Work quality issue' },
-  { value: 'damage', label: 'Damage or incomplete work' },
-  { value: 'other', label: 'Other' },
+const CLIENT_REASON_VALUES = [
+  'matching_issue',
+  'no_show',
+  'late',
+  'not_responding',
+  'unsafe',
+  'unprofessional',
+  'wrong_person',
+  'payment_issue',
+  'quality_issue',
+  'damage',
+  'other',
 ];
 
-const WORKER_REASONS: ReportReason[] = [
-  { value: 'client_not_available', label: 'Client is not at location' },
-  { value: 'not_responding', label: 'Client is not responding' },
-  { value: 'unsafe', label: 'Unsafe location or behavior' },
-  { value: 'wrong_details', label: 'Wrong service details' },
-  { value: 'scope_changed', label: 'Client changed the scope' },
-  { value: 'payment_issue', label: 'Payment or price issue' },
-  { value: 'unprofessional', label: 'Disrespectful behavior' },
-  { value: 'other', label: 'Other' },
+const WORKER_REASON_VALUES = [
+  'client_not_available',
+  'not_responding',
+  'unsafe',
+  'wrong_details',
+  'scope_changed',
+  'payment_issue',
+  'unprofessional',
+  'other',
 ];
 
 const IMAGE_TYPES = new Set(['image/png', 'image/jpeg', 'image/webp']);
@@ -56,8 +57,13 @@ export const ServiceReportModal: React.FC<ServiceReportModalProps> = ({
   onClose,
   onSubmitted,
 }) => {
+  const { t } = useTranslation();
   const inputRef = useRef<HTMLInputElement | null>(null);
-  const reasons = reporterRole === 'client' ? CLIENT_REASONS : WORKER_REASONS;
+  const reasons: ReportReason[] = useMemo(() => {
+    const values = reporterRole === 'client' ? CLIENT_REASON_VALUES : WORKER_REASON_VALUES;
+    const namespace = reporterRole === 'client' ? 'serviceReport.clientReasons' : 'serviceReport.workerReasons';
+    return values.map((value) => ({ value, label: t(`${namespace}.${value}`) }));
+  }, [reporterRole, t]);
   const [reason, setReason] = useState(reasons[0].value);
   const [description, setDescription] = useState('');
   const [image, setImage] = useState<File | null>(null);
@@ -83,11 +89,11 @@ export const ServiceReportModal: React.FC<ServiceReportModalProps> = ({
   const selectImage = (file: File | null) => {
     if (!file) return;
     if (!IMAGE_TYPES.has(file.type)) {
-      void showSweetToast({ tone: 'error', message: 'Use a PNG, JPG or WEBP image.' });
+      void showSweetToast({ tone: 'error', message: t('serviceReport.errors.invalidImageType') });
       return;
     }
     if (file.size > MAX_IMAGE_BYTES) {
-      void showSweetToast({ tone: 'error', message: 'Evidence image must be 5MB or smaller.' });
+      void showSweetToast({ tone: 'error', message: t('serviceReport.errors.imageTooLarge') });
       return;
     }
     setImage(file);
@@ -97,11 +103,11 @@ export const ServiceReportModal: React.FC<ServiceReportModalProps> = ({
     const token = getToken(reporterRole);
     const cleanDescription = description.trim();
     if (!token) {
-      void showSweetToast({ tone: 'error', message: 'Please sign in again.' });
+      void showSweetToast({ tone: 'error', message: t('serviceReport.errors.signInAgain') });
       return;
     }
     if (cleanDescription.length < 12) {
-      void showSweetToast({ tone: 'error', message: 'Tell us what happened with at least 12 characters.' });
+      void showSweetToast({ tone: 'error', message: t('serviceReport.errors.descriptionTooShort') });
       return;
     }
 
@@ -119,19 +125,19 @@ export const ServiceReportModal: React.FC<ServiceReportModalProps> = ({
       });
       const payload = await response.json();
       if (!response.ok || !payload?.success) {
-        void showSweetToast({ tone: 'error', message: payload?.error || 'Could not submit report.' });
+        void showSweetToast({ tone: 'error', message: payload?.error || t('serviceReport.errors.submitError') });
         return;
       }
       onClose();
       onSubmitted?.();
       await showSweetAlert({
-        title: 'Report submitted',
-        message: 'Fixlife support will review the request, chat and any evidence you attached.',
+        title: t('serviceReport.submittedTitle'),
+        message: t('serviceReport.submittedMessage'),
         tone: 'success',
-        confirmText: 'Got it',
+        confirmText: t('common.gotIt'),
       });
     } catch {
-      void showSweetToast({ tone: 'error', message: 'Network error submitting report.' });
+      void showSweetToast({ tone: 'error', message: t('serviceReport.errors.networkError') });
     } finally {
       setBusy(false);
     }
@@ -142,12 +148,12 @@ export const ServiceReportModal: React.FC<ServiceReportModalProps> = ({
       <div className="w-full max-w-xl overflow-hidden rounded-t-[30px] border border-slate-200 bg-white shadow-2xl sm:rounded-[30px]">
         <div className="flex items-start justify-between gap-4 border-b border-slate-100 bg-slate-950 px-5 py-5 text-white">
           <div>
-            <p className="text-[11px] font-black uppercase tracking-[0.2em] text-sky-300">Fixlife safety</p>
+            <p className="text-[11px] font-black uppercase tracking-[0.2em] text-sky-300">{t('serviceReport.eyebrow')}</p>
             <h3 className="mt-1 text-2xl font-black">
-              {reporterRole === 'client' ? 'Report this Pro' : 'Report this client'}
+              {reporterRole === 'client' ? t('serviceReport.titleClient') : t('serviceReport.titleWorker')}
             </h3>
             <p className="mt-2 text-sm font-semibold leading-5 text-slate-300">
-              {counterpartName ? `Tell us what happened with ${counterpartName}.` : 'Tell us what happened with this request.'}
+              {counterpartName ? t('serviceReport.subtitleWithName', { name: counterpartName }) : t('serviceReport.subtitleGeneric')}
             </p>
           </div>
           <button
@@ -164,7 +170,7 @@ export const ServiceReportModal: React.FC<ServiceReportModalProps> = ({
             <div className="flex gap-2">
               <ShieldAlert className="mt-0.5 h-5 w-5 shrink-0 text-amber-700" />
               <p className="text-xs font-bold leading-5 text-amber-900">
-                If you are in immediate danger, contact local emergency services first. This report goes to Fixlife support for review.
+                {t('serviceReport.emergencyNotice')}
               </p>
             </div>
           </div>
@@ -187,16 +193,16 @@ export const ServiceReportModal: React.FC<ServiceReportModalProps> = ({
           </div>
 
           <label className="mt-5 block text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">
-            What happened?
+            {t('serviceReport.whatHappened')}
           </label>
           <textarea
             value={description}
             onChange={(event) => setDescription(event.target.value.slice(0, 1000))}
-            placeholder="Include dates, behavior, location details, payment issues, or anything support should review."
+            placeholder={t('serviceReport.descriptionPlaceholder')}
             className="mt-2 min-h-[130px] w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm font-semibold leading-6 text-slate-700 outline-none transition focus:border-bird-blue focus:ring-2 focus:ring-sky-100"
           />
           <div className="mt-1 flex justify-between text-[10px] font-bold text-slate-400">
-            <span>Minimum 12 characters</span>
+            <span>{t('serviceReport.minChars')}</span>
             <span>{description.length}/1000</span>
           </div>
 
@@ -213,13 +219,13 @@ export const ServiceReportModal: React.FC<ServiceReportModalProps> = ({
           <div className="mt-4 rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-3">
             {imagePreview && image ? (
               <div className="flex items-center gap-3">
-                <img src={imagePreview} alt="Evidence preview" className="h-16 w-16 rounded-2xl object-cover" />
+                <img src={imagePreview} alt={t('serviceReport.evidencePreviewAlt')} className="h-16 w-16 rounded-2xl object-cover" />
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-sm font-black text-slate-800">{image.name}</p>
                   <p className="mt-0.5 text-xs font-semibold text-slate-500">{(image.size / 1024 / 1024).toFixed(1)} MB</p>
                 </div>
                 <button type="button" onClick={() => setImage(null)} className="rounded-xl bg-white px-3 py-2 text-xs font-black text-red-600">
-                  Remove
+                  {t('serviceReport.remove')}
                 </button>
               </div>
             ) : (
@@ -229,7 +235,7 @@ export const ServiceReportModal: React.FC<ServiceReportModalProps> = ({
                 className="flex w-full items-center justify-center gap-2 rounded-xl bg-white px-4 py-3 text-sm font-black text-slate-700 shadow-sm transition hover:bg-slate-100"
               >
                 <ImagePlus className="h-4 w-4 text-bird-blue" />
-                Attach evidence image
+                {t('serviceReport.attachEvidence')}
               </button>
             )}
           </div>
@@ -242,7 +248,7 @@ export const ServiceReportModal: React.FC<ServiceReportModalProps> = ({
             disabled={busy}
             className="rounded-2xl border border-slate-200 bg-white px-5 py-3 text-sm font-black text-slate-600 transition hover:bg-slate-50 disabled:opacity-50"
           >
-            Cancel
+            {t('serviceReport.cancel')}
           </button>
           <button
             type="button"
@@ -251,7 +257,7 @@ export const ServiceReportModal: React.FC<ServiceReportModalProps> = ({
             className="flex items-center justify-center gap-2 rounded-2xl bg-red-600 px-5 py-3 text-sm font-black text-white shadow-[0_16px_30px_rgba(220,38,38,0.2)] transition hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50"
           >
             {busy ? <AlertTriangle className="h-4 w-4 animate-pulse" /> : <Send className="h-4 w-4" />}
-            Submit report
+            {t('serviceReport.submit')}
           </button>
         </div>
       </div>
