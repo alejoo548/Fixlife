@@ -43,6 +43,11 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMo
 
 const { login } = useAuth();
 const [captchaToken, setCaptchaToken] = useState<string | null>(null);
+const [clientLegalAccepted, setClientLegalAccepted] = useState({
+  terms: false,
+  protection: false,
+  content: false,
+});
 const recaptchaSiteKey = import.meta.env.VITE_RECAPTCHA_SITE_KEY as string | undefined;
 const rawGoogleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID as string | undefined;
 const googleClientId = rawGoogleClientId === '463100180400-hsrvp3o9dp41g6hv7e2oecg5uv5iq'
@@ -170,6 +175,11 @@ const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     }
   }, [view]);
 
+  const hasAcceptedClientLegal =
+    clientLegalAccepted.terms &&
+    clientLegalAccepted.protection &&
+    clientLegalAccepted.content;
+
   useEffect(() => {
     const updateViewport = () => {
       setIsDesktop(window.innerWidth >= 768);
@@ -211,6 +221,11 @@ const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     return;
   }
 
+  if (!hasAcceptedClientLegal) {
+    void showSweetToast({ tone: 'error', message: 'Please accept Fixlife terms and service policies.' });
+    return;
+  }
+
   try {
     const res = await fetch(API_ENDPOINTS.auth.registerUser, {
       method: 'POST',
@@ -222,6 +237,9 @@ const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         phone_number: formData.phone_number,
         email: formData.email,
         password: formData.password,
+        accept_terms: clientLegalAccepted.terms,
+        accept_service_protection: clientLegalAccepted.protection,
+        accept_content_policy: clientLegalAccepted.content,
         ...(isCaptchaEnabled ? { captchaToken } : {}),
       }),
     });
@@ -281,6 +299,41 @@ const handleAuthSuccess = (data: any) => {
   onClose();
   setTimeout(() => onClientLogin?.(), 100);
 };
+
+const ClientLegalCard = () => (
+  <div className="rounded-2xl border border-blue-100 bg-blue-50/70 p-3 text-left">
+    <p className="text-[11px] font-black uppercase tracking-[0.18em] text-bird-blue">Fixlife agreement</p>
+    <div className="mt-2 space-y-2">
+      <label className="flex items-start gap-2 text-xs font-semibold text-gray-700">
+        <input
+          type="checkbox"
+          checked={clientLegalAccepted.terms}
+          onChange={(e) => setClientLegalAccepted((prev) => ({ ...prev, terms: e.target.checked }))}
+          className="mt-0.5 h-4 w-4 rounded border-gray-300 text-bird-blue focus:ring-bird-blue"
+        />
+        I accept the Terms and Conditions before using Fixlife.
+      </label>
+      <label className="flex items-start gap-2 text-xs font-semibold text-gray-700">
+        <input
+          type="checkbox"
+          checked={clientLegalAccepted.protection}
+          onChange={(e) => setClientLegalAccepted((prev) => ({ ...prev, protection: e.target.checked }))}
+          className="mt-0.5 h-4 w-4 rounded border-gray-300 text-bird-blue focus:ring-bird-blue"
+        />
+        I understand cancellations, abuse, unpaid debts, and false reports may be reviewed.
+      </label>
+      <label className="flex items-start gap-2 text-xs font-semibold text-gray-700">
+        <input
+          type="checkbox"
+          checked={clientLegalAccepted.content}
+          onChange={(e) => setClientLegalAccepted((prev) => ({ ...prev, content: e.target.checked }))}
+          className="mt-0.5 h-4 w-4 rounded border-gray-300 text-bird-blue focus:ring-bird-blue"
+        />
+        I will upload only service-related and appropriate files.
+      </label>
+    </div>
+  </div>
+);
 
 const handleGoogleSignin = async (credential: string) => {
   try {
@@ -346,7 +399,7 @@ if (!emailRegex.test(formData.email)) {
 
   if (view === 'forgot') {
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-[100] flex items-center justify-center overflow-y-auto p-4">
       <div
         className="absolute inset-0 bg-black/70 backdrop-blur-md"
         onClick={onClose}
@@ -367,7 +420,7 @@ if (!emailRegex.test(formData.email)) {
       />
 
       {isDesktop ? (
-        <div className="relative z-[101] w-full max-w-[850px] h-[520px] bg-white rounded-3xl shadow-2xl overflow-hidden text-gray-900 ring-1 ring-gray-200 animate-zoom-in">
+        <div className="relative z-[101] h-[calc(100vh-2rem)] max-h-[720px] w-full max-w-[850px] bg-white rounded-3xl shadow-2xl overflow-hidden text-gray-900 ring-1 ring-gray-200 animate-zoom-in">
           <div
             className={`absolute top-0 bottom-0 left-0 w-1/2 bg-gradient-to-br from-bird-blue to-bird-darkBlue z-20 ${transitionClass}`}
             style={{
@@ -392,12 +445,12 @@ if (!emailRegex.test(formData.email)) {
           </div>
 
           <div
-            className={`absolute top-0 left-1/2 w-1/2 h-full z-10 flex flex-col items-center justify-center px-10 ${transitionClass}
+            className={`absolute top-0 left-1/2 w-1/2 h-full z-10 flex flex-col items-stretch justify-start overflow-y-auto custom-scrollbar px-10 py-8 ${transitionClass}
              ${isSignup ? 'translate-x-0 opacity-100 z-10' : 'translate-x-[20%] opacity-0 z-0'}`}
           >
-            <h2 className="text-3xl font-bold mb-4 text-bird-blue">Create Account</h2>
-            <p className="text-xs text-gray-500 mb-4">or use your email for registration</p>
-            <form className="w-full flex flex-col gap-2.5" onSubmit={handleSignup}>
+            <h2 className="text-center text-3xl font-bold mb-4 text-bird-blue">Create Account</h2>
+            <p className="text-center text-xs text-gray-500 mb-4">or use your email for registration</p>
+            <form className="w-full flex flex-col gap-2.5 pb-2" onSubmit={handleSignup}>
               <div className="grid grid-cols-2 gap-2.5">
                 <div className="bg-gray-50 rounded-lg p-1 border border-gray-200 focus-within:border-bird-blue/50 transition-colors">
                   <input type="text" name="name" maxLength={50} value={formData.name} onChange={handleChange} placeholder="First Name" className="w-full bg-transparent px-3 py-2 text-sm text-gray-900 outline-none placeholder-gray-500" />
@@ -439,7 +492,9 @@ if (!emailRegex.test(formData.email)) {
                 </div>
               )}
 
-              <button className="mt-2 w-full py-3 rounded-full bg-bird-yellow text-gray-900 font-bold text-sm tracking-wide shadow-lg shadow-bird-yellow/20 hover:bg-bird-orange hover:scale-[1.02] transition-all duration-300">
+              <ClientLegalCard />
+
+              <button className="sticky bottom-0 mt-2 w-full rounded-full bg-bird-yellow py-3 text-sm font-bold tracking-wide text-gray-900 shadow-lg shadow-bird-yellow/20 transition-all duration-300 hover:scale-[1.02] hover:bg-bird-orange">
                 SIGN UP
               </button>
             </form>
@@ -483,7 +538,7 @@ if (!emailRegex.test(formData.email)) {
           </div>
         </div>
       ) : (
-        <div className="relative z-[101] w-full max-w-[380px] bg-white/95 backdrop-blur-xl border border-gray-200 rounded-3xl shadow-2xl overflow-hidden flex flex-col min-h-[600px] animate-zoom-in">
+        <div className="relative z-[101] flex max-h-[calc(100vh-2rem)] min-h-0 w-full max-w-[380px] flex-col overflow-hidden rounded-3xl border border-gray-200 bg-white/95 shadow-2xl backdrop-blur-xl animate-zoom-in">
           <div className="absolute inset-0 pointer-events-none">
             <div className={`absolute top-[-20%] left-[-20%] w-[300px] h-[300px] rounded-full blur-[80px] transition-all duration-700 ${isSignup ? 'bg-bird-yellow/20 translate-x-[50%]' : 'bg-bird-blue/20 translate-x-0'}`} />
             <div className={`absolute bottom-[-10%] right-[-10%] w-[250px] h-[250px] rounded-full blur-[60px] transition-all duration-700 ${isSignup ? 'bg-bird-orange/10' : 'bg-bird-darkBlue/20'}`} />
@@ -500,7 +555,7 @@ if (!emailRegex.test(formData.email)) {
               </button>
             </div>
 
-            <div className="flex-1 flex flex-col justify-center transition-all duration-500">
+            <div className="flex-1 flex flex-col justify-start transition-all duration-500">
               <div className="text-center mb-6">
                 <h2 className="text-2xl font-bold text-gray-900 mb-2">
                   {isSignup ? 'Create Account' : 'Welcome Back'}
@@ -567,13 +622,15 @@ if (!emailRegex.test(formData.email)) {
                   </div>
                 )}
 
+                {isSignup && <ClientLegalCard />}
+
                 {!isSignup && (
                   <div className="flex justify-end">
                     <button type="button" onClick={() => setView('forgot')} className="text-xs text-gray-500 hover:text-bird-blue transition-colors self-end my-1"> Forgot your password?</button>
                   </div>
                 )}
 
-                <button className={`mt-4 w-full py-4 rounded-xl font-bold text-sm tracking-wide shadow-lg active:scale-[0.98] transition-all duration-300 ${isSignup ? 'bg-gradient-to-r from-bird-yellow to-bird-orange text-gray-900 shadow-bird-yellow/20' : 'bg-gradient-to-r from-bird-blue to-bird-darkBlue text-white shadow-bird-blue/20'}`}>
+                <button className={`sticky bottom-0 mt-4 w-full rounded-xl py-4 text-sm font-bold tracking-wide shadow-lg transition-all duration-300 active:scale-[0.98] ${isSignup ? 'bg-gradient-to-r from-bird-yellow to-bird-orange text-gray-900 shadow-bird-yellow/20' : 'bg-gradient-to-r from-bird-blue to-bird-darkBlue text-white shadow-bird-blue/20'}`}>
                   {isSignup ? 'Create Account' : 'Sign In'}
                 </button>
               </form>

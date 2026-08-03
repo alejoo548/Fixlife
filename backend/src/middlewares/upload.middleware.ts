@@ -6,6 +6,13 @@ import { recognize } from 'tesseract.js';
 import type { NextFunction, Request, Response } from 'express';
 import { protectedUploadsDir, publicUploadsDir, ensureUploadDirectories } from '../utils/assets';
 import { sanitizeImageInPlace, ImageSanitizeError } from '../utils/imageSanitizer';
+import { moderateUploadedContent } from '../utils/contentModeration';
+import {
+  ensureUploadModerationTables,
+  moderateImageWithAi,
+  recordUploadModerationReview,
+} from '../services/uploadModeration.service';
+import { recordAccountIncident } from '../services/accountEnforcement.service';
 
 ensureUploadDirectories();
 
@@ -52,6 +59,17 @@ const OCR_SUPPORTED_FORMATS = new Set(['jpeg', 'png', 'webp']);
 const OCR_MAX_BYTES = Number(process.env.IMAGE_OCR_MAX_BYTES || 4 * 1024 * 1024);
 const OCR_TEXT_MAX_LENGTH = Number(process.env.IMAGE_OCR_TEXT_MAX_LENGTH || 4000);
 const OCR_LANGUAGES = String(process.env.IMAGE_OCR_LANGUAGES || 'eng+spa');
+const CONTENT_MODERATION_ENABLED = process.env.CONTENT_MODERATION_ENABLED !== 'false';
+const CONTENT_MODERATION_SYNC_OCR = process.env.CONTENT_MODERATION_SYNC_OCR !== 'false';
+const AI_IMAGE_MODERATION_STRICT_REVIEW = process.env.AI_IMAGE_MODERATION_STRICT_REVIEW !== 'false';
+const AI_IMAGE_MODERATION_FAIL_CLOSED = process.env.AI_IMAGE_MODERATION_FAIL_CLOSED === 'true';
+const UPLOAD_MODERATION_DEBUG = process.env.UPLOAD_MODERATION_DEBUG === 'true';
+const AI_IMAGE_MODERATION_REQUIRED_FIELDS = new Set(
+  String(process.env.AI_IMAGE_MODERATION_REQUIRED_FIELDS || 'chat_images')
+    .split(',')
+    .map((fieldName) => fieldName.trim())
+    .filter(Boolean)
+);
 const MB = 1024 * 1024;
 const uploadLimits = {
   fileSize: 10 * MB,
@@ -221,6 +239,53 @@ const cleanupUploadedFiles = async (files: Express.Multer.File[]) => {
   );
 };
 
+const cleanupOtherUploadedFiles = async (
+  files: Express.Multer.File[],
+  preservedFile: Express.Multer.File
+) => {
+  await cleanupUploadedFiles(files.filter((file) => file.path !== preservedFile.path));
+};
+
+const getRequestUserId = (req: Request) => {
+  const user = (req as Request & { user?: { user_id?: number } }).user;
+  const userId = Number(user?.user_id || 0);
+  return Number.isFinite(userId) && userId > 0 ? userId : null;
+};
+
+const getRequestIdFromParams = (req: Request) => {
+  const idRequest = Number((req.params || {}).idRequest || 0);
+  return Number.isFinite(idRequest) && idRequest > 0 ? idRequest : null;
+};
+
+const getRequestUserRole = (req: Request) => {
+  const role = String((req as Request & { user?: { rol?: string } }).user?.rol || 'client');
+  return role === 'worker' ? 'worker' : 'client';
+};
+
+const logUploadModerationDebug = (stage: string, payload: Record<string, unknown>) => {
+  if (!UPLOAD_MODERATION_DEBUG) return;
+  console.info(`[upload-moderation:${stage}]`, JSON.stringify(payload, null, 2));
+};
+
+const recordUploadIncident = async (
+  req: Request,
+  input: { reviewId?: number | null; decision: 'review' | 'block'; reason?: string | null; requestId?: number | null }
+) => {
+  const userId = getRequestUserId(req);
+  if (!userId) return;
+  await recordAccountIncident({
+    userId,
+    actorRole: getRequestUserRole(req),
+    incidentType: input.decision === 'block' ? 'blocked_upload' : 'suspicious_upload',
+    severity: input.decision === 'block' ? 'high' : 'medium',
+    sourceType: 'upload_moderation_review',
+    sourceId: input.reviewId ?? null,
+    requestId: input.requestId ?? null,
+    description: input.reason || (input.decision === 'block' ? 'Upload blocked by content policy.' : 'Upload sent to moderation review.'),
+    penaltyReason: 'inappropriate_content',
+  }).catch((error) => console.error('recordUploadIncident error:', error));
+};
+
 const safeUploadPrefix = (fieldName: string) => fieldName.replace(/[^a-zA-Z0-9_-]/g, '') || 'upload';
 
 const moveToContentAddressedFile = async (
@@ -347,11 +412,44 @@ export const validateUploadedFiles = async (req: Request, res: Response, next: N
   const files = flattenUploadedFiles(req);
 
   try {
+    await ensureUploadModerationTables();
     for (const file of files) {
       const header = await fs.readFile(file.path);
       const originalExtension = path.extname(file.originalname).toLowerCase();
 
       if (file.mimetype === 'application/pdf') {
+        const moderation = CONTENT_MODERATION_ENABLED
+          ? moderateUploadedContent({
+              originalFilename: file.originalname,
+              fieldName: file.fieldname,
+            })
+          : { allowed: true, riskType: 'clean' as const, reason: null, matches: [] };
+
+        if (!moderation.allowed) {
+          await recordUploadModerationReview({
+            userId: getRequestUserId(req),
+            requestId: getRequestIdFromParams(req),
+            uploadField: file.fieldname,
+            fileName: file.filename || path.basename(file.path),
+            originalFileName: file.originalname,
+            result: {
+              decision: 'block',
+              provider: 'local',
+              model: null,
+              reason: moderation.reason,
+              categories: { adult_content: true },
+              categoryScores: { adult_content: 1 },
+              flagged: true,
+            },
+          }).catch(() => undefined);
+          await cleanupOtherUploadedFiles(files, file);
+          res.status(400).json({
+            error: 'This upload violates Fixlife content policy. Upload only service-related files.',
+            code: 'CONTENT_POLICY_VIOLATION',
+          });
+          return;
+        }
+
         if (!PDF_EXTENSIONS.has(originalExtension) || !isPdf(header)) {
           await cleanupUploadedFiles(files);
           res.status(400).json({ error: 'Invalid PDF file. Upload a real .pdf document.' });
@@ -394,25 +492,167 @@ export const validateUploadedFiles = async (req: Request, res: Response, next: N
       }
 
       const contentHash = await moveToContentAddressedFile(file, header, format);
+      const shouldRunSyncOcr =
+        CONTENT_MODERATION_ENABLED &&
+        CONTENT_MODERATION_SYNC_OCR &&
+        OCR_SUPPORTED_FORMATS.has(format) &&
+        header.length <= OCR_MAX_BYTES;
+      const ocr = shouldRunSyncOcr
+        ? await extractOcrText(file.path, format, header.length)
+        : {
+            pending: OCR_SUPPORTED_FORMATS.has(format) && header.length <= OCR_MAX_BYTES,
+            skipped: !OCR_SUPPORTED_FORMATS.has(format) || header.length > OCR_MAX_BYTES,
+            reason: !OCR_SUPPORTED_FORMATS.has(format)
+              ? 'OCR is only enabled for JPG, PNG and WEBP images.'
+              : header.length > OCR_MAX_BYTES
+                ? `Image is larger than OCR limit (${OCR_MAX_BYTES} bytes).`
+                : null,
+            text: '',
+            confidence: null,
+          };
+      const moderation = CONTENT_MODERATION_ENABLED
+        ? moderateUploadedContent({
+            originalFilename: file.originalname,
+            fieldName: file.fieldname,
+            ocrText: ocr.text,
+          })
+        : { allowed: true, riskType: 'clean', reason: null, matches: [] };
+      logUploadModerationDebug('local', {
+        file: file.originalname,
+        field: file.fieldname,
+        userId: getRequestUserId(req),
+        requestId: getRequestIdFromParams(req),
+        allowed: moderation.allowed,
+        riskType: moderation.riskType,
+        reason: moderation.reason,
+        matches: moderation.matches,
+        ocrTextLength: String(ocr.text || '').length,
+      });
+
+      if (!moderation.allowed) {
+        const requestId = getRequestIdFromParams(req);
+        const reviewId = await recordUploadModerationReview({
+          userId: getRequestUserId(req),
+          requestId,
+          uploadField: file.fieldname,
+          fileName: file.filename || path.basename(file.path),
+          originalFileName: file.originalname,
+          result: {
+            decision: 'block',
+            provider: 'local',
+            model: null,
+            reason: moderation.reason,
+            categories: { adult_content: true },
+            categoryScores: { adult_content: 1 },
+            flagged: true,
+          },
+        }).catch(() => undefined);
+        await recordUploadIncident(req, { reviewId, decision: 'block', reason: moderation.reason, requestId });
+        await cleanupOtherUploadedFiles(files, file);
+        res.status(400).json({
+          error: 'This upload violates Fixlife content policy. Upload only service-related images.',
+          code: 'CONTENT_POLICY_VIOLATION',
+        });
+        return;
+      }
+
+      const aiModeration = await moderateImageWithAi({
+        filePath: file.path,
+        mimeType: file.mimetype,
+      });
+      const requestId = getRequestIdFromParams(req);
+      logUploadModerationDebug('openai', {
+        file: file.originalname,
+        field: file.fieldname,
+        userId: getRequestUserId(req),
+        requestId,
+        provider: aiModeration.provider,
+        model: aiModeration.model,
+        decision: aiModeration.decision,
+        flagged: aiModeration.flagged,
+        reason: aiModeration.reason,
+        categories: aiModeration.categories,
+        categoryScores: aiModeration.categoryScores,
+        skippedReason: aiModeration.skippedReason,
+        strictReview: AI_IMAGE_MODERATION_STRICT_REVIEW,
+        failClosed: AI_IMAGE_MODERATION_FAIL_CLOSED,
+        strictField: AI_IMAGE_MODERATION_REQUIRED_FIELDS.has(file.fieldname),
+      });
+      const aiReviewId = await recordUploadModerationReview({
+        userId: getRequestUserId(req),
+        requestId,
+        uploadField: file.fieldname,
+        fileName: file.filename || path.basename(file.path),
+        originalFileName: file.originalname,
+        result: aiModeration,
+      });
+      const requiresStrictVisualModeration = AI_IMAGE_MODERATION_REQUIRED_FIELDS.has(file.fieldname);
+      const shouldBlockForAiReview =
+        aiModeration.decision === 'review' &&
+        AI_IMAGE_MODERATION_STRICT_REVIEW &&
+        requiresStrictVisualModeration &&
+        aiModeration.flagged;
+
+      if (aiModeration.decision === 'block' || shouldBlockForAiReview) {
+        await recordUploadIncident(req, {
+          reviewId: aiReviewId,
+          decision: aiModeration.decision === 'block' ? 'block' : 'review',
+          reason: aiModeration.reason,
+          requestId,
+        });
+      }
+
+      if (requiresStrictVisualModeration && aiModeration.decision === 'skipped') {
+        await cleanupOtherUploadedFiles(files, file);
+        res.status(400).json({
+          error: 'We could not verify this image safely. Please try again in a moment.',
+          code: 'AI_CONTENT_MODERATION_REQUIRED',
+        });
+        return;
+      }
+
+      if (
+        aiModeration.decision === 'block' ||
+        shouldBlockForAiReview
+      ) {
+        await cleanupOtherUploadedFiles(files, file);
+        res.status(400).json({
+          error: aiModeration.decision === 'block'
+            ? 'This image violates Fixlife content policy. Upload only service-related images.'
+            : 'This image needs moderation review before it can be used.',
+          code: aiModeration.decision === 'block'
+            ? 'AI_CONTENT_POLICY_VIOLATION'
+            : 'AI_CONTENT_REVIEW_REQUIRED',
+        });
+        return;
+      }
+
       await writeImageMetadataSidecar(file, {
         sha256: contentHash,
         detected_format: format,
         declared_mime_type: file.mimetype,
         byte_size: header.length,
         exif_orientation: orientation,
-        ocr: {
-          pending: OCR_SUPPORTED_FORMATS.has(format) && header.length <= OCR_MAX_BYTES,
-          skipped: !OCR_SUPPORTED_FORMATS.has(format) || header.length > OCR_MAX_BYTES,
-          reason: !OCR_SUPPORTED_FORMATS.has(format)
-            ? 'OCR is only enabled for JPG, PNG and WEBP images.'
-            : header.length > OCR_MAX_BYTES
-              ? `Image is larger than OCR limit (${OCR_MAX_BYTES} bytes).`
-              : null,
-          text: '',
-          confidence: null,
+        ocr,
+        moderation: {
+          enabled: CONTENT_MODERATION_ENABLED,
+          status: moderation.allowed ? 'approved' : 'blocked',
+          risk_type: moderation.riskType,
+          matches: moderation.matches,
+          checked_at: new Date().toISOString(),
+        },
+        ai_moderation: {
+          provider: aiModeration.provider,
+          model: aiModeration.model,
+          decision: aiModeration.decision,
+          flagged: aiModeration.flagged,
+          reason: aiModeration.reason,
+          checked_at: new Date().toISOString(),
         },
       });
-      queueOcrMetadataUpdate(file.path, format, header.length);
+      if (!shouldRunSyncOcr) {
+        queueOcrMetadataUpdate(file.path, format, header.length);
+      }
 
       (file as Express.Multer.File & {
         detectedFormat?: string;
@@ -441,14 +681,14 @@ export const validateUploadedFiles = async (req: Request, res: Response, next: N
         contentHash?: string;
         ocrText?: string;
         ocrConfidence?: number | null;
-      }).ocrText = '';
+      }).ocrText = ocr.text;
       (file as Express.Multer.File & {
         detectedFormat?: string;
         exifOrientation?: number | null;
         contentHash?: string;
         ocrText?: string;
         ocrConfidence?: number | null;
-      }).ocrConfidence = null;
+      }).ocrConfidence = ocr.confidence;
     }
 
     next();

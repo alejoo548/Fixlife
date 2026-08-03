@@ -41,6 +41,25 @@ import { storePaypalWebhookEvent, verifyPaypalWebhookSignature } from '../servic
 import { storeRawVirtualWalletWebhookEvent } from '../services/virtualWalletWebhook.service';
 import { isDatabaseSchemaReady } from '../services/schemaState.service';
 import { recordSystemEvent } from '../services/systemEvents.service';
+import {
+  assertAccountCanWork,
+  createAccountPenalty,
+  ensureAccountPenaltiesTable,
+  getAccountPenaltyBalance,
+} from '../services/accountPenalties.service';
+import {
+  assertAccountNotRestricted,
+  ensureAccountEnforcementTables,
+  getAccountEnforcementProfile,
+  recordAccountIncident,
+} from '../services/accountEnforcement.service';
+import {
+  createPenaltyAppeal,
+  ensureAccountPenaltyAppealsTable,
+  getPenaltyAppealsForUser,
+} from '../services/accountPenaltyAppeals.service';
+import { ensureUploadModerationTables } from '../services/uploadModeration.service';
+import { getPolicySettings } from '../services/policySettings.service';
 import { sanitizeLettersOnly, sanitizeMessage, sanitizeStrictText } from '../utils/sanitize';
 
 const assertRequestOwnership = async (idRequest: number, userId: number): Promise<boolean> => {
@@ -159,12 +178,55 @@ const REPORT_REASONS = new Set([
   'wrong_details',
   'matching_issue',
   'payment_issue',
+  'outside_app_payment',
   'quality_issue',
   'damage',
   'scope_changed',
   'client_not_available',
   'other',
 ]);
+const AUTO_PENALTY_BY_REPORT_REASON: Partial<Record<string, { amount: number; reason: Parameters<typeof createAccountPenalty>[0]['reason']; description: string }>> = {
+  no_show: { amount: 10, reason: 'no_show', description: 'Automatic penalty created from a no-show report.' },
+  payment_issue: { amount: 15, reason: 'payment_dispute', description: 'Automatic penalty created from a payment dispute report.' },
+  unsafe: { amount: 25, reason: 'other', description: 'Automatic penalty created from an unsafe conduct report.' },
+  outside_app_payment: { amount: 20, reason: 'outside_app_payment', description: 'Automatic penalty for attempting payment outside Fixlife.' },
+};
+const CLIENT_CANCEL_INCIDENT_STATUSES = new Set([
+  'assigned',
+  'route_in_progress',
+  'arrived',
+  'start_pending',
+  'payment_pending',
+  'paid',
+  'completion_pending',
+]);
+const CLIENT_CANCEL_SAFE_REASONS = new Set([
+  'duplicate',
+  'wrong_address',
+  'worker_no_show',
+  'unsafe',
+  'worker_requested_cancel',
+]);
+const parseSqlDate = (value: unknown) => {
+  if (!value) return null;
+  if (value instanceof Date) return Number.isNaN(value.getTime()) ? null : value;
+  const raw = String(value).trim();
+  if (!raw) return null;
+  const normalized = raw.includes('T') ? raw : `${raw.replace(' ', 'T')}Z`;
+  const parsed = new Date(normalized);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+};
+
+const minutesUntilSqlDate = (value: unknown) => {
+  const parsed = parseSqlDate(value);
+  if (!parsed) return null;
+  return Math.round((parsed.getTime() - Date.now()) / 60_000);
+};
+
+const sanitizePolicyReason = (value: unknown, fallback: string) => {
+  const normalized = sanitizeStrictText(value, 40).toLowerCase().replace(/[^a-z0-9_]+/g, '_');
+  return normalized || fallback;
+};
 
 const normalizeBookingType = (value: unknown): 'express' | 'scheduled' => {
   return String(value || '').trim().toLowerCase() === 'scheduled' ? 'scheduled' : 'express';
@@ -1313,11 +1375,19 @@ export const clearSavedLocationsByKind = async (req: AuthRequest, res: Response)
 
 export const ensureServiceRequestTables = async () => {
   if (serviceRequestsTablesChecked) return;
+  const ensureTrustSafetyTables = async () => {
+    await ensureAccountPenaltiesTable(pool);
+    await ensureUploadModerationTables(pool);
+    await ensureAccountEnforcementTables(pool);
+    await ensureAccountPenaltyAppealsTable(pool);
+  };
   if (isDatabaseSchemaReady()) {
+    await ensureTrustSafetyTables();
     serviceRequestsTablesChecked = true;
     return;
   }
   if (!shouldRunRuntimeSchemaSync()) {
+    await ensureTrustSafetyTables();
     serviceRequestsTablesChecked = true;
     return;
   }
@@ -1672,6 +1742,8 @@ export const ensureServiceRequestTables = async () => {
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
   `);
 
+  await ensureTrustSafetyTables();
+
   const [workerCols] = await pool.execute<RowDataPacket[]>(
     `SELECT COLUMN_NAME
     FROM information_schema.columns
@@ -1917,6 +1989,31 @@ export const createServiceRequest = async (req: AuthRequest, res: Response): Pro
 
     await ensureServiceRequestTables();
     await ensureWorkerGeoColumns();
+
+    try {
+      await assertAccountNotRestricted(idUser);
+      await assertAccountCanWork(idUser);
+    } catch (error: any) {
+      removeUploadedFiles(files);
+      if (error?.code === 'ACCOUNT_RESTRICTED') {
+        res.status(423).json({
+          error: error.message || 'This account is restricted by Fixlife policy.',
+          code: 'ACCOUNT_RESTRICTED',
+          restriction: error.restriction,
+          enforcement: error.enforcement,
+        });
+        return;
+      }
+      if (error?.code === 'ACCOUNT_DEBT_BLOCK') {
+        res.status(402).json({
+          error: 'Resolve your outstanding Fixlife balance before creating a new request.',
+          code: 'ACCOUNT_DEBT_BLOCK',
+          balance: error.balance,
+        });
+        return;
+      }
+      throw error;
+    }
 
     const idService = Number(req.body?.id_service);
     const description = String(req.body?.description || '').trim();
@@ -2499,6 +2596,149 @@ export const getMyServiceRequests = async (req: AuthRequest, res: Response): Pro
   }
 };
 
+export const getMyAccountPenaltyBalance = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const userId = req.user?.user_id;
+    if (!userId) {
+      res.status(401).json({ error: 'Unauthorized' });
+      return;
+    }
+
+    await ensureServiceRequestTables();
+    const balance = await getAccountPenaltyBalance(userId);
+    const enforcement = await getAccountEnforcementProfile(userId);
+    const appeals = await getPenaltyAppealsForUser(userId);
+    res.json({ success: true, balance, enforcement, appeals });
+  } catch (error) {
+    console.error('Error in getMyAccountPenaltyBalance:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
+export const reportMyPenaltyPayment = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const userId = Number(req.user?.user_id || 0);
+    const penaltyId = Number(req.params.idPenalty);
+    if (!userId || !Number.isInteger(penaltyId) || penaltyId <= 0) {
+      res.status(400).json({ error: 'Invalid payment report.' });
+      return;
+    }
+
+    await ensureAccountPenaltiesTable(pool);
+    const methodRaw = sanitizePaymentValue(req.body?.payment_method, 40).toLowerCase();
+    const allowedMethods = new Set(['cash', 'transfer', 'card', 'other']);
+    const paymentMethod = allowedMethods.has(methodRaw) ? methodRaw : 'other';
+    const paymentReference = sanitizePaymentValue(req.body?.payment_reference, 180);
+    const note = sanitizeMessage(req.body?.note || '', 500);
+
+    if (paymentReference.length < 4 && note.length < 12) {
+      res.status(400).json({ error: 'Add a payment reference or a clear note for Trust & Safety.' });
+      return;
+    }
+
+    const [rows] = await pool.execute<RowDataPacket[]>(
+      `SELECT id_penalty, amount, currency_code, status
+       FROM account_penalties
+       WHERE id_penalty = ? AND id_user = ? AND status IN ('pending','disputed')
+       LIMIT 1`,
+      [penaltyId, userId]
+    );
+    const penalty = rows[0];
+    if (!penalty) {
+      res.status(404).json({ error: 'Open penalty not found for this account.' });
+      return;
+    }
+
+    const description = [
+      'User reported balance payment.',
+      paymentReference ? `Reference: ${paymentReference}.` : '',
+      note ? `Note: ${note}` : '',
+    ].filter(Boolean).join(' ');
+
+    await pool.execute<ResultSetHeader>(
+      `UPDATE account_penalties
+       SET status = 'disputed',
+           payment_method = ?,
+           payment_reference = ?,
+           description = ?
+       WHERE id_penalty = ? AND id_user = ? AND status IN ('pending','disputed')`,
+      [paymentMethod, paymentReference || null, description.slice(0, 500), penaltyId, userId]
+    );
+
+    await notifyAdmins({
+      eventType: 'account_balance_payment_reported',
+      title: 'Balance payment needs confirmation',
+      message: `User #${userId} reported payment for penalty #${penaltyId}.`,
+      tone: 'warning',
+      actionUrl: '/admin-dashboard/trust-safety',
+      dedupeKey: `penalty_payment_report_${penaltyId}_${Date.now()}`,
+      metadata: { id_penalty: penaltyId, id_user: userId, payment_method: paymentMethod },
+    }).catch(() => undefined);
+
+    await createUserNotification({
+      userId,
+      eventType: 'account_balance_payment_reported',
+      title: 'Payment report sent',
+      message: 'Fixlife Trust & Safety will confirm your balance payment.',
+      tone: 'info',
+      dedupeKey: `penalty_payment_report_user_${penaltyId}_${Date.now()}`,
+      metadata: { id_penalty: penaltyId },
+    }).catch(() => undefined);
+
+    const balance = await getAccountPenaltyBalance(userId);
+    const enforcement = await getAccountEnforcementProfile(userId);
+    const appeals = await getPenaltyAppealsForUser(userId);
+    res.json({ success: true, balance, enforcement, appeals });
+  } catch (error: any) {
+    console.error('Error in reportMyPenaltyPayment:', error);
+    res.status(400).json({ error: error?.message || 'Could not report payment.' });
+  }
+};
+
+export const createMyPenaltyAppeal = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const userId = Number(req.user?.user_id || 0);
+    const penaltyId = Number(req.params.idPenalty);
+    if (!userId || !Number.isInteger(penaltyId) || penaltyId <= 0) {
+      res.status(400).json({ error: 'Invalid appeal request.' });
+      return;
+    }
+
+    const files = ((req.files as Express.Multer.File[]) || []).slice(0, 3);
+    const evidenceFiles = files.map((file) => file.filename).filter(Boolean);
+    const idAppeal = await createPenaltyAppeal({
+      penaltyId,
+      userId,
+      explanation: req.body?.explanation,
+      evidenceFiles,
+    });
+
+    await notifyAdmins({
+      eventType: 'account_penalty_appeal_created',
+      title: 'Penalty appeal needs review',
+      message: `User #${userId} appealed penalty #${penaltyId}.`,
+      tone: 'warning',
+      actionUrl: '/admin-dashboard/trust-safety',
+      dedupeKey: `penalty_appeal_${idAppeal}`,
+      metadata: { id_appeal: idAppeal, id_penalty: penaltyId, id_user: userId },
+    }).catch(() => undefined);
+
+    await createUserNotification({
+      userId,
+      eventType: 'account_penalty_appeal_created',
+      title: 'Appeal sent',
+      message: 'Fixlife Trust & Safety will review your explanation and evidence.',
+      tone: 'success',
+      dedupeKey: `penalty_appeal_created_${idAppeal}`,
+    }).catch(() => undefined);
+
+    res.status(201).json({ success: true, id_appeal: idAppeal });
+  } catch (error: any) {
+    console.error('Error in createMyPenaltyAppeal:', error);
+    res.status(400).json({ error: error?.message || 'Could not create appeal.' });
+  }
+};
+
 export const getRequestAssignedWorkerProfile = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const userId = req.user?.user_id;
@@ -2659,8 +2899,12 @@ export const cancelServiceRequest = async (req: AuthRequest, res: Response): Pro
 
     await connection.beginTransaction();
 
+    const cancelReason = sanitizePolicyReason(req.body?.reason, 'client_cancelled');
+    const cancelNote = sanitizeMessage(req.body?.description, 300);
+
     const [rows] = await connection.execute<RowDataPacket[]>(
-      `SELECT id_request, status
+      `SELECT id_request, id_user, status, booking_type, scheduled_start_time, assigned_worker_profile,
+              assigned_at, route_started_at, worker_arrived_at, work_started_at
        FROM service_requests
        WHERE id_request = ? AND id_user = ?
        LIMIT 1
@@ -2675,6 +2919,7 @@ export const cancelServiceRequest = async (req: AuthRequest, res: Response): Pro
     }
 
     const currentStatus = String(rows[0].status || '').toLowerCase();
+    const requestRow = rows[0];
 
     if (currentStatus === 'cancelled') {
       await connection.rollback();
@@ -2728,6 +2973,34 @@ export const cancelServiceRequest = async (req: AuthRequest, res: Response): Pro
       [idRequest]
     );
 
+    const minutesUntilStart = minutesUntilSqlDate(requestRow.scheduled_start_time);
+    const hasWorkerProgress = Boolean(requestRow.route_started_at || requestRow.worker_arrived_at || requestRow.work_started_at);
+    const policySettings = await getPolicySettings(connection);
+    const isLateScheduledCancel =
+      String(requestRow.booking_type || 'express').toLowerCase() === 'scheduled' &&
+      minutesUntilStart != null &&
+      minutesUntilStart <= policySettings.late_cancel_window_minutes;
+    const shouldRecordIncident =
+      CLIENT_CANCEL_INCIDENT_STATUSES.has(currentStatus) &&
+      !CLIENT_CANCEL_SAFE_REASONS.has(cancelReason) &&
+      (hasWorkerProgress || isLateScheduledCancel || ['payment_pending', 'paid', 'completion_pending'].includes(currentStatus));
+
+    let enforcementResult: Awaited<ReturnType<typeof recordAccountIncident>> | null = null;
+    if (shouldRecordIncident) {
+      enforcementResult = await recordAccountIncident({
+        userId,
+        actorRole: 'client',
+        incidentType: hasWorkerProgress ? 'client_cancel_after_worker_progress' : 'late_client_cancel',
+        severity: hasWorkerProgress || ['paid', 'completion_pending'].includes(currentStatus) ? 'high' : 'medium',
+        sourceType: 'service_request_cancel',
+        sourceId: idRequest,
+        requestId: idRequest,
+        penaltyReason: 'unjustified_cancel',
+        description: `Client cancelled request #${idRequest}. Reason: ${cancelReason}.${cancelNote ? ` ${cancelNote}` : ''}`,
+        createdByUserId: userId,
+      }, connection);
+    }
+
     await connection.commit();
 
     await recordSystemEvent({
@@ -2738,11 +3011,34 @@ export const cancelServiceRequest = async (req: AuthRequest, res: Response): Pro
       metadata: { requestId: idRequest, userId },
     }).catch(() => undefined);
 
+    if (requestRow.assigned_worker_profile) {
+      const [workerRows] = await pool.execute<RowDataPacket[]>(
+        `SELECT id_user FROM worker_profiles WHERE id_worker_profile = ? LIMIT 1`,
+        [Number(requestRow.assigned_worker_profile)]
+      );
+      const workerUserId = Number(workerRows[0]?.id_user || 0);
+      if (workerUserId) {
+        await createUserNotification({
+          userId: workerUserId,
+          eventType: 'request_cancelled_by_client',
+          title: 'Client cancelled the request',
+          message: `Request #${idRequest} was cancelled by the client. Fixlife recorded the cancellation context automatically.`,
+          tone: shouldRecordIncident ? 'warning' : 'info',
+          requestId: idRequest,
+          actionUrl: '/pro-dashboard',
+          dedupeKey: `request-${idRequest}-client-cancelled-worker`,
+          metadata: { request_status: 'cancelled', cancel_reason: cancelReason },
+        }).catch(() => undefined);
+        emitToUser(workerUserId, 'request_updated', { id_request: idRequest, request_status: 'cancelled' });
+      }
+    }
+
     res.json({
       success: true,
       message: 'Request cancelled successfully.',
       id_request: idRequest,
       status: 'cancelled',
+      enforcement: enforcementResult,
     });
   } catch (error: any) {
     try {
@@ -2751,6 +3047,154 @@ export const cancelServiceRequest = async (req: AuthRequest, res: Response): Pro
       // ignore rollback errors
     }
     console.error('Error in cancelServiceRequest:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  } finally {
+    connection.release();
+  }
+};
+
+export const reportWorkerNoShow = async (req: AuthRequest, res: Response): Promise<void> => {
+  const connection = await pool.getConnection();
+  try {
+    const userId = Number(req.user?.user_id || 0);
+    const idRequest = Number(req.params.idRequest);
+    if (!userId) {
+      res.status(401).json({ error: 'Unauthorized' });
+      return;
+    }
+    if (!Number.isSafeInteger(idRequest) || idRequest <= 0) {
+      res.status(400).json({ error: 'Invalid request id.' });
+      return;
+    }
+
+    await ensureServiceRequestTables();
+    await connection.beginTransaction();
+
+    const [rows] = await connection.execute<RowDataPacket[]>(
+      `SELECT sr.id_request, sr.id_user, sr.status, sr.booking_type, sr.created_at, sr.assigned_at,
+              sr.scheduled_start_time, sr.assigned_worker_profile, sr.route_started_at,
+              sr.worker_arrived_at, wp.id_user AS worker_user_id
+       FROM service_requests sr
+       LEFT JOIN worker_profiles wp ON wp.id_worker_profile = sr.assigned_worker_profile
+       WHERE sr.id_request = ? AND sr.id_user = ?
+       LIMIT 1
+       FOR UPDATE`,
+      [idRequest, userId]
+    );
+    if (rows.length === 0) {
+      await connection.rollback();
+      res.status(404).json({ error: 'Request not found.' });
+      return;
+    }
+
+    const request = rows[0];
+    const status = String(request.status || '').toLowerCase();
+    const workerProfileId = request.assigned_worker_profile != null ? Number(request.assigned_worker_profile) : null;
+    const workerUserId = request.worker_user_id != null ? Number(request.worker_user_id) : null;
+    if (!workerProfileId || !workerUserId) {
+      await connection.rollback();
+      res.status(409).json({ error: 'No assigned worker is available to report.' });
+      return;
+    }
+    if (!['assigned', 'route_in_progress'].includes(status)) {
+      await connection.rollback();
+      res.status(409).json({ error: 'No-show can only be reported before the worker arrives.' });
+      return;
+    }
+    if (request.worker_arrived_at) {
+      await connection.rollback();
+      res.status(409).json({ error: 'This worker already confirmed arrival.' });
+      return;
+    }
+
+    const graceAnchor =
+      String(request.booking_type || 'express').toLowerCase() === 'scheduled'
+        ? parseSqlDate(request.scheduled_start_time)
+        : parseSqlDate(request.assigned_at || request.created_at);
+    const policySettings = await getPolicySettings(connection);
+    if (!graceAnchor || Date.now() < graceAnchor.getTime() + policySettings.client_no_show_grace_minutes * 60_000) {
+      await connection.rollback();
+      res.status(409).json({
+        error: `No-show reports open ${policySettings.client_no_show_grace_minutes} minutes after the visit or assignment time.`,
+      });
+      return;
+    }
+
+    await connection.execute(
+      `UPDATE service_request_workers
+       SET status = 'expired',
+           counter_status = CASE WHEN counter_status = 'pending' THEN 'declined' ELSE counter_status END,
+           updated_at = CURRENT_TIMESTAMP
+       WHERE id_request = ? AND id_worker_profile = ?`,
+      [idRequest, workerProfileId]
+    );
+
+    await connection.execute(
+      `UPDATE service_requests
+       SET status = 'pending',
+           assigned_worker_profile = NULL,
+           assigned_at = NULL,
+           route_started_at = NULL,
+           worker_arrived_at = NULL,
+           updated_at = CURRENT_TIMESTAMP
+       WHERE id_request = ?`,
+      [idRequest]
+    );
+
+    const enforcementResult = await recordAccountIncident({
+      userId: workerUserId,
+      actorRole: 'worker',
+      incidentType: 'worker_no_show',
+      severity: 'high',
+      sourceType: 'service_request_no_show',
+      sourceId: idRequest,
+      requestId: idRequest,
+      penaltyReason: 'no_show',
+      workerProfileId,
+      description: `Client reported worker no-show for request #${idRequest}.`,
+      createdByUserId: userId,
+    }, connection);
+
+    await connection.commit();
+
+    await createUserNotification({
+      userId: workerUserId,
+      eventType: 'worker_no_show_reported',
+      title: 'No-show report received',
+      message: `The client reported that you did not arrive for request #${idRequest}. Fixlife will review the timeline.`,
+      tone: 'warning',
+      requestId: idRequest,
+      actionUrl: '/pro-dashboard',
+      dedupeKey: `request-${idRequest}-worker-no-show`,
+      metadata: { request_status: 'pending' },
+    }).catch(() => undefined);
+    await notifyAdmins({
+      eventType: 'worker_no_show_reported',
+      title: 'Worker no-show reported',
+      message: `Client reported worker no-show on request #${idRequest}.`,
+      tone: 'warning',
+      actionUrl: `/admin/requests/${idRequest}`,
+      dedupeKey: `request-${idRequest}-worker-no-show-admin`,
+      metadata: { id_request: idRequest, worker_user_id: workerUserId, worker_profile_id: workerProfileId },
+    }).catch(() => undefined);
+
+    emitToUser(userId, 'request_updated', { id_request: idRequest, request_status: 'pending' });
+    emitToUser(workerUserId, 'request_updated', { id_request: idRequest, request_status: 'pending' });
+
+    res.json({
+      success: true,
+      message: 'No-show report saved. Fixlife reopened the request while an admin reviews it.',
+      id_request: idRequest,
+      request_status: 'pending',
+      enforcement: enforcementResult,
+    });
+  } catch (error: any) {
+    try {
+      await connection.rollback();
+    } catch {
+      // ignore rollback errors
+    }
+    console.error('Error in reportWorkerNoShow:', error);
     res.status(500).json({ error: 'Internal server error' });
   } finally {
     connection.release();
@@ -2985,6 +3429,41 @@ export const createServiceRequestReport = async (req: AuthRequest, res: Response
         evidenceFile,
       ]
     );
+    const autoPenaltyRule = reportedUserId ? AUTO_PENALTY_BY_REPORT_REASON[reason] : null;
+    let createdPenaltyId: number | null = null;
+    if (autoPenaltyRule) {
+      createdPenaltyId = await createAccountPenalty({
+        userId: Number(reportedUserId),
+        actorRole: reportedRole,
+        reason: autoPenaltyRule.reason,
+        amount: autoPenaltyRule.amount,
+        workerProfileId: reportedRole === 'worker' ? participant.assignedWorkerProfile : null,
+        requestId: idRequest,
+        description: autoPenaltyRule.description,
+        evidenceReportId: Number(insertResult.insertId),
+        createdByUserId: userId,
+      });
+    }
+
+    let enforcementResult: Awaited<ReturnType<typeof recordAccountIncident>> | null = null;
+    if (reportedUserId) {
+      enforcementResult = await recordAccountIncident({
+        userId: Number(reportedUserId),
+        actorRole: reportedRole,
+        incidentType: `report_${reason}`,
+        severity: ['unsafe', 'outside_app_payment', 'payment_issue'].includes(reason) ? 'high' : 'medium',
+        sourceType: 'service_request_report',
+        sourceId: Number(insertResult.insertId),
+        requestId: idRequest,
+        description: `Report received: ${reason}. ${description}`,
+        penaltyReason: autoPenaltyRule?.reason || 'other',
+        workerProfileId: reportedRole === 'worker' ? participant.assignedWorkerProfile : null,
+        createdByUserId: userId,
+      }).catch((error) => {
+        console.error('recordAccountIncident report error:', error);
+        return null;
+      });
+    }
 
     await notifyAdmins({
       eventType: 'service_request_reported',
@@ -3006,6 +3485,8 @@ export const createServiceRequestReport = async (req: AuthRequest, res: Response
         request_status: participant.requestStatus,
         has_assigned_counterpart: hasAssignedCounterpart,
         has_evidence: Boolean(evidenceFile),
+        created_penalty_id: createdPenaltyId,
+        enforcement: enforcementResult,
       },
     });
 

@@ -25,6 +25,13 @@ import { Server as SocketIOServer } from 'socket.io';
 import { runDatabaseMigrations } from './migrations/runMigrations';
 import { startBackgroundJobWorker } from './services/backgroundJobs.service';
 import { initSocketServer } from './services/socketManager';
+import { ensureAccountPenaltiesTable } from './services/accountPenalties.service';
+import { ensureAccountEnforcementTables } from './services/accountEnforcement.service';
+import { ensureAccountPenaltyAppealsTable } from './services/accountPenaltyAppeals.service';
+import { ensureUploadModerationTables } from './services/uploadModeration.service';
+import { ensurePolicySettingsTable } from './services/policySettings.service';
+import { ensureCaseEvidenceSnapshotsTable } from './services/caseEvidence.service';
+import { ensureAdminAssistantTables } from './services/adminAssistant.service';
 
 dotenv.config();
 const isProduction = process.env.NODE_ENV === 'production';
@@ -175,6 +182,13 @@ const startServer = async () => {
   } else {
     console.log('[db] Database schema is up to date.');
   }
+  await ensureAccountPenaltiesTable();
+  await ensurePolicySettingsTable();
+  await ensureUploadModerationTables();
+  await ensureAccountEnforcementTables();
+  await ensureCaseEvidenceSnapshotsTable();
+  await ensureAccountPenaltyAppealsTable();
+  await ensureAdminAssistantTables();
 
   const io = new SocketIOServer(server, {
     cors: corsOptions,

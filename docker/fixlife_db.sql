@@ -149,6 +149,94 @@ INSERT INTO `service_cards` (`id_card`, `id_service`, `image_url`, `badge`, `hea
 -- --------------------------------------------------------
 
 --
+-- Estructura de tabla para la tabla `account_incidents`
+--
+
+CREATE TABLE `account_incidents` (
+  `id_incident` int NOT NULL,
+  `id_user` int NOT NULL,
+  `actor_role` enum('client','worker') COLLATE utf8mb4_unicode_ci NOT NULL,
+  `incident_type` varchar(60) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `severity` enum('low','medium','high') COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'low',
+  `source_type` varchar(60) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `source_id` int DEFAULT NULL,
+  `id_request` int DEFAULT NULL,
+  `description` varchar(500) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `action_taken` enum('warning','penalty','temporary_block','review_required') COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'warning',
+  `id_penalty` int DEFAULT NULL,
+  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Estructura de tabla para la tabla `account_restrictions`
+--
+
+CREATE TABLE `account_restrictions` (
+  `id_restriction` int NOT NULL,
+  `id_user` int NOT NULL,
+  `restriction_type` enum('temporary_block','admin_review') COLLATE utf8mb4_unicode_ci NOT NULL,
+  `reason` varchar(500) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `starts_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `ends_at` timestamp NULL DEFAULT NULL,
+  `status` enum('active','expired','lifted') COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'active',
+  `created_by_incident_id` int DEFAULT NULL,
+  `lifted_by_user_id` int DEFAULT NULL,
+  `lifted_at` timestamp NULL DEFAULT NULL,
+  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Estructura de tabla para la tabla `account_penalties`
+--
+
+CREATE TABLE `account_penalties` (
+  `id_penalty` int NOT NULL,
+  `id_user` int NOT NULL,
+  `id_worker_profile` int DEFAULT NULL,
+  `id_request` int DEFAULT NULL,
+  `actor_role` enum('client','worker') CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
+  `reason` enum('no_show','unjustified_cancel','abusive_report','outside_app_payment','inappropriate_content','unpaid_cash','payment_dispute','admin_adjustment','other') CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
+  `amount` decimal(10,2) NOT NULL DEFAULT '0.00',
+  `currency_code` varchar(8) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'USD',
+  `status` enum('pending','paid','disputed','waived') CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'pending',
+  `description` varchar(500) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `evidence_report_id` int DEFAULT NULL,
+  `payment_method` enum('cash','transfer','card','support_adjustment','other') COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `payment_reference` varchar(180) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `payment_recorded_by_user_id` int DEFAULT NULL,
+  `created_by_user_id` int DEFAULT NULL,
+  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  `resolved_at` timestamp NULL DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Estructura de tabla para la tabla `account_penalty_appeals`
+--
+
+CREATE TABLE `account_penalty_appeals` (
+  `id_appeal` int NOT NULL,
+  `id_penalty` int NOT NULL,
+  `id_user` int NOT NULL,
+  `explanation` text COLLATE utf8mb4_unicode_ci NOT NULL,
+  `evidence_json` json DEFAULT NULL,
+  `status` enum('open','accepted','rejected','needs_more_info') COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'open',
+  `admin_note` varchar(500) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `reviewed_by_user_id` int DEFAULT NULL,
+  `reviewed_at` timestamp NULL DEFAULT NULL,
+  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- --------------------------------------------------------
+
+--
 -- Estructura de tabla para la tabla `service_requests`
 --
 
@@ -288,6 +376,32 @@ CREATE TABLE `service_request_workers` (
   `proposed_budget` decimal(10,2) DEFAULT NULL,
   `counter_message` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `counter_status` enum('pending','accepted','declined') CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Estructura de tabla para la tabla `upload_moderation_reviews`
+--
+
+CREATE TABLE `upload_moderation_reviews` (
+  `id_review` int NOT NULL,
+  `id_user` int DEFAULT NULL,
+  `id_request` int DEFAULT NULL,
+  `upload_field` varchar(80) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `file_name` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
+  `original_file_name` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `provider` varchar(40) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'none',
+  `model` varchar(80) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `decision` enum('allow','review','block','skipped') CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'skipped',
+  `risk_type` varchar(80) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `flagged` tinyint(1) NOT NULL DEFAULT '0',
+  `categories_json` json DEFAULT NULL,
+  `scores_json` json DEFAULT NULL,
+  `reason` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `reviewed_at` timestamp NULL DEFAULT NULL,
+  `reviewed_by_user_id` int DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- --------------------------------------------------------
@@ -495,6 +609,25 @@ INSERT INTO `worker_services` (`id_worker_profile`, `id_service`, `years_experie
 --
 -- Indices de la tabla `admin_activity_log`
 --
+--
+-- Indices de la tabla `account_incidents`
+--
+ALTER TABLE `account_incidents`
+  ADD PRIMARY KEY (`id_incident`),
+  ADD KEY `idx_account_incidents_user_date` (`id_user`,`created_at`),
+  ADD KEY `idx_account_incidents_source` (`source_type`,`source_id`),
+  ADD KEY `idx_account_incidents_request` (`id_request`),
+  ADD KEY `fk_account_incidents_penalty` (`id_penalty`);
+
+--
+-- Indices de la tabla `account_restrictions`
+--
+ALTER TABLE `account_restrictions`
+  ADD PRIMARY KEY (`id_restriction`),
+  ADD KEY `idx_account_restrictions_user_status` (`id_user`,`status`,`ends_at`),
+  ADD KEY `fk_account_restrictions_incident` (`created_by_incident_id`),
+  ADD KEY `fk_account_restrictions_lifted_by` (`lifted_by_user_id`);
+
 ALTER TABLE `admin_activity_log`
   ADD PRIMARY KEY (`id_activity`),
   ADD KEY `idx_admin_created` (`id_admin`,`created_at`),
@@ -521,6 +654,26 @@ ALTER TABLE `service_cards`
   ADD UNIQUE KEY `ux_service_cards_sort` (`sort_order`),
   ADD KEY `idx_service_cards_service` (`id_service`),
   ADD KEY `idx_service_cards_active_sort` (`is_active`,`sort_order`);
+
+--
+-- Indices de la tabla `account_penalties`
+--
+ALTER TABLE `account_penalties`
+  ADD PRIMARY KEY (`id_penalty`),
+  ADD KEY `idx_account_penalties_user_status` (`id_user`,`status`,`created_at`),
+  ADD KEY `idx_account_penalties_worker_status` (`id_worker_profile`,`status`,`created_at`),
+  ADD KEY `idx_account_penalties_request` (`id_request`,`created_at`),
+  ADD KEY `fk_account_penalties_payment_recorder` (`payment_recorded_by_user_id`),
+  ADD KEY `fk_account_penalties_creator` (`created_by_user_id`);
+
+--
+-- Indices de la tabla `account_penalty_appeals`
+--
+ALTER TABLE `account_penalty_appeals`
+  ADD PRIMARY KEY (`id_appeal`),
+  ADD KEY `idx_penalty_appeals_penalty` (`id_penalty`,`created_at`),
+  ADD KEY `idx_penalty_appeals_user` (`id_user`,`status`,`created_at`),
+  ADD KEY `fk_penalty_appeals_reviewer` (`reviewed_by_user_id`);
 
 --
 -- Indices de la tabla `service_requests`
@@ -573,6 +726,16 @@ ALTER TABLE `service_request_workers`
   ADD PRIMARY KEY (`id_request`,`id_worker_profile`),
   ADD KEY `idx_service_request_workers_worker_status` (`id_worker_profile`,`status`,`notified_at`),
   ADD KEY `idx_service_request_workers_request` (`id_request`);
+
+--
+-- Indices de la tabla `upload_moderation_reviews`
+--
+ALTER TABLE `upload_moderation_reviews`
+  ADD PRIMARY KEY (`id_review`),
+  ADD KEY `idx_upload_moderation_decision` (`decision`,`created_at`),
+  ADD KEY `idx_upload_moderation_user` (`id_user`,`created_at`),
+  ADD KEY `idx_upload_moderation_request` (`id_request`,`created_at`),
+  ADD KEY `fk_upload_moderation_reviewer` (`reviewed_by_user_id`);
 
 --
 -- Indices de la tabla `users`
@@ -650,10 +813,34 @@ ALTER TABLE `worker_services`
 --
 
 --
+-- AUTO_INCREMENT de la tabla `account_incidents`
+--
+ALTER TABLE `account_incidents`
+  MODIFY `id_incident` int NOT NULL AUTO_INCREMENT;
+
+--
+-- AUTO_INCREMENT de la tabla `account_restrictions`
+--
+ALTER TABLE `account_restrictions`
+  MODIFY `id_restriction` int NOT NULL AUTO_INCREMENT;
+
+--
 -- AUTO_INCREMENT de la tabla `admin_activity_log`
 --
 ALTER TABLE `admin_activity_log`
   MODIFY `id_activity` int NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=6;
+
+--
+-- AUTO_INCREMENT de la tabla `account_penalties`
+--
+ALTER TABLE `account_penalties`
+  MODIFY `id_penalty` int NOT NULL AUTO_INCREMENT;
+
+--
+-- AUTO_INCREMENT de la tabla `account_penalty_appeals`
+--
+ALTER TABLE `account_penalty_appeals`
+  MODIFY `id_appeal` int NOT NULL AUTO_INCREMENT;
 
 --
 -- AUTO_INCREMENT de la tabla `hero_slides`
@@ -704,6 +891,12 @@ ALTER TABLE `service_request_ratings`
   MODIFY `id_rating` int NOT NULL AUTO_INCREMENT;
 
 --
+-- AUTO_INCREMENT de la tabla `upload_moderation_reviews`
+--
+ALTER TABLE `upload_moderation_reviews`
+  MODIFY `id_review` int NOT NULL AUTO_INCREMENT;
+
+--
 -- AUTO_INCREMENT de la tabla `users`
 --
 ALTER TABLE `users`
@@ -748,6 +941,40 @@ ALTER TABLE `worker_availabilities`
 --
 -- Restricciones para tablas volcadas
 --
+
+--
+-- Filtros para la tabla `account_incidents`
+--
+ALTER TABLE `account_incidents`
+  ADD CONSTRAINT `fk_account_incidents_penalty` FOREIGN KEY (`id_penalty`) REFERENCES `account_penalties` (`id_penalty`) ON DELETE SET NULL,
+  ADD CONSTRAINT `fk_account_incidents_request` FOREIGN KEY (`id_request`) REFERENCES `service_requests` (`id_request`) ON DELETE SET NULL,
+  ADD CONSTRAINT `fk_account_incidents_user` FOREIGN KEY (`id_user`) REFERENCES `users` (`id_user`) ON DELETE CASCADE;
+
+--
+-- Filtros para la tabla `account_restrictions`
+--
+ALTER TABLE `account_restrictions`
+  ADD CONSTRAINT `fk_account_restrictions_incident` FOREIGN KEY (`created_by_incident_id`) REFERENCES `account_incidents` (`id_incident`) ON DELETE SET NULL,
+  ADD CONSTRAINT `fk_account_restrictions_lifted_by` FOREIGN KEY (`lifted_by_user_id`) REFERENCES `users` (`id_user`) ON DELETE SET NULL,
+  ADD CONSTRAINT `fk_account_restrictions_user` FOREIGN KEY (`id_user`) REFERENCES `users` (`id_user`) ON DELETE CASCADE;
+
+--
+-- Filtros para la tabla `account_penalties`
+--
+ALTER TABLE `account_penalties`
+  ADD CONSTRAINT `fk_account_penalties_creator` FOREIGN KEY (`created_by_user_id`) REFERENCES `users` (`id_user`) ON DELETE SET NULL,
+  ADD CONSTRAINT `fk_account_penalties_payment_recorder` FOREIGN KEY (`payment_recorded_by_user_id`) REFERENCES `users` (`id_user`) ON DELETE SET NULL,
+  ADD CONSTRAINT `fk_account_penalties_request` FOREIGN KEY (`id_request`) REFERENCES `service_requests` (`id_request`) ON DELETE SET NULL,
+  ADD CONSTRAINT `fk_account_penalties_user` FOREIGN KEY (`id_user`) REFERENCES `users` (`id_user`) ON DELETE CASCADE,
+  ADD CONSTRAINT `fk_account_penalties_worker` FOREIGN KEY (`id_worker_profile`) REFERENCES `worker_profiles` (`id_worker_profile`) ON DELETE SET NULL;
+
+--
+-- Filtros para la tabla `account_penalty_appeals`
+--
+ALTER TABLE `account_penalty_appeals`
+  ADD CONSTRAINT `fk_penalty_appeals_penalty` FOREIGN KEY (`id_penalty`) REFERENCES `account_penalties` (`id_penalty`) ON DELETE CASCADE,
+  ADD CONSTRAINT `fk_penalty_appeals_reviewer` FOREIGN KEY (`reviewed_by_user_id`) REFERENCES `users` (`id_user`) ON DELETE SET NULL,
+  ADD CONSTRAINT `fk_penalty_appeals_user` FOREIGN KEY (`id_user`) REFERENCES `users` (`id_user`) ON DELETE CASCADE;
 
 --
 -- Filtros para la tabla `service_cards`
@@ -796,6 +1023,14 @@ ALTER TABLE `service_request_ratings`
 ALTER TABLE `service_request_workers`
   ADD CONSTRAINT `fk_service_request_workers_request` FOREIGN KEY (`id_request`) REFERENCES `service_requests` (`id_request`) ON DELETE CASCADE,
   ADD CONSTRAINT `fk_service_request_workers_worker` FOREIGN KEY (`id_worker_profile`) REFERENCES `worker_profiles` (`id_worker_profile`) ON DELETE CASCADE;
+
+--
+-- Filtros para la tabla `upload_moderation_reviews`
+--
+ALTER TABLE `upload_moderation_reviews`
+  ADD CONSTRAINT `fk_upload_moderation_request` FOREIGN KEY (`id_request`) REFERENCES `service_requests` (`id_request`) ON DELETE SET NULL,
+  ADD CONSTRAINT `fk_upload_moderation_reviewer` FOREIGN KEY (`reviewed_by_user_id`) REFERENCES `users` (`id_user`) ON DELETE SET NULL,
+  ADD CONSTRAINT `fk_upload_moderation_user` FOREIGN KEY (`id_user`) REFERENCES `users` (`id_user`) ON DELETE SET NULL;
 
 --
 -- Filtros para la tabla `user_saved_locations`

@@ -171,6 +171,41 @@ export const useServiceRequestSubmit = ({
           void fetchMyRequests(historyStatus);
           return;
         }
+        if (res.status === 402 && payload?.code === 'ACCOUNT_DEBT_BLOCK') {
+          const balance = payload.balance || {};
+          const amount = Number(balance.outstanding_balance || 0).toFixed(2);
+          showAlert?.({
+            title: 'Outstanding balance',
+            message: `Resolve your Fixlife balance of $${amount} before creating a new request.`,
+            html: `
+              <div style="text-align:left">
+                <p style="margin:0 0 10px">Resolve your Fixlife balance before creating a new request.</p>
+                <p style="margin:0;font-weight:800">Outstanding: $${amount} ${balance.currency_code || 'USD'}</p>
+                <p style="margin:6px 0 0;color:#64748b">Open penalties: ${Number(balance.outstanding_count || 0)}</p>
+              </div>
+            `,
+            tone: 'warning',
+            confirmText: 'Got it',
+          });
+          return;
+        }
+        if (res.status === 423 && payload?.code === 'ACCOUNT_RESTRICTED') {
+          const restriction = payload.restriction || {};
+          const endsAt = restriction.ends_at ? new Date(restriction.ends_at).toLocaleString() : null;
+          showAlert?.({
+            title: restriction.restriction_type === 'admin_review' ? 'Account under review' : 'Account temporarily blocked',
+            message: payload.error || 'Your account is restricted by Fixlife policy.',
+            html: `
+              <div style="text-align:left">
+                <p style="margin:0 0 10px">${payload.error || 'Your account is restricted by Fixlife policy.'}</p>
+                <p style="margin:0;color:#64748b">${endsAt ? `This restriction ends on ${endsAt}.` : 'Fixlife support must review your account before new requests.'}</p>
+              </div>
+            `,
+            tone: 'warning',
+            confirmText: 'Got it',
+          });
+          return;
+        }
         showToast('error', payload?.error || 'Could not create request.');
         return;
       }

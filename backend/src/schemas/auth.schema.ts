@@ -6,6 +6,9 @@ const otpRegex = /^\d{6}$/;
 const nameRegex = /^[\p{L}]+(?:[\p{L} .'-]*[\p{L}])?$/u;
 const usernameRegex = /^[a-zA-Z0-9._-]{3,30}$/;
 const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{8,128}$/;
+const acceptedPolicy = z.literal(true, {
+  errorMap: () => ({ message: 'You must accept Fixlife terms and policies.' }),
+});
 
 export const AuthSchema = {
   login: z.object({
@@ -57,6 +60,10 @@ export const AuthSchema = {
       .array(z.number().int().positive())
       .min(1, 'Select at least one service you offer.')
       .max(10),
+    accept_terms: acceptedPolicy,
+    accept_worker_policy: acceptedPolicy,
+    accept_penalty_policy: acceptedPolicy,
+    accept_content_policy: acceptedPolicy,
   }),
 
   registerUser: z.object({
@@ -98,6 +105,9 @@ export const AuthSchema = {
       .trim()
       .min(10, 'Captcha token is required.')
       .optional(),
+    accept_terms: acceptedPolicy,
+    accept_service_protection: acceptedPolicy,
+    accept_content_policy: acceptedPolicy,
   }),
 
   googleLogin: z.object({

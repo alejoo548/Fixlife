@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { API_ENDPOINTS } from '../../../config/api';
-import { showSweetToast } from '../../../utils/sweetAlert';
+import { showSweetAlert, showSweetToast } from '../../../utils/sweetAlert';
 import type { ChatMessage } from './workerRequestTypes';
 import { getLatestChatMessageId, mergeChatMessages } from './workerRequestUtils';
 
@@ -79,6 +79,15 @@ export const useWorkerRequestChat = ({
       });
       const payload = await response.json();
       if (!response.ok || !payload?.success) {
+        if (String(payload?.code || '').includes('CONTENT')) {
+          void showSweetAlert({
+            tone: 'warning',
+            title: 'Policy violation detected',
+            message: 'We detected behavior or an image that is not allowed on Fixlife. Only send respectful, service-related photos. This incident may be reviewed by Trust & Safety.',
+            confirmText: 'Understood',
+          });
+          return;
+        }
         void showSweetToast({ tone: 'error', message: payload?.error || 'Could not send message.' });
         return;
       }

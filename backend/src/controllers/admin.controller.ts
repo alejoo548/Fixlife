@@ -35,9 +35,28 @@ import {
   getFinanceClosureReport,
   resolveFinanceCase,
 } from '../services/financeOperations.service';
+import {
+  createAccountPenalty,
+  ensureAccountPenaltiesTable,
+  PenaltyStatus,
+} from '../services/accountPenalties.service';
+import { ensureAccountEnforcementTables, getAccountEnforcementProfile, liftAccountRestrictions } from '../services/accountEnforcement.service';
+import {
+  ensureAccountPenaltyAppealsTable,
+  getPenaltyAppealsForPenalty,
+  reviewPenaltyAppeal,
+} from '../services/accountPenaltyAppeals.service';
+import { ensureUploadModerationTables } from '../services/uploadModeration.service';
+import { getPolicySettings, updatePolicySettings } from '../services/policySettings.service';
+import { ensureCaseEvidenceSnapshotsTable, getCaseEvidenceSnapshotByIncident } from '../services/caseEvidence.service';
 import { getSystemEvents } from '../services/systemEvents.service';
 import { enqueueBackgroundJob, getBackgroundJobsAdmin } from '../services/backgroundJobs.service';
 import { queueWorkerPayoutStatementEmail } from '../services/workerPayoutStatement.service';
+import {
+  answerAdminAssistantPrompt,
+  createAdminAssistantLiveKitToken,
+  getAdminAssistantContext,
+} from '../services/adminAssistant.service';
 
 const SCRIPT_PATTERN = /<\s*script|javascript:|on\w+\s*=|data:text\/html/i;
 
@@ -59,6 +78,90 @@ const sanitizeOptionalText = (value: unknown, maxLen: number): string | null => 
   if (value === undefined || value === null) return null;
   const sanitized = sanitizeText(value, maxLen);
   return sanitized.length > 0 ? sanitized : null;
+};
+
+const clearModerationIncidentForApprovedUpload = async (
+  input: { reviewId: number; adminUserId?: number | null; reason: string }
+) => {
+  await ensureAccountEnforcementTables(pool);
+  const [incidentRows] = await pool.execute<RowDataPacket[]>(
+    `SELECT id_incident
+     FROM account_incidents
+     WHERE source_type = 'upload_moderation_review'
+       AND source_id = ?
+       AND COALESCE(case_status, 'open') NOT IN ('resolved','dismissed')`,
+    [input.reviewId]
+  );
+  const incidentIds = incidentRows.map((row) => Number(row.id_incident)).filter((id) => Number.isInteger(id) && id > 0);
+  if (incidentIds.length === 0) return 0;
+
+  await pool.execute<ResultSetHeader>(
+    `UPDATE account_incidents
+     SET case_status = 'dismissed',
+         resolution_note = ?,
+         reviewed_by_user_id = ?,
+         reviewed_at = CURRENT_TIMESTAMP
+     WHERE source_type = 'upload_moderation_review'
+       AND source_id = ?
+       AND COALESCE(case_status, 'open') NOT IN ('resolved','dismissed')`,
+    [input.reason.slice(0, 500), input.adminUserId ?? null, input.reviewId]
+  );
+
+  await pool.execute<ResultSetHeader>(
+    `UPDATE account_restrictions
+     SET status = 'lifted',
+         lifted_by_user_id = ?,
+         lifted_at = CURRENT_TIMESTAMP,
+         reason = CONCAT(reason, ' | Lifted after upload approval.')
+     WHERE status = 'active'
+       AND created_by_incident_id IN (${incidentIds.map(() => '?').join(',')})`,
+    [input.adminUserId ?? null, ...incidentIds]
+  );
+
+  return incidentIds.length;
+};
+
+const reconcileApprovedUploadReviews = async (adminUserId?: number | null) => {
+  await ensureAccountEnforcementTables(pool);
+  const [incidentRows] = await pool.execute<RowDataPacket[]>(
+    `SELECT ai.id_incident
+     FROM account_incidents ai
+     INNER JOIN upload_moderation_reviews r
+       ON ai.source_type = 'upload_moderation_review'
+      AND ai.source_id = r.id_review
+     WHERE r.decision = 'allow'
+       AND COALESCE(ai.case_status, 'open') NOT IN ('resolved','dismissed')
+     LIMIT 100`
+  );
+  const incidentIds = incidentRows.map((row) => Number(row.id_incident)).filter((id) => Number.isInteger(id) && id > 0);
+  if (incidentIds.length === 0) return 0;
+
+  await pool.execute<ResultSetHeader>(
+    `UPDATE account_incidents ai
+     INNER JOIN upload_moderation_reviews r
+       ON ai.source_type = 'upload_moderation_review'
+      AND ai.source_id = r.id_review
+     SET ai.case_status = 'dismissed',
+         ai.resolution_note = 'Upload was approved by Trust & Safety.',
+         ai.reviewed_by_user_id = COALESCE(r.reviewed_by_user_id, ?),
+         ai.reviewed_at = COALESCE(r.reviewed_at, CURRENT_TIMESTAMP)
+     WHERE r.decision = 'allow'
+       AND COALESCE(ai.case_status, 'open') NOT IN ('resolved','dismissed')`,
+    [adminUserId ?? null]
+  );
+
+  await pool.execute<ResultSetHeader>(
+    `UPDATE account_restrictions
+     SET status = 'lifted',
+         lifted_by_user_id = ?,
+         lifted_at = CURRENT_TIMESTAMP,
+         reason = CONCAT(reason, ' | Lifted after approved upload reconciliation.')
+     WHERE status = 'active'
+       AND created_by_incident_id IN (${incidentIds.map(() => '?').join(',')})`,
+    [adminUserId ?? null, ...incidentIds]
+  );
+
+  return incidentIds.length;
 };
 
 const FILLER_TEXT_PATTERN =
@@ -281,6 +384,1483 @@ const logAdminActivity = async (
 
 // ─── Services CRUD ───────────────────────────────────────────────────────────
 
+const parseAdminPage = (value: unknown) => {
+  const parsed = Number(value || 1);
+  return Number.isFinite(parsed) ? Math.max(1, Math.floor(parsed)) : 1;
+};
+
+export const getAdminAssistantContextController = async (_req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const context = await getAdminAssistantContext();
+    res.json({ context });
+  } catch (error) {
+    console.error('Error in getAdminAssistantContextController:', error);
+    res.status(500).json({ error: 'Could not load assistant context.' });
+  }
+};
+
+export const chatAdminAssistantController = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const message = sanitizeText(req.body?.message, 1000);
+    if (message.length < 2) {
+      res.status(400).json({ error: 'Write a clear assistant message.' });
+      return;
+    }
+
+    const reply = await answerAdminAssistantPrompt(message, {
+      adminId: req.user?.user_id ?? null,
+      channel: 'text',
+    });
+    res.json(reply);
+  } catch (error) {
+    console.error('Error in chatAdminAssistantController:', error);
+    res.status(500).json({ error: error instanceof Error ? error.message : 'Assistant could not answer.' });
+  }
+};
+
+export const createAdminAssistantLiveKitTokenController = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const adminId = Number(req.user?.user_id || 0);
+    if (!adminId) {
+      res.status(401).json({ error: 'Unauthorized' });
+      return;
+    }
+
+    const [rows] = await pool.execute<RowDataPacket[]>(
+      `SELECT name, lastname, email FROM users WHERE id_user = ? LIMIT 1`,
+      [adminId]
+    );
+    const admin = rows[0] || {};
+    const adminName = [admin.name, admin.lastname].filter(Boolean).join(' ') || String(admin.email || 'Fixlife Admin');
+    const voice = await createAdminAssistantLiveKitToken({ adminId, adminName });
+    res.json({ voice });
+  } catch (error) {
+    console.error('Error in createAdminAssistantLiveKitTokenController:', error);
+    res.status(500).json({ error: 'Could not create LiveKit voice token.' });
+  }
+};
+
+const parseAdminLimit = (value: unknown, fallback = 25) => {
+  const parsed = Number(value || fallback);
+  return Number.isFinite(parsed) ? Math.max(1, Math.min(Math.floor(parsed), 100)) : fallback;
+};
+
+const clampMoneyAmount = (value: unknown) => {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || parsed < 0 || parsed > 1000) {
+    throw new Error('Amount must be between 0 and 1000.');
+  }
+  return Number(parsed.toFixed(2));
+};
+
+const parseJsonColumn = (value: unknown) => {
+  if (!value) return {};
+  if (typeof value === 'object') return value;
+  try {
+    return JSON.parse(String(value));
+  } catch {
+    return {};
+  }
+};
+
+const protectedUploadFields = new Set([
+  'problem_images',
+  'report_images',
+  'chat_images',
+  'dui_document',
+  'cert_document',
+  'request_image',
+]);
+
+const buildModerationFileUrl = (req: AuthRequest, fileName: string, field?: string | null) => {
+  if (!fileName) return null;
+  return protectedUploadFields.has(String(field || ''))
+    ? buildProtectedAssetUrl(req, fileName)
+    : buildPublicAssetUrl(req, fileName);
+};
+
+export const getAccountPenaltiesAdmin = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    await ensureAccountPenaltiesTable(pool);
+    const page = parseAdminPage(req.query.page);
+    const limit = parseAdminLimit(req.query.limit);
+    const offset = (page - 1) * limit;
+    const status = String(req.query.status || 'all').toLowerCase();
+    const role = String(req.query.role || 'all').toLowerCase();
+    const search = sanitizeOptionalText(req.query.q, 120);
+    const whereParts: string[] = [];
+    const params: any[] = [];
+
+    if (['pending', 'disputed', 'paid', 'waived'].includes(status)) {
+      whereParts.push('p.status = ?');
+      params.push(status);
+    }
+    if (['client', 'worker'].includes(role)) {
+      whereParts.push('p.actor_role = ?');
+      params.push(role);
+    }
+    if (search) {
+      whereParts.push(`(
+        CAST(p.id_penalty AS CHAR) LIKE ?
+        OR CAST(p.id_request AS CHAR) LIKE ?
+        OR p.reason LIKE ?
+        OR u.name LIKE ?
+        OR u.lastname LIKE ?
+        OR u.email LIKE ?
+      )`);
+      const like = `%${search}%`;
+      params.push(like, like, like, like, like, like);
+    }
+
+    const whereSql = whereParts.length ? `WHERE ${whereParts.join(' AND ')}` : '';
+    const [rows] = await pool.execute<RowDataPacket[]>(
+      `SELECT
+         p.id_penalty, p.id_user, p.id_worker_profile, p.id_request, p.actor_role,
+         p.reason, p.amount, p.currency_code, p.status, p.description,
+         p.evidence_report_id, p.payment_method, p.payment_reference, p.payment_recorded_by_user_id,
+         p.created_by_user_id, p.created_at, p.updated_at, p.resolved_at,
+         u.name AS user_name, u.lastname AS user_lastname, u.email AS user_email, u.rol AS user_role,
+         sr.status AS request_status, s.name AS service_name,
+         creator.name AS creator_name, creator.lastname AS creator_lastname
+       FROM account_penalties p
+       LEFT JOIN users u ON u.id_user = p.id_user
+       LEFT JOIN users creator ON creator.id_user = p.created_by_user_id
+       LEFT JOIN service_requests sr ON sr.id_request = p.id_request
+       LEFT JOIN services s ON s.id_service = sr.id_service
+       ${whereSql}
+       ORDER BY FIELD(p.status, 'pending', 'disputed', 'paid', 'waived'), p.created_at DESC
+       LIMIT ${limit} OFFSET ${offset}`,
+      params
+    );
+    const [countRows] = await pool.execute<RowDataPacket[]>(
+      `SELECT COUNT(*) AS total FROM account_penalties p
+       LEFT JOIN users u ON u.id_user = p.id_user
+       ${whereSql}`,
+      params
+    );
+    const [[summary]] = await pool.execute<RowDataPacket[]>(
+      `SELECT
+         COALESCE(SUM(CASE WHEN status IN ('pending','disputed') THEN amount ELSE 0 END), 0) AS outstanding_amount,
+         COUNT(CASE WHEN status = 'pending' THEN 1 END) AS pending_count,
+         COUNT(CASE WHEN status = 'disputed' THEN 1 END) AS disputed_count,
+         COUNT(CASE WHEN status = 'paid' THEN 1 END) AS paid_count,
+         COUNT(CASE WHEN status = 'waived' THEN 1 END) AS waived_count
+       FROM account_penalties`
+    );
+    const total = Number(countRows[0]?.total || 0);
+
+    res.json({
+      penalties: rows.map((row) => ({
+        ...row,
+        id_penalty: Number(row.id_penalty),
+        id_user: Number(row.id_user),
+        id_worker_profile: row.id_worker_profile != null ? Number(row.id_worker_profile) : null,
+        id_request: row.id_request != null ? Number(row.id_request) : null,
+        amount: Number(row.amount || 0),
+      })),
+      summary: {
+        outstanding_amount: Number(Number(summary?.outstanding_amount || 0).toFixed(2)),
+        pending_count: Number(summary?.pending_count || 0),
+        disputed_count: Number(summary?.disputed_count || 0),
+        paid_count: Number(summary?.paid_count || 0),
+        waived_count: Number(summary?.waived_count || 0),
+      },
+      pagination: { page, limit, total, pages: Math.max(1, Math.ceil(total / limit)) },
+    });
+  } catch (error) {
+    console.error('Error in getAccountPenaltiesAdmin:', error);
+    res.status(500).json({ error: 'Could not load account penalties.' });
+  }
+};
+
+export const createAccountPenaltyAdmin = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    await ensureAccountPenaltiesTable(pool);
+    const idUser = Number(req.body?.id_user);
+    const requestId = req.body?.id_request != null && req.body?.id_request !== '' ? Number(req.body.id_request) : null;
+    const actorRole = String(req.body?.actor_role || '').toLowerCase();
+    const reason = sanitizeText(req.body?.reason || '', 40).toLowerCase();
+    const amount = clampMoneyAmount(req.body?.amount);
+    const description = sanitizeText(req.body?.description || '', 500);
+    const allowedReasons = new Set([
+      'no_show',
+      'unjustified_cancel',
+      'abusive_report',
+      'outside_app_payment',
+      'inappropriate_content',
+      'unpaid_cash',
+      'payment_dispute',
+      'admin_adjustment',
+      'other',
+    ]);
+
+    if (!Number.isInteger(idUser) || idUser <= 0) {
+      res.status(400).json({ error: 'A valid user id is required.' });
+      return;
+    }
+    if (!['client', 'worker'].includes(actorRole)) {
+      res.status(400).json({ error: 'Actor role must be client or worker.' });
+      return;
+    }
+    if (!allowedReasons.has(reason)) {
+      res.status(400).json({ error: 'Invalid penalty reason.' });
+      return;
+    }
+    if (description.length < 8) {
+      res.status(400).json({ error: 'A clear penalty description is required.' });
+      return;
+    }
+    if (requestId !== null && (!Number.isInteger(requestId) || requestId <= 0)) {
+      res.status(400).json({ error: 'Invalid request id.' });
+      return;
+    }
+
+    const [userRows] = await pool.execute<RowDataPacket[]>(
+      `SELECT id_user, name, lastname, email, rol FROM users WHERE id_user = ? LIMIT 1`,
+      [idUser]
+    );
+    const targetUser = userRows[0];
+    if (!targetUser) {
+      res.status(404).json({ error: 'User not found.' });
+      return;
+    }
+
+    let workerProfileId: number | null = null;
+    if (actorRole === 'worker') {
+      const explicitWorkerId = req.body?.id_worker_profile != null && req.body?.id_worker_profile !== ''
+        ? Number(req.body.id_worker_profile)
+        : null;
+      if (explicitWorkerId !== null && (!Number.isInteger(explicitWorkerId) || explicitWorkerId <= 0)) {
+        res.status(400).json({ error: 'Invalid worker profile id.' });
+        return;
+      }
+      if (explicitWorkerId) {
+        const [workerRows] = await pool.execute<RowDataPacket[]>(
+          `SELECT id_worker_profile FROM worker_profiles WHERE id_worker_profile = ? AND id_user = ? LIMIT 1`,
+          [explicitWorkerId, idUser]
+        );
+        if (!workerRows[0]) {
+          res.status(400).json({ error: 'Worker profile does not belong to this user.' });
+          return;
+        }
+        workerProfileId = explicitWorkerId;
+      } else {
+        const [workerRows] = await pool.execute<RowDataPacket[]>(
+          `SELECT id_worker_profile FROM worker_profiles WHERE id_user = ? ORDER BY id_worker_profile DESC LIMIT 1`,
+          [idUser]
+        );
+        workerProfileId = workerRows[0]?.id_worker_profile != null ? Number(workerRows[0].id_worker_profile) : null;
+      }
+    }
+
+    if (requestId !== null) {
+      const [requestRows] = await pool.execute<RowDataPacket[]>(
+        `SELECT id_request FROM service_requests WHERE id_request = ? LIMIT 1`,
+        [requestId]
+      );
+      if (!requestRows[0]) {
+        res.status(404).json({ error: 'Request not found.' });
+        return;
+      }
+    }
+
+    const idPenalty = await createAccountPenalty({
+      userId: idUser,
+      actorRole: actorRole as 'client' | 'worker',
+      reason: reason as any,
+      amount,
+      workerProfileId,
+      requestId,
+      description,
+      createdByUserId: req.user?.user_id || null,
+    });
+
+    await createUserNotification({
+      userId: idUser,
+      eventType: 'account_penalty_created_admin',
+      title: 'Account balance updated',
+      message: `An administrator added a ${formatMoneyUsd(amount)} Fixlife penalty to your account.`,
+      tone: amount > 0 ? 'warning' : 'info',
+      requestId: requestId || undefined,
+      dedupeKey: `admin_created_penalty_${idPenalty}`,
+    });
+    await logAdminActivity(req, 'create_account_penalty', 'account_penalty', `Created penalty #${idPenalty}: ${description}`, idPenalty, {
+      id_user: idUser,
+      actor_role: actorRole,
+      reason,
+      amount,
+      id_request: requestId,
+    });
+
+    res.status(201).json({ success: true, id_penalty: idPenalty });
+  } catch (error: any) {
+    console.error('Error in createAccountPenaltyAdmin:', error);
+    res.status(400).json({ error: error?.message || 'Could not create penalty.' });
+  }
+};
+
+export const updateAccountPenaltyAdmin = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    await ensureAccountPenaltiesTable(pool);
+    const idPenalty = Number(req.params.idPenalty);
+    if (!Number.isInteger(idPenalty) || idPenalty <= 0) {
+      res.status(400).json({ error: 'Invalid penalty id.' });
+      return;
+    }
+
+    const action = String(req.body?.action || '').toLowerCase();
+    const reason = sanitizeText(req.body?.reason, 500);
+    if (reason.length < 8) {
+      res.status(400).json({ error: 'A clear admin reason is required.' });
+      return;
+    }
+
+    const [existingRows] = await pool.execute<RowDataPacket[]>(
+      `SELECT id_penalty, id_user, id_request, status, amount FROM account_penalties WHERE id_penalty = ? LIMIT 1`,
+      [idPenalty]
+    );
+    const existing = existingRows[0];
+    if (!existing) {
+      res.status(404).json({ error: 'Penalty not found.' });
+      return;
+    }
+
+    let nextStatus: PenaltyStatus | null = null;
+    let nextAmount: number | null = null;
+    if (action === 'mark_paid') nextStatus = 'paid';
+    else if (action === 'waive') nextStatus = 'waived';
+    else if (action === 'dispute') nextStatus = 'disputed';
+    else if (action === 'clear_restrictions') {
+      const lifted = await liftAccountRestrictions({
+        userId: Number(existing.id_user),
+        liftedByUserId: req.user?.user_id || null,
+        reason,
+      });
+      await logAdminActivity(req, 'clear_account_restrictions', 'account_penalty', `Lifted ${lifted} active restriction(s): ${reason}`, idPenalty, {
+        lifted,
+        user_id: Number(existing.id_user),
+      });
+      res.json({ success: true, lifted });
+      return;
+    }
+    else if (action === 'resolve') {
+      const requestedStatus = String(req.body?.status || 'waived').toLowerCase();
+      if (!['paid', 'waived', 'pending'].includes(requestedStatus)) {
+        res.status(400).json({ error: 'Resolve status must be paid, waived or pending.' });
+        return;
+      }
+      nextStatus = requestedStatus as PenaltyStatus;
+    } else if (action === 'edit') {
+      nextAmount = clampMoneyAmount(req.body?.amount);
+    } else {
+      res.status(400).json({ error: 'Unsupported penalty action.' });
+      return;
+    }
+
+    if (nextStatus) {
+      const isPaidResolution = nextStatus === 'paid';
+      const paymentMethod = isPaidResolution ? sanitizeOptionalText(req.body?.payment_method, 40) : null;
+      const safePaymentMethod =
+        paymentMethod && ['cash', 'transfer', 'card', 'support_adjustment', 'other'].includes(paymentMethod)
+          ? paymentMethod
+          : 'support_adjustment';
+      const paymentReference = isPaidResolution ? sanitizeOptionalText(req.body?.payment_reference, 180) : null;
+
+      await pool.execute<ResultSetHeader>(
+        `UPDATE account_penalties
+         SET status = ?, description = ?,
+             payment_method = CASE WHEN ? = 1 THEN ? ELSE payment_method END,
+             payment_reference = CASE WHEN ? = 1 THEN ? ELSE payment_reference END,
+             payment_recorded_by_user_id = CASE WHEN ? = 1 THEN ? ELSE payment_recorded_by_user_id END,
+             resolved_at = CASE WHEN ? IN ('paid','waived') THEN CURRENT_TIMESTAMP ELSE NULL END
+         WHERE id_penalty = ?`,
+        [
+          nextStatus,
+          reason,
+          isPaidResolution ? 1 : 0,
+          safePaymentMethod,
+          isPaidResolution ? 1 : 0,
+          paymentReference,
+          isPaidResolution ? 1 : 0,
+          req.user?.user_id || null,
+          nextStatus,
+          idPenalty,
+        ]
+      );
+    } else if (nextAmount !== null) {
+      await pool.execute<ResultSetHeader>(
+        `UPDATE account_penalties SET amount = ?, description = ? WHERE id_penalty = ?`,
+        [nextAmount, reason, idPenalty]
+      );
+    }
+
+    await createUserNotification({
+      userId: Number(existing.id_user),
+      eventType: 'account_penalty_updated',
+      title: 'Account balance updated',
+      message: `An administrator updated penalty #${idPenalty}.`,
+      tone: nextStatus === 'paid' || nextStatus === 'waived' ? 'success' : 'warning',
+      requestId: existing.id_request != null ? Number(existing.id_request) : undefined,
+      dedupeKey: `admin_penalty_${action}_${idPenalty}_${Date.now()}`,
+    });
+    await logAdminActivity(req, `penalty_${action}`, 'account_penalty', `Penalty #${idPenalty}: ${reason}`, idPenalty, {
+      previous_status: existing.status,
+      next_status: nextStatus,
+      previous_amount: Number(existing.amount || 0),
+      next_amount: nextAmount,
+    });
+
+    res.json({ success: true });
+  } catch (error: any) {
+    console.error('Error in updateAccountPenaltyAdmin:', error);
+    res.status(400).json({ error: error?.message || 'Could not update penalty.' });
+  }
+};
+
+const DISPUTE_INCIDENT_TYPES = [
+  'late_client_cancel',
+  'client_cancel_after_worker_progress',
+  'worker_cancel_after_accept',
+  'worker_cancel_after_route_started',
+  'worker_no_show',
+  'client_no_show',
+  'report_no_show',
+  'report_matching_issue',
+  'report_client_not_available',
+  'report_payment_issue',
+];
+
+const disputeStatusFilterSql = (status: string) => {
+  if (status === 'open') return `COALESCE(ai.case_status, 'open') IN ('open','reviewing')`;
+  if (['reviewing', 'resolved', 'dismissed'].includes(status)) return `COALESCE(ai.case_status, 'open') = '${status}'`;
+  if (status === 'penalty') return `ai.id_penalty IS NOT NULL`;
+  if (status === 'restricted') return `EXISTS (SELECT 1 FROM account_restrictions ar WHERE ar.id_user = ai.id_user AND ar.status = 'active')`;
+  return '';
+};
+
+export const getDisputeCasesAdmin = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    await ensureAccountPenaltiesTable(pool);
+    await ensureAccountEnforcementTables(pool);
+    await ensureCaseEvidenceSnapshotsTable(pool);
+    await ensureServiceRequestTables();
+
+    const page = parseAdminPage(req.query.page);
+    const limit = parseAdminLimit(req.query.limit);
+    const offset = (page - 1) * limit;
+    const status = String(req.query.status || 'open').toLowerCase();
+    const role = String(req.query.role || 'all').toLowerCase();
+    const search = sanitizeOptionalText(req.query.q, 120);
+
+    const whereParts = [`ai.incident_type IN (${DISPUTE_INCIDENT_TYPES.map(() => '?').join(', ')})`];
+    const params: any[] = [...DISPUTE_INCIDENT_TYPES];
+    const statusSql = disputeStatusFilterSql(status);
+    if (statusSql) whereParts.push(statusSql);
+    if (['client', 'worker'].includes(role)) {
+      whereParts.push('ai.actor_role = ?');
+      params.push(role);
+    }
+    if (search) {
+      const like = `%${search}%`;
+      whereParts.push(`(
+        CAST(ai.id_incident AS CHAR) LIKE ?
+        OR CAST(ai.id_request AS CHAR) LIKE ?
+        OR ai.incident_type LIKE ?
+        OR ai.description LIKE ?
+        OR u.email LIKE ?
+        OR CONCAT_WS(' ', u.name, u.lastname) LIKE ?
+        OR s.name LIKE ?
+      )`);
+      params.push(like, like, like, like, like, like, like);
+    }
+
+    const whereSql = `WHERE ${whereParts.join(' AND ')}`;
+    const [rows] = await pool.execute<RowDataPacket[]>(
+      `SELECT
+         ai.id_incident, ai.id_user, ai.actor_role, ai.incident_type, ai.severity,
+         ai.source_type, ai.source_id, ai.id_request, ai.description, ai.action_taken,
+         ai.id_penalty, ai.case_status, ai.resolution_note, ai.reviewed_by_user_id, ai.reviewed_at, ai.created_at,
+         ces.id_snapshot AS evidence_snapshot_id, ces.created_at AS evidence_captured_at,
+         u.name AS user_name, u.lastname AS user_lastname, u.email AS user_email, u.rol AS user_role,
+         reviewer.name AS reviewer_name, reviewer.lastname AS reviewer_lastname, reviewer.email AS reviewer_email,
+         p.amount AS penalty_amount, p.currency_code AS penalty_currency_code, p.status AS penalty_status,
+         sr.status AS request_status, sr.location_text, sr.created_at AS request_created_at,
+         sr.assigned_worker_profile, s.name AS service_name,
+         client.id_user AS client_user_id, client.name AS client_name, client.lastname AS client_lastname, client.email AS client_email,
+         worker_user.id_user AS worker_user_id, worker_user.name AS worker_name, worker_user.lastname AS worker_lastname, worker_user.email AS worker_email,
+         (SELECT COUNT(*) FROM account_incidents ai2 WHERE ai2.id_user = ai.id_user) AS user_incident_count,
+         (SELECT COUNT(*) FROM account_restrictions ar WHERE ar.id_user = ai.id_user AND ar.status = 'active') AS active_restrictions,
+         (SELECT COUNT(*) FROM account_incident_notes ain WHERE ain.id_incident = ai.id_incident) AS note_count
+       FROM account_incidents ai
+       INNER JOIN users u ON u.id_user = ai.id_user
+       LEFT JOIN users reviewer ON reviewer.id_user = ai.reviewed_by_user_id
+       LEFT JOIN account_penalties p ON p.id_penalty = ai.id_penalty
+       LEFT JOIN case_evidence_snapshots ces ON ces.id_incident = ai.id_incident
+       LEFT JOIN service_requests sr ON sr.id_request = ai.id_request
+       LEFT JOIN services s ON s.id_service = sr.id_service
+       LEFT JOIN users client ON client.id_user = sr.id_user
+       LEFT JOIN worker_profiles wp ON wp.id_worker_profile = COALESCE(ai.id_worker_profile, sr.assigned_worker_profile)
+       LEFT JOIN users worker_user ON worker_user.id_user = wp.id_user
+       ${whereSql}
+       ORDER BY
+         CASE ai.severity WHEN 'high' THEN 1 WHEN 'medium' THEN 2 ELSE 3 END,
+         CASE COALESCE(ai.case_status, 'open') WHEN 'open' THEN 1 WHEN 'reviewing' THEN 2 WHEN 'resolved' THEN 3 ELSE 4 END,
+         ai.created_at DESC
+       LIMIT ${limit} OFFSET ${offset}`,
+      params
+    );
+
+    const [countRows] = await pool.execute<RowDataPacket[]>(
+      `SELECT COUNT(*) AS total
+       FROM account_incidents ai
+       INNER JOIN users u ON u.id_user = ai.id_user
+       LEFT JOIN service_requests sr ON sr.id_request = ai.id_request
+       LEFT JOIN services s ON s.id_service = sr.id_service
+       ${whereSql}`,
+      params
+    );
+
+    const [[summary]] = await pool.execute<RowDataPacket[]>(
+      `SELECT
+         COUNT(*) AS total_cases,
+         COUNT(CASE WHEN ai.severity = 'high' THEN 1 END) AS high_count,
+         COUNT(CASE WHEN ai.id_penalty IS NOT NULL THEN 1 END) AS penalty_count,
+         COUNT(CASE WHEN ar.id_restriction IS NOT NULL THEN 1 END) AS restricted_count,
+         COUNT(CASE WHEN COALESCE(ai.case_status, 'open') = 'reviewing' THEN 1 END) AS reviewing_count,
+         COUNT(CASE WHEN COALESCE(ai.case_status, 'open') = 'resolved' THEN 1 END) AS resolved_count
+       FROM account_incidents ai
+       LEFT JOIN account_restrictions ar
+         ON ar.id_user = ai.id_user AND ar.status = 'active'
+       WHERE ai.incident_type IN (${DISPUTE_INCIDENT_TYPES.map(() => '?').join(', ')})`,
+      DISPUTE_INCIDENT_TYPES
+    );
+
+    const total = Number(countRows[0]?.total || 0);
+    res.json({
+      cases: rows.map((row) => ({
+        id_incident: Number(row.id_incident),
+        id_user: Number(row.id_user),
+        actor_role: String(row.actor_role),
+        incident_type: String(row.incident_type),
+        severity: String(row.severity),
+        source_type: row.source_type || null,
+        source_id: row.source_id != null ? Number(row.source_id) : null,
+        id_request: row.id_request != null ? Number(row.id_request) : null,
+        description: row.description || null,
+        action_taken: String(row.action_taken),
+        id_penalty: row.id_penalty != null ? Number(row.id_penalty) : null,
+        case_status: row.case_status || 'open',
+        resolution_note: row.resolution_note || null,
+        reviewed_by_user_id: row.reviewed_by_user_id != null ? Number(row.reviewed_by_user_id) : null,
+        reviewed_at: row.reviewed_at || null,
+        reviewer_name: row.reviewer_name || null,
+        reviewer_lastname: row.reviewer_lastname || null,
+        reviewer_email: row.reviewer_email || null,
+        created_at: row.created_at,
+        evidence_snapshot_id: row.evidence_snapshot_id != null ? Number(row.evidence_snapshot_id) : null,
+        evidence_captured_at: row.evidence_captured_at || null,
+        user_name: row.user_name || null,
+        user_lastname: row.user_lastname || null,
+        user_email: row.user_email || null,
+        user_role: row.user_role || null,
+        penalty_amount: row.penalty_amount != null ? Number(row.penalty_amount) : null,
+        penalty_currency_code: row.penalty_currency_code || 'USD',
+        penalty_status: row.penalty_status || null,
+        request_status: row.request_status || null,
+        service_name: row.service_name || null,
+        location_text: row.location_text || null,
+        request_created_at: row.request_created_at || null,
+        client: row.client_user_id ? {
+          id_user: Number(row.client_user_id),
+          name: `${row.client_name || ''} ${row.client_lastname || ''}`.trim() || 'Client',
+          email: row.client_email || null,
+        } : null,
+        worker: row.worker_user_id ? {
+          id_user: Number(row.worker_user_id),
+          id_worker_profile: row.assigned_worker_profile != null ? Number(row.assigned_worker_profile) : null,
+          name: `${row.worker_name || ''} ${row.worker_lastname || ''}`.trim() || 'Worker',
+          email: row.worker_email || null,
+        } : null,
+        user_incident_count: Number(row.user_incident_count || 0),
+        active_restrictions: Number(row.active_restrictions || 0),
+        note_count: Number(row.note_count || 0),
+      })),
+      summary: {
+        total_cases: Number(summary?.total_cases || 0),
+        high_count: Number(summary?.high_count || 0),
+        penalty_count: Number(summary?.penalty_count || 0),
+        restricted_count: Number(summary?.restricted_count || 0),
+        reviewing_count: Number(summary?.reviewing_count || 0),
+        resolved_count: Number(summary?.resolved_count || 0),
+      },
+      pagination: { page, limit, total, pages: Math.max(1, Math.ceil(total / limit)) },
+    });
+  } catch (error: any) {
+    console.error('Error in getDisputeCasesAdmin:', error);
+    res.status(500).json({ error: 'Could not load dispute cases.' });
+  }
+};
+
+export const getDisputeCaseEvidenceAdmin = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    await ensureAccountEnforcementTables(pool);
+    await ensureCaseEvidenceSnapshotsTable(pool);
+
+    const idIncident = Number(req.params.idIncident);
+    if (!Number.isInteger(idIncident) || idIncident <= 0) {
+      res.status(400).json({ error: 'Invalid dispute case id.' });
+      return;
+    }
+
+    const [incidentRows] = await pool.execute<RowDataPacket[]>(
+      `SELECT id_incident, incident_type
+       FROM account_incidents
+       WHERE id_incident = ?
+       LIMIT 1`,
+      [idIncident]
+    );
+    const incident = incidentRows[0];
+    if (!incident || !DISPUTE_INCIDENT_TYPES.includes(String(incident.incident_type))) {
+      res.status(404).json({ error: 'Dispute evidence not found.' });
+      return;
+    }
+
+    const evidence = await getCaseEvidenceSnapshotByIncident(idIncident, req);
+    if (!evidence) {
+      res.status(404).json({ error: 'This case does not have a captured evidence snapshot yet.' });
+      return;
+    }
+    const [noteRows] = await pool.execute<RowDataPacket[]>(
+      `SELECT n.id_note, n.note_type, n.note, n.created_at,
+              admin.name AS admin_name, admin.lastname AS admin_lastname, admin.email AS admin_email
+       FROM account_incident_notes n
+       LEFT JOIN users admin ON admin.id_user = n.id_admin_user
+       WHERE n.id_incident = ?
+       ORDER BY n.created_at DESC, n.id_note DESC`,
+      [idIncident]
+    );
+
+    res.json({
+      success: true,
+      evidence: {
+        ...evidence,
+        notes: noteRows.map((row) => ({
+          id_note: Number(row.id_note),
+          note_type: row.note_type || 'internal_note',
+          note: row.note || '',
+          created_at: row.created_at,
+          admin_name: row.admin_name || null,
+          admin_lastname: row.admin_lastname || null,
+          admin_email: row.admin_email || null,
+        })),
+      },
+    });
+  } catch (error) {
+    console.error('Error in getDisputeCaseEvidenceAdmin:', error);
+    res.status(500).json({ error: 'Could not load dispute evidence.' });
+  }
+};
+
+export const updateDisputeCaseAdmin = async (req: AuthRequest, res: Response): Promise<void> => {
+  const connection = await pool.getConnection();
+  try {
+    await ensureAccountPenaltiesTable(connection);
+    await ensureAccountEnforcementTables(connection);
+    await ensureServiceRequestTables();
+
+    const idIncident = Number(req.params.idIncident);
+    if (!Number.isInteger(idIncident) || idIncident <= 0) {
+      res.status(400).json({ error: 'Invalid dispute case id.' });
+      return;
+    }
+    const action = sanitizeText(req.body?.action, 40).toLowerCase();
+    const reason = sanitizeText(req.body?.reason, 500);
+    if (reason.length < 8) {
+      res.status(400).json({ error: 'A clear admin reason is required.' });
+      return;
+    }
+    const allowed = new Set([
+      'set_reviewing',
+      'add_note',
+      'create_penalty',
+      'keep_penalty',
+      'waive_penalty',
+      'mark_paid',
+      'clear_restrictions',
+      'reassign_request',
+      'cancel_request',
+      'resolve_request',
+      'close_case',
+      'dismiss_case',
+    ]);
+    if (!allowed.has(action)) {
+      res.status(400).json({ error: 'Unsupported dispute action.' });
+      return;
+    }
+
+    await connection.beginTransaction();
+    const [incidentRows] = await connection.execute<RowDataPacket[]>(
+      `SELECT ai.*, p.status AS penalty_status, p.amount AS penalty_amount,
+              sr.status AS request_status, sr.id_user AS client_user_id, sr.assigned_worker_profile,
+              wp.id_user AS worker_user_id
+       FROM account_incidents ai
+       LEFT JOIN account_penalties p ON p.id_penalty = ai.id_penalty
+       LEFT JOIN service_requests sr ON sr.id_request = ai.id_request
+       LEFT JOIN worker_profiles wp ON wp.id_worker_profile = sr.assigned_worker_profile
+       WHERE ai.id_incident = ?
+       LIMIT 1
+       FOR UPDATE`,
+      [idIncident]
+    );
+    const incident = incidentRows[0];
+    if (!incident) {
+      await connection.rollback();
+      res.status(404).json({ error: 'Dispute case not found.' });
+      return;
+    }
+    if (!DISPUTE_INCIDENT_TYPES.includes(String(incident.incident_type))) {
+      await connection.rollback();
+      res.status(409).json({ error: 'This incident is not a cancellation/no-show dispute.' });
+      return;
+    }
+
+    let penaltyId = incident.id_penalty != null ? Number(incident.id_penalty) : null;
+    const requestId = incident.id_request != null ? Number(incident.id_request) : null;
+    if (['keep_penalty', 'waive_penalty', 'mark_paid'].includes(action) && !penaltyId) {
+      await connection.rollback();
+      res.status(409).json({ error: 'This case does not have a linked penalty.' });
+      return;
+    }
+    if (['reassign_request', 'cancel_request', 'resolve_request'].includes(action) && !requestId) {
+      await connection.rollback();
+      res.status(409).json({ error: 'This case does not have a linked request.' });
+      return;
+    }
+
+    const closeActions = new Set(['keep_penalty', 'waive_penalty', 'mark_paid', 'cancel_request', 'resolve_request', 'close_case']);
+    const reviewActions = new Set(['set_reviewing', 'add_note', 'create_penalty', 'reassign_request', 'clear_restrictions']);
+    let nextCaseStatus: 'open' | 'reviewing' | 'resolved' | 'dismissed' | null = closeActions.has(action)
+      ? 'resolved'
+      : action === 'dismiss_case'
+        ? 'dismissed'
+        : reviewActions.has(action)
+          ? 'reviewing'
+          : null;
+
+    if (action === 'set_reviewing' || action === 'add_note' || action === 'close_case' || action === 'dismiss_case') {
+      // Case-only actions are persisted below with the audit note.
+    } else if (action === 'create_penalty') {
+      if (penaltyId) {
+        await connection.rollback();
+        res.status(409).json({ error: 'This case already has a linked penalty.' });
+        return;
+      }
+      const amount = clampMoneyAmount(req.body?.amount ?? 10);
+      const penaltyReasonRaw = sanitizeText(req.body?.penalty_reason || 'admin_adjustment', 40).toLowerCase();
+      const allowedReasons = new Set(['no_show', 'unjustified_cancel', 'abusive_report', 'outside_app_payment', 'inappropriate_content', 'unpaid_cash', 'payment_dispute', 'admin_adjustment', 'other']);
+      const penaltyReason = allowedReasons.has(penaltyReasonRaw) ? penaltyReasonRaw : 'admin_adjustment';
+      penaltyId = await createAccountPenalty({
+        userId: Number(incident.id_user),
+        actorRole: String(incident.actor_role) === 'worker' ? 'worker' : 'client',
+        reason: penaltyReason as any,
+        amount,
+        workerProfileId: incident.id_worker_profile != null ? Number(incident.id_worker_profile) : incident.assigned_worker_profile != null ? Number(incident.assigned_worker_profile) : null,
+        requestId,
+        description: reason,
+        createdByUserId: req.user?.user_id || null,
+      }, connection);
+      await connection.execute(
+        `UPDATE account_incidents
+         SET id_penalty = ?, action_taken = 'penalty'
+         WHERE id_incident = ?`,
+        [penaltyId, idIncident]
+      );
+    } else if (action === 'waive_penalty') {
+      await connection.execute(
+        `UPDATE account_penalties SET status = 'waived', description = ?, resolved_at = CURRENT_TIMESTAMP WHERE id_penalty = ?`,
+        [reason, penaltyId]
+      );
+    } else if (action === 'mark_paid') {
+      await connection.execute(
+        `UPDATE account_penalties
+         SET status = 'paid', description = ?, payment_method = 'support_adjustment',
+             payment_reference = ?, payment_recorded_by_user_id = ?, resolved_at = CURRENT_TIMESTAMP
+         WHERE id_penalty = ?`,
+        [reason, `Dispute case #${idIncident}`, req.user?.user_id || null, penaltyId]
+      );
+    } else if (action === 'keep_penalty') {
+      await connection.execute(
+        `UPDATE account_penalties SET status = 'pending', description = ? WHERE id_penalty = ?`,
+        [reason, penaltyId]
+      );
+    } else if (action === 'clear_restrictions') {
+      await liftAccountRestrictions({
+        userId: Number(incident.id_user),
+        liftedByUserId: req.user?.user_id || null,
+        reason,
+      }, connection);
+    } else if (action === 'reassign_request') {
+      if (['done', 'cancelled'].includes(String(incident.request_status || '').toLowerCase())) {
+        throw new Error('Closed requests cannot be reassigned.');
+      }
+      await connection.execute(
+        `UPDATE service_requests
+         SET status = 'pending', assigned_worker_profile = NULL, assigned_at = NULL,
+             route_started_at = NULL, worker_arrived_at = NULL, updated_at = CURRENT_TIMESTAMP
+         WHERE id_request = ?`,
+        [requestId]
+      );
+    } else if (action === 'cancel_request') {
+      await connection.execute(
+        `UPDATE service_requests SET status = 'cancelled', updated_at = CURRENT_TIMESTAMP WHERE id_request = ? AND status <> 'done'`,
+        [requestId]
+      );
+    } else if (action === 'resolve_request') {
+      await connection.execute(
+        `UPDATE service_requests SET status = 'done', completed_at = COALESCE(completed_at, CURRENT_TIMESTAMP), updated_at = CURRENT_TIMESTAMP WHERE id_request = ? AND status <> 'cancelled'`,
+        [requestId]
+      );
+    }
+
+    if (nextCaseStatus) {
+      await connection.execute(
+        `UPDATE account_incidents
+         SET case_status = ?, resolution_note = ?, reviewed_by_user_id = ?, reviewed_at = CURRENT_TIMESTAMP
+         WHERE id_incident = ?`,
+        [nextCaseStatus, reason, req.user?.user_id || null, idIncident]
+      );
+    }
+    await connection.execute(
+      `INSERT INTO account_incident_notes (id_incident, id_admin_user, note_type, note)
+       VALUES (?, ?, ?, ?)`,
+      [
+        idIncident,
+        req.user?.user_id || null,
+        ['close_case', 'dismiss_case', 'keep_penalty', 'waive_penalty', 'mark_paid', 'cancel_request', 'resolve_request'].includes(action)
+          ? 'resolution_note'
+          : action === 'add_note'
+            ? 'evidence_note'
+            : 'internal_note',
+        reason,
+      ]
+    );
+
+    await connection.commit();
+
+    await logAdminActivity(req, `dispute_${action}`, 'account_incident', `Dispute case #${idIncident}: ${reason}`, idIncident, {
+      id_incident: idIncident,
+      id_penalty: penaltyId,
+      id_request: requestId,
+      action,
+      case_status: nextCaseStatus,
+    });
+
+    const notificationTargets = new Set<number>();
+    if (incident.id_user) notificationTargets.add(Number(incident.id_user));
+    if (incident.client_user_id) notificationTargets.add(Number(incident.client_user_id));
+    if (incident.worker_user_id) notificationTargets.add(Number(incident.worker_user_id));
+    await Promise.allSettled([...notificationTargets].map((userId) =>
+      createUserNotification({
+        userId,
+        eventType: 'dispute_case_updated',
+        title: 'Trust & Safety case updated',
+        message: nextCaseStatus === 'resolved'
+          ? `Trust & Safety resolved case #${idIncident}.`
+          : nextCaseStatus === 'dismissed'
+            ? `Trust & Safety dismissed case #${idIncident}.`
+            : `An administrator updated case #${idIncident}.`,
+        tone: ['waive_penalty', 'mark_paid', 'clear_restrictions', 'resolve_request', 'close_case', 'dismiss_case'].includes(action) ? 'success' : 'warning',
+        requestId: requestId ?? undefined,
+        actionUrl: userId === Number(incident.worker_user_id || 0) ? '/pro-dashboard' : '/app',
+        dedupeKey: `dispute_case_${idIncident}_${action}_${userId}_${Date.now()}`,
+      })
+    ));
+    for (const userId of notificationTargets) {
+      emitToUser(userId, 'request_updated', { id_request: requestId, dispute_case_id: idIncident });
+    }
+
+    res.json({ success: true, id_incident: idIncident, action, id_penalty: penaltyId, case_status: nextCaseStatus });
+  } catch (error: any) {
+    await connection.rollback().catch(() => undefined);
+    console.error('Error in updateDisputeCaseAdmin:', error);
+    res.status(error?.message?.includes('cannot') ? 409 : 400).json({ error: error?.message || 'Could not update dispute case.' });
+  } finally {
+    connection.release();
+  }
+};
+
+export const getPolicySettingsAdmin = async (_req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const settings = await getPolicySettings();
+    res.json({ success: true, settings });
+  } catch (error: any) {
+    console.error('Error in getPolicySettingsAdmin:', error);
+    res.status(500).json({ error: 'Could not load policy settings.' });
+  }
+};
+
+export const updatePolicySettingsAdmin = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const input = {
+      client_no_show_grace_minutes: Number(req.body?.client_no_show_grace_minutes),
+      worker_client_no_show_grace_minutes: Number(req.body?.worker_client_no_show_grace_minutes),
+      late_cancel_window_minutes: Number(req.body?.late_cancel_window_minutes),
+      warning_incident_count: Number(req.body?.warning_incident_count),
+      penalty_incident_count: Number(req.body?.penalty_incident_count),
+      temporary_block_incident_count: Number(req.body?.temporary_block_incident_count),
+      admin_review_incident_count: Number(req.body?.admin_review_incident_count),
+      repeated_incident_penalty_amount: Number(req.body?.repeated_incident_penalty_amount),
+      temporary_block_hours: Number(req.body?.temporary_block_hours),
+      updatedByUserId: req.user?.user_id || null,
+    };
+    if (
+      input.penalty_incident_count <= input.warning_incident_count ||
+      input.temporary_block_incident_count <= input.penalty_incident_count ||
+      input.admin_review_incident_count <= input.temporary_block_incident_count
+    ) {
+      res.status(400).json({ error: 'Incident thresholds must increase in order: warning, penalty, block, admin review.' });
+      return;
+    }
+
+    const before = await getPolicySettings();
+    const settings = await updatePolicySettings(input);
+    await logAdminActivity(req, 'update_policy_settings', 'policy_settings', 'Updated Trust & Safety policy settings.', 1, {
+      before,
+      after: settings,
+    });
+    res.json({ success: true, settings });
+  } catch (error: any) {
+    console.error('Error in updatePolicySettingsAdmin:', error);
+    res.status(400).json({ error: error?.message || 'Could not update policy settings.' });
+  }
+};
+
+export const getAccountPenaltyDetailAdmin = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    await ensureAccountPenaltiesTable(pool);
+    await ensureAccountPenaltyAppealsTable(pool);
+    await ensureServiceRequestTables();
+    await ensureAdminActivityTable();
+    const idPenalty = Number(req.params.idPenalty);
+    if (!Number.isInteger(idPenalty) || idPenalty <= 0) {
+      res.status(400).json({ error: 'Invalid penalty id.' });
+      return;
+    }
+
+    const [penaltyRows] = await pool.execute<RowDataPacket[]>(
+      `SELECT
+         p.*,
+         u.name AS user_name, u.lastname AS user_lastname, u.email AS user_email, u.rol AS user_role,
+         creator.name AS creator_name, creator.lastname AS creator_lastname, creator.email AS creator_email,
+         resolver.name AS resolver_name, resolver.lastname AS resolver_lastname, resolver.email AS resolver_email,
+         s.name AS service_name, sr.status AS request_status, sr.location_text, sr.description AS request_description,
+         sr.created_at AS request_created_at, sr.updated_at AS request_updated_at
+       FROM account_penalties p
+       LEFT JOIN users u ON u.id_user = p.id_user
+       LEFT JOIN users creator ON creator.id_user = p.created_by_user_id
+       LEFT JOIN users resolver ON resolver.id_user = p.created_by_user_id
+       LEFT JOIN service_requests sr ON sr.id_request = p.id_request
+       LEFT JOIN services s ON s.id_service = sr.id_service
+       WHERE p.id_penalty = ? LIMIT 1`,
+      [idPenalty]
+    );
+    const penalty = penaltyRows[0];
+    if (!penalty) {
+      res.status(404).json({ error: 'Penalty not found.' });
+      return;
+    }
+
+    const requestId = penalty.id_request != null ? Number(penalty.id_request) : null;
+    const enforcement = await getAccountEnforcementProfile(Number(penalty.id_user));
+    const [images, messages, reports, activity, moderation, appeals] = await Promise.all([
+      requestId
+        ? pool.execute<RowDataPacket[]>(`SELECT id_image, image_url, created_at FROM service_request_images WHERE id_request = ? ORDER BY id_image`, [requestId])
+        : Promise.resolve([[]] as any),
+      requestId
+        ? pool.execute<RowDataPacket[]>(
+            `SELECT id_message, sender_role, message, image_url, created_at
+             FROM service_request_chat_messages WHERE id_request = ? ORDER BY created_at ASC LIMIT 100`,
+            [requestId]
+          )
+        : Promise.resolve([[]] as any),
+      requestId
+        ? pool.execute<RowDataPacket[]>(
+            `SELECT r.*, reporter.name AS reporter_name, reporter.lastname AS reporter_lastname,
+                    reported.name AS reported_name, reported.lastname AS reported_lastname
+             FROM service_request_reports r
+             LEFT JOIN users reporter ON reporter.id_user = r.reporter_user_id
+             LEFT JOIN users reported ON reported.id_user = r.reported_user_id
+             WHERE r.id_request = ? ORDER BY r.created_at DESC`,
+            [requestId]
+          )
+        : Promise.resolve([[]] as any),
+      pool.execute<RowDataPacket[]>(
+        `SELECT a.id_activity, a.action_type, a.summary, a.metadata, a.created_at,
+                u.name AS admin_name, u.lastname AS admin_lastname, u.email AS admin_email
+         FROM admin_activity_log a
+         LEFT JOIN users u ON u.id_user = a.id_admin
+         WHERE a.entity_type = 'account_penalty' AND a.entity_id = ?
+         ORDER BY a.created_at DESC LIMIT 30`,
+        [idPenalty]
+      ),
+      requestId
+        ? pool.execute<RowDataPacket[]>(
+            `SELECT id_review, upload_field, file_name, original_file_name, provider, model, decision,
+                    risk_type, flagged, reason, created_at, reviewed_at
+             FROM upload_moderation_reviews
+             WHERE id_request = ? OR id_user = ?
+             ORDER BY created_at DESC LIMIT 30`,
+            [requestId, penalty.id_user]
+          )
+        : pool.execute<RowDataPacket[]>(
+            `SELECT id_review, upload_field, file_name, original_file_name, provider, model, decision,
+                    risk_type, flagged, reason, created_at, reviewed_at
+             FROM upload_moderation_reviews
+             WHERE id_user = ?
+             ORDER BY created_at DESC LIMIT 30`,
+            [penalty.id_user]
+          ),
+      getPenaltyAppealsForPenalty(idPenalty),
+    ]);
+
+    res.json({
+      success: true,
+      detail: {
+        penalty: {
+          ...penalty,
+          id_penalty: Number(penalty.id_penalty),
+          id_user: Number(penalty.id_user),
+          id_worker_profile: penalty.id_worker_profile != null ? Number(penalty.id_worker_profile) : null,
+          id_request: requestId,
+          amount: Number(penalty.amount || 0),
+        },
+        request: requestId
+          ? {
+              id_request: requestId,
+              service_name: penalty.service_name || null,
+              status: penalty.request_status || null,
+              location_text: penalty.location_text || null,
+              description: penalty.request_description || null,
+              created_at: penalty.request_created_at || null,
+              updated_at: penalty.request_updated_at || null,
+            }
+          : null,
+        images: (images[0] as RowDataPacket[]).map((image: any) => ({
+          id_image: Number(image.id_image),
+          url: buildProtectedAssetUrl(req, image.image_url),
+          created_at: image.created_at,
+        })),
+        messages: (messages[0] as RowDataPacket[]).map((message: any) => ({
+          id_message: Number(message.id_message),
+          sender_role: message.sender_role,
+          message: message.message,
+          image_url: buildProtectedAssetUrl(req, message.image_url),
+          created_at: message.created_at,
+        })),
+        reports: (reports[0] as RowDataPacket[]).map((report: any) => ({
+          ...report,
+          id_report: Number(report.id_report),
+          evidence_image_url: buildProtectedAssetUrl(req, report.evidence_image_url),
+        })),
+        moderation_reviews: (moderation[0] as RowDataPacket[]).map((review: any) => ({
+          ...review,
+          id_review: Number(review.id_review),
+          flagged: Boolean(review.flagged),
+          file_url: buildModerationFileUrl(req, review.file_name, review.upload_field),
+        })),
+        appeals: (appeals as Awaited<ReturnType<typeof getPenaltyAppealsForPenalty>>).map((appeal) => ({
+          ...appeal,
+          evidence_urls: appeal.evidence.map((fileName) => buildProtectedAssetUrl(req, fileName)).filter(Boolean),
+        })),
+        enforcement,
+        activity: (activity[0] as RowDataPacket[]).map((item: any) => ({
+          ...item,
+          id_activity: Number(item.id_activity),
+        })),
+      },
+    });
+  } catch (error) {
+    console.error('Error in getAccountPenaltyDetailAdmin:', error);
+    res.status(500).json({ error: 'Could not load penalty detail.' });
+  }
+};
+
+export const updatePenaltyAppealAdmin = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    await ensureAccountPenaltyAppealsTable(pool);
+    await ensureAccountPenaltiesTable(pool);
+    const idAppeal = Number(req.params.idAppeal);
+    if (!Number.isInteger(idAppeal) || idAppeal <= 0) {
+      res.status(400).json({ error: 'Invalid appeal id.' });
+      return;
+    }
+
+    const status = String(req.body?.status || '').toLowerCase();
+    const adminNote = sanitizeText(req.body?.admin_note || req.body?.reason, 500);
+    const penaltyAction = String(req.body?.penalty_action || 'none').toLowerCase();
+    const amount = req.body?.amount !== undefined ? clampMoneyAmount(req.body.amount) : null;
+    if (!['accepted', 'rejected', 'needs_more_info'].includes(status)) {
+      res.status(400).json({ error: 'Invalid appeal status.' });
+      return;
+    }
+
+    const [rows] = await pool.execute<RowDataPacket[]>(
+      `SELECT a.id_appeal, a.id_penalty, a.id_user, p.amount, p.status AS penalty_status
+       FROM account_penalty_appeals a
+       INNER JOIN account_penalties p ON p.id_penalty = a.id_penalty
+       WHERE a.id_appeal = ? LIMIT 1`,
+      [idAppeal]
+    );
+    const appeal = rows[0];
+    if (!appeal) {
+      res.status(404).json({ error: 'Appeal not found.' });
+      return;
+    }
+
+    await reviewPenaltyAppeal({
+      appealId: idAppeal,
+      status: status as any,
+      adminNote,
+      reviewedByUserId: Number(req.user?.user_id || 0),
+    });
+
+    if (penaltyAction === 'waive') {
+      await pool.execute(
+        `UPDATE account_penalties
+         SET status = 'waived', description = ?, resolved_at = CURRENT_TIMESTAMP
+         WHERE id_penalty = ?`,
+        [adminNote, appeal.id_penalty]
+      );
+    } else if (penaltyAction === 'keep') {
+      await pool.execute(
+        `UPDATE account_penalties SET status = 'pending', description = ? WHERE id_penalty = ?`,
+        [adminNote, appeal.id_penalty]
+      );
+    } else if (penaltyAction === 'reduce') {
+      if (amount === null) {
+        res.status(400).json({ error: 'Reduced amount is required.' });
+        return;
+      }
+      await pool.execute(
+        `UPDATE account_penalties SET amount = ?, status = 'pending', description = ? WHERE id_penalty = ?`,
+        [amount, adminNote, appeal.id_penalty]
+      );
+    } else if (penaltyAction === 'suspend') {
+      await pool.execute(`UPDATE users SET is_active = 0 WHERE id_user = ?`, [appeal.id_user]);
+    } else if (penaltyAction !== 'none') {
+      res.status(400).json({ error: 'Invalid penalty action.' });
+      return;
+    }
+
+    await createUserNotification({
+      userId: Number(appeal.id_user),
+      eventType: 'account_penalty_appeal_reviewed',
+      title: 'Penalty appeal reviewed',
+      message: `Trust & Safety reviewed your appeal for penalty #${appeal.id_penalty}.`,
+      tone: status === 'accepted' ? 'success' : status === 'rejected' ? 'warning' : 'info',
+      dedupeKey: `penalty_appeal_reviewed_${idAppeal}_${Date.now()}`,
+    }).catch(() => undefined);
+
+    await logAdminActivity(req, 'review_penalty_appeal', 'account_penalty', `Appeal #${idAppeal}: ${adminNote}`, Number(appeal.id_penalty), {
+      id_appeal: idAppeal,
+      appeal_status: status,
+      penalty_action: penaltyAction,
+      amount,
+    });
+
+    res.json({ success: true });
+  } catch (error: any) {
+    console.error('Error in updatePenaltyAppealAdmin:', error);
+    res.status(400).json({ error: error?.message || 'Could not update appeal.' });
+  }
+};
+
+export const getUploadModerationReviewsAdmin = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    await ensureUploadModerationTables(pool);
+    await ensureAccountPenaltiesTable(pool);
+    await reconcileApprovedUploadReviews(req.user?.user_id || null);
+    const page = parseAdminPage(req.query.page);
+    const limit = parseAdminLimit(req.query.limit);
+    const offset = (page - 1) * limit;
+    const decision = String(req.query.decision || 'all').toLowerCase();
+    const provider = String(req.query.provider || 'all').toLowerCase();
+    const q = sanitizeOptionalText(req.query.q, 120);
+    const whereParts: string[] = [];
+    const params: any[] = [];
+
+    if (decision === 'pending') {
+      whereParts.push(`r.reviewed_at IS NULL AND r.decision IN ('review','block','skipped')`);
+    } else if (decision === 'resolved') {
+      whereParts.push(`r.reviewed_at IS NOT NULL`);
+    } else if (decision === 'resolved_month') {
+      whereParts.push(`r.reviewed_at >= DATE_FORMAT(CURRENT_DATE, '%Y-%m-01')`);
+    } else if (['allow', 'review', 'block', 'skipped'].includes(decision)) {
+      whereParts.push('r.decision = ?');
+      params.push(decision);
+    }
+    if (['openai', 'local', 'none'].includes(provider)) {
+      whereParts.push('r.provider = ?');
+      params.push(provider);
+    }
+    if (q) {
+      const like = `%${q}%`;
+      whereParts.push(`(
+        CAST(r.id_review AS CHAR) LIKE ?
+        OR CAST(r.id_user AS CHAR) LIKE ?
+        OR CAST(r.id_request AS CHAR) LIKE ?
+        OR r.file_name LIKE ?
+        OR COALESCE(r.original_file_name, '') LIKE ?
+        OR COALESCE(u.name, '') LIKE ?
+        OR COALESCE(u.lastname, '') LIKE ?
+        OR COALESCE(u.email, '') LIKE ?
+        OR COALESCE(s.name, '') LIKE ?
+      )`);
+      params.push(like, like, like, like, like, like, like, like, like);
+    }
+
+    const whereSql = whereParts.length ? `WHERE ${whereParts.join(' AND ')}` : '';
+    const [rows] = await pool.execute<RowDataPacket[]>(
+      `SELECT
+         r.id_review, r.id_user, r.id_request, r.upload_field, r.file_name, r.original_file_name,
+         r.provider, r.model, r.decision, r.risk_type, r.flagged, r.categories_json,
+         r.scores_json, r.reason, r.created_at, r.reviewed_at, r.reviewed_by_user_id,
+         u.name AS user_name, u.lastname AS user_lastname, u.email AS user_email, u.rol AS user_role,
+         sr.status AS request_status, s.name AS service_name,
+         reviewer.name AS reviewer_name, reviewer.lastname AS reviewer_lastname,
+         (
+           SELECT COUNT(*)
+           FROM upload_moderation_reviews prior
+           WHERE prior.id_user = r.id_user
+             AND prior.id_review <> r.id_review
+             AND prior.decision IN ('review','block')
+         ) AS user_moderation_incidents,
+         (
+           SELECT COUNT(*)
+           FROM account_penalties ap
+           WHERE ap.id_user = r.id_user
+             AND ap.reason = 'inappropriate_content'
+             AND ap.status IN ('pending','disputed','paid')
+         ) AS user_content_penalties
+       FROM upload_moderation_reviews r
+       LEFT JOIN users u ON u.id_user = r.id_user
+       LEFT JOIN users reviewer ON reviewer.id_user = r.reviewed_by_user_id
+       LEFT JOIN service_requests sr ON sr.id_request = r.id_request
+       LEFT JOIN services s ON s.id_service = sr.id_service
+       ${whereSql}
+       ORDER BY
+         CASE WHEN r.reviewed_at IS NULL THEN 0 ELSE 1 END,
+         FIELD(r.decision, 'block', 'review', 'skipped', 'allow'),
+         COALESCE(r.reviewed_at, r.created_at) DESC
+       LIMIT ${limit} OFFSET ${offset}`,
+      params
+    );
+    const [countRows] = await pool.execute<RowDataPacket[]>(
+      `SELECT COUNT(*) AS total
+       FROM upload_moderation_reviews r
+       LEFT JOIN users u ON u.id_user = r.id_user
+       LEFT JOIN service_requests sr ON sr.id_request = r.id_request
+       LEFT JOIN services s ON s.id_service = sr.id_service
+       ${whereSql}`,
+      params
+    );
+    const [[summary]] = await pool.execute<RowDataPacket[]>(
+      `SELECT
+         COUNT(CASE WHEN reviewed_at IS NULL AND decision IN ('review','block','skipped') THEN 1 END) AS pending_count,
+         COUNT(CASE WHEN reviewed_at IS NOT NULL THEN 1 END) AS resolved_count,
+         COUNT(CASE WHEN reviewed_at >= DATE_FORMAT(CURRENT_DATE, '%Y-%m-01') THEN 1 END) AS resolved_month_count,
+         COUNT(CASE WHEN decision = 'block' THEN 1 END) AS blocked_count,
+         COUNT(CASE WHEN decision = 'review' THEN 1 END) AS review_count,
+         COUNT(CASE WHEN decision = 'allow' THEN 1 END) AS allow_count,
+         COUNT(CASE WHEN decision = 'skipped' THEN 1 END) AS skipped_count
+       FROM upload_moderation_reviews`
+    );
+    const total = Number(countRows[0]?.total || 0);
+
+    res.json({
+      reviews: rows.map((row) => ({
+        ...row,
+        id_review: Number(row.id_review),
+        id_user: row.id_user != null ? Number(row.id_user) : null,
+        id_request: row.id_request != null ? Number(row.id_request) : null,
+        flagged: Boolean(row.flagged),
+        categories: parseJsonColumn(row.categories_json),
+        category_scores: parseJsonColumn(row.scores_json),
+        file_url: buildModerationFileUrl(req, row.file_name, row.upload_field),
+        user_moderation_incidents: Number(row.user_moderation_incidents || 0),
+        user_content_penalties: Number(row.user_content_penalties || 0),
+      })),
+      summary: {
+        pending_count: Number(summary?.pending_count || 0),
+        resolved_count: Number(summary?.resolved_count || 0),
+        resolved_month_count: Number(summary?.resolved_month_count || 0),
+        blocked_count: Number(summary?.blocked_count || 0),
+        review_count: Number(summary?.review_count || 0),
+        allow_count: Number(summary?.allow_count || 0),
+        skipped_count: Number(summary?.skipped_count || 0),
+      },
+      pagination: { page, limit, total, pages: Math.max(1, Math.ceil(total / limit)) },
+    });
+  } catch (error) {
+    console.error('Error in getUploadModerationReviewsAdmin:', error);
+    res.status(500).json({ error: 'Could not load upload moderation reviews.' });
+  }
+};
+
+export const approveSafeSkippedUploadsAdmin = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    await ensureUploadModerationTables(pool);
+    const reason = sanitizeText(req.body?.reason || 'Bulk approved safe skipped uploads.', 500);
+    const [result] = await pool.execute<ResultSetHeader>(
+      `UPDATE upload_moderation_reviews
+       SET decision = 'allow',
+           reason = ?,
+           reviewed_at = CURRENT_TIMESTAMP,
+           reviewed_by_user_id = ?
+       WHERE decision = 'skipped'
+         AND flagged = 0
+         AND (risk_type IS NULL OR risk_type = '')
+       LIMIT 100`,
+      [reason, req.user?.user_id || null]
+    );
+    await logAdminActivity(
+      req,
+      'upload_moderation_bulk_approve',
+      'upload_moderation_review',
+      `Bulk approved ${result.affectedRows} safe skipped upload review(s).`,
+      null,
+      { affected_rows: result.affectedRows }
+    );
+    res.json({ success: true, affected_rows: Number(result.affectedRows || 0) });
+  } catch (error) {
+    console.error('Error in approveSafeSkippedUploadsAdmin:', error);
+    res.status(500).json({ error: 'Could not approve skipped uploads.' });
+  }
+};
+
+export const updateUploadModerationReviewAdmin = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    await ensureUploadModerationTables(pool);
+    await ensureAccountPenaltiesTable(pool);
+    const idReview = Number(req.params.idReview);
+    if (!Number.isInteger(idReview) || idReview <= 0) {
+      res.status(400).json({ error: 'Invalid review id.' });
+      return;
+    }
+
+    const action = String(req.body?.action || '').toLowerCase();
+    const reason = sanitizeText(req.body?.reason, 500);
+    if (reason.length < 8) {
+      res.status(400).json({ error: 'A clear admin reason is required.' });
+      return;
+    }
+
+    const [rows] = await pool.execute<RowDataPacket[]>(
+      `SELECT r.*, u.rol AS user_role, wp.id_worker_profile
+       FROM upload_moderation_reviews r
+       LEFT JOIN users u ON u.id_user = r.id_user
+       LEFT JOIN worker_profiles wp ON wp.id_user = r.id_user
+       WHERE r.id_review = ? LIMIT 1`,
+      [idReview]
+    );
+    const review = rows[0];
+    if (!review) {
+      res.status(404).json({ error: 'Moderation review not found.' });
+      return;
+    }
+
+    if (action === 'approve' || action === 'block') {
+      const nextDecision = action === 'approve' ? 'allow' : 'block';
+      await pool.execute<ResultSetHeader>(
+        `UPDATE upload_moderation_reviews
+         SET decision = ?, reason = ?, reviewed_at = CURRENT_TIMESTAMP, reviewed_by_user_id = ?
+         WHERE id_review = ?`,
+        [nextDecision, reason, req.user?.user_id || null, idReview]
+      );
+      if (action === 'approve') {
+        await clearModerationIncidentForApprovedUpload({
+          reviewId: idReview,
+          adminUserId: req.user?.user_id || null,
+          reason,
+        });
+      } else {
+        await ensureAccountEnforcementTables(pool);
+        await pool.execute<ResultSetHeader>(
+          `UPDATE account_incidents
+           SET case_status = 'resolved',
+               resolution_note = ?,
+               reviewed_by_user_id = ?,
+               reviewed_at = CURRENT_TIMESTAMP
+           WHERE source_type = 'upload_moderation_review'
+             AND source_id = ?
+             AND COALESCE(case_status, 'open') NOT IN ('resolved','dismissed')`,
+          [reason, req.user?.user_id || null, idReview]
+        );
+      }
+    } else if (action === 'create_penalty') {
+      if (!review.id_user) {
+        res.status(400).json({ error: 'This moderation review is not linked to an account.' });
+        return;
+      }
+      const actorRole = String(review.user_role) === 'worker' ? 'worker' : 'client';
+      const amount = clampMoneyAmount(req.body?.amount ?? 10);
+      await createAccountPenalty({
+        userId: Number(review.id_user),
+        workerProfileId: review.id_worker_profile != null ? Number(review.id_worker_profile) : null,
+        requestId: review.id_request != null ? Number(review.id_request) : null,
+        actorRole,
+        reason: 'inappropriate_content',
+        amount,
+        description: reason,
+        createdByUserId: req.user?.user_id || null,
+      });
+      await pool.execute<ResultSetHeader>(
+        `UPDATE upload_moderation_reviews
+         SET decision = 'block', reason = ?, reviewed_at = CURRENT_TIMESTAMP, reviewed_by_user_id = ?
+         WHERE id_review = ?`,
+        [reason, req.user?.user_id || null, idReview]
+      );
+    } else if (action === 'suspend_user') {
+      if (!review.id_user) {
+        res.status(400).json({ error: 'This moderation review is not linked to an account.' });
+        return;
+      }
+      await pool.execute<ResultSetHeader>(`UPDATE users SET is_active = 0 WHERE id_user = ?`, [review.id_user]);
+      await pool.execute<ResultSetHeader>(
+        `UPDATE upload_moderation_reviews
+         SET decision = 'block', reason = ?, reviewed_at = CURRENT_TIMESTAMP, reviewed_by_user_id = ?
+         WHERE id_review = ?`,
+        [reason, req.user?.user_id || null, idReview]
+      );
+    } else {
+      res.status(400).json({ error: 'Unsupported moderation action.' });
+      return;
+    }
+
+    if (review.id_user) {
+      await createUserNotification({
+        userId: Number(review.id_user),
+        eventType: 'upload_moderation_updated',
+        title: 'Upload review updated',
+        message: action === 'approve' ? 'Your uploaded file was approved.' : 'An uploaded file was reviewed by Fixlife.',
+        tone: action === 'approve' ? 'success' : 'warning',
+        requestId: review.id_request != null ? Number(review.id_request) : undefined,
+        dedupeKey: `admin_upload_review_${action}_${idReview}_${Date.now()}`,
+      });
+    }
+    await logAdminActivity(req, `upload_moderation_${action}`, 'upload_moderation_review', `Upload review #${idReview}: ${reason}`, idReview, {
+      user_id: review.id_user,
+      request_id: review.id_request,
+      decision: review.decision,
+    });
+
+    res.json({ success: true });
+  } catch (error: any) {
+    console.error('Error in updateUploadModerationReviewAdmin:', error);
+    res.status(400).json({ error: error?.message || 'Could not update upload moderation review.' });
+  }
+};
+
 export const createService = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     assertAllowedFields(req.body, ['name', 'description', 'icon']);
@@ -383,10 +1963,10 @@ const ensureHeroSlidesTable = async () => {
   if (total === 0) {
     await pool.execute(
       `INSERT INTO hero_slides (sort_order, image_url, tag, title, description, cta)
-       VALUES
-       (1, ?, ?, ?, ?, ?),
-       (2, ?, ?, ?, ?, ?),
-       (3, ?, ?, ?, ?, ?)`,
+      VALUES
+      (1, ?, ?, ?, ?, ?),
+    (2, ?, ?, ?, ?, ?),
+    (3, ?, ?, ?, ?, ?)`,
       [
         'https://images.unsplash.com/photo-1504328345606-18bbc8c9d7d1?q=80&w=2070&auto=format&fit=crop',
         'PREMIUM',

@@ -18,6 +18,7 @@ interface ServiceRequestHistorySectionProps {
     mobileTracker: React.ReactNode;
     onHistoryStatusChange: (value: string) => void;
     children: React.ReactNode;
+    variant?: 'inline' | 'modal';
 }
 
 export function ServiceRequestHistorySection({
@@ -30,15 +31,23 @@ export function ServiceRequestHistorySection({
     mobileTracker,
     onHistoryStatusChange,
     children,
+    variant = 'inline',
 }: ServiceRequestHistorySectionProps) {
+    const isModal = variant === 'modal';
+
     return (
-        <div className="mt-5 rounded-2xl border border-gray-200 bg-white p-4">
-            <div className="flex items-center justify-between gap-2 mb-3">
-                <p className="text-xs uppercase tracking-wider font-bold text-gray-500">My Request History</p>
+        <div className={`${isModal ? 'rounded-[1.75rem] border border-slate-200/80 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-slate-900/70 sm:p-5' : 'mt-5 rounded-2xl border border-gray-200 bg-white p-4'}`}>
+            <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                    <p className="text-[11px] font-black uppercase tracking-[0.22em] text-bird-blue">My Requests</p>
+                    <p className="mt-1 text-sm font-semibold text-slate-500 dark:text-slate-400">
+                        Active services, history, payments and chat in one place.
+                    </p>
+                </div>
                 <select
                     value={historyStatus}
                     onChange={(e) => onHistoryStatusChange(e.target.value)}
-                    className="text-xs font-bold rounded-lg border border-gray-200 bg-gray-50 px-2 py-1.5"
+                    className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-xs font-black uppercase tracking-[0.12em] text-slate-700 outline-none transition focus:border-bird-blue focus:ring-4 focus:ring-blue-100 dark:border-white/10 dark:bg-white/[0.06] dark:text-slate-100 dark:focus:ring-blue-900/30 sm:w-auto"
                 >
                     <option value="all">All</option>
                     <option value="pending">Pending</option>

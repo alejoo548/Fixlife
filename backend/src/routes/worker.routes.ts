@@ -2,6 +2,7 @@ import { Router } from 'express';
 import {
   acceptWorkerRequest,
   arriveWorkerRequest,
+  cancelWorkerAssignedRequest,
   completeWorkerRequest,
   counterOfferWorkerRequest,
   changeWorkerPassword,
@@ -14,6 +15,7 @@ import {
   getWorkerWorkspace,
   getWorkerRequests,
   rejectWorkerRequest,
+  reportClientNoShow,
   requestWorkerEmailChangeToken,
   removeWorkerProfileImage,
   startWorkerRequest,
@@ -51,6 +53,8 @@ router.get('/workspace', requireVerifiedWorker, getWorkerWorkspace);
 router.get('/appointments', requireVerifiedWorker, getWorkerAppointments);
 router.post('/requests/:idRequest/accept', requireVerifiedWorker, sensitiveLimiter, acceptWorkerRequest);
 router.post('/requests/:idRequest/reject', requireVerifiedWorker, sensitiveLimiter, rejectWorkerRequest);
+router.post('/requests/:idRequest/cancel', requireVerifiedWorker, sensitiveLimiter, cancelWorkerAssignedRequest);
+router.post('/requests/:idRequest/client-no-show', requireVerifiedWorker, sensitiveLimiter, reportClientNoShow);
 router.post('/requests/:idRequest/counter-offer', requireVerifiedWorker, sensitiveLimiter, counterOfferWorkerRequest);
 router.post('/requests/:idRequest/arrive', requireVerifiedWorker, sensitiveLimiter, arriveWorkerRequest);
 router.post('/requests/:idRequest/route-start', requireVerifiedWorker, sensitiveLimiter, startWorkerRoute);

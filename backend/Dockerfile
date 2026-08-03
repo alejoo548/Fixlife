@@ -1,7 +1,11 @@
 # Usar imagen oficial de Node.js
-FROM node:20-alpine AS base
+FROM node:20-bookworm-slim AS base
 
 WORKDIR /app
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
 
 COPY package*.json ./
 
@@ -13,7 +17,7 @@ RUN npm install -g nodemon ts-node typescript
 
 COPY . .
 
-RUN addgroup -S app && adduser -S app -G app \
+RUN addgroup --system app && adduser --system --ingroup app app \
     && chown -R app:app /app
 
 USER app
@@ -32,7 +36,7 @@ COPY . .
 RUN npm run build \
     && npm prune --omit=dev
 
-RUN addgroup -S app && adduser -S app -G app \
+RUN addgroup --system app && adduser --system --ingroup app app \
     && chown -R app:app /app
 
 USER app

@@ -9,6 +9,21 @@ interface ProSidebarProps {
     setIsOpen: (value: boolean) => void;
     currentTier?: string | null;
     tierLabel?: string | null;
+    penaltyBalance?: {
+        has_blocking_debt?: boolean;
+        outstanding_balance?: number;
+        outstanding_count?: number;
+        currency_code?: string;
+        latest?: Array<{ id_penalty: number; reason: string; amount: number; status: string; description?: string | null }>;
+        enforcement?: {
+            trust_score?: number;
+            standing?: string;
+            incident_count?: number;
+        } | null;
+    } | null;
+    onResolveBalance?: () => void;
+    onAppealPenalty?: () => void;
+    resolveBalanceBusy?: boolean;
     isDark?: boolean;
 }
 
@@ -18,16 +33,21 @@ const NAV_ITEMS = [
     { id: 'schedule', label: 'Calendar', icon: 'M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z' },
     { id: 'earnings', label: 'Earnings', icon: 'M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z' },
     { id: 'completed-work', label: 'History', icon: 'M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l3.414 3.414a1 1 0 01.293.707V19a2 2 0 01-2 2z' },
+    { id: 'account-standing', label: 'Account', icon: 'M12 3l7 4v5c0 5-3.5 8.5-7 9-3.5-.5-7-4-7-9V7l7-4zm3.5 7.5L11 15l-2.5-2.5' },
     { id: 'review', label: 'Leave Review', icon: 'M11.48 3.499a.562.562 0 011.04 0l2.125 5.111a.563.563 0 00.475.345l5.518.442c.499.04.701.663.321.988l-4.204 3.602a.563.563 0 00-.182.557l1.285 5.385a.562.562 0 01-.84.61l-4.725-2.885a.563.563 0 00-.586 0L6.982 20.54a.562.562 0 01-.84-.61l1.285-5.386a.562.562 0 00-.182-.557l-4.204-3.602a.562.562 0 01.321-.988l5.518-.442a.563.563 0 00.475-.345L11.48 3.5z' },
     { id: 'settings', label: 'Settings', icon: 'M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065zM15 12a3 3 0 11-6 0 3 3 0 016 0z' },
 ];
 
-export const ProSidebar: React.FC<ProSidebarProps> = ({ activeItem, setActiveItem, onClose, onSignOut, isOpen, setIsOpen, currentTier, tierLabel, isDark = false }) => {
+export const ProSidebar: React.FC<ProSidebarProps> = ({ activeItem, setActiveItem, onClose, onSignOut, isOpen, setIsOpen, currentTier, tierLabel, penaltyBalance, onResolveBalance, onAppealPenalty, resolveBalanceBusy, isDark = false }) => {
     const toggleSidebar = () => setIsOpen(!isOpen);
     const normalizedTier = String(currentTier || 'standard').toLowerCase();
     const visibleTierLabel = tierLabel?.trim()
         || normalizedTier.split('_').map((part) => part.charAt(0).toUpperCase() + part.slice(1)).join(' ')
         || 'Standard Pro';
+    const hasDebt = Boolean(penaltyBalance?.has_blocking_debt);
+    const balanceAmount = Number(penaltyBalance?.outstanding_balance || 0);
+    const money = new Intl.NumberFormat('en-US', { style: 'currency', currency: penaltyBalance?.currency_code || 'USD' }).format(balanceAmount);
+    const latestPenalty = penaltyBalance?.latest?.[0];
 
     const handleItemClick = (id: string) => {
         setActiveItem(id);
@@ -110,6 +130,45 @@ export const ProSidebar: React.FC<ProSidebarProps> = ({ activeItem, setActiveIte
             </nav>
 
             <div className={`w-full shrink-0 px-1 pt-3 transition-all duration-300 ${isOpen ? 'opacity-100' : 'opacity-0 hidden'}`}>
+                {hasDebt && (
+                    <div className="mb-3 rounded-[24px] border border-red-300/70 bg-red-50 px-4 py-3 shadow-[0_12px_26px_rgba(220,38,38,0.12)]">
+                        <p className="text-[10px] font-black uppercase tracking-[0.16em] text-red-600">Outstanding balance</p>
+                        <div className="mt-2 flex items-start justify-between gap-3">
+                            <div className="min-w-0">
+                                <p className="text-lg font-black leading-none text-red-700">{money}</p>
+                                <p className="mt-1 text-xs font-bold leading-5 text-red-900/80">
+                                    {latestPenalty?.reason ? latestPenalty.reason.replace(/_/g, ' ') : 'Pending account review'}
+                                </p>
+                                <p className="mt-1 text-[11px] font-semibold leading-4 text-red-800/70">
+                                    Resolve this balance before accepting more services.
+                                </p>
+                                {penaltyBalance?.enforcement && (
+                                    <p className="mt-2 text-[10px] font-black uppercase tracking-[0.12em] text-red-700">
+                                        Trust: {(penaltyBalance.enforcement.standing || 'warning').replace(/_/g, ' ')} - {penaltyBalance.enforcement.trust_score ?? 100}/100
+                                    </p>
+                                )}
+                                <button
+                                    type="button"
+                                    disabled={resolveBalanceBusy}
+                                    onClick={onResolveBalance}
+                                    className="mt-3 rounded-xl bg-red-600 px-3 py-2 text-xs font-black text-white shadow-sm transition hover:bg-red-700 disabled:opacity-60"
+                                >
+                                    {resolveBalanceBusy ? 'Opening...' : 'Resolve balance'}
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={onAppealPenalty}
+                                    className="mt-2 rounded-xl border border-red-200 bg-white px-3 py-2 text-xs font-black text-red-700 shadow-sm transition hover:border-red-300"
+                                >
+                                    Appeal penalty
+                                </button>
+                            </div>
+                            <span className="shrink-0 rounded-full border border-red-200 bg-white px-3 py-1 text-[10px] font-black uppercase tracking-[0.14em] text-red-600">
+                                Blocked
+                            </span>
+                        </div>
+                    </div>
+                )}
                 <div className="rounded-[24px] border border-bird-blue/15 bg-bird-blue/8 px-4 py-3 shadow-[0_10px_22px_rgba(0,144,255,0.06)]">
                     <p className="text-[10px] font-black uppercase tracking-[0.16em] text-bird-blue/80">Current status</p>
                     <div className="mt-2 flex items-center justify-between gap-3">

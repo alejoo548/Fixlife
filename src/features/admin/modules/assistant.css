@@ -1,0 +1,825 @@
+/* ElevenLabs UI Inspired AI Assistant Styles */
+
+.elevenlabs-assistant {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  padding: 0.5rem;
+  color: #e2e8f0;
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+}
+
+/* Dashboard Grid Layout */
+.el-grid-top {
+  display: grid;
+  grid-template-columns: 1fr 1.3fr 1fr;
+  gap: 1.25rem;
+  align-items: stretch;
+}
+
+.el-grid-bottom {
+  display: grid;
+  grid-template-columns: 1fr 1.3fr 1fr;
+  gap: 1.25rem;
+}
+
+@media (max-width: 1200px) {
+  .el-grid-top,
+  .el-grid-bottom {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Card Base */
+.el-card {
+  background: rgba(13, 22, 38, 0.85);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  border-radius: 16px;
+  padding: 1.25rem;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  overflow: hidden;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.el-card:hover {
+  border-color: rgba(59, 130, 246, 0.25);
+  box-shadow: 0 12px 35px -8px rgba(0, 0, 0, 0.6), 0 0 15px rgba(59, 130, 246, 0.1);
+}
+
+.el-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 1rem;
+}
+
+.el-card-title {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: #f1f5f9;
+  letter-spacing: -0.01em;
+}
+
+.el-card-title svg {
+  color: #3b82f6;
+}
+
+.el-badge-live {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.2rem 0.6rem;
+  border-radius: 9999px;
+  background: rgba(34, 197, 94, 0.12);
+  border: 1px solid rgba(34, 197, 94, 0.25);
+  color: #4ade80;
+  font-size: 0.75rem;
+  font-weight: 500;
+}
+
+.el-badge-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #22c55e;
+  box-shadow: 0 0 8px #22c55e;
+  animation: el-pulse-dot 2s infinite;
+}
+
+@keyframes el-pulse-dot {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.4; transform: scale(0.85); }
+}
+
+.el-card-footer-link {
+  margin-top: auto;
+  padding-top: 0.85rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.8rem;
+  color: #64748b;
+  text-decoration: none;
+  transition: color 0.15s ease;
+  cursor: pointer;
+  background: none;
+  border: none;
+}
+
+.el-card-footer-link:hover {
+  color: #60a5fa;
+}
+
+/* --- 1. Live Transcript Panel --- */
+.el-transcript-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+  max-height: 380px;
+  overflow-y: auto;
+  padding-right: 0.35rem;
+}
+
+.el-transcript-list::-webkit-scrollbar {
+  width: 4px;
+}
+.el-transcript-list::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 4px;
+}
+
+.el-msg {
+  display: flex;
+  gap: 0.65rem;
+  align-items: flex-start;
+}
+
+.el-msg-avatar {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.75rem;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.el-msg-avatar--user {
+  background: linear-gradient(135deg, #2563eb, #1d4ed8);
+  color: #ffffff;
+  box-shadow: 0 2px 8px rgba(37, 99, 235, 0.4);
+}
+
+.el-msg-avatar--ai {
+  background: linear-gradient(135deg, #0ea5e9, #2563eb);
+  color: #ffffff;
+  box-shadow: 0 2px 8px rgba(14, 165, 233, 0.4);
+  padding: 3px;
+}
+
+.el-msg-avatar--ai img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.el-msg-content {
+  flex: 1;
+  background: rgba(15, 23, 42, 0.65);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 12px;
+  padding: 0.65rem 0.85rem;
+  font-size: 0.82rem;
+  line-height: 1.45;
+  color: #cbd5e1;
+}
+
+.el-msg-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.25rem;
+}
+
+.el-msg-author {
+  font-weight: 600;
+  font-size: 0.78rem;
+  color: #f1f5f9;
+}
+
+.el-msg-time {
+  font-size: 0.7rem;
+  color: #64748b;
+}
+
+/* --- 2. Central Orb Visualizer (ElevenLabs Style) --- */
+.el-orb-card {
+  align-items: center;
+  text-align: center;
+  justify-content: space-between;
+  background: radial-gradient(circle at 50% 40%, rgba(30, 58, 138, 0.35) 0%, rgba(13, 22, 38, 0.95) 75%);
+}
+
+.el-orb-container {
+  position: relative;
+  width: 220px;
+  height: 220px;
+  margin: 1.25rem auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Glowing Outer Ring */
+.el-orb-glow-ring {
+  position: absolute;
+  inset: -15px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(59, 130, 246, 0.35) 0%, rgba(14, 165, 233, 0.15) 50%, transparent 70%);
+  filter: blur(12px);
+  animation: el-orb-pulse 3s infinite ease-in-out;
+}
+
+/* Main Orb Outer Sphere */
+.el-orb-sphere {
+  position: relative;
+  width: 170px;
+  height: 170px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #0284c7 0%, #2563eb 40%, #1d4ed8 70%, #0369a1 100%);
+  box-shadow: 
+    0 0 30px rgba(56, 189, 248, 0.6),
+    inset 0 0 25px rgba(255, 255, 255, 0.5),
+    inset -10px -10px 30px rgba(0, 0, 0, 0.7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  border: 1px solid rgba(186, 230, 253, 0.4);
+}
+
+/* Fluid Wave Layer 1 inside Orb */
+.el-orb-wave-1 {
+  position: absolute;
+  inset: -20%;
+  border-radius: 42%;
+  background: radial-gradient(circle, rgba(147, 197, 253, 0.8) 0%, rgba(59, 130, 246, 0.4) 50%, transparent 80%);
+  animation: el-spin-wave 6s infinite linear;
+  filter: blur(4px);
+  mix-blend-mode: overlay;
+}
+
+/* Fluid Wave Layer 2 inside Orb */
+.el-orb-wave-2 {
+  position: absolute;
+  inset: -15%;
+  border-radius: 38%;
+  background: conic-gradient(from 0deg, rgba(56, 189, 248, 0.9), rgba(129, 140, 248, 0.6), rgba(14, 165, 233, 0.8), rgba(56, 189, 248, 0.9));
+  animation: el-spin-wave 9s infinite linear reverse;
+  filter: blur(6px);
+  opacity: 0.8;
+}
+
+/* Dynamic Core Glow */
+.el-orb-core {
+  position: relative;
+  z-index: 2;
+  width: 70px;
+  height: 70px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(255, 255, 255, 0.95) 0%, rgba(186, 230, 253, 0.8) 30%, rgba(56, 189, 248, 0.3) 70%, transparent 100%);
+  box-shadow: 0 0 25px rgba(255, 255, 255, 0.9);
+  animation: el-core-pulse 2s infinite ease-in-out;
+}
+
+/* Audio wave rings around orb when active */
+.el-orb-audio-rings {
+  position: absolute;
+  inset: -5px;
+  border-radius: 50%;
+  border: 1.5px solid rgba(56, 189, 248, 0.4);
+  animation: el-expand-ring 2.5s infinite ease-out;
+}
+
+@keyframes el-orb-pulse {
+  0%, 100% { transform: scale(0.98); opacity: 0.7; }
+  50% { transform: scale(1.08); opacity: 1; }
+}
+
+@keyframes el-spin-wave {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+@keyframes el-core-pulse {
+  0%, 100% { transform: scale(0.9); opacity: 0.85; }
+  50% { transform: scale(1.15); opacity: 1; }
+}
+
+@keyframes el-expand-ring {
+  0% { transform: scale(0.95); opacity: 0.8; }
+  100% { transform: scale(1.35); opacity: 0; }
+}
+
+/* Orb Status Labels */
+.el-orb-status-title {
+  font-size: 1.15rem;
+  font-weight: 600;
+  color: #ffffff;
+  margin-top: 0.25rem;
+}
+
+.el-orb-status-sub {
+  font-size: 0.82rem;
+  color: #94a3b8;
+  margin-top: 0.15rem;
+}
+
+/* Audio Controls Bar */
+.el-audio-controls {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1.5rem;
+  margin: 1.1rem 0 0.8rem 0;
+}
+
+.el-ctrl-btn-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.el-ctrl-btn {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(15, 23, 42, 0.8);
+  color: #cbd5e1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+.el-ctrl-btn:hover {
+  background: rgba(30, 41, 59, 0.9);
+  color: #ffffff;
+  transform: translateY(-2px);
+  border-color: rgba(255, 255, 255, 0.25);
+}
+
+.el-ctrl-btn--primary {
+  width: 52px;
+  height: 52px;
+  background: linear-gradient(135deg, #2563eb, #1d4ed8);
+  border-color: #3b82f6;
+  color: #ffffff;
+  box-shadow: 0 0 20px rgba(37, 99, 235, 0.6);
+}
+
+.el-ctrl-btn--primary:hover {
+  background: linear-gradient(135deg, #3b82f6, #2563eb);
+  box-shadow: 0 0 25px rgba(59, 130, 246, 0.8);
+  transform: translateY(-2px) scale(1.04);
+}
+
+.el-ctrl-btn--danger {
+  background: rgba(239, 68, 68, 0.15);
+  border-color: rgba(239, 68, 68, 0.3);
+  color: #ef4444;
+}
+
+.el-ctrl-btn--danger:hover {
+  background: rgba(239, 68, 68, 0.3);
+  color: #f87171;
+}
+
+.el-ctrl-label {
+  font-size: 0.72rem;
+  color: #94a3b8;
+  font-weight: 500;
+}
+
+.el-orb-footer-note {
+  font-size: 0.72rem;
+  color: #64748b;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+/* --- 3. Voice Status Panel --- */
+.el-voice-status-metrics {
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+}
+
+.el-metric-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 0.82rem;
+}
+
+.el-metric-label {
+  color: #94a3b8;
+}
+
+.el-metric-value {
+  color: #f1f5f9;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.el-eq-bars {
+  display: flex;
+  align-items: flex-end;
+  gap: 2.5px;
+  height: 18px;
+  width: 110px;
+}
+
+.el-eq-bar {
+  flex: 1;
+  background: #3b82f6;
+  border-radius: 2px;
+  min-height: 3px;
+  animation: el-eq-anim 1.2s infinite ease-in-out alternate;
+}
+
+@keyframes el-eq-anim {
+  0% { height: 15%; }
+  100% { height: 100%; }
+}
+
+.el-lang-select {
+  background: rgba(15, 23, 42, 0.7);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: #f1f5f9;
+  border-radius: 8px;
+  padding: 0.3rem 0.6rem;
+  font-size: 0.78rem;
+  outline: none;
+  cursor: pointer;
+}
+
+/* --- 4. Quick Actions Panel --- */
+.el-quick-actions-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 0.65rem;
+  margin-top: 0.25rem;
+}
+
+.el-action-btn {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.6rem;
+  padding: 0.7rem;
+  background: rgba(15, 23, 42, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: 10px;
+  text-align: left;
+  cursor: pointer;
+  transition: all 0.18s ease;
+  color: inherit;
+}
+
+.el-action-btn:hover {
+  background: rgba(30, 41, 59, 0.7);
+  border-color: rgba(59, 130, 246, 0.3);
+  transform: translateY(-1px);
+}
+
+.el-action-icon {
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  background: rgba(59, 130, 246, 0.15);
+  color: #60a5fa;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.el-action-text strong {
+  display: block;
+  font-size: 0.8rem;
+  color: #f1f5f9;
+  font-weight: 600;
+  line-height: 1.2;
+}
+
+.el-action-text span {
+  display: block;
+  font-size: 0.7rem;
+  color: #64748b;
+  margin-top: 0.15rem;
+}
+
+/* --- 5. Suggested Commands Panel --- */
+.el-commands-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.el-cmd-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.65rem 0.8rem;
+  background: rgba(15, 23, 42, 0.5);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  border-radius: 10px;
+  font-size: 0.8rem;
+  color: #cbd5e1;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  text-align: left;
+  width: 100%;
+}
+
+.el-cmd-item:hover {
+  background: rgba(30, 41, 59, 0.6);
+  color: #f1f5f9;
+  border-color: rgba(59, 130, 246, 0.25);
+  padding-left: 0.95rem;
+}
+
+.el-cmd-left {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.el-cmd-left svg {
+  color: #3b82f6;
+  flex-shrink: 0;
+}
+
+/* --- 6. Recent Interactions Panel --- */
+.el-interactions-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.el-interaction-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.6rem 0.75rem;
+  background: rgba(15, 23, 42, 0.5);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  border-radius: 10px;
+  font-size: 0.78rem;
+}
+
+.el-interaction-time {
+  color: #64748b;
+  font-size: 0.72rem;
+  width: 55px;
+  flex-shrink: 0;
+}
+
+.el-interaction-desc {
+  flex: 1;
+  color: #e2e8f0;
+  padding: 0 0.5rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.el-interaction-right {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.el-tag-completed {
+  padding: 0.15rem 0.45rem;
+  border-radius: 6px;
+  background: rgba(34, 197, 94, 0.12);
+  color: #4ade80;
+  font-size: 0.68rem;
+  font-weight: 500;
+}
+
+.el-btn-play {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(30, 41, 59, 0.6);
+  color: #cbd5e1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.el-btn-play:hover {
+  background: #2563eb;
+  color: #ffffff;
+  border-color: #3b82f6;
+}
+
+/* --- 7. Assistant Tips Panel --- */
+.el-tips-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.el-tip-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.65rem;
+  font-size: 0.78rem;
+  line-height: 1.4;
+  color: #94a3b8;
+}
+
+.el-tip-icon {
+  width: 26px;
+  height: 26px;
+  border-radius: 8px;
+  background: rgba(59, 130, 246, 0.12);
+  color: #60a5fa;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+.el-transcript-card {
+  min-height: 640px;
+}
+
+.el-assistant-composer {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 54px;
+  gap: 0.75rem;
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.el-assistant-composer input {
+  min-width: 0;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 14px;
+  background: rgba(15, 23, 42, 0.72);
+  color: #f8fafc;
+  padding: 0.85rem 1rem;
+  font-weight: 700;
+  outline: none;
+}
+
+.el-assistant-composer input::placeholder {
+  color: #64748b;
+}
+
+.el-assistant-composer input:focus {
+  border-color: rgba(56, 189, 248, 0.45);
+  box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.12);
+}
+
+.el-assistant-composer button {
+  border: 0;
+  border-radius: 14px;
+  display: grid;
+  place-items: center;
+  color: #ffffff;
+  background: linear-gradient(135deg, #2563eb, #0ea5e9);
+  cursor: pointer;
+  box-shadow: 0 14px 30px rgba(37, 99, 235, 0.28);
+}
+
+.el-assistant-composer button:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.el-message-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  margin-top: 0.65rem;
+}
+
+.el-message-actions a,
+.el-message-actions span {
+  border: 1px solid rgba(59, 130, 246, 0.25);
+  border-radius: 999px;
+  padding: 0.3rem 0.6rem;
+  color: #93c5fd;
+  background: rgba(59, 130, 246, 0.1);
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+.el-thinking-line {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: #94a3b8;
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.el-orb-stage {
+  width: 100%;
+  min-height: 245px;
+  display: grid;
+  place-items: center;
+  position: relative;
+  margin: 0.25rem 0;
+}
+
+.el-orb-backlight {
+  position: absolute;
+  width: 190px;
+  height: 190px;
+  border-radius: 999px;
+  background: radial-gradient(circle, rgba(56, 189, 248, 0.35) 0%, rgba(37, 99, 235, 0.16) 55%, transparent 76%);
+  filter: blur(18px);
+  pointer-events: none;
+}
+
+.el-livekit-room {
+  width: min(100%, 560px);
+  margin: 1rem auto 0;
+}
+
+.el-livekit-room .lk-control-bar {
+  justify-content: center;
+  gap: 0.65rem;
+  padding: 0.85rem;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 18px;
+  background: rgba(15, 23, 42, 0.74);
+}
+
+.el-livekit-room .lk-button {
+  border-radius: 999px;
+}
+
+.el-audio-controls--compact {
+  margin-top: 0.55rem;
+}
+
+.el-tag-warning {
+  padding: 0.15rem 0.45rem;
+  border-radius: 6px;
+  background: rgba(245, 158, 11, 0.12);
+  color: #fbbf24;
+  font-size: 0.68rem;
+  font-weight: 500;
+}
+
+.el-platform-pulse {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.65rem;
+}
+
+.el-platform-pulse div {
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: 12px;
+  background: rgba(15, 23, 42, 0.55);
+  padding: 0.8rem;
+}
+
+.el-platform-pulse span {
+  display: block;
+  color: #64748b;
+  font-size: 0.7rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+}
+
+.el-platform-pulse strong {
+  display: block;
+  margin-top: 0.25rem;
+  color: #f8fafc;
+  font-size: 1.35rem;
+}
+
+@media (max-width: 640px) {
+  .el-assistant-composer {
+    grid-template-columns: 1fr;
+  }
+
+  .el-assistant-composer button {
+    min-height: 48px;
+  }
+
+  .el-platform-pulse {
+    grid-template-columns: 1fr;
+  }
+}

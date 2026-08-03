@@ -29,6 +29,18 @@ export const AdminSchema = {
     reason: messageText(500).refine(v => v.length >= 8, 'Reason must contain at least 8 characters.'),
   }).strict(),
 
+  policySettings: z.object({
+    client_no_show_grace_minutes: z.coerce.number().int().min(5).max(180),
+    worker_client_no_show_grace_minutes: z.coerce.number().int().min(5).max(180),
+    late_cancel_window_minutes: z.coerce.number().int().min(15).max(1440),
+    warning_incident_count: z.coerce.number().int().min(1).max(10),
+    penalty_incident_count: z.coerce.number().int().min(2).max(20),
+    temporary_block_incident_count: z.coerce.number().int().min(3).max(30),
+    admin_review_incident_count: z.coerce.number().int().min(4).max(40),
+    repeated_incident_penalty_amount: z.coerce.number().min(0).max(500),
+    temporary_block_hours: z.coerce.number().int().min(1).max(720),
+  }).strict(),
+
   workerRewardsSettings: z.object({
     trial_min_completed_jobs: z.coerce.number().int().min(1).max(100),
     commission_rate_percent: z.coerce.number().min(0).max(100),

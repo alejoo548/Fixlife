@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { API_ENDPOINTS } from '../../../config/api';
 import { useSSE } from '../../../hooks/useSSE';
 import { useChatSocket } from '../../../hooks/useChatSocket';
+import { showSweetAlert } from '../../../utils/sweetAlert';
 
 type ToastType = 'success' | 'error' | 'info';
 
@@ -146,6 +147,15 @@ export function useServiceRequestChat<TRequest extends ServiceRequestChatRequest
         });
         const payload = await res.json();
         if (!res.ok || !payload?.success) {
+          if (String(payload?.code || '').includes('CONTENT')) {
+            void showSweetAlert({
+              tone: 'warning',
+              title: 'Policy violation detected',
+              message: 'We detected behavior or an image that is not allowed on Fixlife. Only send respectful, service-related photos. This incident may be reviewed by Trust & Safety.',
+              confirmText: 'Understood',
+            });
+            return;
+          }
           showToast('error', payload?.error || 'Could not send message.');
           return;
         }

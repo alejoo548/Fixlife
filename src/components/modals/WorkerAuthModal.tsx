@@ -26,6 +26,12 @@ export const WorkerAuthModal: React.FC<WorkerAuthModalProps> = ({ isOpen, onClos
   const [otp, setOtp] = useState('');
   const [availableServices, setAvailableServices] = useState<ServiceOption[]>([]);
   const [selectedServiceIds, setSelectedServiceIds] = useState<number[]>([]);
+  const [workerLegalAccepted, setWorkerLegalAccepted] = useState({
+    terms: false,
+    professional: false,
+    penalties: false,
+    content: false,
+  });
 
   const [formData, setFormData] = useState({
     name: '',
@@ -79,6 +85,11 @@ export const WorkerAuthModal: React.FC<WorkerAuthModalProps> = ({ isOpen, onClos
   if (!isOpen) return null;
 
   const isSignup = view === 'signup' || view === 'specialties' || view === 'verify' || view === 'upload';
+  const hasAcceptedWorkerLegal =
+    workerLegalAccepted.terms &&
+    workerLegalAccepted.professional &&
+    workerLegalAccepted.penalties &&
+    workerLegalAccepted.content;
   const toggleView = () => {
     setView(isSignup ? 'signin' : 'signup');
     setError('');
@@ -135,6 +146,12 @@ export const WorkerAuthModal: React.FC<WorkerAuthModalProps> = ({ isOpen, onClos
       return;
     }
 
+    if (!hasAcceptedWorkerLegal) {
+      void showSweetToast({ tone: 'error', message: 'Please accept Fixlife professional terms and policies.' });
+      setLoading(false);
+      return;
+    }
+
     try {
       // Client-side validation passed — move to specialties selection
       setRegisteredEmail(formData.email);
@@ -164,6 +181,10 @@ export const WorkerAuthModal: React.FC<WorkerAuthModalProps> = ({ isOpen, onClos
           password: formData.password,
           username: formData.username || undefined,
           service_ids: selectedServiceIds,
+          accept_terms: workerLegalAccepted.terms,
+          accept_worker_policy: workerLegalAccepted.professional,
+          accept_penalty_policy: workerLegalAccepted.penalties,
+          accept_content_policy: workerLegalAccepted.content,
         })
       });
 
@@ -185,6 +206,50 @@ export const WorkerAuthModal: React.FC<WorkerAuthModalProps> = ({ isOpen, onClos
       setLoading(false);
     }
   };
+
+  const WorkerLegalCard = () => (
+    <div className="rounded-2xl border border-orange-100 bg-orange-50/80 p-3 text-left">
+      <p className="text-[11px] font-black uppercase tracking-[0.18em] text-bird-orange">Professional agreement</p>
+      <div className="mt-2 space-y-2">
+        <label className="flex items-start gap-2 text-xs font-semibold text-gray-700">
+          <input
+            type="checkbox"
+            checked={workerLegalAccepted.terms}
+            onChange={(e) => setWorkerLegalAccepted((prev) => ({ ...prev, terms: e.target.checked }))}
+            className="mt-0.5 h-4 w-4 rounded border-gray-300 text-bird-orange focus:ring-bird-orange"
+          />
+          I accept Fixlife Terms and Conditions before offering services.
+        </label>
+        <label className="flex items-start gap-2 text-xs font-semibold text-gray-700">
+          <input
+            type="checkbox"
+            checked={workerLegalAccepted.professional}
+            onChange={(e) => setWorkerLegalAccepted((prev) => ({ ...prev, professional: e.target.checked }))}
+            className="mt-0.5 h-4 w-4 rounded border-gray-300 text-bird-orange focus:ring-bird-orange"
+          />
+          I will arrive, communicate, and complete accepted jobs professionally.
+        </label>
+        <label className="flex items-start gap-2 text-xs font-semibold text-gray-700">
+          <input
+            type="checkbox"
+            checked={workerLegalAccepted.penalties}
+            onChange={(e) => setWorkerLegalAccepted((prev) => ({ ...prev, penalties: e.target.checked }))}
+            className="mt-0.5 h-4 w-4 rounded border-gray-300 text-bird-orange focus:ring-bird-orange"
+          />
+          I understand abuse, cancellations, no-shows, and payment disputes may create penalties or debt.
+        </label>
+        <label className="flex items-start gap-2 text-xs font-semibold text-gray-700">
+          <input
+            type="checkbox"
+            checked={workerLegalAccepted.content}
+            onChange={(e) => setWorkerLegalAccepted((prev) => ({ ...prev, content: e.target.checked }))}
+            className="mt-0.5 h-4 w-4 rounded border-gray-300 text-bird-orange focus:ring-bird-orange"
+          />
+          I will upload only work-related and appropriate files.
+        </label>
+      </div>
+    </div>
+  );
 
   const handleVerifySubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -441,6 +506,8 @@ export const WorkerAuthModal: React.FC<WorkerAuthModalProps> = ({ isOpen, onClos
                         <PasswordInput required value={formData.confirmPassword} onChange={e => setFormData({...formData, confirmPassword: e.target.value})}  maxLength={128} placeholder="Confirm Password" className="w-full bg-transparent px-3 py-2 text-sm text-gray-900 outline-none placeholder-gray-500" />
                       </div>
                     </div>
+
+                    <WorkerLegalCard />
 
                     <button disabled={loading} type="submit" className="mt-2 w-full py-3 rounded-full bg-gradient-to-r from-bird-orange to-bird-gold text-white font-bold text-sm tracking-wide shadow-lg shadow-bird-orange/20 hover:scale-[1.02] transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed">
                       {loading ? 'PROCESSING...' : 'CREATE PRO ACCOUNT'}
@@ -743,6 +810,7 @@ export const WorkerAuthModal: React.FC<WorkerAuthModalProps> = ({ isOpen, onClos
                         <PasswordInput required value={formData.confirmPassword} onChange={e => setFormData({...formData, confirmPassword: e.target.value})}  maxLength={128} placeholder="Confirm Password" className="w-full bg-transparent text-sm text-gray-900 outline-none placeholder-gray-500" />
                       </div>
                     </div>
+                    <WorkerLegalCard />
                     <button disabled={loading} type="submit" className="mt-4 w-full py-4 rounded-xl font-bold text-sm tracking-wide shadow-lg active:scale-[0.98] transition-all duration-300 bg-gradient-to-r from-bird-yellow to-bird-gold text-gray-900 shadow-bird-yellow/20 disabled:opacity-50 disabled:cursor-not-allowed">
                       {loading ? 'PROCESSING...' : "Create Pro Account"}
                     </button>

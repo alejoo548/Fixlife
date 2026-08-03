@@ -8,6 +8,7 @@ services:
         VITE_ENABLE_GOOGLE_LOGIN: ${VITE_ENABLE_GOOGLE_LOGIN:-false}
         VITE_GOOGLE_CLIENT_ID: ${VITE_GOOGLE_CLIENT_ID:-}
         VITE_RECAPTCHA_SITE_KEY: ${VITE_RECAPTCHA_SITE_KEY:-}
+        VITE_SUPPORT_SOCKET_URL: ${VITE_SUPPORT_SOCKET_URL:-http://127.0.0.1:8000}
         VITE_TOMTOM_TRAFFIC_KEY: ${VITE_TOMTOM_TRAFFIC_KEY:-}
         VITE_VIRTUAL_WALLET_CLIENT_ID: ${VITE_VIRTUAL_WALLET_CLIENT_ID:-}
         VITE_VIRTUAL_WALLET_SCRIPT_URL: ${VITE_VIRTUAL_WALLET_SCRIPT_URL:-}
@@ -54,6 +55,22 @@ services:
       - EMAIL_PASS=${EMAIL_PASS:-}
       - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID:-}
       - RECAPTCHA_SECRET_KEY=${RECAPTCHA_SECRET_KEY:-}
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - AI_IMAGE_MODERATION_ENABLED=${AI_IMAGE_MODERATION_ENABLED:-true}
+      - OPENAI_MODERATION_MODEL=${OPENAI_MODERATION_MODEL:-omni-moderation-latest}
+      - AI_IMAGE_MODERATION_BLOCK_THRESHOLD=${AI_IMAGE_MODERATION_BLOCK_THRESHOLD:-0.72}
+      - AI_IMAGE_MODERATION_REVIEW_THRESHOLD=${AI_IMAGE_MODERATION_REVIEW_THRESHOLD:-0.38}
+      - AI_IMAGE_MODERATION_STRICT_REVIEW=${AI_IMAGE_MODERATION_STRICT_REVIEW:-false}
+      - AI_IMAGE_MODERATION_FAIL_CLOSED=${AI_IMAGE_MODERATION_FAIL_CLOSED:-false}
+      - AI_IMAGE_MODERATION_TIMEOUT_MS=${AI_IMAGE_MODERATION_TIMEOUT_MS:-8000}
+      - AI_IMAGE_MODERATION_BLOCK_CATEGORIES=${AI_IMAGE_MODERATION_BLOCK_CATEGORIES:-sexual,sexual/minors,violence,violence/graphic,illicit,illicit/violent,self-harm,self-harm/intent,self-harm/instructions}
+      - AI_IMAGE_MODERATION_REQUIRED_FIELDS=${AI_IMAGE_MODERATION_REQUIRED_FIELDS:-chat_images}
+      - CONTENT_MODERATION_ENABLED=${CONTENT_MODERATION_ENABLED:-true}
+      - CONTENT_MODERATION_SYNC_OCR=${CONTENT_MODERATION_SYNC_OCR:-true}
+      - UPLOAD_MODERATION_DEBUG=${UPLOAD_MODERATION_DEBUG:-false}
+      - LIVEKIT_URL=${LIVEKIT_URL:-}
+      - LIVEKIT_API_KEY=${LIVEKIT_API_KEY:-}
+      - LIVEKIT_API_SECRET=${LIVEKIT_API_SECRET:-}
       - PAYPAL_MODE=${PAYPAL_MODE:-sandbox}
       - PAYPAL_CLIENT_ID=${PAYPAL_CLIENT_ID:-}
       - PAYPAL_CLIENT_SECRET=${PAYPAL_CLIENT_SECRET:-}
@@ -74,6 +91,43 @@ services:
       retries: 12
       interval: 5s
       start_period: 20s
+    networks:
+      - fixlife-network
+
+  admin-assistant-agent:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+      target: dev
+    container_name: fixlife_admin_assistant_agent
+    restart: unless-stopped
+    profiles:
+      - voice
+    user: root
+    env_file:
+      - ./.env
+    command: sh -c "npm run agent:dev"
+    volumes:
+      - ./backend:/app
+      - /app/node_modules
+    environment:
+      - DB_HOST=mysql
+      - DB_PORT=3306
+      - DB_NAME=${MYSQL_DATABASE:-fixlife_db}
+      - DB_USER=${DB_USER:-fixlife_app}
+      - DB_PASSWORD=${DB_PASSWORD:-Info2026/*-}
+      - LIVEKIT_URL=${LIVEKIT_URL:-}
+      - LIVEKIT_API_KEY=${LIVEKIT_API_KEY:-}
+      - LIVEKIT_API_SECRET=${LIVEKIT_API_SECRET:-}
+      - LIVEKIT_AGENT_OPENAI_MODEL=${LIVEKIT_AGENT_OPENAI_MODEL:-gpt-realtime}
+      - LIVEKIT_AGENT_OPENAI_VOICE=${LIVEKIT_AGENT_OPENAI_VOICE:-marin}
+      - LIVEKIT_AGENT_LOG_LEVEL=${LIVEKIT_AGENT_LOG_LEVEL:-info}
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+    depends_on:
+      mysql:
+        condition: service_healthy
+      backend:
+        condition: service_healthy
     networks:
       - fixlife-network
 

@@ -41,6 +41,8 @@ interface WorkerCurrentJobPanelProps {
   onToggleTools: () => void;
   onOpenChat: () => void;
   onReport: () => void;
+  onCancelJob: () => void;
+  onClientNoShow: () => void;
   onClose?: () => void;
   onCenterRoute: () => void;
   onCameraModeChange: (mode: 'balanced' | 'close') => void;
@@ -72,6 +74,8 @@ export const WorkerCurrentJobPanel = ({
   busy,
   onOpenChat,
   onReport,
+  onCancelJob,
+  onClientNoShow,
   onClose,
   onCenterRoute,
   onCameraModeChange,
@@ -180,6 +184,24 @@ export const WorkerCurrentJobPanel = ({
 
         {/* Sticky footer with primary action */}
         <footer className="shrink-0 border-t border-slate-100 bg-white/95 px-5 pb-4 pt-3">
+          <div className="mb-3 grid grid-cols-2 gap-2">
+            <button
+              type="button"
+              onClick={onCancelJob}
+              disabled={busy || !['assigned', 'route_in_progress', 'arrived', 'start_pending', 'payment_pending'].includes(request.request_status)}
+              className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5 text-[11px] font-black text-amber-800 transition hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              Cancel job
+            </button>
+            <button
+              type="button"
+              onClick={onClientNoShow}
+              disabled={busy || !['arrived', 'start_pending'].includes(request.request_status) || Boolean(request.work_started_at)}
+              className="rounded-xl border border-red-200 bg-red-50 px-3 py-2.5 text-[11px] font-black text-red-700 transition hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              Client no-show
+            </button>
+          </div>
           <WorkerCurrentJobAction
             status={request.request_status}
             routeActive={routeActive}

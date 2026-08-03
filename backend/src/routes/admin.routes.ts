@@ -52,6 +52,22 @@ import {
   uploadHeroImageAsset,
   uploadHeroSlideImage,
   searchAdmin,
+  getAccountPenaltiesAdmin,
+  getDisputeCasesAdmin,
+  getDisputeCaseEvidenceAdmin,
+  getPolicySettingsAdmin,
+  createAccountPenaltyAdmin,
+  updateAccountPenaltyAdmin,
+  updateDisputeCaseAdmin,
+  updatePolicySettingsAdmin,
+  getUploadModerationReviewsAdmin,
+  updateUploadModerationReviewAdmin,
+  getAccountPenaltyDetailAdmin,
+  approveSafeSkippedUploadsAdmin,
+  updatePenaltyAppealAdmin,
+  getAdminAssistantContextController,
+  chatAdminAssistantController,
+  createAdminAssistantLiveKitTokenController,
 } from '../controllers/admin.controller';
 import { verifyToken, requireAdmin } from '../middlewares/auth.middleware';
 import { sensitiveLimiter } from '../middlewares/security.middleware';
@@ -121,6 +137,22 @@ router.get('/system-events', getSystemEventsAdmin);
 router.get('/background-jobs', getBackgroundJobsAdminController);
 router.get('/activity', getAdminActivity);
 router.get('/search', searchAdmin);
+router.get('/assistant/context', getAdminAssistantContextController);
+router.post('/assistant/chat', sensitiveLimiter, chatAdminAssistantController);
+router.post('/assistant/livekit-token', sensitiveLimiter, createAdminAssistantLiveKitTokenController);
+router.get('/dispute-cases', getDisputeCasesAdmin);
+router.get('/dispute-cases/:idIncident/evidence', getDisputeCaseEvidenceAdmin);
+router.post('/dispute-cases/:idIncident/actions', sensitiveLimiter, updateDisputeCaseAdmin);
+router.get('/policy-settings', getPolicySettingsAdmin);
+router.put('/policy-settings', sensitiveLimiter, validate(AdminSchema.policySettings), updatePolicySettingsAdmin);
+router.get('/penalties', getAccountPenaltiesAdmin);
+router.post('/penalties', sensitiveLimiter, createAccountPenaltyAdmin);
+router.get('/penalties/:idPenalty', getAccountPenaltyDetailAdmin);
+router.post('/penalties/:idPenalty/actions', sensitiveLimiter, updateAccountPenaltyAdmin);
+router.post('/penalty-appeals/:idAppeal/actions', sensitiveLimiter, updatePenaltyAppealAdmin);
+router.get('/upload-moderation', getUploadModerationReviewsAdmin);
+router.post('/upload-moderation/bulk/approve-safe-skipped', sensitiveLimiter, approveSafeSkippedUploadsAdmin);
+router.post('/upload-moderation/:idReview/actions', sensitiveLimiter, updateUploadModerationReviewAdmin);
 
 // Hero Slides Editor
 router.put('/hero-slides', sensitiveLimiter, validate(AdminSchema.heroSlides), updateHeroSlides);

@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useSSE } from '../../hooks/useSSE';
 import { motion, AnimatePresence } from 'framer-motion';
+import Swal from 'sweetalert2';
 import { ServiceRequestData } from '../../types';
 import { API_ENDPOINTS } from '../../config/api';
 import { getToken, isAuthenticated } from '../../utils/session';
@@ -18,7 +19,8 @@ import { ServiceRequestAssignedWorkerCard } from './ServiceRequestAssignedWorker
 import { ServiceRequestPaymentModal } from './ServiceRequestPaymentModal';
 import { ServiceRequestFixesSuccessModal } from './ServiceRequestFixesSuccessModal';
 import { ServiceReportModal } from '../shared/ServiceReportModal';
-import { showSweetAlert, showSweetToast } from '../../utils/sweetAlert';
+import { AccountStandingPanel, type AccountAppealItem } from '../shared/AccountStandingPanel';
+import { showSweetAlert, showSweetConfirm, showSweetToast } from '../../utils/sweetAlert';
 import { sanitizeLettersOnly, sanitizeMessageText, sanitizeStrictText } from '../../utils/textSanitize';
 import { useProfanityGuard } from '../../hooks/useProfanityGuard';
 import { useResponsiveSheet } from '../../hooks/useResponsiveSheet';
@@ -335,6 +337,7 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
     const [pendingRenameTitle, setPendingRenameTitle] = useState('');
     const [pendingRequestAction, setPendingRequestAction] = useState<{ type: 'cancel' | 'complete'; request: MyServiceRequest } | null>(null);
     const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
+    const [isStandingModalOpen, setIsStandingModalOpen] = useState(false);
     const [focusedHistoryRequestId, setFocusedHistoryRequestId] = useState<number | null>(null);
     useEffect(() => { if (openOnHistory) setIsHistoryModalOpen(true); }, [openOnHistory]);
     const [workerProfileRequest, setWorkerProfileRequest] = useState<MyServiceRequest | null>(null);
@@ -370,6 +373,23 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
     const [ratingModalRequest, setRatingModalRequest] = useState<MyServiceRequest | null>(null);
     const [fixesSuccessRequest, setFixesSuccessRequest] = useState<MyServiceRequest | null>(null);
     const [reportRequest, setReportRequest] = useState<MyServiceRequest | null>(null);
+    const [balanceSupportBusy, setBalanceSupportBusy] = useState(false);
+    const [accountBalance, setAccountBalance] = useState<{
+        has_blocking_debt?: boolean;
+        outstanding_balance?: number;
+        outstanding_count?: number;
+        currency_code?: string;
+        latest?: Array<{ id_penalty: number; reason: string; amount: number; status: string; description?: string | null; payment_method?: string | null; payment_reference?: string | null; created_at?: string | null }>;
+    } | null>(null);
+    const [accountEnforcement, setAccountEnforcement] = useState<{
+        trust_score?: number;
+        standing?: string;
+        completed_services?: number;
+        active_restrictions?: Array<{ restriction_type: string; reason: string; ends_at?: string | null }>;
+        incident_count?: number;
+        incidents?: Array<{ id_incident: number; incident_type: string; severity: string; description?: string | null; action_taken: string; created_at: string }>;
+    } | null>(null);
+    const [accountAppeals, setAccountAppeals] = useState<AccountAppealItem[]>([]);
     const isDesktopSheet = useResponsiveSheet();
     const lastToastRef = useRef<{ type: 'success' | 'error' | 'info'; message: string; at: number } | null>(null);
     const previousRequestStatusesRef = useRef<Record<number, string>>({});
@@ -1176,6 +1196,168 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
     });
 
     const activeTrackedRequest = useActiveTrackedRequest(myRequests);
+
+    useEffect(() => {
+        if (!isOpen || !isAuthenticated()) {
+            setAccountBalance(null);
+            return;
+        }
+        let cancelled = false;
+        const loadBalance = async () => {
+            try {
+                const response = await fetch(API_ENDPOINTS.services.accountBalance, {
+                    headers: { Authorization: `Bearer ${getToken() || ''}` },
+                });
+                if (!response.ok) return;
+                const payload = await response.json();
+                if (!cancelled) {
+                    setAccountBalance(payload?.balance || null);
+                    setAccountEnforcement(payload?.enforcement || null);
+                    setAccountAppeals(Array.isArray(payload?.appeals) ? payload.appeals : []);
+                }
+            } catch {
+                if (!cancelled) setAccountBalance(null);
+            }
+        };
+        void loadBalance();
+        return () => { cancelled = true; };
+    }, [isOpen]);
+
+    const openBalanceSupportCase = async () => {
+        if (!accountBalance?.has_blocking_debt || balanceSupportBusy) return;
+        const latest = accountBalance.latest?.[0];
+        if (!latest?.id_penalty) {
+            showSweetAlert({ tone: 'info', title: 'No balance item found', message: 'There is no open penalty linked to this balance.' });
+            return;
+        }
+        const result = await Swal.fire({
+            icon: 'info',
+            title: 'Resolve balance',
+            html: `
+                <div style="text-align:left">
+                    <p style="margin:0 0 14px;color:#475569;font-weight:700">Report how you paid this balance. Trust & Safety will confirm it before clearing the debt.</p>
+                    <label style="display:block;font-weight:900;margin-bottom:8px">Payment method</label>
+                    <select id="balance-payment-method" style="width:100%;border:1px solid #dbe4f0;border-radius:14px;padding:11px;font-weight:800">
+                        <option value="cash">Cash</option>
+                        <option value="transfer">Bank transfer</option>
+                        <option value="card">Card</option>
+                        <option value="other">Other</option>
+                    </select>
+                    <label style="display:block;font-weight:900;margin:14px 0 8px">Reference or receipt note</label>
+                    <input id="balance-payment-reference" maxlength="180" style="width:100%;border:1px solid #dbe4f0;border-radius:14px;padding:11px;font-weight:800" placeholder="Receipt number, transfer code, or cash handoff detail" />
+                    <label style="display:block;font-weight:900;margin:14px 0 8px">Extra note</label>
+                    <textarea id="balance-payment-note" maxlength="500" style="width:100%;min-height:92px;border:1px solid #dbe4f0;border-radius:14px;padding:11px;font-weight:700" placeholder="Explain briefly what happened."></textarea>
+                </div>
+            `,
+            showCancelButton: true,
+            confirmButtonText: 'Send for review',
+            cancelButtonText: 'Cancel',
+            buttonsStyling: false,
+            customClass: {
+                confirmButton: 'rounded-2xl bg-slate-950 px-5 py-3 text-sm font-black text-white',
+                cancelButton: 'rounded-2xl border border-slate-200 bg-white px-5 py-3 text-sm font-black text-slate-700',
+                actions: 'gap-3',
+            },
+            preConfirm: () => {
+                const payment_method = (document.getElementById('balance-payment-method') as HTMLSelectElement | null)?.value || 'other';
+                const payment_reference = (document.getElementById('balance-payment-reference') as HTMLInputElement | null)?.value?.trim() || '';
+                const note = (document.getElementById('balance-payment-note') as HTMLTextAreaElement | null)?.value?.trim() || '';
+                if (payment_reference.length < 4 && note.length < 12) {
+                    Swal.showValidationMessage('Add a reference or a clear note.');
+                    return false;
+                }
+                return { payment_method, payment_reference, note };
+            },
+        });
+        if (!result.isConfirmed || !result.value) return;
+
+        setBalanceSupportBusy(true);
+        try {
+            const response = await fetch(API_ENDPOINTS.services.penaltyPaymentReport(latest.id_penalty), {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    Authorization: `Bearer ${getToken() || ''}`,
+                },
+                body: JSON.stringify(result.value),
+            });
+            const payload = await response.json().catch(() => ({}));
+            if (!response.ok) throw new Error(payload.error || 'Could not report payment.');
+            setAccountBalance(payload?.balance || accountBalance);
+            setAccountEnforcement(payload?.enforcement || accountEnforcement);
+            setAccountAppeals(Array.isArray(payload?.appeals) ? payload.appeals : accountAppeals);
+            showSweetAlert({
+                tone: 'success',
+                title: 'Payment report sent',
+                message: 'Trust & Safety will confirm your payment. Admin can mark it paid after review.',
+            });
+        } catch (error) {
+            showSweetAlert({
+                tone: 'error',
+                title: 'Could not report payment',
+                message: error instanceof Error ? error.message : 'Please try again.',
+            });
+        } finally {
+            setBalanceSupportBusy(false);
+        }
+    };
+
+    const openPenaltyAppeal = async () => {
+        const latest = accountBalance?.latest?.[0];
+        if (!latest?.id_penalty) {
+            showSweetAlert({ tone: 'info', title: 'No appeal available', message: 'There is no open penalty linked to this balance.' });
+            return;
+        }
+
+        const result = await Swal.fire({
+            icon: 'info',
+            title: `Appeal penalty #${latest.id_penalty}`,
+            html: `
+                <div style="text-align:left">
+                    <label style="display:block;font-weight:800;margin-bottom:8px">Explanation</label>
+                    <textarea id="appeal-explanation" maxlength="1800" style="width:100%;min-height:130px;border:1px solid #dbe4f0;border-radius:16px;padding:12px;font-weight:700" placeholder="Explain clearly what happened and why this penalty should be reviewed."></textarea>
+                    <label style="display:block;font-weight:800;margin:14px 0 8px">Evidence images</label>
+                    <input id="appeal-images" type="file" accept="image/png,image/jpeg,image/webp" multiple style="width:100%" />
+                    <p style="margin:8px 0 0;color:#64748b;font-size:12px;font-weight:700">Up to 3 images. Files are moderated before review.</p>
+                </div>
+            `,
+            showCancelButton: true,
+            confirmButtonText: 'Send appeal',
+            cancelButtonText: 'Cancel',
+            buttonsStyling: false,
+            customClass: {
+                confirmButton: 'rounded-2xl bg-slate-950 px-5 py-3 text-sm font-black text-white',
+                cancelButton: 'rounded-2xl border border-slate-200 bg-white px-5 py-3 text-sm font-black text-slate-700',
+                actions: 'gap-3',
+            },
+            preConfirm: () => {
+                const explanation = (document.getElementById('appeal-explanation') as HTMLTextAreaElement | null)?.value?.trim() || '';
+                const files = Array.from(((document.getElementById('appeal-images') as HTMLInputElement | null)?.files || [])).slice(0, 3);
+                if (explanation.length < 20) {
+                    Swal.showValidationMessage('Write at least 20 characters.');
+                    return false;
+                }
+                return { explanation, files };
+            },
+        });
+        if (!result.isConfirmed || !result.value) return;
+
+        try {
+            const formData = new FormData();
+            formData.append('explanation', result.value.explanation);
+            result.value.files.forEach((file: File) => formData.append('appeal_images', file));
+            const response = await fetch(API_ENDPOINTS.services.penaltyAppeal(latest.id_penalty), {
+                method: 'POST',
+                headers: { Authorization: `Bearer ${getToken() || ''}` },
+                body: formData,
+            });
+            const payload = await response.json().catch(() => ({}));
+            if (!response.ok) throw new Error(payload.error || 'Could not send appeal.');
+            showSweetAlert({ tone: 'success', title: 'Appeal sent', message: 'Trust & Safety will review your explanation and evidence.' });
+        } catch (error) {
+            showSweetAlert({ tone: 'error', title: 'Could not send appeal', message: error instanceof Error ? error.message : 'Please try again.' });
+        }
+    };
 
     const workerPortfolio = useMemo(
         () => workerProfileData?.portfolio || [],
@@ -2146,8 +2328,15 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
             const res = await fetch(API_ENDPOINTS.services.cancelRequest(request.id_request), {
                 method: 'POST',
                 headers: {
+                    'Content-Type': 'application/json',
                     Authorization: `Bearer ${token}`,
                 },
+                body: JSON.stringify({
+                    reason: request.assigned_worker ? 'client_cancelled' : 'duplicate',
+                    description: request.assigned_worker
+                        ? 'Client cancelled after a professional was attached.'
+                        : 'Client cancelled before a professional was attached.',
+                }),
             });
             const payload = await res.json();
             if (!res.ok || !payload?.success) {
@@ -2176,6 +2365,45 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
         }
 
         requestConfirmRequestAction('cancel', request);
+    };
+
+    const handleWorkerNoShow = async (request: MyServiceRequest) => {
+        const token = getToken();
+        if (!token) {
+            showToast('error', 'Please sign in again.');
+            return;
+        }
+        if (!request.assigned_worker) {
+            showToast('error', 'No assigned professional is available to report.');
+            return;
+        }
+        const confirmed = await showSweetConfirm({
+            title: 'Report worker no-show?',
+            message: 'Use this only if the professional did not arrive after the allowed grace period. Fixlife will reopen the request and review the timeline.',
+            tone: 'warning',
+            confirmText: 'Report no-show',
+            destructive: true,
+        });
+        if (!confirmed) return;
+
+        setCancelBusyId(request.id_request);
+        try {
+            const res = await fetch(API_ENDPOINTS.services.reportWorkerNoShow(request.id_request), {
+                method: 'POST',
+                headers: { Authorization: `Bearer ${token}` },
+            });
+            const payload = await res.json();
+            if (!res.ok || !payload?.success) {
+                showToast('error', payload?.error || 'Could not report no-show.');
+                return;
+            }
+            showToast('success', payload.message || 'No-show report saved.');
+            await fetchMyRequests(historyStatus, true);
+        } catch {
+            showToast('error', 'Network error reporting no-show.');
+        } finally {
+            setCancelBusyId(null);
+        }
     };
 
     useEffect(() => {
@@ -2232,6 +2460,18 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
         }));
     };
 
+    const activeHistoryCount = myRequests.filter((request) => {
+        const requestStatus = String(request.status || '').toLowerCase();
+        return !['done', 'completed', 'cancelled', 'canceled', 'rejected'].includes(requestStatus);
+    }).length;
+    const accountTrustScore = Number(accountEnforcement?.trust_score ?? 100);
+    const accountHasAttention = Boolean(
+        accountBalance?.has_blocking_debt ||
+        (accountEnforcement?.active_restrictions?.length || 0) > 0 ||
+        accountTrustScore < 75
+    );
+    const accountStandingLabel = accountHasAttention ? 'Account attention' : 'Good standing';
+
     return (
         <motion.div
             initial={{ opacity: 0 }}
@@ -2248,7 +2488,31 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                 hasActiveTrackedRequest={!!activeTrackedRequest}
                 onClose={onClose}
                 onBack={step === 1 ? () => setStep(0) : onClose}
-                notificationCenter={<NotificationCenter token={getToken()} variant="panel" />}
+                notificationCenter={
+                    <div className="flex items-center gap-2">
+                        <button
+                            type="button"
+                            onClick={() => setIsStandingModalOpen(true)}
+                            className={`group inline-flex h-11 items-center gap-2 rounded-full border px-3 text-xs font-black shadow-sm transition focus:outline-none focus:ring-4 sm:px-4 ${
+                                accountHasAttention
+                                    ? 'border-amber-200 bg-amber-50 text-amber-800 hover:border-amber-300 hover:bg-amber-100 focus:ring-amber-100 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-200 dark:focus:ring-amber-900/30'
+                                    : 'border-emerald-200 bg-white text-slate-700 hover:border-emerald-300 hover:bg-emerald-50 hover:text-emerald-700 focus:ring-emerald-100 dark:border-white/10 dark:bg-white/[0.06] dark:text-slate-100 dark:hover:bg-white/[0.1] dark:focus:ring-emerald-900/30'
+                            }`}
+                            aria-label="Open account standing"
+                        >
+                            <svg className="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.3} d="M9 12.75 11.25 15 15 9.75M12 3l7 3v5c0 4.2-2.7 8-7 10-4.3-2-7-5.8-7-10V6l7-3Z" />
+                            </svg>
+                            <span className="hidden sm:inline">{accountStandingLabel}</span>
+                            <span className={`flex h-6 min-w-10 items-center justify-center rounded-full px-2 text-[10px] font-black ${
+                                accountHasAttention ? 'bg-amber-600 text-white' : 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-200'
+                            }`}>
+                                {accountTrustScore}/100
+                            </span>
+                        </button>
+                        <NotificationCenter token={getToken()} variant="panel" />
+                    </div>
+                }
             >
                 <AnimatePresence mode="wait">
                         {step === 0 && (
@@ -2325,6 +2589,7 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                             );
                                         })}
                                     </div>
+
                                 </div>
 
                                 <div className="flex-1 overflow-y-auto p-5 sm:p-7">
@@ -3796,34 +4061,101 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                 />
             </div>
 
+                    {isStandingModalOpen && createPortal(
+                        <motion.div
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            exit={{ opacity: 0 }}
+                            className="fixed inset-0 z-[10000] flex items-center justify-center bg-slate-950/60 p-3 backdrop-blur-sm pointer-events-auto sm:p-5"
+                        >
+                            <motion.div
+                                initial={{ opacity: 0, y: 24, scale: 0.98 }}
+                                animate={{ opacity: 1, y: 0, scale: 1 }}
+                                exit={{ opacity: 0, y: 24, scale: 0.98 }}
+                                transition={{ type: 'spring', damping: 24, stiffness: 220 }}
+                                className="flex h-auto max-h-[min(86vh,820px)] w-[min(760px,calc(100vw-24px))] flex-col overflow-hidden rounded-[2rem] bg-white shadow-[0_32px_110px_rgba(15,23,42,0.38)] dark:bg-slate-950 sm:w-[min(760px,calc(100vw-40px))]"
+                            >
+                                <div className="flex shrink-0 items-start justify-between gap-4 border-b border-slate-100 bg-white px-5 py-5 dark:border-white/10 dark:bg-slate-950 sm:px-7">
+                                    <div className="min-w-0">
+                                        <span className={`inline-flex rounded-full px-3 py-1 text-[11px] font-black uppercase tracking-[0.18em] ${
+                                            accountHasAttention
+                                                ? 'bg-amber-50 text-amber-700 dark:bg-amber-500/10 dark:text-amber-200'
+                                                : 'bg-emerald-50 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-200'
+                                        }`}>
+                                            Trust & Safety
+                                        </span>
+                                        <h2 className="mt-2 text-2xl font-black text-slate-950 dark:text-slate-100 sm:text-3xl">
+                                            {accountStandingLabel}
+                                        </h2>
+                                        <p className="mt-1 text-sm font-semibold text-slate-500 dark:text-slate-400">
+                                            Review your trust score, balances, restrictions and appeal options.
+                                        </p>
+                                    </div>
+                                    <button
+                                        type="button"
+                                        onClick={() => setIsStandingModalOpen(false)}
+                                        className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-500 shadow-sm transition-colors hover:bg-slate-100 hover:text-slate-950 focus:outline-none focus:ring-4 focus:ring-blue-100 dark:border-white/10 dark:bg-white/[0.06] dark:text-slate-400 dark:hover:bg-white/[0.1] dark:hover:text-slate-100"
+                                        aria-label="Close account standing"
+                                    >
+                                        <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
+                                        </svg>
+                                    </button>
+                                </div>
+                                <div className="flex-1 overflow-y-auto bg-slate-50/80 p-4 custom-scrollbar dark:bg-slate-900/80 sm:p-6">
+                                    <AccountStandingPanel
+                                        balance={accountBalance}
+                                        enforcement={accountEnforcement}
+                                        appeals={accountAppeals}
+                                        compact
+                                        onResolveBalance={openBalanceSupportCase}
+                                        onAppealPenalty={openPenaltyAppeal}
+                                    />
+                                </div>
+                            </motion.div>
+                        </motion.div>,
+                        document.body
+                    )}
+
                     {isHistoryModalOpen && createPortal(
                             <motion.div
                                 initial={{ opacity: 0 }}
                                 animate={{ opacity: 1 }}
                                 exit={{ opacity: 0 }}
-                                className="fixed inset-0 z-[10000] bg-slate-950/60 backdrop-blur-sm flex justify-end pointer-events-auto"
+                                className="fixed inset-0 z-[10000] flex items-center justify-center bg-slate-950/60 p-3 backdrop-blur-sm pointer-events-auto sm:p-5"
                             >
                                 <motion.div
-                                    initial={{ x: '100%' }}
-                                    animate={{ x: 0 }}
-                                    exit={{ x: '100%' }}
-                                    transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-                                    className="w-full md:w-[500px] lg:w-[600px] h-full bg-white dark:bg-slate-900/70 shadow-2xl flex flex-col pointer-events-auto"
+                                    initial={{ opacity: 0, y: 28, scale: 0.98 }}
+                                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                                    exit={{ opacity: 0, y: 28, scale: 0.98 }}
+                                    transition={{ type: 'spring', damping: 24, stiffness: 220 }}
+                                    className="flex h-[min(88vh,860px)] w-[min(1180px,calc(100vw-24px))] flex-col overflow-hidden rounded-[2rem] bg-white shadow-[0_32px_110px_rgba(15,23,42,0.38)] pointer-events-auto dark:bg-slate-950 sm:w-[min(1180px,calc(100vw-40px))]"
                                 >
-                                    <div className="flex items-center justify-between px-6 py-5 border-b border-slate-100 dark:border-white/5 shrink-0">
-                                        <div>
-                                            <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400 dark:text-slate-500">History</p>
-                                            <h2 className="text-xl font-black text-slate-900 dark:text-slate-100 mt-1">My Request Story</h2>
+                                    <div className="flex shrink-0 flex-col gap-4 border-b border-slate-100 bg-white px-5 py-5 dark:border-white/10 dark:bg-slate-950 sm:flex-row sm:items-center sm:justify-between sm:px-7">
+                                        <div className="min-w-0">
+                                            <div className="flex flex-wrap items-center gap-2">
+                                                <span className="rounded-full bg-blue-50 px-3 py-1 text-[11px] font-black uppercase tracking-[0.18em] text-bird-blue dark:bg-blue-500/10">
+                                                    My Requests
+                                                </span>
+                                                <span className="text-sm font-black text-slate-400">
+                                                    {activeHistoryCount} active · {myRequests.length} total
+                                                </span>
+                                            </div>
+                                            <h2 className="mt-2 truncate text-2xl font-black text-slate-950 dark:text-slate-100 sm:text-3xl">Request Center</h2>
+                                            <p className="mt-1 text-sm font-semibold text-slate-500 dark:text-slate-400">
+                                                Review active services, open chats, payments, reports and your full history.
+                                            </p>
                                         </div>
                                         <button
                                             type="button"
                                             onClick={closeHistoryModal}
-                                            className="flex h-10 w-10 items-center justify-center rounded-full bg-slate-100 dark:bg-white/[0.06] text-slate-500 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-white/[0.08] hover:text-slate-900 dark:hover:text-slate-100 transition-colors"
+                                            className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-500 shadow-sm transition-colors hover:bg-slate-100 hover:text-slate-950 focus:outline-none focus:ring-4 focus:ring-blue-100 dark:border-white/10 dark:bg-white/[0.06] dark:text-slate-400 dark:hover:bg-white/[0.1] dark:hover:text-slate-100"
+                                            aria-label="Close request center"
                                         >
                                             <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" /></svg>
                                         </button>
                                     </div>
-                                    <div className="flex-1 overflow-y-auto custom-scrollbar p-6 bg-slate-50/50 dark:bg-white/[0.04]">
+                                    <div className="flex-1 overflow-y-auto custom-scrollbar bg-slate-50/80 p-4 dark:bg-slate-900/80 sm:p-6">
 <ServiceRequestHistorySection
                                     historyStatus={historyStatus}
                                     historyLoading={historyLoading}
@@ -3845,6 +4177,7 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                         </div>
                                     ) : null}
                                     onHistoryStatusChange={(value) => setHistoryStatus(value as any)}
+                                    variant="modal"
                                 >
 
                                             {historyLoading && myRequests.length === 0 ? (
@@ -3855,7 +4188,7 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                             ) : !historyLoading && myRequests.length === 0 ? (
                                                 <div className="text-sm font-semibold text-slate-500 dark:text-slate-400 bg-slate-50 dark:bg-white/[0.04] border border-slate-100 dark:border-white/5 rounded-xl p-4 text-center">No requests yet.</div>
                                             ) : (
-                                                <div className="space-y-4 max-h-[600px] overflow-y-auto pr-2 custom-scrollbar">
+                                                <div className="space-y-4">
                                             {myRequests.map((request) => {
                                                 const pendingCounter = hasPendingCounter(request);
                                                 const pendingWorkerApproval = hasPendingWorkerApproval(request);
@@ -4003,6 +4336,19 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                                                     </svg>
                                                                     Report this Pro
                                                                 </button>
+                                                                {['assigned', 'route_in_progress'].includes(requestStatus) && !request.worker_arrived_at && (
+                                                                    <button
+                                                                        type="button"
+                                                                        disabled={cancelBusyId === request.id_request}
+                                                                        onClick={() => void handleWorkerNoShow(request)}
+                                                                        className="mt-2 flex w-full items-center justify-center gap-2 rounded-2xl border border-amber-200 dark:border-amber-900/50 bg-amber-50 dark:bg-amber-900/40 px-4 py-3 text-sm font-black text-amber-800 dark:text-amber-300 transition hover:bg-amber-100 disabled:opacity-50"
+                                                                    >
+                                                                        <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.4} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                                                        </svg>
+                                                                        {cancelBusyId === request.id_request ? 'Saving report...' : 'Worker did not arrive'}
+                                                                    </button>
+                                                                )}
                                                             </>
                                                         )}
 

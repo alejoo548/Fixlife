@@ -15,8 +15,66 @@ const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || '';
 const RECAPTCHA_SECRET_KEY = process.env.RECAPTCHA_SECRET_KEY || '';
 const googleClient = GOOGLE_CLIENT_ID ? new OAuth2Client(GOOGLE_CLIENT_ID) : null;
 const isRecaptchaEnabled = Boolean(RECAPTCHA_SECRET_KEY);
+const LEGAL_POLICY_VERSION = '2026-07-17';
 
 const sanitizeText = (value: unknown): string => String(value ?? '').trim();
+
+const ensureLegalAcceptancesTable = async (connection: { execute: Function }) => {
+  await connection.execute(`
+    CREATE TABLE IF NOT EXISTS legal_acceptances (
+      id_acceptance INT NOT NULL AUTO_INCREMENT,
+      id_user INT NOT NULL,
+      policy_type VARCHAR(80) NOT NULL,
+      policy_version VARCHAR(30) NOT NULL,
+      accepted_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      ip_address VARCHAR(45) NULL,
+      user_agent VARCHAR(255) NULL,
+      PRIMARY KEY (id_acceptance),
+      UNIQUE KEY uniq_legal_acceptance_user_policy_version (id_user, policy_type, policy_version),
+      INDEX idx_legal_acceptances_user (id_user),
+      CONSTRAINT fk_legal_acceptances_user
+        FOREIGN KEY (id_user) REFERENCES users(id_user)
+        ON DELETE CASCADE
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+  `);
+};
+
+const getRequestIp = (req: Request) => {
+  const forwardedFor = String(req.headers['x-forwarded-for'] || '');
+  return String(forwardedFor.split(',')[0] || req.socket.remoteAddress || req.ip || '')
+    .trim()
+    .slice(0, 45);
+};
+
+const recordLegalAcceptances = async (
+  connection: { execute: Function },
+  req: Request,
+  userId: number,
+  policyTypes: string[]
+) => {
+  const ip = getRequestIp(req) || null;
+  const userAgent = String(req.headers['user-agent'] || '').slice(0, 255) || null;
+  const values = policyTypes.map(() => '(?, ?, ?, NOW(), ?, ?)').join(', ');
+  await connection.execute(
+    `INSERT INTO legal_acceptances (id_user, policy_type, policy_version, accepted_at, ip_address, user_agent)
+     VALUES ${values}
+     ON DUPLICATE KEY UPDATE accepted_at = VALUES(accepted_at), ip_address = VALUES(ip_address), user_agent = VALUES(user_agent)`,
+    policyTypes.flatMap((policyType) => [userId, policyType, LEGAL_POLICY_VERSION, ip, userAgent])
+  );
+};
+
+const clientLegalPolicies = [
+  'terms_conditions',
+  'service_protection_policy',
+  'content_policy',
+];
+
+const workerLegalPolicies = [
+  'terms_conditions',
+  'worker_professional_policy',
+  'payment_penalty_policy',
+  'content_policy',
+];
 
 const verifyRecaptchaToken = async (token: string, remoteIp?: string) => {
   try {
@@ -70,6 +128,7 @@ const isValidPassword = (value: string): boolean => {
 export const registerWorker = async (req: Request, res: Response): Promise<void> => {
   try {
     await ensureUsersPendingWorkerColumn();
+    await ensureLegalAcceptancesTable(pool);
 
     const { name, lastname, email, phone_number, password, username, service_ids } = req.body;
 
@@ -179,6 +238,7 @@ export const registerWorker = async (req: Request, res: Response): Promise<void>
             return;
           }
 
+          await recordLegalAcceptances(connection, req, Number(existingUser.id_user), workerLegalPolicies);
           await connection.commit();
           res.status(201).json({ success: true, message: 'New OTP sent to email. Please verify.', email: trimmedEmail });
           return;
@@ -240,6 +300,7 @@ export const registerWorker = async (req: Request, res: Response): Promise<void>
         return;
       }
 
+      await recordLegalAcceptances(connection, req, Number(userId), workerLegalPolicies);
       await connection.commit();
 
       res.status(201).json({
@@ -408,6 +469,7 @@ export const verifyWorkerEmail = async (req: Request, res: Response): Promise<vo
 export const registerUser = async (req: Request, res: Response): Promise<void> => {
   try {
     await ensureUsersPhoneNumberNullable();
+    await ensureLegalAcceptancesTable(pool);
 
     const { name, lastname, email, phone_number, password, username, captchaToken } = req.body;
 
@@ -487,6 +549,7 @@ export const registerUser = async (req: Request, res: Response): Promise<void> =
 
       const userId = insertUserResult.insertId;
 
+      await recordLegalAcceptances(connection, req, Number(userId), clientLegalPolicies);
       await connection.commit();
 
       const token = signAccessToken({ user_id: userId, rol: 'client', pending_worker: 0 });

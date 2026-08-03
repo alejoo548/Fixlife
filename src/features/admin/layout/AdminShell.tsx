@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
-import { Activity, Banknote, ChevronLeft, ChevronRight, FileText, Gauge, Headphones, Image, LogOut, Menu, Search, Settings, ShieldCheck, ShieldAlert, Users, Wrench, X } from 'lucide-react';
+import { Activity, AudioWaveform, Banknote, ChevronLeft, ChevronRight, FileText, Gauge, Headphones, Image, LogOut, Menu, Search, Settings, ShieldCheck, ShieldAlert, Users, Wrench, X } from 'lucide-react';
 import { DashboardThemeToggle } from '../../../components/common/DashboardThemeToggle';
 import { useDashboardTheme } from '../../../hooks/useDashboardTheme';
 import { getAuthUser, logoutAndReload } from '../../../utils/session';
@@ -24,7 +24,9 @@ const navGroups = [
     { to: `${BASE}/services`, label: 'Services', icon: Wrench }, { to: `${BASE}/content`, label: 'Content', icon: Image },
   ]},
   { label: 'Control', items: [
-    { to: `${BASE}/finance`, label: 'Finance', icon: Banknote }, { to: `${BASE}/activity`, label: 'Admin activity', icon: Activity },
+    { to: `${BASE}/finance`, label: 'Finance', icon: Banknote }, { to: `${BASE}/trust-safety`, label: 'Trust & Safety', icon: ShieldAlert },
+    { to: `${BASE}/activity`, label: 'Admin activity', icon: Activity },
+    { to: `${BASE}/assistant`, label: 'Assistant', icon: AudioWaveform },
     { to: `${BASE}/settings`, label: 'Settings', icon: Settings },
   ]},
 ];
@@ -35,7 +37,9 @@ const titles: Record<string, [string, string]> = {
   admins: ['Administrators', 'Staff accounts and access levels'],
   services: ['Services', 'Operational service catalog'], content: ['Homepage content', 'Cards and public presentation'],
   finance: ['Finance', 'Revenue, settlements and exceptions'], support: ['Support', 'Customer support workspace'],
+  'trust-safety': ['Trust & Safety', 'Penalties, debts and upload moderation'],
   activity: ['Admin activity', 'Audited changes across platform'],
+  assistant: ['Assistant', 'Voice support and AI assistance for the platform'],
   settings: ['Platform settings', 'Controlled configuration'],
 };
 

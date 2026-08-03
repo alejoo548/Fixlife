@@ -3,13 +3,15 @@ import { ReviewSubmitSection } from '../sections/ReviewSubmitSection';
 import { useLocation } from 'react-router-dom';
 import { useSSE } from '../../hooks/useSSE';
 import { motion, AnimatePresence } from 'framer-motion';
+import Swal from 'sweetalert2';
 import { ProSidebar } from './ProSidebar';
-import { API_URL } from '../../config/api';
+import { API_ENDPOINTS, API_URL } from '../../config/api';
 import { AUTH_SESSION_CHANGED_EVENT, getAuthUser, getToken as getSessionToken, isAuthenticated, logoutAndReload, updateStoredAuthUser } from '../../utils/session';
 import { NotificationCenter } from '../common/NotificationCenter';
 import { DashboardThemeToggle } from '../common/DashboardThemeToggle';
 import { useDashboardTheme } from '../../hooks/useDashboardTheme';
 import { showSweetAlert } from '../../utils/sweetAlert';
+import { AccountStandingPanel, type AccountAppealItem } from '../shared/AccountStandingPanel';
 
 const RequestsView = lazy(() =>
    import('../dashboard/RequestsView').then((module) => ({
@@ -77,6 +79,20 @@ type WorkerService = {
    icon?: string | null;
 };
 
+type AccountPenaltyBalance = {
+   has_blocking_debt?: boolean;
+   outstanding_balance?: number;
+   outstanding_count?: number;
+   currency_code?: string;
+   latest?: Array<{ id_penalty: number; reason: string; amount: number; status: string; description?: string | null }>;
+   enforcement?: {
+      trust_score?: number;
+      standing?: string;
+      incident_count?: number;
+      active_restrictions?: Array<{ restriction_type: string; reason: string; ends_at?: string | null }>;
+   } | null;
+};
+
 type WorkerTierUpdatedEvent = {
    membership_tier?: string | null;
    previous_tier?: string | null;
@@ -112,6 +128,9 @@ export const ProDashboard: React.FC<ProDashboardProps> = ({ isOpen, onClose, onS
    const [currentTierLabel, setCurrentTierLabel] = useState('Standard Pro');
    const [currentService, setCurrentService] = useState<WorkerService | null>(null);
    const [serviceCount, setServiceCount] = useState(0);
+   const [penaltyBalance, setPenaltyBalance] = useState<AccountPenaltyBalance | null>(null);
+   const [penaltyAppeals, setPenaltyAppeals] = useState<AccountAppealItem[]>([]);
+   const [balanceSupportBusy, setBalanceSupportBusy] = useState(false);
    const presenceMenuRef = useRef<HTMLDivElement | null>(null);
    const lastTierAlertRef = useRef<string>('');
 
@@ -149,6 +168,132 @@ export const ProDashboard: React.FC<ProDashboardProps> = ({ isOpen, onClose, onS
          tone: 'success',
          confirmText: isElite ? 'View Elite benefits' : 'View my tier',
       });
+   };
+
+   const openBalanceSupportCase = async () => {
+      if (!penaltyBalance?.has_blocking_debt || balanceSupportBusy) return;
+      const latest = penaltyBalance.latest?.[0];
+      if (!latest?.id_penalty) {
+         showSweetAlert({ tone: 'info', title: 'No balance item found', message: 'There is no open penalty linked to this balance.' });
+         return;
+      }
+      const result = await Swal.fire({
+         icon: 'info',
+         title: 'Resolve worker balance',
+         html: `
+            <div style="text-align:left">
+               <p style="margin:0 0 14px;color:#475569;font-weight:700">Report how you paid this worker balance. Trust & Safety will confirm it before clearing the debt.</p>
+               <label style="display:block;font-weight:900;margin-bottom:8px">Payment method</label>
+               <select id="worker-balance-payment-method" style="width:100%;border:1px solid #dbe4f0;border-radius:14px;padding:11px;font-weight:800">
+                  <option value="cash">Cash</option>
+                  <option value="transfer">Bank transfer</option>
+                  <option value="card">Card</option>
+                  <option value="other">Other</option>
+               </select>
+               <label style="display:block;font-weight:900;margin:14px 0 8px">Reference or receipt note</label>
+               <input id="worker-balance-payment-reference" maxlength="180" style="width:100%;border:1px solid #dbe4f0;border-radius:14px;padding:11px;font-weight:800" placeholder="Receipt number, transfer code, or cash handoff detail" />
+               <label style="display:block;font-weight:900;margin:14px 0 8px">Extra note</label>
+               <textarea id="worker-balance-payment-note" maxlength="500" style="width:100%;min-height:92px;border:1px solid #dbe4f0;border-radius:14px;padding:11px;font-weight:700" placeholder="Explain briefly what happened."></textarea>
+            </div>
+         `,
+         showCancelButton: true,
+         confirmButtonText: 'Send for review',
+         cancelButtonText: 'Cancel',
+         buttonsStyling: false,
+         preConfirm: () => {
+            const payment_method = (document.getElementById('worker-balance-payment-method') as HTMLSelectElement | null)?.value || 'other';
+            const payment_reference = (document.getElementById('worker-balance-payment-reference') as HTMLInputElement | null)?.value?.trim() || '';
+            const note = (document.getElementById('worker-balance-payment-note') as HTMLTextAreaElement | null)?.value?.trim() || '';
+            if (payment_reference.length < 4 && note.length < 12) {
+               Swal.showValidationMessage('Add a reference or a clear note.');
+               return false;
+            }
+            return { payment_method, payment_reference, note };
+         },
+      });
+      if (!result.isConfirmed || !result.value) return;
+
+      setBalanceSupportBusy(true);
+      try {
+         const response = await fetch(API_ENDPOINTS.services.penaltyPaymentReport(latest.id_penalty), {
+            method: 'POST',
+            headers: {
+               'Content-Type': 'application/json',
+               Authorization: `Bearer ${getSessionToken('worker') || ''}`,
+            },
+            body: JSON.stringify(result.value),
+         });
+         const payload = await response.json().catch(() => ({}));
+         if (!response.ok) throw new Error(payload.error || 'Could not report payment.');
+         const accountBalance = payload?.balance ? { ...payload.balance, enforcement: payload?.enforcement || null } : penaltyBalance;
+         setPenaltyBalance(accountBalance);
+         setPenaltyAppeals(Array.isArray(payload?.appeals) ? payload.appeals : penaltyAppeals);
+         showSweetAlert({
+            tone: 'success',
+            title: 'Payment report sent',
+            message: 'Trust & Safety will confirm your payment. Admin can mark it paid after review.',
+         });
+      } catch (error) {
+         showSweetAlert({
+            tone: 'error',
+            title: 'Could not report payment',
+            message: error instanceof Error ? error.message : 'Please try again.',
+         });
+      } finally {
+         setBalanceSupportBusy(false);
+      }
+   };
+
+   const openPenaltyAppeal = async () => {
+      const latest = penaltyBalance?.latest?.[0];
+      if (!latest?.id_penalty) {
+         showSweetAlert({ tone: 'info', title: 'No appeal available', message: 'There is no open penalty linked to this balance.' });
+         return;
+      }
+
+      const result = await Swal.fire({
+         icon: 'info',
+         title: `Appeal penalty #${latest.id_penalty}`,
+         html: `
+            <div style="text-align:left">
+               <label style="display:block;font-weight:800;margin-bottom:8px">Explanation</label>
+               <textarea id="appeal-explanation" maxlength="1800" style="width:100%;min-height:130px;border:1px solid #dbe4f0;border-radius:16px;padding:12px;font-weight:700" placeholder="Explain clearly what happened and why Trust & Safety should review this penalty."></textarea>
+               <label style="display:block;font-weight:800;margin:14px 0 8px">Evidence images</label>
+               <input id="appeal-images" type="file" accept="image/png,image/jpeg,image/webp" multiple style="width:100%" />
+               <p style="margin:8px 0 0;color:#64748b;font-size:12px;font-weight:700">Up to 3 images. Files are moderated before review.</p>
+            </div>
+         `,
+         showCancelButton: true,
+         confirmButtonText: 'Send appeal',
+         cancelButtonText: 'Cancel',
+         buttonsStyling: false,
+         preConfirm: () => {
+            const explanation = (document.getElementById('appeal-explanation') as HTMLTextAreaElement | null)?.value?.trim() || '';
+            const files = Array.from(((document.getElementById('appeal-images') as HTMLInputElement | null)?.files || [])).slice(0, 3);
+            if (explanation.length < 20) {
+               Swal.showValidationMessage('Write at least 20 characters.');
+               return false;
+            }
+            return { explanation, files };
+         },
+      });
+      if (!result.isConfirmed || !result.value) return;
+
+      try {
+         const formData = new FormData();
+         formData.append('explanation', result.value.explanation);
+         result.value.files.forEach((file: File) => formData.append('appeal_images', file));
+         const response = await fetch(API_ENDPOINTS.services.penaltyAppeal(latest.id_penalty), {
+            method: 'POST',
+            headers: { Authorization: `Bearer ${getSessionToken('worker') || ''}` },
+            body: formData,
+         });
+         const payload = await response.json().catch(() => ({}));
+         if (!response.ok) throw new Error(payload.error || 'Could not send appeal.');
+         showSweetAlert({ tone: 'success', title: 'Appeal sent', message: 'Trust & Safety will review your explanation and evidence.' });
+      } catch (error) {
+         showSweetAlert({ tone: 'error', title: 'Could not send appeal', message: error instanceof Error ? error.message : 'Please try again.' });
+      }
    };
 
    const handleWorkerTierUpdated = (event?: unknown) => {
@@ -269,6 +414,8 @@ export const ProDashboard: React.FC<ProDashboardProps> = ({ isOpen, onClose, onS
          const wp = data?.worker_profile || {};
          const currentTierBenefits = data?.current_tier_benefits || null;
          const servicesOffered = Array.isArray(data?.services_offered) ? data.services_offered as WorkerService[] : [];
+         const accountBalance = data?.penalty_balance ? { ...data.penalty_balance, enforcement: data?.enforcement_profile || null } : null;
+         const appeals = Array.isArray(data?.penalty_appeals) ? data.penalty_appeals : [];
          const currentTier = String(wp.membership_tier || 'standard').toLowerCase();
          const previousTier = String(getAuthUser('worker')?.worker_profile?.membership_tier || '').toLowerCase();
          const verified = normalizeBool(wp.is_verified);
@@ -283,6 +430,8 @@ export const ProDashboard: React.FC<ProDashboardProps> = ({ isOpen, onClose, onS
          setCurrentTierLabel(formatTierLabel(currentTier, currentTierBenefits?.badge_label));
          setCurrentService(servicesOffered[0] || null);
          setServiceCount(servicesOffered.length);
+         setPenaltyBalance(accountBalance);
+         setPenaltyAppeals(appeals);
 
          persistWorkerStatus(online, {
             ...wp,
@@ -459,6 +608,10 @@ export const ProDashboard: React.FC<ProDashboardProps> = ({ isOpen, onClose, onS
                setIsOpen={setIsSidebarOpen}
                currentTier={currentTier}
                tierLabel={currentTierLabel}
+               penaltyBalance={penaltyBalance}
+               onResolveBalance={openBalanceSupportCase}
+               onAppealPenalty={openPenaltyAppeal}
+               resolveBalanceBusy={balanceSupportBusy}
                isDark={isDark}
             />
          </motion.div>
@@ -490,7 +643,7 @@ export const ProDashboard: React.FC<ProDashboardProps> = ({ isOpen, onClose, onS
                         animate={{ opacity: 1, x: 0 }}
                         className="flex items-center gap-2 truncate text-lg font-black capitalize text-slate-950 md:gap-3 md:text-xl"
                      >
-                        <span className="truncate">{({ requests: 'Requests', appointments: 'Upcoming', schedule: 'Calendar', earnings: 'Earnings', 'completed-work': 'History', review: 'Leave a Review', settings: 'Profile' } as Record<string, string>)[activeTab] || activeTab.replace('-', ' ')}</span>
+                        <span className="truncate">{({ requests: 'Requests', appointments: 'Upcoming', schedule: 'Calendar', earnings: 'Earnings', 'completed-work': 'History', 'account-standing': 'Account Standing', review: 'Leave a Review', settings: 'Profile' } as Record<string, string>)[activeTab] || activeTab.replace('-', ' ')}</span>
                         {activeTab === 'requests' && (
                            <motion.span
                               initial={{ scale: 0 }}
@@ -862,6 +1015,48 @@ export const ProDashboard: React.FC<ProDashboardProps> = ({ isOpen, onClose, onS
                            <Suspense fallback={<DashboardPanelFallback label="Loading completed work..." />}>
                               <CompletedWorkView />
                            </Suspense>
+                        </motion.div>
+                     )}
+
+                     {activeTab === 'account-standing' && (
+                        <motion.div
+                           key="account-standing"
+                           initial={{ opacity: 0, x: 20 }}
+                           animate={{ opacity: 1, x: 0 }}
+                           exit={{ opacity: 0, x: -20 }}
+                           transition={{ duration: 0.3 }}
+                           className="h-full w-full overflow-y-auto p-5 md:p-8"
+                        >
+                           <div className="mx-auto max-w-6xl space-y-5">
+                              <AccountStandingPanel
+                                 balance={penaltyBalance}
+                                 enforcement={penaltyBalance?.enforcement}
+                                 appeals={penaltyAppeals}
+                                 variant={isDark ? 'dark' : 'light'}
+                                 onResolveBalance={openBalanceSupportCase}
+                                 onAppealPenalty={openPenaltyAppeal}
+                              />
+                              <div className={`rounded-[28px] border p-5 shadow-[0_18px_45px_rgba(15,23,42,0.08)] ${
+                                 isDark ? 'border-white/10 bg-slate-950/82 text-white' : 'border-slate-200 bg-white text-slate-950'
+                              }`}>
+                                 <p className="text-[10px] font-black uppercase tracking-[0.18em] text-bird-blue">Fixlife policy</p>
+                                 <h3 className="mt-1 text-xl font-black">How to keep a clean account</h3>
+                                 <div className="mt-4 grid gap-3 md:grid-cols-3">
+                                    <div className="rounded-2xl border border-slate-200 p-4 dark:border-white/10">
+                                       <strong>Complete accepted jobs</strong>
+                                       <p className="mt-1 text-sm font-semibold text-slate-500">Arrive, start, finish and confirm each job inside Fixlife.</p>
+                                    </div>
+                                    <div className="rounded-2xl border border-slate-200 p-4 dark:border-white/10">
+                                       <strong>Keep payments transparent</strong>
+                                       <p className="mt-1 text-sm font-semibold text-slate-500">Cash or transfer issues must be reported before closing the service.</p>
+                                    </div>
+                                    <div className="rounded-2xl border border-slate-200 p-4 dark:border-white/10">
+                                       <strong>Use safe uploads</strong>
+                                       <p className="mt-1 text-sm font-semibold text-slate-500">Evidence and chat images are moderated for abuse and inappropriate content.</p>
+                                    </div>
+                                 </div>
+                              </div>
+                           </div>
                         </motion.div>
                      )}
 

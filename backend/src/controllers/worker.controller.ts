@@ -14,7 +14,7 @@ import {
   getWorkerRewardsSettings,
   syncWorkerBonusPayouts,
 } from '../utils/workerRewards';
-import { createUserNotification } from '../utils/notifications';
+import { createUserNotification, notifyAdmins } from '../utils/notifications';
 import { emitToUser } from '../services/socketManager';
 import { buildProtectedAssetUrl, buildPublicAssetUrl, deleteUploadIfExists } from '../utils/assets';
 import { shouldRunRuntimeSchemaSync } from '../config/schemaSync';
@@ -23,6 +23,10 @@ import { getWorkerTierBenefits } from '../services/workerTier.service';
 import {
   queueWorkerPayoutStatementEmail,
 } from '../services/workerPayoutStatement.service';
+import { assertAccountCanWork, getAccountPenaltyBalance } from '../services/accountPenalties.service';
+import { assertAccountNotRestricted, getAccountEnforcementProfile, recordAccountIncident } from '../services/accountEnforcement.service';
+import { getPenaltyAppealsForUser } from '../services/accountPenaltyAppeals.service';
+import { getPolicySettings } from '../services/policySettings.service';
 import { sanitizeMessage, sanitizeStrictText, sanitizeNameLike } from '../utils/sanitize';
 
 const servicesController = require(path.join(__dirname, './services.controller'));
@@ -46,6 +50,7 @@ const SCHEDULED_START_EARLY_MINUTES = Math.max(
   0,
   Math.min(Number(process.env.SCHEDULED_START_EARLY_MINUTES || 120), 360)
 );
+const WORKER_CANCEL_SAFE_REASONS = new Set(['unsafe', 'client_requested_cancel', 'wrong_address', 'emergency']);
 
 const toPublicRequestStatus = (status: string | null | undefined) => {
   if (!status) return 'pending';
@@ -111,6 +116,27 @@ const buildAssetUrl = (req: AuthRequest, fileName: string | null) => {
 };
 
 const toSqlDateTime = (date: Date) => date.toISOString().slice(0, 19).replace('T', ' ');
+
+const parseSqlDate = (value: unknown) => {
+  if (!value) return null;
+  if (value instanceof Date) return Number.isNaN(value.getTime()) ? null : value;
+  const raw = String(value).trim();
+  if (!raw) return null;
+  const normalized = raw.includes('T') ? raw : `${raw.replace(' ', 'T')}Z`;
+  const parsed = new Date(normalized);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+};
+
+const minutesUntilSqlDate = (value: unknown) => {
+  const parsed = parseSqlDate(value);
+  if (!parsed) return null;
+  return Math.round((parsed.getTime() - Date.now()) / 60_000);
+};
+
+const sanitizePolicyReason = (value: unknown, fallback: string) => {
+  const normalized = sanitizeStrictText(value, 40).toLowerCase().replace(/[^a-z0-9_]+/g, '_');
+  return normalized || fallback;
+};
 
 const formatMonthLabel = (anchor = new Date()) =>
   anchor.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
@@ -285,6 +311,9 @@ export const getWorkerMe = async (req: AuthRequest, res: Response): Promise<void
     const tierBenefits = await getWorkerTierBenefits();
     const currentTier = String(workerProfile?.membership_tier || 'standard');
     const currentTierBenefits = tierBenefits.find((item) => item.tier === currentTier) || null;
+    const penaltyBalance = await getAccountPenaltyBalance(userId);
+    const enforcementProfile = await getAccountEnforcementProfile(userId);
+    const penaltyAppeals = await getPenaltyAppealsForUser(userId);
     res.json({
       success: true,
       user: {
@@ -292,6 +321,9 @@ export const getWorkerMe = async (req: AuthRequest, res: Response): Promise<void
         profile_image_url: buildAssetUrl(req, user.profile_image || null),
       },
       worker_profile: workerProfile,
+      penalty_balance: penaltyBalance,
+      enforcement_profile: enforcementProfile,
+      penalty_appeals: penaltyAppeals,
       current_tier_benefits: currentTierBenefits,
       services_offered: serviceRows.map((row) => ({
         id_service: Number(row.id_service),
@@ -1434,6 +1466,31 @@ export const acceptWorkerRequest = async (req: AuthRequest, res: Response): Prom
       return;
     }
     const profileId = Number(profileRows[0].id_worker_profile);
+
+    try {
+      await assertAccountNotRestricted(userId, connection as any);
+      await assertAccountCanWork(userId, connection as any);
+    } catch (error: any) {
+      if (error?.code === 'ACCOUNT_RESTRICTED') {
+        res.status(423).json({
+          error: error.message || 'This account is restricted by Fixlife policy.',
+          code: 'ACCOUNT_RESTRICTED',
+          restriction: error.restriction,
+          enforcement: error.enforcement,
+        });
+        return;
+      }
+      if (error?.code === 'ACCOUNT_DEBT_BLOCK') {
+        res.status(402).json({
+          error: 'Resolve your outstanding Fixlife balance before accepting new jobs.',
+          code: 'ACCOUNT_DEBT_BLOCK',
+          balance: error.balance,
+        });
+        return;
+      }
+      throw error;
+    }
+
     const activeRequest = await getWorkerActiveRequest(connection as any, profileId, idRequest);
     if (activeRequest) {
       res.status(409).json({
@@ -1635,6 +1692,302 @@ export const rejectWorkerRequest = async (req: AuthRequest, res: Response): Prom
   } catch (error: any) {
     console.error('Error in rejectWorkerRequest:', error);
     res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
+export const cancelWorkerAssignedRequest = async (req: AuthRequest, res: Response): Promise<void> => {
+  const connection = await pool.getConnection();
+  try {
+    const userId = Number(req.user?.user_id || 0);
+    const idRequest = Number(req.params.idRequest);
+    if (!userId) {
+      res.status(401).json({ error: 'Unauthorized' });
+      return;
+    }
+    if (!Number.isSafeInteger(idRequest) || idRequest <= 0) {
+      res.status(400).json({ error: 'Invalid request id.' });
+      return;
+    }
+
+    const cancelReason = sanitizePolicyReason(req.body?.reason, 'worker_cancelled');
+    const cancelNote = sanitizeMessage(req.body?.description, 300);
+
+    await ensureServiceRequestTables();
+    await connection.beginTransaction();
+
+    const [profileRows] = await connection.execute<RowDataPacket[]>(
+      `SELECT id_worker_profile FROM worker_profiles WHERE id_user = ? LIMIT 1 FOR UPDATE`,
+      [userId]
+    );
+    if (profileRows.length === 0) {
+      await connection.rollback();
+      res.status(404).json({ error: 'Worker profile not found.' });
+      return;
+    }
+    const profileId = Number(profileRows[0].id_worker_profile);
+
+    const [requestRows] = await connection.execute<RowDataPacket[]>(
+      `SELECT id_request, id_user, status, booking_type, scheduled_start_time,
+              assigned_worker_profile, route_started_at, worker_arrived_at, work_started_at
+       FROM service_requests
+       WHERE id_request = ?
+       LIMIT 1
+       FOR UPDATE`,
+      [idRequest]
+    );
+    if (requestRows.length === 0) {
+      await connection.rollback();
+      res.status(404).json({ error: 'Request not found.' });
+      return;
+    }
+
+    const request = requestRows[0];
+    const status = String(request.status || '').toLowerCase();
+    if (Number(request.assigned_worker_profile || 0) !== profileId) {
+      await connection.rollback();
+      res.status(403).json({ error: 'This request is assigned to another worker.' });
+      return;
+    }
+    if (!['assigned', 'route_in_progress', 'arrived', 'start_pending', 'payment_pending'].includes(status)) {
+      await connection.rollback();
+      res.status(409).json({ error: 'This job cannot be cancelled in its current state.' });
+      return;
+    }
+    if (request.work_started_at || status === 'in_progress') {
+      await connection.rollback();
+      res.status(409).json({ error: 'Jobs already in progress must be resolved through support.' });
+      return;
+    }
+
+    await connection.execute(
+      `UPDATE service_request_workers
+       SET status = 'expired',
+           counter_status = CASE WHEN counter_status = 'pending' THEN 'declined' ELSE counter_status END,
+           updated_at = CURRENT_TIMESTAMP
+       WHERE id_request = ? AND id_worker_profile = ?`,
+      [idRequest, profileId]
+    );
+    await connection.execute(
+      `UPDATE service_requests
+       SET status = 'pending',
+           assigned_worker_profile = NULL,
+           assigned_at = NULL,
+           route_started_at = NULL,
+           worker_arrived_at = NULL,
+           updated_at = CURRENT_TIMESTAMP
+       WHERE id_request = ?`,
+      [idRequest]
+    );
+
+    const minutesUntilStart = minutesUntilSqlDate(request.scheduled_start_time);
+    const policySettings = await getPolicySettings(connection);
+    const lateScheduledCancel =
+      String(request.booking_type || 'express').toLowerCase() === 'scheduled' &&
+      minutesUntilStart != null &&
+      minutesUntilStart <= policySettings.late_cancel_window_minutes;
+    const hasProgress = Boolean(request.route_started_at || request.worker_arrived_at);
+    const shouldRecordIncident = !WORKER_CANCEL_SAFE_REASONS.has(cancelReason) || hasProgress || lateScheduledCancel;
+    let enforcementResult: Awaited<ReturnType<typeof recordAccountIncident>> | null = null;
+    if (shouldRecordIncident) {
+      enforcementResult = await recordAccountIncident({
+        userId,
+        actorRole: 'worker',
+        incidentType: hasProgress ? 'worker_cancel_after_route_started' : 'worker_cancel_after_accept',
+        severity: hasProgress || lateScheduledCancel ? 'high' : 'medium',
+        sourceType: 'worker_request_cancel',
+        sourceId: idRequest,
+        requestId: idRequest,
+        penaltyReason: 'unjustified_cancel',
+        workerProfileId: profileId,
+        description: `Worker cancelled assigned request #${idRequest}. Reason: ${cancelReason}.${cancelNote ? ` ${cancelNote}` : ''}`,
+        createdByUserId: userId,
+      }, connection);
+    }
+
+    await connection.commit();
+
+    const clientUserId = Number(request.id_user || 0);
+    if (clientUserId) {
+      await createUserNotification({
+        userId: clientUserId,
+        eventType: 'worker_cancelled_request',
+        title: 'Your request is looking for another Pro',
+        message: `The assigned professional cancelled request #${idRequest}. Fixlife reopened it for nearby Pros.`,
+        tone: 'warning',
+        requestId: idRequest,
+        actionUrl: '/app',
+        dedupeKey: `request-${idRequest}-worker-cancelled-client`,
+        metadata: { request_status: 'pending', cancel_reason: cancelReason },
+      }).catch(() => undefined);
+      emitToUser(clientUserId, 'request_updated', { id_request: idRequest, request_status: 'pending' });
+    }
+    emitToUser(userId, 'request_updated', { id_request: idRequest, request_status: 'pending' });
+
+    await notifyAdmins({
+      eventType: 'worker_cancelled_assigned_request',
+      title: 'Worker cancelled assigned job',
+      message: `Worker cancelled request #${idRequest} after accepting it.`,
+      tone: shouldRecordIncident ? 'warning' : 'info',
+      actionUrl: `/admin/requests/${idRequest}`,
+      dedupeKey: `request-${idRequest}-worker-cancel-admin`,
+      metadata: { id_request: idRequest, worker_user_id: userId, worker_profile_id: profileId, reason: cancelReason },
+    }).catch(() => undefined);
+
+    res.json({
+      success: true,
+      message: 'Job cancelled and returned to the matching pool.',
+      id_request: idRequest,
+      request_status: 'pending',
+      enforcement: enforcementResult,
+    });
+  } catch (error: any) {
+    try {
+      await connection.rollback();
+    } catch {
+      // ignore rollback errors
+    }
+    console.error('Error in cancelWorkerAssignedRequest:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  } finally {
+    connection.release();
+  }
+};
+
+export const reportClientNoShow = async (req: AuthRequest, res: Response): Promise<void> => {
+  const connection = await pool.getConnection();
+  try {
+    const userId = Number(req.user?.user_id || 0);
+    const idRequest = Number(req.params.idRequest);
+    if (!userId) {
+      res.status(401).json({ error: 'Unauthorized' });
+      return;
+    }
+    if (!Number.isSafeInteger(idRequest) || idRequest <= 0) {
+      res.status(400).json({ error: 'Invalid request id.' });
+      return;
+    }
+
+    await ensureServiceRequestTables();
+    await connection.beginTransaction();
+
+    const [profileRows] = await connection.execute<RowDataPacket[]>(
+      `SELECT id_worker_profile FROM worker_profiles WHERE id_user = ? LIMIT 1 FOR UPDATE`,
+      [userId]
+    );
+    if (profileRows.length === 0) {
+      await connection.rollback();
+      res.status(404).json({ error: 'Worker profile not found.' });
+      return;
+    }
+    const profileId = Number(profileRows[0].id_worker_profile);
+
+    const [requestRows] = await connection.execute<RowDataPacket[]>(
+      `SELECT id_request, id_user, status, assigned_worker_profile, worker_arrived_at, work_started_at
+       FROM service_requests
+       WHERE id_request = ?
+       LIMIT 1
+       FOR UPDATE`,
+      [idRequest]
+    );
+    if (requestRows.length === 0) {
+      await connection.rollback();
+      res.status(404).json({ error: 'Request not found.' });
+      return;
+    }
+
+    const request = requestRows[0];
+    const status = String(request.status || '').toLowerCase();
+    if (Number(request.assigned_worker_profile || 0) !== profileId) {
+      await connection.rollback();
+      res.status(403).json({ error: 'This request is assigned to another worker.' });
+      return;
+    }
+    if (!['arrived', 'start_pending'].includes(status) || !request.worker_arrived_at) {
+      await connection.rollback();
+      res.status(409).json({ error: 'Confirm arrival before reporting client no-show.' });
+      return;
+    }
+    if (request.work_started_at) {
+      await connection.rollback();
+      res.status(409).json({ error: 'Work already started. Use the issue report flow instead.' });
+      return;
+    }
+
+    const arrivedAt = parseSqlDate(request.worker_arrived_at);
+    const policySettings = await getPolicySettings(connection);
+    if (!arrivedAt || Date.now() < arrivedAt.getTime() + policySettings.worker_client_no_show_grace_minutes * 60_000) {
+      await connection.rollback();
+      res.status(409).json({
+        error: `Client no-show can be reported ${policySettings.worker_client_no_show_grace_minutes} minutes after arrival.`,
+      });
+      return;
+    }
+
+    await connection.execute(
+      `UPDATE service_requests
+       SET status = 'cancelled',
+           updated_at = CURRENT_TIMESTAMP
+       WHERE id_request = ?`,
+      [idRequest]
+    );
+
+    const clientUserId = Number(request.id_user || 0);
+    const enforcementResult = await recordAccountIncident({
+      userId: clientUserId,
+      actorRole: 'client',
+      incidentType: 'client_no_show',
+      severity: 'high',
+      sourceType: 'worker_client_no_show',
+      sourceId: idRequest,
+      requestId: idRequest,
+      penaltyReason: 'no_show',
+      description: `Worker reported client no-show after arriving for request #${idRequest}.`,
+      createdByUserId: userId,
+    }, connection);
+
+    await connection.commit();
+
+    await createUserNotification({
+      userId: clientUserId,
+      eventType: 'client_no_show_reported',
+      title: 'No-show report received',
+      message: `Your professional reported a no-show on request #${idRequest}. Fixlife support can review it.`,
+      tone: 'warning',
+      requestId: idRequest,
+      actionUrl: '/app',
+      dedupeKey: `request-${idRequest}-client-no-show`,
+      metadata: { request_status: 'cancelled' },
+    }).catch(() => undefined);
+    await notifyAdmins({
+      eventType: 'client_no_show_reported',
+      title: 'Client no-show reported',
+      message: `Worker reported client no-show on request #${idRequest}.`,
+      tone: 'warning',
+      actionUrl: `/admin/requests/${idRequest}`,
+      dedupeKey: `request-${idRequest}-client-no-show-admin`,
+      metadata: { id_request: idRequest, client_user_id: clientUserId, worker_user_id: userId, worker_profile_id: profileId },
+    }).catch(() => undefined);
+
+    emitToUser(clientUserId, 'request_updated', { id_request: idRequest, request_status: 'cancelled' });
+    emitToUser(userId, 'request_updated', { id_request: idRequest, request_status: 'cancelled' });
+
+    res.json({
+      success: true,
+      message: 'Client no-show saved. This job was moved out of active work.',
+      id_request: idRequest,
+      request_status: 'cancelled',
+      enforcement: enforcementResult,
+    });
+  } catch (error: any) {
+    try {
+      await connection.rollback();
+    } catch {
+      // ignore rollback errors
+    }
+    console.error('Error in reportClientNoShow:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  } finally {
+    connection.release();
   }
 };
 

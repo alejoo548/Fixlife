@@ -431,14 +431,19 @@ export const RequestsView: React.FC<RequestsViewProps> = ({
   const postWorkerAction = async (
     idRequest: number,
     endpoint: string,
-    successMessage: string
+    successMessage: string,
+    body?: Record<string, unknown>
   ) => {
     if (!token) return false;
     setBusyId(idRequest);
     try {
       const response = await fetch(endpoint, {
         method: 'POST',
-        headers: { Authorization: `Bearer ${token}` },
+        headers: {
+          ...(body ? { 'Content-Type': 'application/json' } : {}),
+          Authorization: `Bearer ${token}`,
+        },
+        body: body ? JSON.stringify(body) : undefined,
       });
       const payload = await response.json();
       if (!response.ok || !payload?.success) {
@@ -447,6 +452,30 @@ export const RequestsView: React.FC<RequestsViewProps> = ({
             id_request: Number(payload.active_request_id),
             status: String(payload.active_request_status || '').toLowerCase(),
           });
+        }
+        if (response.status === 402 && payload?.code === 'ACCOUNT_DEBT_BLOCK') {
+          const balance = payload.balance || {};
+          const amount = Number(balance.outstanding_balance || 0).toFixed(2);
+          void showSweetConfirm({
+            title: 'Outstanding balance',
+            message: `Resolve your Fixlife balance of $${amount} before accepting new jobs.`,
+            tone: 'warning',
+            confirmText: 'Got it',
+          });
+          return false;
+        }
+        if (response.status === 423 && payload?.code === 'ACCOUNT_RESTRICTED') {
+          const restriction = payload.restriction || {};
+          const endsAt = restriction.ends_at ? new Date(restriction.ends_at).toLocaleString() : null;
+          void showSweetConfirm({
+            title: restriction.restriction_type === 'admin_review' ? 'Account under review' : 'Account temporarily blocked',
+            message: endsAt
+              ? `Fixlife policy temporarily blocks new jobs until ${endsAt}.`
+              : 'Fixlife support must review your account before you can accept new jobs.',
+            tone: 'warning',
+            confirmText: 'Got it',
+          });
+          return false;
         }
         notify.error(payload?.error || 'Could not update this request.');
         return false;
@@ -485,6 +514,50 @@ export const RequestsView: React.FC<RequestsViewProps> = ({
       setSelectedRequestId(idRequest);
       setStatusFilter('accepted');
     }
+  };
+
+  const handleCancelAssignedJob = async (request: WorkerRequest) => {
+    const confirmed = await showSweetConfirm({
+      title: 'Cancel this job?',
+      message: 'The request will return to the matching pool. Fixlife records late or unjustified cancellations for trust and safety review.',
+      tone: 'warning',
+      confirmText: 'Cancel job',
+      destructive: true,
+    });
+    if (!confirmed) return;
+    const success = await postWorkerAction(
+      request.id_request,
+      API_ENDPOINTS.worker.cancelAssignedRequest(request.id_request),
+      'Job cancelled and returned to matching.',
+      { reason: 'worker_cancelled', description: 'Worker cancelled from the active job panel.' }
+    );
+    if (!success) return;
+    setRequests((current) => current.filter((item) => item.id_request !== request.id_request));
+    setSelectedRequestId(null);
+    setChatPanelOpen(false);
+    setActiveRouteRequestId((current) => (current === request.id_request ? null : current));
+  };
+
+  const handleClientNoShow = async (request: WorkerRequest) => {
+    const confirmed = await showSweetConfirm({
+      title: 'Report client no-show?',
+      message: 'Use this after you arrived, waited the allowed grace period, and the client is not available to start the job.',
+      tone: 'warning',
+      confirmText: 'Report no-show',
+      destructive: true,
+    });
+    if (!confirmed) return;
+    const success = await postWorkerAction(
+      request.id_request,
+      API_ENDPOINTS.worker.reportClientNoShow(request.id_request),
+      'Client no-show saved for review.'
+    );
+    if (!success) return;
+    setRequests((current) => current.filter((item) => item.id_request !== request.id_request));
+    setSelectedRequestId(null);
+    setChatPanelOpen(false);
+    setActiveRouteRequestId((current) => (current === request.id_request ? null : current));
+    onOpenHistory?.();
   };
 
   const handleWorkflowApproval = async (
@@ -946,6 +1019,8 @@ export const RequestsView: React.FC<RequestsViewProps> = ({
             onToggleTools={() => setRoutePanelExpanded((open) => !open)}
             onOpenChat={() => setChatPanelOpen(true)}
             onReport={() => setReportRequest(selectedRequest)}
+            onCancelJob={() => void handleCancelAssignedJob(selectedRequest)}
+            onClientNoShow={() => void handleClientNoShow(selectedRequest)}
             onCenterRoute={centerRoute}
             onCameraModeChange={setRouteCameraMode}
             onTrafficToggle={() => setTrafficEnabled((enabled) => !enabled)}

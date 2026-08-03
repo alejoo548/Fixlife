@@ -8,6 +8,7 @@ import {
   confirmRequestPayment,
   confirmServiceCompletion,
   createSavedLocation,
+  createMyPenaltyAppeal,
   createServiceRequest,
   createRequestPaymentCheckout,
   createServiceRequestReport,
@@ -16,6 +17,7 @@ import {
   declineCounterOffer,
   declineAssignedWorker,
   geocodeLocation,
+  getMyAccountPenaltyBalance,
   getSavedLocations,
   reverseGeocode,
   handlePaypalWebhook,
@@ -24,9 +26,11 @@ import {
   getMyServiceRequests,
   getNearbyWorkers,
   getRequestAssignedWorkerProfile,
+  reportWorkerNoShow,
   postRequestChatMessage,
   getPublicServiceCards,
   handleVirtualWalletWebhook,
+  reportMyPenaltyPayment,
   suggestLocations,
   submitRequestRating,
   updateSavedLocation,
@@ -52,11 +56,22 @@ router.get('/nearby-workers', lookupLimiter, getNearbyWorkers);
 router.post('/payments/paypal/webhook', handlePaypalWebhook);
 router.post('/payments/virtual-wallet/webhook', handleVirtualWalletWebhook);
 router.get('/saved-locations', verifyToken, getSavedLocations);
+router.get('/account-balance', verifyToken, getMyAccountPenaltyBalance);
+router.post('/penalties/:idPenalty/payment-report', verifyToken, sensitiveLimiter, reportMyPenaltyPayment);
 router.post('/saved-locations', verifyToken, createSavedLocation);
 router.patch('/saved-locations/:idSavedLocation', verifyToken, updateSavedLocation);
 router.delete('/saved-locations/:idSavedLocation', verifyToken, deleteSavedLocation);
 router.delete('/saved-locations', verifyToken, clearSavedLocationsByKind);
 router.get('/my-requests', verifyToken, getMyServiceRequests);
+router.post(
+  '/penalties/:idPenalty/appeal',
+  verifyToken,
+  sensitiveLimiter,
+  uploadProtectedImageOnly.array('appeal_images', 3),
+  validateUploadedFiles,
+  sanitizeImages,
+  createMyPenaltyAppeal
+);
 router.get('/requests/:idRequest/worker-profile', verifyToken, getRequestAssignedWorkerProfile);
 router.post(
   '/requests',
@@ -68,6 +83,7 @@ router.post(
   createServiceRequest
 );
 router.post('/requests/:idRequest/cancel', verifyToken, sensitiveLimiter, cancelServiceRequest);
+router.post('/requests/:idRequest/no-show', verifyToken, sensitiveLimiter, reportWorkerNoShow);
 router.post('/requests/:idRequest/worker/accept', verifyToken, sensitiveLimiter, acceptAssignedWorker);
 router.post('/requests/:idRequest/worker/decline', verifyToken, sensitiveLimiter, declineAssignedWorker);
 router.post('/requests/:idRequest/counter/accept', verifyToken, sensitiveLimiter, acceptCounterOffer);

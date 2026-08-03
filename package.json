@@ -11,9 +11,13 @@
     "test:watch": "vitest"
   },
   "dependencies": {
+    "@livekit/components-react": "^2.9.23",
+    "@livekit/components-styles": "^1.2.0",
     "@paypal/react-paypal-js": "^9.1.0",
     "@react-oauth/google": "^0.12.2",
+    "@types/three": "^0.185.1",
     "framer-motion": "^12.34.3",
+    "livekit-client": "^2.21.0",
     "lucide-react": "^0.575.0",
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
@@ -21,7 +25,8 @@
     "react-router-dom": "^7.17.0",
     "recharts": "^3.7.0",
     "socket.io-client": "^4.8.3",
-    "sweetalert2": "^11.26.20"
+    "sweetalert2": "^11.26.20",
+    "three": "^0.185.1"
   },
   "devDependencies": {
     "@testing-library/jest-dom": "^6.9.1",
