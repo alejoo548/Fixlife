@@ -8,7 +8,8 @@ RUN microdnf install -y mysql cronie gzip tar shadow-utils && microdnf clean all
 
 COPY backup-entrypoint.sh /backup-entrypoint.sh
 COPY backup.sh /backup.sh
-RUN chmod +x /backup-entrypoint.sh /backup.sh \
+RUN sed -i 's/\r$//' /backup-entrypoint.sh /backup.sh \
+    && chmod +x /backup-entrypoint.sh /backup.sh \
     && mkdir -p /backup
 
 ENTRYPOINT ["/backup-entrypoint.sh"]

@@ -17,6 +17,21 @@ declare global {
 }
 
 let gsiInitialized = false;
+const nameRegex = /^[\p{L}]+(?:[\p{L}\s]*[\p{L}])?$/u;
+const emailRegex = /^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@(?:[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)+com$/i;
+const phoneRegex = /^\d{4}-\d{4}$/;
+
+const sanitizeNameInput = (value: string) => value.replace(/[^\p{L}\s]/gu, '').slice(0, 16);
+const normalizeNameCase = (value: string) =>
+  value
+    .trim()
+    .replace(/\s+/g, ' ')
+    .toLocaleLowerCase('es')
+    .replace(/(^|\s)(\p{L})/gu, (_match, prefix: string, letter: string) => `${prefix}${letter.toLocaleUpperCase('es')}`);
+const formatPhoneInput = (value: string) => {
+  const digits = value.replace(/\D/g, '').slice(0, 8);
+  return digits.length > 4 ? `${digits.slice(0, 4)}-${digits.slice(4)}` : digits;
+};
 
 interface AuthModalProps {
   isOpen: boolean;
@@ -154,9 +169,17 @@ const GoogleSignInButton = ({ onCredential }: { onCredential: (credential: strin
 };
 
 const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const { name, value } = e.target;
+  const nextValue =
+    name === 'name' || name === 'lastname'
+      ? sanitizeNameInput(value)
+      : name === 'phone_number'
+        ? formatPhoneInput(value)
+        : value;
+
   setFormData({
     ...formData,
-    [e.target.name]: e.target.value
+    [name]: nextValue
   });
 };
 
@@ -208,6 +231,31 @@ const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     return;
   }
 
+  const trimmedName = normalizeNameCase(formData.name);
+  const trimmedLastname = normalizeNameCase(formData.lastname);
+  const trimmedEmail = formData.email.trim().toLowerCase();
+  const trimmedPhone = formData.phone_number.trim();
+
+  if (!nameRegex.test(trimmedName) || trimmedName.length < 2 || trimmedName.length > 16) {
+    void showSweetToast({ tone: 'error', message: 'Name must be 2-16 characters and contain letters only.' });
+    return;
+  }
+
+  if (!nameRegex.test(trimmedLastname) || trimmedLastname.length < 2 || trimmedLastname.length > 16) {
+    void showSweetToast({ tone: 'error', message: 'Lastname must be 2-16 characters and contain letters only.' });
+    return;
+  }
+
+  if (!emailRegex.test(trimmedEmail)) {
+    void showSweetToast({ tone: 'error', message: 'Email must be a valid .com address.' });
+    return;
+  }
+
+  if (!phoneRegex.test(trimmedPhone)) {
+    void showSweetToast({ tone: 'error', message: 'Phone must contain exactly 8 digits, like 6074-6649.' });
+    return;
+  }
+
   if (isCaptchaEnabled && !captchaToken) {
     void showSweetToast({ tone: 'error', message: t('auth.messages.completeCaptcha') });
     return;
@@ -218,11 +266,11 @@ const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        name: formData.name,
-        lastname: formData.lastname,
+        name: trimmedName,
+        lastname: trimmedLastname,
         username: formData.username,
-        phone_number: formData.phone_number,
-        email: formData.email,
+        phone_number: trimmedPhone,
+        email: trimmedEmail,
         password: formData.password,
         ...(isCaptchaEnabled ? { captchaToken } : {}),
       }),
@@ -314,8 +362,8 @@ const handleSignin = async (e: React.FormEvent<HTMLFormElement>) => {
   return;
 }
 
-const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-if (!emailRegex.test(formData.email)) {
+const signinEmail = formData.email.trim().toLowerCase();
+if (!emailRegex.test(signinEmail)) {
   void showSweetToast({ tone: 'error', message: t('auth.messages.invalidEmailFormat') });
   return;
 }
@@ -325,7 +373,7 @@ if (!emailRegex.test(formData.email)) {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        email: formData.email,
+        email: signinEmail,
         password: formData.password,
       }),
     });
@@ -402,10 +450,10 @@ if (!emailRegex.test(formData.email)) {
             <form className="w-full flex flex-col gap-2.5" onSubmit={handleSignup}>
               <div className="grid grid-cols-2 gap-2.5">
                 <div className="bg-gray-50 dark:bg-slate-800 rounded-lg p-1 border border-gray-200 dark:border-white/10 focus-within:border-bird-blue/50 transition-colors">
-                  <input type="text" name="name" maxLength={50} value={formData.name} onChange={handleChange} placeholder={t('auth.fields.firstName')} className="w-full bg-transparent px-3 py-2 text-sm text-gray-900 dark:text-slate-100 outline-none placeholder-gray-500 dark:placeholder-slate-400" />
+                  <input type="text" name="name" maxLength={16} value={formData.name} onChange={handleChange} placeholder={t('auth.fields.firstName')} className="w-full bg-transparent px-3 py-2 text-sm text-gray-900 dark:text-slate-100 outline-none placeholder-gray-500 dark:placeholder-slate-400" />
                 </div>
                 <div className="bg-gray-50 dark:bg-slate-800 rounded-lg p-1 border border-gray-200 dark:border-white/10 focus-within:border-bird-blue/50 transition-colors">
-                  <input type="text" name="lastname" maxLength={50} value={formData.lastname} onChange={handleChange} placeholder={t('auth.fields.lastName')} className="w-full bg-transparent px-3 py-2 text-sm text-gray-900 dark:text-slate-100 outline-none placeholder-gray-500 dark:placeholder-slate-400" />
+                  <input type="text" name="lastname" maxLength={16} value={formData.lastname} onChange={handleChange} placeholder={t('auth.fields.lastName')} className="w-full bg-transparent px-3 py-2 text-sm text-gray-900 dark:text-slate-100 outline-none placeholder-gray-500 dark:placeholder-slate-400" />
                 </div>
               </div>
 
@@ -414,7 +462,7 @@ if (!emailRegex.test(formData.email)) {
                   <input type="text" name="username" maxLength={30} value={formData.username} onChange={handleChange} placeholder={t('auth.fields.username')} className="w-full bg-transparent px-3 py-2 text-sm text-gray-900 dark:text-slate-100 outline-none placeholder-gray-500 dark:placeholder-slate-400" />
                 </div>
                 <div className="bg-gray-50 dark:bg-slate-800 rounded-lg p-1 border border-gray-200 dark:border-white/10 focus-within:border-bird-blue/50 transition-colors">
-                  <input type="tel" name="phone_number" maxLength={15} value={formData.phone_number} onChange={handleChange} placeholder={t('auth.fields.phone')} className="w-full bg-transparent px-3 py-2 text-sm text-gray-900 dark:text-slate-100 outline-none placeholder-gray-500 dark:placeholder-slate-400" />
+                  <input type="tel" name="phone_number" maxLength={9} value={formData.phone_number} onChange={handleChange} placeholder="6074-6649" className="w-full bg-transparent px-3 py-2 text-sm text-gray-900 dark:text-slate-100 outline-none placeholder-gray-500 dark:placeholder-slate-400" />
                 </div>
               </div>
 
@@ -529,17 +577,17 @@ if (!emailRegex.test(formData.email)) {
                   <div className="animate-fade-in-up space-y-3">
                     <div className="grid grid-cols-2 gap-3">
                       <div className="bg-gray-50 dark:bg-slate-800 rounded-xl px-4 py-3 border border-gray-200 dark:border-white/10 focus-within:border-bird-blue/50 transition-colors">
-                        <input type="text" name="name" maxLength={50} value={formData.name} onChange={handleChange} placeholder={t('auth.fields.name')} className="w-full bg-transparent text-sm text-gray-900 dark:text-slate-100 outline-none placeholder-gray-500 dark:placeholder-slate-400" />
+                        <input type="text" name="name" maxLength={16} value={formData.name} onChange={handleChange} placeholder={t('auth.fields.name')} className="w-full bg-transparent text-sm text-gray-900 dark:text-slate-100 outline-none placeholder-gray-500 dark:placeholder-slate-400" />
                       </div>
                       <div className="bg-gray-50 dark:bg-slate-800 rounded-xl px-4 py-3 border border-gray-200 dark:border-white/10 focus-within:border-bird-blue/50 transition-colors">
-                        <input type="text" name="lastname" maxLength={50} value={formData.lastname} onChange={handleChange} placeholder={t('auth.fields.surname')} className="w-full bg-transparent text-sm text-gray-900 dark:text-slate-100 outline-none placeholder-gray-500 dark:placeholder-slate-400" />
+                        <input type="text" name="lastname" maxLength={16} value={formData.lastname} onChange={handleChange} placeholder={t('auth.fields.surname')} className="w-full bg-transparent text-sm text-gray-900 dark:text-slate-100 outline-none placeholder-gray-500 dark:placeholder-slate-400" />
                       </div>
                     </div>
                     <div className="bg-gray-50 dark:bg-slate-800 rounded-xl px-4 py-3 border border-gray-200 dark:border-white/10 focus-within:border-bird-blue/50 transition-colors">
                       <input type="text" name="username" maxLength={30} value={formData.username} onChange={handleChange} placeholder={t('auth.fields.username')} className="w-full bg-transparent text-sm text-gray-900 dark:text-slate-100 outline-none placeholder-gray-500 dark:placeholder-slate-400" />
                     </div>
                     <div className="bg-gray-50 dark:bg-slate-800 rounded-xl px-4 py-3 border border-gray-200 dark:border-white/10 focus-within:border-bird-blue/50 transition-colors">
-                      <input type="tel" name="phone_number" maxLength={15} value={formData.phone_number} onChange={handleChange} placeholder={t('auth.fields.phoneNumber')} className="w-full bg-transparent text-sm text-gray-900 dark:text-slate-100 outline-none placeholder-gray-500 dark:placeholder-slate-400" />
+                      <input type="tel" name="phone_number" maxLength={9} value={formData.phone_number} onChange={handleChange} placeholder="6074-6649" className="w-full bg-transparent text-sm text-gray-900 dark:text-slate-100 outline-none placeholder-gray-500 dark:placeholder-slate-400" />
                     </div>
                   </div>
                 )}

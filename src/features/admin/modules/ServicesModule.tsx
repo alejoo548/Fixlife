@@ -3,6 +3,7 @@ import { DollarSign, Plus, Trash2 } from 'lucide-react';
 import { adminApi } from '../api/adminApi';
 import { AdminCard, AdminNumberInput, DataTable, EmptyState, FormSection, Skeleton, StatusBadge } from '../components/AdminUI';
 import { showSweetAlert, showSweetConfirm, showSweetToast } from '../../../utils/sweetAlert';
+import { getAuthUser } from '../../../utils/session';
 
 type Service = {
   id_service: number;
@@ -13,6 +14,8 @@ type Service = {
   min_budget: number | null;
   max_budget: number | null;
   request_count: number;
+  worker_count: number;
+  card_count: number;
   completed_count: number;
   cancelled_count: number;
   paid_volume: number;
@@ -35,9 +38,14 @@ const emptyForm: ServiceForm = {
   max_budget: '500',
 };
 const SERVICES_CONFIRM_BUILD_MARKER = 'services-sweet-confirm-v2';
+const serviceNameRegex = /^[\p{L}\s]+$/u;
+const serviceDescriptionRegex = /^[\p{L}\s]+$/u;
 
 const getErrorMessage = (reason: unknown, fallback: string) =>
   reason instanceof Error ? reason.message : fallback;
+
+const sanitizeServiceNameInput = (value: string) => value.replace(/[^\p{L}\s]/gu, '');
+const sanitizeServiceDescriptionInput = (value: string) => value.replace(/[^\p{L}\s]/gu, '');
 
 export default function ServicesModule() {
   const [rows, setRows] = useState<Service[]>([]);
@@ -46,6 +54,7 @@ export default function ServicesModule() {
   const [form, setForm] = useState<ServiceForm>(emptyForm);
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
+  const isRootAdmin = getAuthUser('admin')?.rol === 'root';
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -72,7 +81,9 @@ export default function ServicesModule() {
   };
 
   const save = async () => {
-    if (!form.name.trim()) {
+    const serviceName = form.name.trim();
+
+    if (!serviceName) {
       showSweetAlert({
         tone: 'warning',
         title: 'Service name required',
@@ -80,6 +91,26 @@ export default function ServicesModule() {
       });
       return;
     }
+
+    if (!serviceNameRegex.test(serviceName)) {
+      showSweetAlert({
+        tone: 'warning',
+        title: 'Invalid service name',
+        message: 'Use letters and spaces only. Numbers and symbols are not allowed.',
+      });
+      return;
+    }
+
+    const serviceDescription = form.description.trim();
+    if (serviceDescription && !serviceDescriptionRegex.test(serviceDescription)) {
+      showSweetAlert({
+        tone: 'warning',
+        title: 'Invalid service description',
+        message: 'Use letters and spaces only. Numbers and symbols are not allowed.',
+      });
+      return;
+    }
+
     const minBudget = Number(form.min_budget);
     const maxBudget = Number(form.max_budget);
     if (!Number.isFinite(minBudget) || !Number.isFinite(maxBudget) || minBudget < 1 || maxBudget < minBudget) {
@@ -95,8 +126,8 @@ export default function ServicesModule() {
     setError('');
     try {
       const body = {
-        name: form.name.trim(),
-        description: form.description.trim(),
+        name: serviceName,
+        description: serviceDescription,
         icon: form.icon.trim(),
         min_budget: minBudget,
         max_budget: maxBudget,
@@ -130,7 +161,7 @@ export default function ServicesModule() {
       ? await showSweetConfirm({
           tone: 'warning',
           title: 'Deactivate service?',
-          message: `"${service.name}" will stop appearing as an available category, but its request history stays intact.`,
+          message: `"${service.name}" will stop appearing for new client requests. ${service.worker_count} professional${service.worker_count === 1 ? '' : 's'} linked to this service will be notified, and current requests/history will stay intact.`,
           confirmText: 'Deactivate service',
           cancelText: 'Keep active',
           destructive: true,
@@ -157,11 +188,21 @@ export default function ServicesModule() {
   };
 
   const remove = async (service: Service) => {
-    if (service.request_count > 0) {
+    if (!isRootAdmin) {
+      showSweetAlert({
+        tone: 'warning',
+        title: 'Root required',
+        message: 'Only the root administrator can permanently delete services. Use deactivate to hide it from new requests.',
+        confirmText: 'Got it',
+      });
+      return;
+    }
+
+    if (service.request_count > 0 || service.worker_count > 0 || service.card_count > 0) {
       showSweetAlert({
         tone: 'warning',
         title: 'Deactivate instead',
-        message: `"${service.name}" has request history, so it cannot be deleted safely. Deactivate it to hide it from new requests.`,
+        message: `"${service.name}" has ${service.worker_count} professional${service.worker_count === 1 ? '' : 's'}, ${service.request_count} request${service.request_count === 1 ? '' : 's'}, and ${service.card_count} homepage card${service.card_count === 1 ? '' : 's'} associated. It cannot be deleted safely.`,
         confirmText: 'Got it',
       });
       return;
@@ -170,7 +211,7 @@ export default function ServicesModule() {
     const confirmed = await showSweetConfirm({
       tone: 'warning',
       title: 'Delete service?',
-      message: `"${service.name}" will be permanently removed from the catalog.`,
+      message: `"${service.name}" has no workers, requests, or homepage cards associated. It will be permanently removed from the catalog.`,
       confirmText: 'Delete service',
       cancelText: 'Keep service',
       destructive: true,
@@ -233,6 +274,11 @@ export default function ServicesModule() {
         render: (service: Service) => <strong>{service.request_count}</strong>,
       },
       {
+        key: 'workers',
+        label: 'Pros',
+        render: (service: Service) => <strong>{service.worker_count}</strong>,
+      },
+      {
         key: 'completed',
         label: 'Completed',
         render: (service: Service) =>
@@ -275,7 +321,13 @@ export default function ServicesModule() {
                 event.stopPropagation();
                 void remove(service);
               }}
-              title={service.request_count > 0 ? 'Services with request history should be deactivated.' : 'Delete service'}
+              title={
+                !isRootAdmin
+                  ? 'Only root can permanently delete services.'
+                  : service.request_count > 0 || service.worker_count > 0 || service.card_count > 0
+                    ? 'Services with workers, cards, or request history should be deactivated.'
+                    : 'Delete service'
+              }
             >
               <Trash2 size={13} />
             </button>
@@ -283,7 +335,7 @@ export default function ServicesModule() {
         ),
       },
     ],
-    [editing?.id_service]
+    [editing?.id_service, isRootAdmin]
   );
 
   return (
@@ -292,7 +344,7 @@ export default function ServicesModule() {
         <div className="admin-section-heading">
           <div>
             <p className="admin-section-title">{editing ? 'Edit service' : 'Add service'}</p>
-            <p className="admin-muted">Operational category. Historical services should be deactivated, not deleted.</p>
+            <p className="admin-muted">Operational category. Deactivation pauses new requests and notifies linked professionals; deletion is root-only.</p>
           </div>
           <Plus />
         </div>
@@ -303,7 +355,7 @@ export default function ServicesModule() {
             <input
               value={form.name}
               maxLength={100}
-              onChange={(event) => setForm((current) => ({ ...current, name: event.target.value }))}
+              onChange={(event) => setForm((current) => ({ ...current, name: sanitizeServiceNameInput(event.target.value) }))}
             />
           </label>
           <label className="admin-field admin-field--wide">
@@ -311,7 +363,7 @@ export default function ServicesModule() {
             <textarea
               value={form.description}
               maxLength={500}
-              onChange={(event) => setForm((current) => ({ ...current, description: event.target.value }))}
+              onChange={(event) => setForm((current) => ({ ...current, description: sanitizeServiceDescriptionInput(event.target.value) }))}
             />
           </label>
           <details className="admin-advanced admin-field--wide">

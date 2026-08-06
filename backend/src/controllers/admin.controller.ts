@@ -448,9 +448,12 @@ export const getAllServices = async (_req: AuthRequest, res: Response): Promise<
   try {
     await ensureDefaultServices();
     await ensureServiceRequestTables();
+    await ensureServiceCardsTable();
     const [rows] = await pool.execute<RowDataPacket[]>(
       `SELECT s.id_service, s.name, s.description, s.icon, s.min_budget, s.max_budget, s.is_active, s.created_at,
          COUNT(DISTINCT sr.id_request) AS request_count,
+         (SELECT COUNT(DISTINCT ws.id_worker_profile) FROM worker_services ws WHERE ws.id_service = s.id_service) AS worker_count,
+         (SELECT COUNT(DISTINCT sc.id_card) FROM service_cards sc WHERE sc.id_service = s.id_service) AS card_count,
          COUNT(DISTINCT CASE WHEN sr.status = 'done' THEN sr.id_request END) AS completed_count,
          COUNT(DISTINCT CASE WHEN sr.status = 'cancelled' THEN sr.id_request END) AS cancelled_count,
          COALESCE(SUM(CASE WHEN p.payment_status IN ('paid','released') THEN p.amount ELSE 0 END), 0) AS paid_volume,
@@ -467,6 +470,8 @@ export const getAllServices = async (_req: AuthRequest, res: Response): Promise<
       min_budget: row.min_budget == null ? null : Number(row.min_budget),
       max_budget: row.max_budget == null ? null : Number(row.max_budget),
       request_count: Number(row.request_count || 0),
+      worker_count: Number(row.worker_count || 0),
+      card_count: Number(row.card_count || 0),
       completed_count: Number(row.completed_count || 0),
       cancelled_count: Number(row.cancelled_count || 0),
       paid_volume: Number(row.paid_volume || 0),
@@ -480,6 +485,7 @@ export const getAllServices = async (_req: AuthRequest, res: Response): Promise<
 export const updateService = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     await ensureDefaultServices();
+    await ensureServiceRequestTables();
     assertAllowedFields(req.body, ['name', 'description', 'icon', 'min_budget', 'max_budget', 'is_active']);
     const idService = Number(req.params.id);
     if (!idService || isNaN(idService)) {
@@ -492,6 +498,7 @@ export const updateService = async (req: AuthRequest, res: Response): Promise<vo
     const values: any[] = [];
     const changedFields: string[] = [];
     let nextName: string | undefined;
+    let currentServiceName: string | null = null;
     let parsedActive: 0 | 1 | undefined;
 
     if (name !== undefined) {
@@ -571,6 +578,45 @@ export const updateService = async (req: AuthRequest, res: Response): Promise<vo
       return;
     }
 
+    let deactivationWorkerRows: RowDataPacket[] = [];
+    let usageSnapshot: { worker_count: number; request_count: number; active_request_count: number } | null = null;
+    if (parsedActive === 0) {
+      const [serviceRows] = await pool.execute<RowDataPacket[]>(
+        `SELECT name FROM services WHERE id_service = ? LIMIT 1`,
+        [idService]
+      );
+      currentServiceName = serviceRows[0]?.name ? String(serviceRows[0].name) : null;
+
+      const [[usage]] = await pool.execute<RowDataPacket[]>(
+        `SELECT
+           COUNT(DISTINCT ws.id_worker_profile) AS worker_count,
+           COUNT(DISTINCT sr.id_request) AS request_count,
+           COUNT(DISTINCT CASE
+             WHEN sr.status NOT IN ('done', 'cancelled') THEN sr.id_request
+           END) AS active_request_count
+         FROM services s
+         LEFT JOIN worker_services ws ON ws.id_service = s.id_service
+         LEFT JOIN service_requests sr ON sr.id_service = s.id_service
+         WHERE s.id_service = ?`,
+        [idService]
+      );
+      usageSnapshot = {
+        worker_count: Number(usage?.worker_count || 0),
+        request_count: Number(usage?.request_count || 0),
+        active_request_count: Number(usage?.active_request_count || 0),
+      };
+
+      const [workers] = await pool.execute<RowDataPacket[]>(
+        `SELECT DISTINCT wp.id_user
+         FROM worker_services ws
+         INNER JOIN worker_profiles wp ON wp.id_worker_profile = ws.id_worker_profile
+         INNER JOIN users u ON u.id_user = wp.id_user AND u.is_active = 1
+         WHERE ws.id_service = ?`,
+        [idService]
+      );
+      deactivationWorkerRows = workers;
+    }
+
     values.push(idService);
     const [result] = await pool.execute<ResultSetHeader>(
       `UPDATE services SET ${updates.join(', ')} WHERE id_service = ?`,
@@ -590,9 +636,35 @@ export const updateService = async (req: AuthRequest, res: Response): Promise<vo
       summary = parsedActive === 1 ? `Activated ${label}` : `Deactivated ${label}`;
     }
 
-    await logAdminActivity(req, action, 'service', summary, idService, { fields: changedFields });
+    if (parsedActive === 0 && deactivationWorkerRows.length > 0) {
+      await Promise.allSettled(
+        deactivationWorkerRows.map((worker) =>
+          createUserNotification({
+            userId: Number(worker.id_user),
+            eventType: 'service_deactivated',
+            title: 'Service paused',
+            message: `${nextName || currentServiceName || 'One of your services'} was paused by Fixlife admin. Your profile and existing request history remain active.`,
+            tone: 'warning',
+            actionUrl: '/pro-dashboard',
+            dedupeKey: `service-deactivated-${idService}-${Number(worker.id_user)}`,
+            metadata: { id_service: idService },
+          })
+        )
+      );
+    }
 
-    res.json({ success: true, message: 'Service updated successfully.' });
+    await logAdminActivity(req, action, 'service', summary, idService, {
+      fields: changedFields,
+      usage: usageSnapshot,
+      affected_workers_notified: deactivationWorkerRows.length,
+    });
+
+    res.json({
+      success: true,
+      message: 'Service updated successfully.',
+      affected_workers: deactivationWorkerRows.length,
+      usage: usageSnapshot,
+    });
   } catch (error: any) {
     console.error('Error in updateService:', error);
     if (typeof error?.message === 'string' && error.message.toLowerCase().includes('invalid')) {
@@ -605,7 +677,13 @@ export const updateService = async (req: AuthRequest, res: Response): Promise<vo
 
 export const deleteService = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
+    if (req.user?.rol !== 'root') {
+      res.status(403).json({ error: 'Only the root administrator can permanently delete services. Deactivate this service instead.' });
+      return;
+    }
+
     await ensureServiceRequestTables();
+    await ensureServiceCardsTable();
     const idService = Number(req.params.id);
     if (!idService || isNaN(idService)) {
       res.status(400).json({ error: 'Invalid service ID.' });
@@ -619,12 +697,43 @@ export const deleteService = async (req: AuthRequest, res: Response): Promise<vo
     const serviceName = serviceRows[0]?.name ? String(serviceRows[0].name) : null;
 
     const [[usage]] = await pool.execute<RowDataPacket[]>(
-      `SELECT COUNT(*) AS request_count FROM service_requests WHERE id_service = ?`,
-      [idService]
+      `SELECT
+         (SELECT COUNT(*) FROM service_requests WHERE id_service = ?) AS request_count,
+         (SELECT COUNT(*) FROM worker_services WHERE id_service = ?) AS worker_count,
+         (SELECT COUNT(*) FROM service_cards WHERE id_service = ?) AS card_count`,
+      [idService, idService, idService]
     );
-    if (Number(usage?.request_count || 0) > 0) {
-      res.status(409).json({ error: 'Service has request history and cannot be deleted. Deactivate it instead.' });
+    const requestCount = Number(usage?.request_count || 0);
+    const workerCount = Number(usage?.worker_count || 0);
+    const cardCount = Number(usage?.card_count || 0);
+    if (requestCount > 0 || workerCount > 0 || cardCount > 0) {
+      res.status(409).json({
+        error: 'Service cannot be deleted because it has workers, requests, or homepage cards associated. Deactivate it instead.',
+        usage: {
+          request_count: requestCount,
+          worker_count: workerCount,
+          card_count: cardCount,
+        },
+      });
       return;
+    }
+
+    const [commissionTableRows] = await pool.execute<RowDataPacket[]>(
+      `SELECT 1
+       FROM information_schema.tables
+       WHERE table_schema = DATABASE()
+         AND table_name = 'commission_rules'
+       LIMIT 1`
+    );
+    if (commissionTableRows.length > 0) {
+      const [[ruleUsage]] = await pool.execute<RowDataPacket[]>(
+        `SELECT COUNT(*) AS rule_count FROM commission_rules WHERE id_service = ?`,
+        [idService]
+      );
+      if (Number(ruleUsage?.rule_count || 0) > 0) {
+        res.status(409).json({ error: 'Service has commission rules associated and cannot be deleted. Deactivate it instead.' });
+        return;
+      }
     }
 
     const [result] = await pool.execute<ResultSetHeader>(

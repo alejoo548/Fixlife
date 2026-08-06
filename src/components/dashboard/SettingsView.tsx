@@ -31,6 +31,8 @@ type PortfolioItem = {
 };
 
 const SAFE_TEXT_ALLOWED_CHAR = /[\p{L}\p{N}\s.,\-_'":;!?()]/u;
+const NAME_REGEX = /^[\p{L}]+(?:[\p{L}\s]*[\p{L}])?$/u;
+const EMAIL_COM_REGEX = /^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@(?:[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)+com$/i;
 const PROFILE_IMAGE_MAX_BYTES = 5 * 1024 * 1024;
 const ALLOWED_PROFILE_IMAGE_TYPES = new Set(['image/png', 'image/jpeg', 'image/webp']);
 const PROFILE_IMAGE_ACCEPT = 'image/png,image/jpeg,image/webp';
@@ -40,6 +42,17 @@ const sanitizeSafeTextInput = (value: string, maxLen = 500) =>
     .filter((char) => SAFE_TEXT_ALLOWED_CHAR.test(char))
     .join('')
     .slice(0, maxLen);
+const sanitizeNameInput = (value: string) => value.replace(/[^\p{L}\s]/gu, '').slice(0, 16);
+const normalizeNameCase = (value: string) =>
+  value
+    .trim()
+    .replace(/\s+/g, ' ')
+    .toLocaleLowerCase('es')
+    .replace(/(^|\s)(\p{L})/gu, (_match, prefix: string, letter: string) => `${prefix}${letter.toLocaleUpperCase('es')}`);
+const formatPhoneInput = (value: string) => {
+  const digits = value.replace(/\D/g, '').slice(0, 8);
+  return digits.length > 4 ? `${digits.slice(0, 4)}-${digits.slice(4)}` : digits;
+};
 
 export const SettingsView: React.FC = () => {
   const navigate = useNavigate();
@@ -106,7 +119,7 @@ export const SettingsView: React.FC = () => {
       setFirstName(user.name || '');
       setLastName(user.lastname || '');
       setCurrentEmail(user.email || '');
-      setPhoneNumber(user.phone_number || '');
+      setPhoneNumber(formatPhoneInput(user.phone_number || ''));
       setBio(workerProfile.bio || '');
       setProfileImage(user.profile_image_url || toPublicUrl(user.profile_image));
       setProfileImgBroken(false);
@@ -229,12 +242,20 @@ export const SettingsView: React.FC = () => {
   };
 
   const handleSaveInfo = async () => {
-    if (!firstName.trim() || !lastName.trim()) {
-      notyf.error('First and last name are required.');
+    const nextFirstName = normalizeNameCase(firstName);
+    const nextLastName = normalizeNameCase(lastName);
+    const nextPhoneNumber = formatPhoneInput(phoneNumber);
+
+    if (!NAME_REGEX.test(nextFirstName) || nextFirstName.length < 2 || nextFirstName.length > 16) {
+      notyf.error('First name must be 2-16 characters and contain letters only.');
       return;
     }
-    if (!/^\d{8}$/.test(phoneNumber)) {
-      notyf.error('Phone number must be exactly 8 digits.');
+    if (!NAME_REGEX.test(nextLastName) || nextLastName.length < 2 || nextLastName.length > 16) {
+      notyf.error('Last name must be 2-16 characters and contain letters only.');
+      return;
+    }
+    if (!/^\d{4}-\d{4}$/.test(nextPhoneNumber)) {
+      notyf.error('Phone number must contain exactly 8 digits, like 6074-6649.');
       return;
     }
     setSavingInfo(true);
@@ -243,17 +264,20 @@ export const SettingsView: React.FC = () => {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          name: firstName.trim(),
-          lastname: lastName.trim(),
-          phone_number: phoneNumber,
+          name: nextFirstName,
+          lastname: nextLastName,
+          phone_number: nextPhoneNumber,
           bio,
         }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data?.error || 'Could not save settings.');
+      setFirstName(nextFirstName);
+      setLastName(nextLastName);
+      setPhoneNumber(nextPhoneNumber);
       const storedUser = getAuthUser('worker');
       if (storedUser) {
-        updateStoredAuthUser({ ...storedUser, name: firstName.trim(), lastname: lastName.trim() }, 'worker');
+        updateStoredAuthUser({ ...storedUser, name: nextFirstName, lastname: nextLastName, phone_number: nextPhoneNumber }, 'worker');
       }
       notyf.success('Profile updated.');
     } catch (error: any) {
@@ -264,12 +288,17 @@ export const SettingsView: React.FC = () => {
   };
 
   const handleSendEmailToken = async () => {
+    const trimmedEmail = newEmail.trim().toLowerCase();
+    if (!EMAIL_COM_REGEX.test(trimmedEmail)) {
+      notyf.error('Email must be a valid .com address.');
+      return;
+    }
     setSendingEmailToken(true);
     try {
       const res = await authFetch(`${API_URL}/api/worker/email-change/request`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ new_email: newEmail }),
+        body: JSON.stringify({ new_email: trimmedEmail }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data?.error || 'Could not send token.');
@@ -535,7 +564,7 @@ export const SettingsView: React.FC = () => {
               <div className="mt-4 space-y-3">
                 {[
                   { label: 'Profile photo', ready: Boolean(profileImage || profileImagePreview) },
-                  { label: 'Phone number', ready: /^\d{8}$/.test(phoneNumber) },
+                  { label: 'Phone number', ready: /^\d{4}-\d{4}$/.test(phoneNumber) },
                   { label: 'Bio description', ready: bio.trim().length >= 20 },
                   { label: 'Portfolio photos', ready: portfolio.length > 0 },
                 ].map((item) => (
@@ -570,8 +599,8 @@ export const SettingsView: React.FC = () => {
                 </label>
                 <input
                   value={firstName}
-                  onChange={(e) => setFirstName(sanitizeSafeTextInput(e.target.value, 80))}
-                  maxLength={80}
+                  onChange={(e) => setFirstName(sanitizeNameInput(e.target.value))}
+                  maxLength={16}
                   className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-gray-900"
                 />
               </div>
@@ -582,8 +611,8 @@ export const SettingsView: React.FC = () => {
                 </label>
                 <input
                   value={lastName}
-                  onChange={(e) => setLastName(sanitizeSafeTextInput(e.target.value, 80))}
-                  maxLength={80}
+                  onChange={(e) => setLastName(sanitizeNameInput(e.target.value))}
+                  maxLength={16}
                   className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-gray-900"
                 />
               </div>
@@ -604,13 +633,13 @@ export const SettingsView: React.FC = () => {
               </label>
               <input
                 value={phoneNumber}
-                onChange={(e) => setPhoneNumber(e.target.value.replace(/\D/g, '').slice(0, 8))}
+                onChange={(e) => setPhoneNumber(formatPhoneInput(e.target.value))}
                 className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-gray-900"
-                placeholder="8 digits only"
+                placeholder="6074-6649"
                 inputMode="numeric"
-                maxLength={8}
+                maxLength={9}
               />
-              <p className="text-[11px] text-gray-500 mt-1">Must be exactly 8 digits.</p>
+              <p className="text-[11px] text-gray-500 mt-1">Must be exactly 8 digits, like 6074-6649.</p>
             </div>
 
             <div>
@@ -645,7 +674,7 @@ export const SettingsView: React.FC = () => {
                 type="email"
                 value={newEmail}
                 maxLength={100}
-                onChange={(e) => setNewEmail(e.target.value)}
+                onChange={(e) => setNewEmail(e.target.value.trim().toLowerCase())}
                 placeholder="new-email@example.com"
                 className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3"
               />

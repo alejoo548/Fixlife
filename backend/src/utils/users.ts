@@ -7,6 +7,7 @@ let usersActiveColumnChecked = false;
 let usersPendingWorkerColumnChecked = false;
 let usersPhoneNullableChecked = false;
 let usersLoginSecurityColumnsChecked = false;
+let usersUsernameChangedAtColumnChecked = false;
 
 export const ensureUsersActiveColumn = async (): Promise<void> => {
   if (usersActiveColumnChecked) return;
@@ -130,4 +131,22 @@ export const ensureUsersLoginSecurityColumns = async (): Promise<void> => {
   }
 
   usersLoginSecurityColumnsChecked = true;
+};
+
+export const ensureUsersUsernameChangedAtColumn = async (): Promise<void> => {
+  if (usersUsernameChangedAtColumnChecked) return;
+
+  const [rows] = await pool.execute<RowDataPacket[]>(
+    `SELECT COUNT(*) as total
+     FROM information_schema.COLUMNS
+     WHERE table_schema = DATABASE()
+       AND table_name = 'users'
+       AND column_name = 'username_changed_at'`
+  );
+
+  if (Number(rows[0]?.total || 0) === 0) {
+    await pool.execute(`ALTER TABLE users ADD COLUMN username_changed_at DATETIME NULL DEFAULT NULL`);
+  }
+
+  usersUsernameChangedAtColumnChecked = true;
 };

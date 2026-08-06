@@ -9,8 +9,8 @@ interface UserProfileProps {
   onBack: () => void;
 }
 
-const NAME_REGEX = /^[\p{L}]+(?:[\p{L} .'-]*[\p{L}])?$/u;
-const PHONE_REGEX = /^\+?[0-9]{8,15}$/;
+const NAME_REGEX = /^[\p{L}]+(?:[\p{L}\s]*[\p{L}])?$/u;
+const PHONE_REGEX = /^\d{4}-\d{4}$/;
 const USERNAME_REGEX = /^[a-zA-Z0-9._-]{3,30}$/;
 
 const ALLOWED_IMAGE_TYPES = new Set([
@@ -23,15 +23,19 @@ const ALLOWED_IMAGE_TYPES = new Set([
 const ALLOWED_IMAGE_EXTENSIONS = new Set(['jpg', 'jpeg', 'png', 'webp', 'avif']);
 
 const sanitizeNameInput = (value: string): string => {
-  return value.replace(/[^\p{L} .'-]/gu, '').slice(0, 60);
+  return value.replace(/[^\p{L}\s]/gu, '').slice(0, 16);
 };
 
+const normalizeNameCase = (value: string): string =>
+  sanitizeNameInput(value)
+    .trim()
+    .replace(/\s+/g, ' ')
+    .toLocaleLowerCase('es')
+    .replace(/(^|\s)(\p{L})/gu, (_match, prefix: string, letter: string) => `${prefix}${letter.toLocaleUpperCase('es')}`);
+
 const sanitizePhoneInput = (value: string): string => {
-  const normalized = value.replace(/[^\d+]/g, '');
-  const noExtraPlus = normalized.startsWith('+')
-    ? `+${normalized.slice(1).replace(/\+/g, '')}`
-    : normalized.replace(/\+/g, '');
-  return noExtraPlus.slice(0, 16);
+  const digits = value.replace(/\D/g, '').slice(0, 8);
+  return digits.length > 4 ? `${digits.slice(0, 4)}-${digits.slice(4)}` : digits;
 };
 
 const sanitizeUsernameInput = (value: string): string => {
@@ -45,6 +49,14 @@ const normalizeStoredUsername = (username: unknown, email: unknown): string => {
   if (!value) return '';
   if (value.toLowerCase() === currentEmail) return '';
   return USERNAME_REGEX.test(value) ? value : '';
+};
+
+const getNextUsernameChangeDate = (changedAt: unknown): Date | null => {
+  if (!changedAt) return null;
+  const parsed = new Date(String(changedAt));
+  if (Number.isNaN(parsed.getTime())) return null;
+  const next = new Date(parsed.getTime() + 30 * 24 * 60 * 60 * 1000);
+  return next.getTime() > Date.now() ? next : null;
 };
 
 const UserProfile: React.FC<UserProfileProps> = ({ onBack }) => {
@@ -63,14 +75,14 @@ const UserProfile: React.FC<UserProfileProps> = ({ onBack }) => {
 
   useEffect(() => {
     setFormData({
-      name: user?.name || '',
-      lastname: user?.lastname || '',
-      phone_number: user?.phone_number || '',
+      name: normalizeNameCase(user?.name || ''),
+      lastname: normalizeNameCase(user?.lastname || ''),
+      phone_number: sanitizePhoneInput(user?.phone_number || ''),
       username: normalizeStoredUsername(user?.username, user?.email)
     });
   }, [user]);
 
-  const fullName = [user?.name, user?.lastname].filter(Boolean).join(' ');
+  const fullName = [formData.name, formData.lastname].filter(Boolean).join(' ');
   const initials = fullName
     .split(' ')
     .filter(Boolean)
@@ -93,19 +105,22 @@ const UserProfile: React.FC<UserProfileProps> = ({ onBack }) => {
     return `${apiPublicUrl}/uploads/${cleanPath}`;
   }, [user?.profile_image]);
 
+  const nextUsernameChangeDate = getNextUsernameChangeDate(user?.username_changed_at);
+  const isUsernameLocked = Boolean(nextUsernameChangeDate);
+
   const getErrorMessage = (error: any, fallback: string) =>
     error?.response?.data?.error || error?.message || fallback;
 
   const validateProfileForm = (): string | null => {
-    const name = formData.name.trim();
-    const lastname = formData.lastname.trim();
+    const name = normalizeNameCase(formData.name);
+    const lastname = normalizeNameCase(formData.lastname);
     const phone = formData.phone_number.trim();
     const username = formData.username.trim();
 
-    if (!name || !lastname) return t('userProfile.validation.required');
-    if (name.length < 2 || name.length > 60 || !NAME_REGEX.test(name)) return t('userProfile.validation.invalidName');
-    if (lastname.length < 2 || lastname.length > 60 || !NAME_REGEX.test(lastname)) return t('userProfile.validation.invalidLastname');
-    if (phone && !PHONE_REGEX.test(phone)) return t('userProfile.validation.invalidPhone');
+    if (!name || !lastname || !phone) return t('userProfile.validation.required');
+    if (name.length < 2 || name.length > 16 || !NAME_REGEX.test(name)) return 'First name must be 2-16 characters and contain letters only.';
+    if (lastname.length < 2 || lastname.length > 16 || !NAME_REGEX.test(lastname)) return 'Last name must be 2-16 characters and contain letters only.';
+    if (!PHONE_REGEX.test(phone)) return 'Phone must contain exactly 8 digits, like 6074-6649.';
     if (username && !USERNAME_REGEX.test(username)) return t('userProfile.validation.invalidUsername');
 
     return null;
@@ -125,6 +140,7 @@ const UserProfile: React.FC<UserProfileProps> = ({ onBack }) => {
     }
 
     if (name === 'username') {
+      if (isUsernameLocked) return;
       setFormData((prev) => ({ ...prev, username: sanitizeUsernameInput(value) }));
       return;
     }
@@ -150,8 +166,8 @@ const UserProfile: React.FC<UserProfileProps> = ({ onBack }) => {
     setIsSaving(true);
     try {
       const payload = {
-        name: formData.name.trim(),
-        lastname: formData.lastname.trim(),
+        name: normalizeNameCase(formData.name),
+        lastname: normalizeNameCase(formData.lastname),
         phone_number: formData.phone_number.trim(),
         username: formData.username.trim()
       };
@@ -286,7 +302,7 @@ const UserProfile: React.FC<UserProfileProps> = ({ onBack }) => {
                 <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
                 {t('userProfile.verifiedBadge')}
               </div>
-              <h1 className="text-2xl sm:text-4xl font-black tracking-tight text-white truncate">{fullName || t('userProfile.titleFallback')}</h1>
+              <h1 className="max-w-full text-2xl sm:text-4xl font-black tracking-tight text-white truncate">{fullName || t('userProfile.titleFallback')}</h1>
               <p className="text-slate-300 text-xs sm:text-sm font-semibold mt-1 truncate">{user?.email}</p>
             </div>
 
@@ -334,9 +350,9 @@ const UserProfile: React.FC<UserProfileProps> = ({ onBack }) => {
                 name="name"
                 value={formData.name}
                 onChange={handleInputChange}
-                maxLength={60}
+                maxLength={16}
                 autoComplete="given-name"
-                className="w-full bg-transparent text-base font-bold text-slate-950 dark:text-slate-100 outline-none"
+                className="w-full min-w-0 bg-transparent text-base font-bold text-slate-950 dark:text-slate-100 outline-none"
               />
             </div>
 
@@ -353,9 +369,9 @@ const UserProfile: React.FC<UserProfileProps> = ({ onBack }) => {
                 name="lastname"
                 value={formData.lastname}
                 onChange={handleInputChange}
-                maxLength={60}
+                maxLength={16}
                 autoComplete="family-name"
-                className="w-full bg-transparent text-base font-bold text-slate-950 dark:text-slate-100 outline-none"
+                className="w-full min-w-0 bg-transparent text-base font-bold text-slate-950 dark:text-slate-100 outline-none"
               />
             </div>
 
@@ -373,9 +389,9 @@ const UserProfile: React.FC<UserProfileProps> = ({ onBack }) => {
                 value={formData.phone_number}
                 onChange={handleInputChange}
                 inputMode="numeric"
-                maxLength={16}
+                maxLength={9}
                 autoComplete="tel"
-                placeholder="+503 7000 0000"
+                placeholder="6074-6649"
                 className="w-full bg-transparent text-base font-bold text-slate-950 dark:text-slate-100 placeholder-slate-400 outline-none"
               />
             </div>
@@ -395,8 +411,10 @@ const UserProfile: React.FC<UserProfileProps> = ({ onBack }) => {
                 onChange={handleInputChange}
                 maxLength={30}
                 autoComplete="username"
-                placeholder="@username"
-                className="w-full bg-transparent text-base font-bold text-slate-950 dark:text-slate-100 placeholder-slate-400 outline-none"
+                placeholder={isUsernameLocked && nextUsernameChangeDate ? `Available ${nextUsernameChangeDate.toLocaleDateString()}` : '@username'}
+                disabled={isUsernameLocked}
+                title={isUsernameLocked && nextUsernameChangeDate ? `You can change your username again on ${nextUsernameChangeDate.toLocaleDateString()}` : undefined}
+                className="w-full bg-transparent text-base font-bold text-slate-950 dark:text-slate-100 placeholder-slate-400 outline-none disabled:cursor-not-allowed disabled:text-slate-500"
               />
             </div>
           </div>

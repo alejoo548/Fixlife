@@ -20,6 +20,24 @@ interface WorkerAuthModalProps {
   onSuccess?: () => void;
 }
 
+const nameRegex = /^[\p{L}]+(?:[\p{L}\s]*[\p{L}])?$/u;
+const emailRegex = /^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@(?:[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)+com$/i;
+const phoneRegex = /^\d{4}-\d{4}$/;
+const usernameRegex = /^[a-zA-Z0-9_]+$/;
+const MAX_WORKER_SPECIALTIES = 3;
+
+const sanitizeNameInput = (value: string) => value.replace(/[^\p{L}\s]/gu, '').slice(0, 16);
+const normalizeNameCase = (value: string) =>
+  value
+    .trim()
+    .replace(/\s+/g, ' ')
+    .toLocaleLowerCase('es')
+    .replace(/(^|\s)(\p{L})/gu, (_match, prefix: string, letter: string) => `${prefix}${letter.toLocaleUpperCase('es')}`);
+const formatPhoneInput = (value: string) => {
+  const digits = value.replace(/\D/g, '').slice(0, 8);
+  return digits.length > 4 ? `${digits.slice(0, 4)}-${digits.slice(4)}` : digits;
+};
+
 export const WorkerAuthModal: React.FC<WorkerAuthModalProps> = ({ isOpen, onClose, mode: initialMode, onSuccess }) => {
   const [view, setView] = useState<'signin' | 'signup' | 'specialties' | 'verify' | 'upload' | 'forgot'>(initialMode);
   const [registeredEmail, setRegisteredEmail] = useState('');
@@ -84,6 +102,19 @@ export const WorkerAuthModal: React.FC<WorkerAuthModalProps> = ({ isOpen, onClos
     setError('');
   };
 
+  const toggleServiceSelection = (serviceId: number) => {
+    setSelectedServiceIds((current) => {
+      if (current.includes(serviceId)) {
+        return current.filter((id) => id !== serviceId);
+      }
+      if (current.length >= MAX_WORKER_SPECIALTIES) {
+        void showSweetToast({ tone: 'warning', message: `You can select up to ${MAX_WORKER_SPECIALTIES} services.` });
+        return current;
+      }
+      return [...current, serviceId];
+    });
+  };
+
   const handleSignupSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
@@ -95,36 +126,38 @@ export const WorkerAuthModal: React.FC<WorkerAuthModalProps> = ({ isOpen, onClos
       return;
     }
 
-    const nameRegex = /^[a-zA-Z\s]+$/;
-    const phoneRegex = /^[+\d\-\s]+$/;
-    const usernameRegex = /^[a-zA-Z0-9_]+$/;
+    const trimmedName = normalizeNameCase(formData.name);
+    const trimmedLastname = normalizeNameCase(formData.lastname);
+    const trimmedEmail = formData.email.trim().toLowerCase();
+    const trimmedPhone = formData.phone_number.trim();
+    const trimmedUsername = formData.username.trim();
 
-    if (!nameRegex.test(formData.name.trim()) || formData.name.trim().length > 50) {
-      void showSweetToast({ tone: 'error', message: 'First name is invalid or too long (max 50 chars, letters only)' });
+    if (!nameRegex.test(trimmedName) || trimmedName.length < 2 || trimmedName.length > 16) {
+      void showSweetToast({ tone: 'error', message: 'First name must be 2-16 characters and contain letters only' });
       setLoading(false);
       return;
     }
 
-    if (!nameRegex.test(formData.lastname.trim()) || formData.lastname.trim().length > 50) {
-      void showSweetToast({ tone: 'error', message: 'Last name is invalid or too long (max 50 chars, letters only)' });
+    if (!nameRegex.test(trimmedLastname) || trimmedLastname.length < 2 || trimmedLastname.length > 16) {
+      void showSweetToast({ tone: 'error', message: 'Last name must be 2-16 characters and contain letters only' });
       setLoading(false);
       return;
     }
 
-    if (formData.username && (!usernameRegex.test(formData.username.trim()) || formData.username.trim().length > 30)) {
+    if (trimmedUsername && (!usernameRegex.test(trimmedUsername) || trimmedUsername.length > 30)) {
       void showSweetToast({ tone: 'error', message: 'Username is invalid or too long (max 30 chars, alphanumeric and underscores only)' });
       setLoading(false);
       return;
     }
 
-    if (!phoneRegex.test(formData.phone_number.trim()) || formData.phone_number.trim().length > 15) {
-      void showSweetToast({ tone: 'error', message: 'Phone number is invalid or too long (max 15 chars)' });
+    if (!phoneRegex.test(trimmedPhone)) {
+      void showSweetToast({ tone: 'error', message: 'Phone must contain exactly 8 digits, like 6074-6649' });
       setLoading(false);
       return;
     }
     
-    if (formData.email.trim().length > 100) {
-      void showSweetToast({ tone: 'error', message: 'Email is too long (max 100 chars)' });
+    if (!emailRegex.test(trimmedEmail) || trimmedEmail.length > 100) {
+      void showSweetToast({ tone: 'error', message: 'Email must be a valid .com address' });
       setLoading(false);
       return;
     }
@@ -137,7 +170,7 @@ export const WorkerAuthModal: React.FC<WorkerAuthModalProps> = ({ isOpen, onClos
 
     try {
       // Client-side validation passed — move to specialties selection
-      setRegisteredEmail(formData.email);
+      setRegisteredEmail(trimmedEmail);
       setLoading(false);
       setView('specialties');
     } catch (err) {
@@ -152,17 +185,29 @@ export const WorkerAuthModal: React.FC<WorkerAuthModalProps> = ({ isOpen, onClos
     setError('');
     setLoading(true);
 
+    if (selectedServiceIds.length === 0) {
+      void showSweetToast({ tone: 'error', message: 'Select at least one service you offer.' });
+      setLoading(false);
+      return;
+    }
+
+    if (selectedServiceIds.length > MAX_WORKER_SPECIALTIES) {
+      void showSweetToast({ tone: 'error', message: `You can select up to ${MAX_WORKER_SPECIALTIES} services.` });
+      setLoading(false);
+      return;
+    }
+
     try {
       const response = await fetch(API_ENDPOINTS.auth.registerWorker, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          name: formData.name,
-          lastname: formData.lastname,
-          email: formData.email,
-          phone_number: formData.phone_number,
+          name: normalizeNameCase(formData.name),
+          lastname: normalizeNameCase(formData.lastname),
+          email: formData.email.trim().toLowerCase(),
+          phone_number: formData.phone_number.trim(),
           password: formData.password,
-          username: formData.username || undefined,
+          username: formData.username.trim() || undefined,
           service_ids: selectedServiceIds,
         })
       });
@@ -413,10 +458,10 @@ export const WorkerAuthModal: React.FC<WorkerAuthModalProps> = ({ isOpen, onClos
                   <form className="w-full flex flex-col gap-2.5" onSubmit={handleSignupSubmit}>
                     <div className="grid grid-cols-2 gap-2.5">
                       <div className="bg-gray-50 dark:bg-slate-800 rounded-lg p-1 border border-gray-200 dark:border-white/10 focus-within:border-bird-orange/50 transition-colors">
-                        <input required value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} type="text" maxLength={50} placeholder="First Name" className="w-full bg-transparent px-3 py-2 text-sm text-gray-900 dark:text-slate-100 outline-none placeholder-gray-500 dark:placeholder-slate-400" />
+                        <input required value={formData.name} onChange={e => setFormData({...formData, name: sanitizeNameInput(e.target.value)})} type="text" maxLength={16} placeholder="First Name" className="w-full bg-transparent px-3 py-2 text-sm text-gray-900 dark:text-slate-100 outline-none placeholder-gray-500 dark:placeholder-slate-400" />
                       </div>
                       <div className="bg-gray-50 dark:bg-slate-800 rounded-lg p-1 border border-gray-200 dark:border-white/10 focus-within:border-bird-orange/50 transition-colors">
-                        <input required value={formData.lastname} onChange={e => setFormData({...formData, lastname: e.target.value})} type="text" maxLength={50} placeholder="Last Name" className="w-full bg-transparent px-3 py-2 text-sm text-gray-900 dark:text-slate-100 outline-none placeholder-gray-500 dark:placeholder-slate-400" />
+                        <input required value={formData.lastname} onChange={e => setFormData({...formData, lastname: sanitizeNameInput(e.target.value)})} type="text" maxLength={16} placeholder="Last Name" className="w-full bg-transparent px-3 py-2 text-sm text-gray-900 dark:text-slate-100 outline-none placeholder-gray-500 dark:placeholder-slate-400" />
                       </div>
                     </div>
 
@@ -425,7 +470,7 @@ export const WorkerAuthModal: React.FC<WorkerAuthModalProps> = ({ isOpen, onClos
                         <input value={formData.username} onChange={e => setFormData({...formData, username: e.target.value})} type="text" maxLength={30} placeholder="Username (Optional)" className="w-full bg-transparent px-3 py-2 text-sm text-gray-900 dark:text-slate-100 outline-none placeholder-gray-500 dark:placeholder-slate-400" />
                       </div>
                       <div className="bg-gray-50 dark:bg-slate-800 rounded-lg p-1 border border-gray-200 dark:border-white/10 focus-within:border-bird-orange/50 transition-colors">
-                        <input required value={formData.phone_number} onChange={e => setFormData({...formData, phone_number: e.target.value})} type="tel" maxLength={15} placeholder="Phone Number" className="w-full bg-transparent px-3 py-2 text-sm text-gray-900 dark:text-slate-100 outline-none placeholder-gray-500 dark:placeholder-slate-400" />
+                        <input required value={formData.phone_number} onChange={e => setFormData({...formData, phone_number: formatPhoneInput(e.target.value)})} type="tel" maxLength={9} placeholder="6074-6649" className="w-full bg-transparent px-3 py-2 text-sm text-gray-900 dark:text-slate-100 outline-none placeholder-gray-500 dark:placeholder-slate-400" />
                       </div>
                     </div>
 
@@ -464,7 +509,8 @@ export const WorkerAuthModal: React.FC<WorkerAuthModalProps> = ({ isOpen, onClos
                   </svg>
                 </div>
                 <h2 className="text-3xl font-bold mb-2 text-bird-orange dark:text-amber-400">Your Specialties</h2>
-                <p className="text-sm text-gray-600 dark:text-slate-400 mb-5">Select the services you specialize in</p>
+                <p className="text-sm text-gray-600 dark:text-slate-400 mb-2">Select up to {MAX_WORKER_SPECIALTIES} services you specialize in</p>
+                <p className="text-xs font-semibold text-bird-orange mb-4">{selectedServiceIds.length}/{MAX_WORKER_SPECIALTIES} selected</p>
 
                 <div className="w-full grid grid-cols-2 gap-2 max-h-[220px] overflow-y-auto custom-scrollbar mb-4 px-1">
                   {availableServices.length === 0 ? (
@@ -475,9 +521,7 @@ export const WorkerAuthModal: React.FC<WorkerAuthModalProps> = ({ isOpen, onClos
                       <button
                         key={svc.id_service}
                         type="button"
-                        onClick={() => setSelectedServiceIds(prev =>
-                          isSelected ? prev.filter(id => id !== svc.id_service) : [...prev, svc.id_service]
-                        )}
+                        onClick={() => toggleServiceSelection(svc.id_service)}
                         className={`flex items-center gap-2 px-3 py-2.5 rounded-xl border text-sm font-semibold transition-all duration-200 ${
                           isSelected
                             ? 'bg-bird-orange/10 border-bird-orange text-bird-orange shadow-sm'
@@ -720,17 +764,17 @@ export const WorkerAuthModal: React.FC<WorkerAuthModalProps> = ({ isOpen, onClos
                   <form className="flex flex-col gap-3" onSubmit={handleSignupSubmit}>
                     <div className="grid grid-cols-2 gap-3">
                       <div className="bg-white dark:bg-slate-800 rounded-xl px-4 py-3 border border-gray-200 dark:border-white/10 focus-within:border-bird-orange/50 transition-colors shadow-sm">
-                        <input required value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} type="text" maxLength={50} placeholder="First Name" className="w-full bg-transparent text-sm text-gray-900 dark:text-slate-100 outline-none placeholder-gray-500 dark:placeholder-slate-400" />
+                        <input required value={formData.name} onChange={e => setFormData({...formData, name: sanitizeNameInput(e.target.value)})} type="text" maxLength={16} placeholder="First Name" className="w-full bg-transparent text-sm text-gray-900 dark:text-slate-100 outline-none placeholder-gray-500 dark:placeholder-slate-400" />
                       </div>
                       <div className="bg-white dark:bg-slate-800 rounded-xl px-4 py-3 border border-gray-200 dark:border-white/10 focus-within:border-bird-orange/50 transition-colors shadow-sm">
-                        <input required value={formData.lastname} onChange={e => setFormData({...formData, lastname: e.target.value})} type="text" maxLength={50} placeholder="Last Name" className="w-full bg-transparent text-sm text-gray-900 dark:text-slate-100 outline-none placeholder-gray-500 dark:placeholder-slate-400" />
+                        <input required value={formData.lastname} onChange={e => setFormData({...formData, lastname: sanitizeNameInput(e.target.value)})} type="text" maxLength={16} placeholder="Last Name" className="w-full bg-transparent text-sm text-gray-900 dark:text-slate-100 outline-none placeholder-gray-500 dark:placeholder-slate-400" />
                       </div>
                     </div>
                     <div className="bg-white dark:bg-slate-800 rounded-xl px-4 py-3 border border-gray-200 dark:border-white/10 focus-within:border-bird-orange/50 transition-colors shadow-sm">
                       <input value={formData.username} onChange={e => setFormData({...formData, username: e.target.value})} type="text" maxLength={30} placeholder="Username (Optional)" className="w-full bg-transparent text-sm text-gray-900 dark:text-slate-100 outline-none placeholder-gray-500 dark:placeholder-slate-400" />
                     </div>
                     <div className="bg-white dark:bg-slate-800 rounded-xl px-4 py-3 border border-gray-200 dark:border-white/10 focus-within:border-bird-orange/50 transition-colors shadow-sm">
-                      <input required value={formData.phone_number} onChange={e => setFormData({...formData, phone_number: e.target.value})} type="tel" maxLength={15} placeholder="Phone Number" className="w-full bg-transparent text-sm text-gray-900 dark:text-slate-100 outline-none placeholder-gray-500 dark:placeholder-slate-400" />
+                      <input required value={formData.phone_number} onChange={e => setFormData({...formData, phone_number: formatPhoneInput(e.target.value)})} type="tel" maxLength={9} placeholder="6074-6649" className="w-full bg-transparent text-sm text-gray-900 dark:text-slate-100 outline-none placeholder-gray-500 dark:placeholder-slate-400" />
                     </div>
                     <div className="bg-white dark:bg-slate-800 rounded-xl px-4 py-3 border border-gray-200 dark:border-white/10 focus-within:border-bird-orange/50 transition-colors shadow-sm">
                       <input required value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} type="email" maxLength={100} placeholder="Email Address" className="w-full bg-transparent text-sm text-gray-900 dark:text-slate-100 outline-none placeholder-gray-500 dark:placeholder-slate-400" />
@@ -764,7 +808,8 @@ export const WorkerAuthModal: React.FC<WorkerAuthModalProps> = ({ isOpen, onClos
                     </svg>
                   </div>
                   <h2 className="text-2xl font-bold text-gray-900 mb-1">Your Specialties</h2>
-                  <p className="text-sm text-gray-600 mb-5 px-2">Select the services you specialize in</p>
+                  <p className="text-sm text-gray-600 mb-2 px-2">Select up to {MAX_WORKER_SPECIALTIES} services you specialize in</p>
+                  <p className="text-xs font-semibold text-bird-orange mb-4">{selectedServiceIds.length}/{MAX_WORKER_SPECIALTIES} selected</p>
 
                   <div className="w-full grid grid-cols-2 gap-2 max-h-[200px] overflow-y-auto custom-scrollbar mb-4">
                     {availableServices.length === 0 ? (
@@ -775,9 +820,7 @@ export const WorkerAuthModal: React.FC<WorkerAuthModalProps> = ({ isOpen, onClos
                         <button
                           key={svc.id_service}
                           type="button"
-                          onClick={() => setSelectedServiceIds(prev =>
-                            isSelected ? prev.filter(id => id !== svc.id_service) : [...prev, svc.id_service]
-                          )}
+                          onClick={() => toggleServiceSelection(svc.id_service)}
                           className={`flex items-center gap-2 px-3 py-2.5 rounded-xl border text-sm font-semibold transition-all duration-200 ${
                             isSelected
                               ? 'bg-bird-orange/10 border-bird-orange text-bird-orange shadow-sm'

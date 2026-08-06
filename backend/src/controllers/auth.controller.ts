@@ -4,7 +4,7 @@ import crypto from 'crypto';
 import pool from '../config/db';
 import { ResultSetHeader, RowDataPacket } from 'mysql2';
 import { sendVerificationEmail, sendPasswordResetEmail } from '../utils/email';
-import { ensureUsersActiveColumn, ensureUsersPendingWorkerColumn, ensureUsersPhoneNumberNullable, ensureUsersLoginSecurityColumns } from '../utils/users';
+import { ensureUsersActiveColumn, ensureUsersPendingWorkerColumn, ensureUsersPhoneNumberNullable, ensureUsersLoginSecurityColumns, ensureUsersUsernameChangedAtColumn } from '../utils/users';
 import { AuthRequest } from '../middlewares/auth.middleware';
 import { OAuth2Client } from 'google-auth-library';
 import { signAccessToken } from '../config/security';
@@ -17,6 +17,12 @@ const googleClient = GOOGLE_CLIENT_ID ? new OAuth2Client(GOOGLE_CLIENT_ID) : nul
 const isRecaptchaEnabled = Boolean(RECAPTCHA_SECRET_KEY);
 
 const sanitizeText = (value: unknown): string => String(value ?? '').trim();
+const normalizeNameCase = (value: string): string =>
+  value
+    .trim()
+    .replace(/\s+/g, ' ')
+    .toLocaleLowerCase('es')
+    .replace(/(^|\s)(\p{L})/gu, (_match, prefix: string, letter: string) => `${prefix}${letter.toLocaleUpperCase('es')}`);
 
 const verifyRecaptchaToken = async (token: string, remoteIp?: string) => {
   try {
@@ -45,13 +51,13 @@ const verifyRecaptchaToken = async (token: string, remoteIp?: string) => {
 };
 
 const isValidName = (value: string): boolean => {
-  if (value.length < 2 || value.length > 60) return false;
-  return /^[\p{L}]+(?:[\p{L} .'-]*[\p{L}])?$/u.test(value);
+  if (value.length < 2 || value.length > 16) return false;
+  return /^[\p{L}]+(?:[\p{L}\s]*[\p{L}])?$/u.test(value);
 };
 
 const isValidPhone = (value: string): boolean => {
   if (!value) return true;
-  return /^\+?[0-9]{8,15}$/.test(value);
+  return /^\d{4}-\d{4}$/.test(value);
 };
 
 const isValidUsername = (value: string): boolean => {
@@ -60,7 +66,7 @@ const isValidUsername = (value: string): boolean => {
 };
 const isValidEmail = (value: string): boolean => {
   if (!value) return false;
-  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value) && value.length <= 100;
+  return /^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@(?:[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)+com$/i.test(value) && value.length <= 100;
 };
 
 const isValidPassword = (value: string): boolean => {
@@ -70,6 +76,7 @@ const isValidPassword = (value: string): boolean => {
 export const registerWorker = async (req: Request, res: Response): Promise<void> => {
   try {
     await ensureUsersPendingWorkerColumn();
+    await ensureUsersUsernameChangedAtColumn();
 
     const { name, lastname, email, phone_number, password, username, service_ids } = req.body;
 
@@ -78,8 +85,8 @@ export const registerWorker = async (req: Request, res: Response): Promise<void>
       return;
     }
 
-    const trimmedName = name.trim();
-    const trimmedLastname = lastname.trim();
+    const trimmedName = normalizeNameCase(name);
+    const trimmedLastname = normalizeNameCase(lastname);
     const trimmedEmail = email.trim();
     const trimmedPhoneNumber = phone_number.trim();
     const trimmedUsername = username ? username.trim() : undefined;
@@ -110,14 +117,19 @@ export const registerWorker = async (req: Request, res: Response): Promise<void>
     }
 
     const normalizedServiceIds = Array.isArray(service_ids)
-      ? service_ids
-          .map((id: any) => Number(id))
-          .filter((id: number) => Number.isFinite(id) && id > 0)
-          .slice(0, 10)
+      ? Array.from(new Set(
+          service_ids
+            .map((id: any) => Number(id))
+            .filter((id: number) => Number.isFinite(id) && id > 0)
+        ))
       : [];
 
     if (normalizedServiceIds.length === 0) {
       res.status(400).json({ error: 'Select at least one service you offer.' });
+      return;
+    }
+    if (normalizedServiceIds.length > 3) {
+      res.status(400).json({ error: 'You can select up to 3 services.' });
       return;
     }
 
@@ -125,6 +137,16 @@ export const registerWorker = async (req: Request, res: Response): Promise<void>
 
     try {
       await connection.beginTransaction();
+
+      const [activeServiceRows] = await connection.execute<RowDataPacket[]>(
+        `SELECT id_service FROM services WHERE id_service IN (${normalizedServiceIds.map(() => '?').join(', ')}) AND is_active = 1`,
+        normalizedServiceIds
+      );
+      if (activeServiceRows.length !== normalizedServiceIds.length) {
+        await connection.rollback();
+        res.status(400).json({ error: 'One or more selected services are not available.' });
+        return;
+      }
 
       const [existingUsers] = await connection.execute<RowDataPacket[]>(
         'SELECT id_user, verification_token FROM users WHERE email = ?',
@@ -313,6 +335,7 @@ export const resendOtp = async (req: Request, res: Response): Promise<void> => {
 export const verifyWorkerEmail = async (req: Request, res: Response): Promise<void> => {
   try {
     await ensureUsersPendingWorkerColumn();
+    await ensureUsersUsernameChangedAtColumn();
 
     const { email, otp } = req.body;
 
@@ -324,7 +347,7 @@ export const verifyWorkerEmail = async (req: Request, res: Response): Promise<vo
     const trimmedOtp = String(otp).trim();
 
     const [users] = await pool.execute<RowDataPacket[]>(
-      `SELECT id_user, name, lastname, email, phone_number, rol, username, profile_image, verification_token, token_expires_at, pending_worker
+      `SELECT id_user, name, lastname, email, phone_number, rol, username, username_changed_at, profile_image, verification_token, token_expires_at, pending_worker
        FROM users WHERE email = ? AND pending_worker = 1`,
       [trimmedEmail]
     );
@@ -376,11 +399,14 @@ export const verifyWorkerEmail = async (req: Request, res: Response): Promise<vo
         success: true,
         message: 'Email verified successfully',
         user: {
+          id_user: user.id_user,
           name: user.name,
           lastname: user.lastname,
           email: user.email,
+          phone_number: user.phone_number,
           rol: user.rol,
           username: user.username,
+          username_changed_at: user.username_changed_at,
           profile_image: user.profile_image,
           pending_worker: user.pending_worker ? 1 : 0,
           worker_profile: {
@@ -411,13 +437,13 @@ export const registerUser = async (req: Request, res: Response): Promise<void> =
 
     const { name, lastname, email, phone_number, password, username, captchaToken } = req.body;
 
-    if (!name || !lastname || !email || !password) {
+    if (!name || !lastname || !email || !phone_number || !password) {
       res.status(400).json({ error: 'Missing required fields' });
       return;
     }
 
-    const trimmedName = String(name).trim();
-    const trimmedLastname = String(lastname).trim();
+    const trimmedName = normalizeNameCase(String(name));
+    const trimmedLastname = normalizeNameCase(String(lastname));
     const trimmedEmail = String(email).trim().toLowerCase();
     const trimmedPhoneNumber = phone_number ? String(phone_number).trim() : '';
     const trimmedUsername = username ? String(username).trim() : '';
@@ -432,7 +458,7 @@ export const registerUser = async (req: Request, res: Response): Promise<void> =
       return;
     }
 
-    if (trimmedPhoneNumber && !isValidPhone(trimmedPhoneNumber)) {
+    if (!isValidPhone(trimmedPhoneNumber)) {
       res.status(400).json({ error: 'Invalid phone number format' });
       return;
     }
@@ -495,11 +521,14 @@ export const registerUser = async (req: Request, res: Response): Promise<void> =
         success: true,
         message: 'User account created successfully',
         user: {
+          id_user: userId,
           name: trimmedName,
           lastname: trimmedLastname,
           email: trimmedEmail,
+          phone_number: trimmedPhoneNumber,
           rol: 'client',
-          username: trimmedUsername || null
+          username: trimmedUsername || null,
+          username_changed_at: null
         },
         token
       });
@@ -528,10 +557,11 @@ export const login = async (req: Request, res: Response): Promise<void> => {
 
     await ensureUsersActiveColumn();
     await ensureUsersPendingWorkerColumn();
+    await ensureUsersUsernameChangedAtColumn();
     await ensureUsersLoginSecurityColumns();
 
     const [users] = await pool.execute<RowDataPacket[]>(
-      `SELECT id_user, name, lastname, email, phone_number, password_hash, rol, username, profile_image, is_active, pending_worker, failed_login_attempts, locked_until
+      `SELECT id_user, name, lastname, email, phone_number, password_hash, rol, username, username_changed_at, profile_image, is_active, pending_worker, failed_login_attempts, locked_until
        FROM users WHERE email = ?`,
       [trimmedEmail]
     );
@@ -607,11 +637,14 @@ export const login = async (req: Request, res: Response): Promise<void> => {
     }).catch(() => undefined);
 
     const userData: any = {
+      id_user: user.id_user,
       name: user.name,
       lastname: user.lastname,
       email: user.email,
+      phone_number: user.phone_number,
       rol: user.rol,
       username: user.username,
+      username_changed_at: user.username_changed_at,
       profile_image: user.profile_image,
       pending_worker: user.pending_worker ? 1 : 0
     };
@@ -668,6 +701,7 @@ export const googleLogin = async (req: Request, res: Response): Promise<void> =>
     await ensureUsersActiveColumn();
     await ensureUsersPendingWorkerColumn();
     await ensureUsersPhoneNumberNullable();
+    await ensureUsersUsernameChangedAtColumn();
     await ensureUsersLoginSecurityColumns();
 
     const ticket = await googleClient.verifyIdToken({
@@ -692,8 +726,8 @@ export const googleLogin = async (req: Request, res: Response): Promise<void> =>
     const nameParts = fullName.split(/\s+/).filter(Boolean);
     const fallbackName = nameParts[0] || 'User';
     const fallbackLast = nameParts.slice(1).join(' ') || fallbackName;
-    const name = sanitizeText(payload?.given_name) || fallbackName;
-    const lastname = sanitizeText(payload?.family_name) || fallbackLast;
+    const name = normalizeNameCase(sanitizeText(payload?.given_name) || fallbackName).slice(0, 16);
+    const lastname = normalizeNameCase(sanitizeText(payload?.family_name) || fallbackLast).slice(0, 16);
 
     const connection = await pool.getConnection();
 
@@ -701,7 +735,7 @@ export const googleLogin = async (req: Request, res: Response): Promise<void> =>
       await connection.beginTransaction();
 
       const [users] = await connection.execute<RowDataPacket[]>(
-        `SELECT id_user, name, lastname, email, phone_number, rol, username, profile_image, is_active, pending_worker, failed_login_attempts, locked_until
+        `SELECT id_user, name, lastname, email, phone_number, rol, username, username_changed_at, profile_image, is_active, pending_worker, failed_login_attempts, locked_until
          FROM users WHERE email = ?`,
         [email]
       );
@@ -736,11 +770,14 @@ export const googleLogin = async (req: Request, res: Response): Promise<void> =>
         }
 
         userData = {
+          id_user: userId,
           name: user.name,
           lastname: (!currentLastname || currentLastname.toLowerCase() === 'google') ? lastname : user.lastname,
           email: user.email,
+          phone_number: user.phone_number,
           rol: userRole,
           username: user.username,
+          username_changed_at: user.username_changed_at,
           profile_image: user.profile_image,
           pending_worker: pendingWorker,
         };
@@ -759,11 +796,14 @@ export const googleLogin = async (req: Request, res: Response): Promise<void> =>
         pendingWorker = 0;
 
         userData = {
+          id_user: userId,
           name,
           lastname,
           email,
+          phone_number: null,
           rol: userRole,
           username: null,
+          username_changed_at: null,
           pending_worker: pendingWorker,
         };
       }
@@ -1061,6 +1101,7 @@ export const removeProfileImage = async (req: AuthRequest, res: Response): Promi
 export const updateProfile = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     await ensureUsersPhoneNumberNullable();
+    await ensureUsersUsernameChangedAtColumn();
 
     const userId = req.user?.user_id;
 
@@ -1069,8 +1110,8 @@ export const updateProfile = async (req: AuthRequest, res: Response): Promise<vo
       return;
     }
 
-    const name = sanitizeText(req.body.name);
-    const lastname = sanitizeText(req.body.lastname);
+    const name = normalizeNameCase(sanitizeText(req.body.name));
+    const lastname = normalizeNameCase(sanitizeText(req.body.lastname));
     const phone_number = sanitizeText(req.body.phone_number);
     const username = sanitizeText(req.body.username);
 
@@ -1094,6 +1135,27 @@ export const updateProfile = async (req: AuthRequest, res: Response): Promise<vo
       return;
     }
 
+    const [currentUsers] = await pool.execute<RowDataPacket[]>(
+      'SELECT username, username_changed_at FROM users WHERE id_user = ? LIMIT 1',
+      [userId]
+    );
+
+    if (currentUsers.length === 0) {
+      res.status(404).json({ error: 'User not found' });
+      return;
+    }
+
+    const currentUsername = String(currentUsers[0].username || '');
+    const usernameChanged = username !== currentUsername;
+    if (usernameChanged && currentUsers[0].username_changed_at) {
+      const lastChangedAt = new Date(currentUsers[0].username_changed_at);
+      const nextAllowedAt = new Date(lastChangedAt.getTime() + 30 * 24 * 60 * 60 * 1000);
+      if (nextAllowedAt.getTime() > Date.now()) {
+        res.status(429).json({ error: `Username can be changed again on ${nextAllowedAt.toISOString().slice(0, 10)}.` });
+        return;
+      }
+    }
+
     if (username) {
       const [duplicateUsernames] = await pool.execute<RowDataPacket[]>(
         'SELECT id_user FROM users WHERE username = ? AND id_user <> ? LIMIT 1',
@@ -1108,13 +1170,13 @@ export const updateProfile = async (req: AuthRequest, res: Response): Promise<vo
 
     await pool.execute(
       `UPDATE users
-       SET name = ?, lastname = ?, phone_number = ?, username = ?
+       SET name = ?, lastname = ?, phone_number = ?, username = ?, username_changed_at = ?
        WHERE id_user = ?`,
-      [name, lastname, phone_number || null, username || null, userId]
+      [name, lastname, phone_number || null, username || null, usernameChanged ? new Date() : currentUsers[0].username_changed_at, userId]
     );
 
     const [users] = await pool.execute<RowDataPacket[]>(
-      `SELECT id_user, name, lastname, email, phone_number, rol, username, profile_image
+      `SELECT id_user, name, lastname, email, phone_number, rol, username, username_changed_at, profile_image
        FROM users
        WHERE id_user = ?`,
       [userId]

@@ -1,11 +1,22 @@
 import { z } from 'zod';
 
-const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-const phoneRegex = /^\+?[0-9]{8,15}$/;
+const emailRegex = /^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@(?:[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)+com$/i;
+const phoneRegex = /^\d{4}-\d{4}$/;
 const otpRegex = /^\d{6}$/;
-const nameRegex = /^[\p{L}]+(?:[\p{L} .'-]*[\p{L}])?$/u;
+const nameRegex = /^[\p{L}]+(?:[\p{L}\s]*[\p{L}])?$/u;
 const usernameRegex = /^[a-zA-Z0-9._-]{3,30}$/;
 const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{8,128}$/;
+
+const formatEightDigitPhone = (value: string) => {
+  const digits = value.replace(/\D/g, '');
+  return digits.length > 4 ? `${digits.slice(0, 4)}-${digits.slice(4)}` : digits;
+};
+
+const phoneText = z
+  .string()
+  .trim()
+  .transform(formatEightDigitPhone)
+  .refine((value) => phoneRegex.test(value), 'Phone must contain exactly 8 digits.');
 
 export const AuthSchema = {
   login: z.object({
@@ -26,13 +37,13 @@ export const AuthSchema = {
       .string()
       .trim()
       .min(2, 'Invalid name format.')
-      .max(60, 'Invalid name format.')
+      .max(16, 'Invalid name format.')
       .regex(nameRegex, 'Invalid name format.'),
     lastname: z
       .string()
       .trim()
       .min(2, 'Invalid lastname format.')
-      .max(60, 'Invalid lastname format.')
+      .max(16, 'Invalid lastname format.')
       .regex(nameRegex, 'Invalid lastname format.'),
     email: z
       .string()
@@ -40,10 +51,7 @@ export const AuthSchema = {
       .toLowerCase()
       .max(100, 'Invalid email format.')
       .regex(emailRegex, 'Invalid email format.'),
-    phone_number: z
-      .string()
-      .trim()
-      .regex(phoneRegex, 'Invalid phone format.'),
+    phone_number: phoneText,
     password: z
       .string()
       .regex(passwordRegex, 'Password must be 8-128 chars and include at least 1 letter and 1 number.'),
@@ -56,7 +64,7 @@ export const AuthSchema = {
     service_ids: z
       .array(z.number().int().positive())
       .min(1, 'Select at least one service you offer.')
-      .max(10),
+      .max(3, 'You can select up to 3 services.'),
   }),
 
   registerUser: z.object({
@@ -64,13 +72,13 @@ export const AuthSchema = {
       .string()
       .trim()
       .min(2, 'Invalid name format.')
-      .max(60, 'Invalid name format.')
+      .max(16, 'Invalid name format.')
       .regex(nameRegex, 'Invalid name format.'),
     lastname: z
       .string()
       .trim()
       .min(2, 'Invalid lastname format.')
-      .max(60, 'Invalid lastname format.')
+      .max(16, 'Invalid lastname format.')
       .regex(nameRegex, 'Invalid lastname format.'),
     email: z
       .string()
@@ -78,12 +86,7 @@ export const AuthSchema = {
       .toLowerCase()
       .max(100, 'Invalid email format.')
       .regex(emailRegex, 'Invalid email format.'),
-    phone_number: z
-      .string()
-      .trim()
-      .regex(phoneRegex, 'Invalid phone format.')
-      .optional()
-      .or(z.literal('')),
+    phone_number: phoneText,
     password: z
       .string()
       .regex(passwordRegex, 'Password must be 8-128 chars and include at least 1 letter and 1 number.'),

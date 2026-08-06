@@ -46,6 +46,17 @@ const SCHEDULED_START_EARLY_MINUTES = Math.max(
   0,
   Math.min(Number(process.env.SCHEDULED_START_EARLY_MINUTES || 120), 360)
 );
+const workerNameRegex = /^[\p{L}]+(?:[\p{L}\s]*[\p{L}])?$/u;
+const normalizeWorkerNameCase = (value: string) =>
+  value
+    .trim()
+    .replace(/\s+/g, ' ')
+    .toLocaleLowerCase('es')
+    .replace(/(^|\s)(\p{L})/gu, (_match, prefix: string, letter: string) => `${prefix}${letter.toLocaleUpperCase('es')}`);
+const formatWorkerPhoneNumber = (value: unknown) => {
+  const digits = String(value ?? '').replace(/\D/g, '').slice(0, 8);
+  return digits.length > 4 ? `${digits.slice(0, 4)}-${digits.slice(4)}` : digits;
+};
 
 const toPublicRequestStatus = (status: string | null | undefined) => {
   if (!status) return 'pending';
@@ -2417,10 +2428,11 @@ export const updateWorkerSettings = async (req: AuthRequest, res: Response): Pro
     const { name, lastname, phone_number, bio } = req.body;
     const changes: string[] = [];
 
+    let formattedPhone: string | undefined;
     if (phone_number != null) {
-      const phoneRegex = /^\d{8}$/;
-      if (!phoneRegex.test(String(phone_number).trim())) {
-        res.status(400).json({ error: 'Phone number must be exactly 8 digits.' });
+      formattedPhone = formatWorkerPhoneNumber(phone_number);
+      if (!/^\d{4}-\d{4}$/.test(formattedPhone)) {
+        res.status(400).json({ error: 'Phone number must be exactly 8 digits, like 6074-6649.' });
         return;
       }
     }
@@ -2428,15 +2440,15 @@ export const updateWorkerSettings = async (req: AuthRequest, res: Response): Pro
     const profileId = await ensureWorkerProfile(userId);
     const userBefore = await getUserCore(userId);
 
-    const sanitizedName = name != null ? sanitizeNameLike(name, 80) : undefined;
-    const sanitizedLastname = lastname != null ? sanitizeNameLike(lastname, 80) : undefined;
+    const sanitizedName = name != null ? normalizeWorkerNameCase(sanitizeNameLike(name, 16)) : undefined;
+    const sanitizedLastname = lastname != null ? normalizeWorkerNameCase(sanitizeNameLike(lastname, 16)) : undefined;
 
-    if (sanitizedName !== undefined && !sanitizedName.trim()) {
-      res.status(400).json({ error: 'First name cannot be empty.' });
+    if (sanitizedName !== undefined && !workerNameRegex.test(sanitizedName)) {
+      res.status(400).json({ error: 'First name must be 2-16 characters and contain letters only.' });
       return;
     }
-    if (sanitizedLastname !== undefined && !sanitizedLastname.trim()) {
-      res.status(400).json({ error: 'Last name cannot be empty.' });
+    if (sanitizedLastname !== undefined && !workerNameRegex.test(sanitizedLastname)) {
+      res.status(400).json({ error: 'Last name must be 2-16 characters and contain letters only.' });
       return;
     }
 
@@ -2450,9 +2462,9 @@ export const updateWorkerSettings = async (req: AuthRequest, res: Response): Pro
       changes.push('Last name updated');
     }
 
-    if (phone_number != null && String(phone_number).trim() !== userBefore?.phone_number) {
+    if (formattedPhone != null && formattedPhone !== userBefore?.phone_number) {
       await pool.execute(`UPDATE users SET phone_number = ? WHERE id_user = ?`, [
-        String(phone_number).trim(),
+        formattedPhone,
         userId,
       ]);
       changes.push('Phone number updated');

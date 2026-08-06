@@ -945,7 +945,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                 )
               )}
 
-              <span className="font-bold text-sm tracking-wide">
+              <span className="max-w-40 truncate font-bold text-sm tracking-wide">
                 {user ? user.name : t('navbar.account')}
               </span>
               <svg

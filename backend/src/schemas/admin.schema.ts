@@ -2,6 +2,10 @@ import { z } from 'zod';
 import { nameLikeText, strictText, messageText } from '../utils/sanitize';
 
 const safeTextRegex = /^[\p{L}\p{N}\s.,\-_'":;!?()]{0,500}$/u;
+const serviceNameRegex = /^[\p{L}\s]+$/u;
+const serviceNameMessage = 'Service name can only contain letters and spaces.';
+const serviceDescriptionRegex = /^[\p{L}\s]*$/u;
+const serviceDescriptionMessage = 'Service description can only contain letters and spaces.';
 
 export const AdminSchema = {
   emptyBody: z.object({}).strict(),
@@ -38,16 +42,27 @@ export const AdminSchema = {
   }).strict(),
 
   createService: z.object({
-    name: nameLikeText(100).refine(v => v.length >= 1, 'Service name is required.'),
-    description: messageText(500).optional().or(z.literal('')),
+    name: nameLikeText(100)
+      .refine(v => v.length >= 1, 'Service name is required.')
+      .refine(v => serviceNameRegex.test(v), serviceNameMessage),
+    description: messageText(500)
+      .refine(v => serviceDescriptionRegex.test(v), serviceDescriptionMessage)
+      .optional()
+      .or(z.literal('')),
     icon: strictText(100).optional().or(z.literal('')),
     min_budget: z.coerce.number().min(1).max(10000).optional(),
     max_budget: z.coerce.number().min(1).max(10000).optional(),
   }),
 
   updateService: z.object({
-    name: nameLikeText(100).optional(),
-    description: messageText(500).optional().or(z.literal('')),
+    name: nameLikeText(100)
+      .refine(v => v.length >= 1, 'Service name is required.')
+      .refine(v => serviceNameRegex.test(v), serviceNameMessage)
+      .optional(),
+    description: messageText(500)
+      .refine(v => serviceDescriptionRegex.test(v), serviceDescriptionMessage)
+      .optional()
+      .or(z.literal('')),
     icon: strictText(100).optional().or(z.literal('')),
     min_budget: z.coerce.number().min(1).max(10000).optional(),
     max_budget: z.coerce.number().min(1).max(10000).optional(),
