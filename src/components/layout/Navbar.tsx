@@ -1039,12 +1039,21 @@ export const Navbar: React.FC<NavbarProps> = ({
           </div>
         </div>
 
-        <div className="xl:hidden flex items-center">
-          {user && <NotificationCenter token={authToken} className="mr-2" />}
+        <div className="xl:hidden flex items-center gap-1">
+          {user && <NotificationCenter token={authToken} className="mr-1" />}
           <LanguageSwitcher />
           <button
+            type="button"
+            onClick={toggleTheme}
+            aria-label={t('navbar.toggleTheme')}
+            title={isDark ? t('navbar.switchToLightMode') : t('navbar.switchToDarkMode')}
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-gray-700 dark:text-slate-300 hover:text-bird-blue transition-colors"
+          >
+            {isDark ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+          </button>
+          <button
             onClick={() => setIsMobileMenuOpen(true)}
-            className="p-2 text-gray-700 hover:text-bird-blue focus:outline-none"
+            className="p-2 text-gray-700 dark:text-slate-300 hover:text-bird-blue focus:outline-none"
           >
             <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16m-7 6h7" />

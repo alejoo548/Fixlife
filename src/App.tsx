@@ -826,8 +826,11 @@ const App: React.FC = () => {
               </div>
             </div>
 
-            {/* Slide Text Caption (Bottom Left) */}
-            <div className="absolute bottom-6 left-6 md:bottom-8 md:left-8 z-20 max-w-[280px] sm:max-w-md pointer-events-none select-none">
+            {/* Slide Text Caption (Bottom Left) — hidden on small mobile: the centered
+                headline/description/CTA above can grow taller than the section on narrow
+                screens (especially longer translations), and this absolutely-positioned
+                card would then overlap the CTA button instead of sitting below it. */}
+            <div className="hidden sm:block absolute bottom-6 left-6 md:bottom-8 md:left-8 z-20 max-w-[280px] sm:max-w-md pointer-events-none select-none">
               <AnimatePresence mode="wait">
                 {heroSlides.map((slide, index) => {
                   if (index !== currentHeroSlide) return null;
