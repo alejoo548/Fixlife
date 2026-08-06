@@ -122,19 +122,19 @@ export const AppointmentsView: React.FC = () => {
       <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <p className="text-[11px] font-black uppercase tracking-[0.18em] text-bird-blue">Upcoming</p>
-          <h2 className="mt-1 text-2xl font-black text-slate-900">Scheduled visits</h2>
+          <h2 className="mt-1 text-2xl font-black text-slate-900 dark:text-slate-100">Scheduled visits</h2>
         </div>
         <button
           type="button"
           onClick={() => void fetchAppointments()}
-          className="rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-black text-slate-700 shadow-sm transition hover:border-bird-blue hover:text-bird-blue"
+          className="rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-black text-slate-700 shadow-sm transition hover:border-bird-blue hover:text-bird-blue dark:bg-slate-900 dark:text-slate-300 dark:border-white/10"
         >
           Refresh
         </button>
       </div>
 
       {loading ? (
-        <div className="rounded-3xl border border-slate-200 bg-white p-6 text-sm font-bold text-slate-500 shadow-sm">
+        <div className="rounded-3xl border border-slate-200 bg-white p-6 text-sm font-bold text-slate-500 shadow-sm dark:bg-slate-900 dark:border-white/10">
           Loading appointments...
         </div>
       ) : error ? (
@@ -142,8 +142,8 @@ export const AppointmentsView: React.FC = () => {
           {error}
         </div>
       ) : appointments.length === 0 ? (
-        <div className="rounded-3xl border border-slate-200 bg-white p-8 text-center shadow-sm">
-          <p className="text-lg font-black text-slate-900">No scheduled visits yet</p>
+        <div className="rounded-3xl border border-slate-200 bg-white p-8 text-center shadow-sm dark:bg-slate-900 dark:border-white/10">
+          <p className="text-lg font-black text-slate-900 dark:text-slate-100">No scheduled visits yet</p>
           <p className="mt-2 text-sm font-semibold text-slate-500">
             Future scheduled jobs will appear here after you accept them.
           </p>
@@ -153,7 +153,7 @@ export const AppointmentsView: React.FC = () => {
           {appointments.map((appointment) => (
             <article
               key={appointment.id_request}
-              className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm transition hover:border-sky-200 hover:shadow-md"
+              className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm transition hover:border-sky-200 hover:shadow-md dark:bg-slate-900 dark:border-white/10"
             >
               <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                 <div className="min-w-0">
@@ -162,7 +162,7 @@ export const AppointmentsView: React.FC = () => {
                       {appointment.service_icon || appointment.service_name.charAt(0)}
                     </span>
                     <div>
-                      <h3 className="text-lg font-black text-slate-900">{appointment.service_name}</h3>
+                      <h3 className="text-lg font-black text-slate-900 dark:text-slate-100">{appointment.service_name}</h3>
                       <p className="text-xs font-bold text-slate-500">Request #{appointment.id_request}</p>
                     </div>
                   </div>
@@ -170,12 +170,12 @@ export const AppointmentsView: React.FC = () => {
                   <p className="mt-4 text-sm font-semibold leading-6 text-slate-600 line-clamp-2">
                     {appointment.description}
                   </p>
-                  <p className="mt-3 text-sm font-bold text-slate-800">{appointment.location_text}</p>
+                  <p className="mt-3 text-sm font-bold text-slate-800 dark:text-slate-200">{appointment.location_text}</p>
                 </div>
 
-                <div className="shrink-0 rounded-2xl border border-slate-200 bg-slate-50 p-4 lg:w-72">
+                <div className="shrink-0 rounded-2xl border border-slate-200 bg-slate-50 p-4 lg:w-72 dark:bg-slate-800 dark:border-white/10">
                   <p className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-400">Visit window</p>
-                  <p className="mt-1 text-sm font-black text-slate-900">
+                  <p className="mt-1 text-sm font-black text-slate-900 dark:text-slate-100">
                     {formatDateTime(appointment.scheduled_start_time)}
                   </p>
                   <p className="mt-1 text-xs font-bold text-slate-500">
@@ -186,7 +186,7 @@ export const AppointmentsView: React.FC = () => {
                     <span className={`rounded-full border px-3 py-1 text-[11px] font-black uppercase tracking-[0.12em] ${statusClass(appointment.status)}`}>
                       {statusLabel(appointment.status)}
                     </span>
-                    <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-[11px] font-black text-slate-600">
+                    <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-[11px] font-black text-slate-600 dark:bg-slate-900 dark:border-white/10">
                       ${appointment.budget.toFixed(2)}
                     </span>
                   </div>
@@ -194,9 +194,9 @@ export const AppointmentsView: React.FC = () => {
               </div>
 
               {appointment.client && (
-                <div className="mt-4 border-t border-slate-100 pt-4">
+                <div className="mt-4 border-t border-slate-100 pt-4 dark:border-white/10">
                   <p className="text-xs font-black uppercase tracking-[0.14em] text-slate-400">Client</p>
-                  <p className="mt-1 text-sm font-bold text-slate-700">
+                  <p className="mt-1 text-sm font-bold text-slate-700 dark:text-slate-300">
                     {appointment.client.name || 'Client'}
                     {appointment.client.phone_number ? ` · ${appointment.client.phone_number}` : ''}
                   </p>

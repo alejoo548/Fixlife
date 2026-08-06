@@ -30,15 +30,15 @@ export const SupportCreateThread: React.FC<SupportCreateThreadProps> = ({
   return (
     <div className="h-full overflow-y-auto px-5 py-6">
       <div className="mb-6">
-        <div className="text-xl font-black text-gray-900">{t('serviceRequest.supportWidget.newSupportCase')}</div>
-        <p className="mt-1 text-sm text-gray-600">
+        <div className="text-xl font-black text-gray-900 dark:text-slate-100">{t('serviceRequest.supportWidget.newSupportCase')}</div>
+        <p className="mt-1 text-sm text-gray-600 dark:text-slate-400">
           {t('serviceRequest.supportWidget.newSupportCaseHelp')}
         </p>
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-5">
         <div>
-          <label className="mb-1.5 block text-[10px] font-bold tracking-[0.8px] text-gray-500">
+          <label className="mb-1.5 block text-[10px] font-bold tracking-[0.8px] text-gray-500 dark:text-slate-400">
             {t('serviceRequest.supportWidget.subjectLabel')}
           </label>
           <input
@@ -46,14 +46,14 @@ export const SupportCreateThread: React.FC<SupportCreateThreadProps> = ({
             value={subject}
             onChange={(e) => setSubject(subjectGuard.guardValue(sanitizeSupportTextInput(e.target.value, 120, true)))}
             placeholder={t('serviceRequest.supportWidget.subjectPlaceholder')}
-            className="w-full rounded-3xl border border-gray-200/70 bg-white px-4 py-3.5 text-[15px] font-medium placeholder:text-gray-400 focus:border-bird-blue focus:outline-none"
+            className="w-full rounded-3xl border border-gray-200/70 bg-white px-4 py-3.5 text-[15px] font-medium placeholder:text-gray-400 focus:border-bird-blue focus:outline-none dark:bg-slate-900 dark:border-white/10"
             maxLength={80}
             required
           />
         </div>
 
         <div>
-          <label className="mb-1.5 block text-[10px] font-bold tracking-[0.8px] text-gray-500">
+          <label className="mb-1.5 block text-[10px] font-bold tracking-[0.8px] text-gray-500 dark:text-slate-400">
             {t('serviceRequest.supportWidget.issueLabel')}
           </label>
           <textarea
@@ -61,7 +61,7 @@ export const SupportCreateThread: React.FC<SupportCreateThreadProps> = ({
             onChange={(e) => setMessage(messageGuard.guardValue(sanitizeSupportTextInput(e.target.value, 2000)))}
             placeholder={t('serviceRequest.supportWidget.issuePlaceholder')}
             rows={6}
-            className="w-full resize-none rounded-3xl border border-gray-200/70 bg-white px-4 py-3.5 text-[15px] font-medium placeholder:text-gray-400 focus:border-bird-blue focus:outline-none"
+            className="w-full resize-none rounded-3xl border border-gray-200/70 bg-white px-4 py-3.5 text-[15px] font-medium placeholder:text-gray-400 focus:border-bird-blue focus:outline-none dark:bg-slate-900 dark:border-white/10"
             required
           />
           <div className={`mt-1 text-right text-[10px] ${hasUnsafeContent || messageGuard.warning ? 'text-red-500' : 'text-gray-400'}`}>
@@ -76,7 +76,7 @@ export const SupportCreateThread: React.FC<SupportCreateThreadProps> = ({
             type="button"
             onClick={onCancel}
             disabled={isSending}
-            className="flex-1 rounded-3xl border border-gray-200/70 py-3.5 text-sm font-bold text-gray-700 transition hover:bg-gray-50 disabled:opacity-60"
+            className="flex-1 rounded-3xl border border-gray-200/70 py-3.5 text-sm font-bold text-gray-700 transition hover:bg-gray-50 disabled:opacity-60 dark:text-slate-300 dark:border-white/10"
           >
             {t('serviceRequest.supportWidget.cancel')}
           </button>

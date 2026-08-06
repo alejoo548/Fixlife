@@ -42,12 +42,12 @@ export const ProSidebar: React.FC<ProSidebarProps> = ({ activeItem, setActiveIte
                 {isOpen ? (
                     <div className="flex items-center gap-3 animate-fade-in pl-2">
                         <img src="/Fixilogo.webp" alt="Fixlife" className="h-8 w-auto object-contain" />
-                        <span className="font-bold text-gray-900 tracking-tight text-lg">Fixlife</span>
+                        <span className="font-bold text-gray-900 tracking-tight text-lg dark:text-slate-100">Fixlife</span>
                     </div>
                 ) : (
                     <button
                         onClick={toggleSidebar}
-                        className="w-12 h-12 rounded-2xl flex items-center justify-center text-gray-500 hover:text-gray-900 hover:bg-gray-100 transition-all"
+                        className="w-12 h-12 rounded-2xl flex items-center justify-center text-gray-500 hover:text-gray-900 hover:bg-gray-100 transition-all dark:text-slate-400"
                     >
                         <svg className="w-7 h-7" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
@@ -58,7 +58,7 @@ export const ProSidebar: React.FC<ProSidebarProps> = ({ activeItem, setActiveIte
                 {isOpen && (
                     <button
                         onClick={toggleSidebar}
-                        className="w-8 h-8 rounded-lg flex items-center justify-center text-gray-500 hover:text-gray-900 hover:bg-gray-100 transition-all"
+                        className="w-8 h-8 rounded-lg flex items-center justify-center text-gray-500 hover:text-gray-900 hover:bg-gray-100 transition-all dark:text-slate-400"
                     >
                         <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
                     </button>
@@ -128,7 +128,7 @@ export const ProSidebar: React.FC<ProSidebarProps> = ({ activeItem, setActiveIte
                 </div>
             </div>
 
-            <div className="mt-3 w-full pt-4 border-t border-gray-200 shrink-0 px-1">
+            <div className="mt-3 w-full pt-4 border-t border-gray-200 shrink-0 px-1 dark:border-white/10">
                 <button
                     onClick={onSignOut || onClose}
                     title={!isOpen ? 'Sign Out' : undefined}

@@ -36,7 +36,7 @@ export function ServiceRequestFixesSuccessModal({
                 animate={{ opacity: 1, scale: 1, y: 0 }}
                 exit={{ opacity: 0, scale: 0.94, y: 16 }}
                 transition={{ type: 'spring', damping: 22, stiffness: 240 }}
-                className="w-full max-w-xl overflow-hidden rounded-[30px] border border-emerald-200 bg-white shadow-[0_30px_70px_rgba(15,23,42,0.18)]"
+                className="w-full max-w-xl overflow-hidden rounded-[30px] border border-emerald-200 bg-white shadow-[0_30px_70px_rgba(15,23,42,0.18)] dark:bg-slate-900"
             >
                 <div className="relative overflow-hidden bg-gradient-to-r from-emerald-500 via-teal-500 to-cyan-500 px-6 py-6 text-white">
                     <div className="absolute -right-10 -top-10 h-36 w-36 rounded-full bg-white/10 blur-2xl" />
@@ -44,7 +44,7 @@ export function ServiceRequestFixesSuccessModal({
                         <div>
                             <p className="text-[11px] font-black uppercase tracking-[0.2em] text-white/80">{t('serviceRequest.fixesSuccessModal.fixesSaved')}</p>
                             <h3 className="mt-2 text-3xl font-black">{t('serviceRequest.fixesSuccessModal.thanksForReview')}</h3>
-                            <p className="mt-2 text-sm text-gray-900">
+                            <p className="mt-2 text-sm text-gray-900 dark:text-slate-100">
                                 {t('serviceRequest.fixesSuccessModal.starsSavedFor', { service: request.service_name })}
                             </p>
                         </div>
@@ -55,11 +55,11 @@ export function ServiceRequestFixesSuccessModal({
                 </div>
 
                 <div className="p-6">
-                    <div className="rounded-[26px] border border-slate-200 bg-slate-50 p-4">
+                    <div className="rounded-[26px] border border-slate-200 bg-slate-50 p-4 dark:bg-slate-800 dark:border-white/10">
                         <div className="flex flex-wrap items-center justify-between gap-3">
                             <div>
                                 <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">{t('serviceRequest.fixesSuccessModal.reviewedPro')}</p>
-                                <p className="mt-1 text-lg font-black text-slate-900">
+                                <p className="mt-1 text-lg font-black text-slate-900 dark:text-slate-100">
                                     {request.assigned_worker?.name || t('serviceRequest.fixesSuccessModal.assignedProFallback')}
                                 </p>
                             </div>
@@ -75,7 +75,7 @@ export function ServiceRequestFixesSuccessModal({
                             <p className="mt-2 text-2xl font-black text-slate-950">{punctuality}/5</p>
                         </div>
                         <div className="rounded-2xl border border-bird-blue/15 bg-bird-blue/10 px-4 py-4 text-center">
-                            <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-900">{t('serviceRequest.fixesSuccessModal.quality')}</p>
+                            <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-900 dark:text-slate-100">{t('serviceRequest.fixesSuccessModal.quality')}</p>
                             <p className="mt-2 text-2xl font-black text-slate-950">{quality}/5</p>
                         </div>
                         <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-4 text-center">

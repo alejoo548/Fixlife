@@ -145,8 +145,8 @@ export const ServiceReportModal: React.FC<ServiceReportModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-[10060] flex items-end justify-center bg-slate-950/50 p-0 backdrop-blur-sm sm:items-center sm:p-4">
-      <div className="w-full max-w-xl overflow-hidden rounded-t-[30px] border border-slate-200 bg-white shadow-2xl sm:rounded-[30px]">
-        <div className="flex items-start justify-between gap-4 border-b border-slate-100 bg-slate-950 px-5 py-5 text-white">
+      <div className="w-full max-w-xl overflow-hidden rounded-t-[30px] border border-slate-200 bg-white shadow-2xl sm:rounded-[30px] dark:bg-slate-900 dark:border-white/10">
+        <div className="flex items-start justify-between gap-4 border-b border-slate-100 bg-slate-950 px-5 py-5 text-white dark:border-white/10">
           <div>
             <p className="text-[11px] font-black uppercase tracking-[0.2em] text-sky-300">{t('serviceReport.eyebrow')}</p>
             <h3 className="mt-1 text-2xl font-black">
@@ -199,7 +199,7 @@ export const ServiceReportModal: React.FC<ServiceReportModalProps> = ({
             value={description}
             onChange={(event) => setDescription(event.target.value.slice(0, 1000))}
             placeholder={t('serviceReport.descriptionPlaceholder')}
-            className="mt-2 min-h-[130px] w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm font-semibold leading-6 text-slate-700 outline-none transition focus:border-bird-blue focus:ring-2 focus:ring-sky-100"
+            className="mt-2 min-h-[130px] w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm font-semibold leading-6 text-slate-700 outline-none transition focus:border-bird-blue focus:ring-2 focus:ring-sky-100 dark:text-slate-300 dark:border-white/10"
           />
           <div className="mt-1 flex justify-between text-[10px] font-bold text-slate-400">
             <span>{t('serviceReport.minChars')}</span>
@@ -216,15 +216,15 @@ export const ServiceReportModal: React.FC<ServiceReportModalProps> = ({
               event.target.value = '';
             }}
           />
-          <div className="mt-4 rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-3">
+          <div className="mt-4 rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-3 dark:bg-slate-800 dark:border-white/10">
             {imagePreview && image ? (
               <div className="flex items-center gap-3">
                 <img src={imagePreview} alt={t('serviceReport.evidencePreviewAlt')} className="h-16 w-16 rounded-2xl object-cover" />
                 <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-black text-slate-800">{image.name}</p>
+                  <p className="truncate text-sm font-black text-slate-800 dark:text-slate-200">{image.name}</p>
                   <p className="mt-0.5 text-xs font-semibold text-slate-500">{(image.size / 1024 / 1024).toFixed(1)} MB</p>
                 </div>
-                <button type="button" onClick={() => setImage(null)} className="rounded-xl bg-white px-3 py-2 text-xs font-black text-red-600">
+                <button type="button" onClick={() => setImage(null)} className="rounded-xl bg-white px-3 py-2 text-xs font-black text-red-600 dark:bg-slate-900">
                   {t('serviceReport.remove')}
                 </button>
               </div>
@@ -232,7 +232,7 @@ export const ServiceReportModal: React.FC<ServiceReportModalProps> = ({
               <button
                 type="button"
                 onClick={() => inputRef.current?.click()}
-                className="flex w-full items-center justify-center gap-2 rounded-xl bg-white px-4 py-3 text-sm font-black text-slate-700 shadow-sm transition hover:bg-slate-100"
+                className="flex w-full items-center justify-center gap-2 rounded-xl bg-white px-4 py-3 text-sm font-black text-slate-700 shadow-sm transition hover:bg-slate-100 dark:bg-slate-900 dark:text-slate-300"
               >
                 <ImagePlus className="h-4 w-4 text-bird-blue" />
                 {t('serviceReport.attachEvidence')}
@@ -241,12 +241,12 @@ export const ServiceReportModal: React.FC<ServiceReportModalProps> = ({
           </div>
         </div>
 
-        <div className="flex flex-col gap-2 border-t border-slate-100 bg-white p-4 sm:flex-row sm:justify-end">
+        <div className="flex flex-col gap-2 border-t border-slate-100 bg-white p-4 sm:flex-row sm:justify-end dark:bg-slate-900 dark:border-white/10">
           <button
             type="button"
             onClick={onClose}
             disabled={busy}
-            className="rounded-2xl border border-slate-200 bg-white px-5 py-3 text-sm font-black text-slate-600 transition hover:bg-slate-50 disabled:opacity-50"
+            className="rounded-2xl border border-slate-200 bg-white px-5 py-3 text-sm font-black text-slate-600 transition hover:bg-slate-50 disabled:opacity-50 dark:bg-slate-900 dark:border-white/10"
           >
             {t('serviceReport.cancel')}
           </button>

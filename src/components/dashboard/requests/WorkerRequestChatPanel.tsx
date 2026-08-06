@@ -110,7 +110,7 @@ export const WorkerRequestChatPanel: React.FC<WorkerRequestChatPanelProps> = ({
             style={desktopDockedStyle}
             aria-label={`Chat with ${request.client?.name || 'client'}`}
           >
-            <header className="shrink-0 border-b border-slate-200/80 bg-white px-4 py-3.5">
+            <header className="shrink-0 border-b border-slate-200/80 bg-white px-4 py-3.5 dark:bg-slate-900 dark:border-white/10">
               <div className="flex items-center gap-3">
                 <div className="relative shrink-0">
                   {request.client?.profile_image_url ? (
@@ -122,7 +122,7 @@ export const WorkerRequestChatPanel: React.FC<WorkerRequestChatPanelProps> = ({
                       onError={(event) => {
                         (event.currentTarget as HTMLImageElement).style.display = 'none';
                       }}
-                      className="h-11 w-11 rounded-full border border-slate-200 object-cover"
+                      className="h-11 w-11 rounded-full border border-slate-200 object-cover dark:border-white/10"
                     />
                   ) : (
                     <div className="flex h-11 w-11 items-center justify-center rounded-full bg-sky-100 text-sm font-black text-bird-blue">
@@ -159,14 +159,14 @@ export const WorkerRequestChatPanel: React.FC<WorkerRequestChatPanelProps> = ({
                   type="button"
                   onClick={onClose}
                   title="Close chat"
-                  className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-500 transition hover:bg-slate-100 hover:text-slate-800"
+                  className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-500 transition hover:bg-slate-100 hover:text-slate-800 dark:bg-slate-900 dark:border-white/10"
                 >
                   <X className="h-5 w-5" />
                 </button>
               </div>
             </header>
 
-            <div className="flex items-center gap-2 border-b border-slate-200/70 bg-sky-50/80 px-4 py-2.5 text-[10px] font-bold text-sky-800">
+            <div className="flex items-center gap-2 border-b border-slate-200/70 bg-sky-50/80 px-4 py-2.5 text-[10px] font-bold text-sky-800 dark:border-white/10">
               <ShieldCheck className="h-3.5 w-3.5 shrink-0" />
               Keep service details and payment inside Fixlife.
             </div>
@@ -174,10 +174,10 @@ export const WorkerRequestChatPanel: React.FC<WorkerRequestChatPanelProps> = ({
             <div className="custom-scrollbar min-h-0 flex-1 overflow-y-auto px-4 py-5">
               {messages.length === 0 ? (
                 <div className="flex h-full min-h-[260px] flex-col items-center justify-center text-center">
-                  <div className="flex h-14 w-14 items-center justify-center rounded-full bg-white text-bird-blue shadow-sm">
+                  <div className="flex h-14 w-14 items-center justify-center rounded-full bg-white text-bird-blue shadow-sm dark:bg-slate-900">
                     <MessageCircle className="h-6 w-6" />
                   </div>
-                  <h4 className="mt-4 text-sm font-black text-slate-900">Start the conversation</h4>
+                  <h4 className="mt-4 text-sm font-black text-slate-900 dark:text-slate-100">Start the conversation</h4>
                   <p className="mt-1 max-w-[250px] text-xs font-semibold leading-5 text-slate-500">
                     Confirm arrival details or ask the client a question about the service.
                   </p>
@@ -248,16 +248,16 @@ export const WorkerRequestChatPanel: React.FC<WorkerRequestChatPanelProps> = ({
               )}
             </div>
 
-            <footer className="shrink-0 border-t border-slate-200 bg-white p-3">
+            <footer className="shrink-0 border-t border-slate-200 bg-white p-3 dark:bg-slate-900 dark:border-white/10">
               {imagePreview && image && (
-                <div className="mb-2 flex items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-2">
+                <div className="mb-2 flex items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-2 dark:bg-slate-800 dark:border-white/10">
                   <img
                     src={imagePreview}
                     alt="Selected attachment"
                     className="h-12 w-12 rounded-xl object-cover"
                   />
                   <div className="min-w-0 flex-1">
-                    <p className="truncate text-xs font-black text-slate-700">{image.name}</p>
+                    <p className="truncate text-xs font-black text-slate-700 dark:text-slate-300">{image.name}</p>
                     <p className="mt-0.5 text-[10px] font-semibold text-slate-400">
                       {(image.size / 1024 / 1024).toFixed(1)} MB
                     </p>
@@ -266,7 +266,7 @@ export const WorkerRequestChatPanel: React.FC<WorkerRequestChatPanelProps> = ({
                     type="button"
                     onClick={() => onImageChange(null)}
                     title="Remove attachment"
-                    className="flex h-8 w-8 items-center justify-center rounded-lg bg-white text-slate-400 shadow-sm hover:text-red-500"
+                    className="flex h-8 w-8 items-center justify-center rounded-lg bg-white text-slate-400 shadow-sm hover:text-red-500 dark:bg-slate-900"
                   >
                     <X className="h-4 w-4" />
                   </button>
@@ -285,7 +285,7 @@ export const WorkerRequestChatPanel: React.FC<WorkerRequestChatPanelProps> = ({
                 }}
               />
 
-              <div className="flex items-end gap-2 rounded-[22px] border border-slate-200 bg-slate-50 p-2 shadow-inner focus-within:border-sky-300 focus-within:ring-2 focus-within:ring-sky-100">
+              <div className="flex items-end gap-2 rounded-[22px] border border-slate-200 bg-slate-50 p-2 shadow-inner focus-within:border-sky-300 focus-within:ring-2 focus-within:ring-sky-100 dark:bg-slate-800 dark:border-white/10">
                 <button
                   type="button"
                   onClick={() => fileInputRef.current?.click()}
@@ -314,7 +314,7 @@ export const WorkerRequestChatPanel: React.FC<WorkerRequestChatPanelProps> = ({
                     }
                   }}
                   placeholder="Write a message..."
-                  className="max-h-28 min-h-9 flex-1 resize-none bg-transparent px-1 py-2 text-sm leading-5 text-slate-800 outline-none placeholder:text-slate-400"
+                  className="max-h-28 min-h-9 flex-1 resize-none bg-transparent px-1 py-2 text-sm leading-5 text-slate-800 outline-none placeholder:text-slate-400 dark:text-slate-200"
                 />
                 <button
                   type="button"

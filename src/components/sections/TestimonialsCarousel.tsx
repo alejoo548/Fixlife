@@ -229,7 +229,7 @@ export const TestimonialsCarousel: React.FC = () => {
           </div>
 
           {/* Testimonial Quote */}
-          <blockquote className="text-slate-750 dark:text-slate-200 text-sm sm:text-[15px] font-semibold leading-relaxed italic mb-6 font-sans">
+          <blockquote className="text-slate-700 dark:text-slate-200 text-sm sm:text-[15px] font-semibold leading-relaxed italic mb-6 font-sans">
             “{item.text}”
           </blockquote>
         </div>
@@ -288,7 +288,7 @@ export const TestimonialsCarousel: React.FC = () => {
         {/* Right Arrow */}
         <button
           onClick={nextSlide}
-          className="absolute -right-2 sm:right-0 top-1/2 -translate-y-1/2 z-20 flex h-10 w-10 items-center justify-center rounded-full border border-slate-200/60 bg-white text-slate-500 shadow-md transition hover:bg-slate-50 hover:text-slate-800 hover:scale-105 active:scale-95 dark:border-slate-800 dark:bg-slate-955 dark:text-slate-400 dark:hover:bg-slate-900 dark:hover:text-white disabled:opacity-30"
+          className="absolute -right-2 sm:right-0 top-1/2 -translate-y-1/2 z-20 flex h-10 w-10 items-center justify-center rounded-full border border-slate-200/60 bg-white text-slate-500 shadow-md transition hover:bg-slate-50 hover:text-slate-800 hover:scale-105 active:scale-95 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-400 dark:hover:bg-slate-900 dark:hover:text-white disabled:opacity-30"
           aria-label={t('testimonials.a11y.next')}
           disabled={itemsToRender.length <= 1}
         >
@@ -314,7 +314,7 @@ export const TestimonialsCarousel: React.FC = () => {
             className={`transition-all duration-300 ${
               index === currentIndex
                 ? 'h-1.5 w-5 rounded-full bg-bird-blue shadow-[0_2px_8px_rgba(0,144,255,0.3)]'
-                : 'h-1.5 w-1.5 rounded-full bg-slate-200 dark:bg-slate-800 hover:bg-slate-350 dark:hover:bg-slate-700'
+                : 'h-1.5 w-1.5 rounded-full bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700'
             }`}
           />
         ))}

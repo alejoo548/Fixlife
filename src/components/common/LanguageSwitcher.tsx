@@ -99,7 +99,7 @@ export const LanguageSwitcher: React.FC<LanguageSwitcherProps> = ({ mobile = fal
                 className={`rounded-xl border px-4 py-3 text-sm font-black uppercase tracking-[0.12em] transition-all ${
                   isActive
                     ? 'border-bird-blue bg-bird-blue text-white shadow-lg shadow-bird-blue/20'
-                    : 'border-gray-200 bg-white text-slate-600'
+                    : 'border-gray-200 dark:border-white/10 bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300'
                 }`}
               >
                 <span className="flex items-center justify-center gap-2">

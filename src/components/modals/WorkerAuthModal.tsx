@@ -638,7 +638,7 @@ export const WorkerAuthModal: React.FC<WorkerAuthModalProps> = ({ isOpen, onClos
                   Upload your ID (DUI) to get verified by our team.
                 </p>
 
-                <label className="w-full border-2 border-dashed border-gray-300 dark:border-white/10 rounded-2xl p-6 mb-3 bg-gray-50 dark:bg-slate-800 flex flex-col items-center justify-center hover:bg-gray-100 dark:hover:bg-slate-750 transition-colors cursor-pointer group">
+                <label className="w-full border-2 border-dashed border-gray-300 dark:border-white/10 rounded-2xl p-6 mb-3 bg-gray-50 dark:bg-slate-800 flex flex-col items-center justify-center hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors cursor-pointer group">
                   <svg className="w-10 h-10 text-gray-400 group-hover:text-bird-orange transition-colors mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
                   </svg>
@@ -647,7 +647,7 @@ export const WorkerAuthModal: React.FC<WorkerAuthModalProps> = ({ isOpen, onClos
                   <input type="file" className="hidden" accept="image/*,.pdf" onChange={(e) => setDuiFile(e.target.files?.[0] || null)} />
                 </label>
 
-                <label className="w-full border-2 border-dashed border-gray-200 dark:border-white/10 rounded-2xl p-4 mb-4 bg-gray-50 dark:bg-slate-800 flex flex-col items-center justify-center hover:bg-gray-100 dark:hover:bg-slate-750 transition-colors cursor-pointer">
+                <label className="w-full border-2 border-dashed border-gray-200 dark:border-white/10 rounded-2xl p-4 mb-4 bg-gray-50 dark:bg-slate-800 flex flex-col items-center justify-center hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors cursor-pointer">
                   <span className="text-sm font-semibold text-gray-600 dark:text-slate-300">{certFile ? certFile.name : 'Certifications (Required)'}</span>
                   <input type="file" className="hidden" accept="image/*,.pdf" onChange={(e) => setCertFile(e.target.files?.[0] || null)} />
                 </label>

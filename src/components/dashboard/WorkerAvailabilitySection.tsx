@@ -123,7 +123,7 @@ export const WorkerAvailabilitySection: React.FC<WorkerAvailabilitySectionProps>
   const activeCount = slots.length;
 
   return (
-    <div className="rounded-[28px] border border-slate-200 bg-white p-5 shadow-sm md:p-6">
+    <div className="rounded-[28px] border border-slate-200 bg-white p-5 shadow-sm md:p-6 dark:bg-slate-900 dark:border-white/10">
       <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
         <div className="flex gap-4">
           <span className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-sky-50 text-sky-600">
@@ -138,7 +138,7 @@ export const WorkerAvailabilitySection: React.FC<WorkerAvailabilitySectionProps>
           </div>
         </div>
         <div className="flex flex-col gap-2 sm:flex-row xl:justify-end">
-          <div className="inline-flex items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-black text-slate-700">
+          <div className="inline-flex items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-black text-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:border-white/10">
             <CheckCircle2 className="h-4 w-4 text-emerald-500" />
             {activeCount} active day{activeCount === 1 ? '' : 's'}
           </div>
@@ -167,7 +167,7 @@ export const WorkerAvailabilitySection: React.FC<WorkerAvailabilitySectionProps>
                   : 'border-slate-200 bg-slate-50'
               }`}
             >
-              <label className="flex min-w-0 items-center gap-3 text-sm font-black text-slate-900">
+              <label className="flex min-w-0 items-center gap-3 text-sm font-black text-slate-900 dark:text-slate-100">
                 <input
                   type="checkbox"
                   checked={active}
@@ -195,7 +195,7 @@ export const WorkerAvailabilitySection: React.FC<WorkerAvailabilitySectionProps>
                     value={slot?.start_time || '08:00'}
                     disabled={!active}
                     onChange={(event) => updateSlot(day.value, { start_time: event.target.value })}
-                    className="h-14 w-full rounded-2xl border border-slate-200 bg-white px-3 pb-2 pt-6 text-sm font-black text-slate-900 outline-none transition focus:border-sky-400 focus:ring-4 focus:ring-sky-100 disabled:bg-slate-100 disabled:text-slate-400"
+                    className="h-14 w-full rounded-2xl border border-slate-200 bg-white px-3 pb-2 pt-6 text-sm font-black text-slate-900 outline-none transition focus:border-sky-400 focus:ring-4 focus:ring-sky-100 disabled:bg-slate-100 disabled:text-slate-400 dark:bg-slate-900 dark:text-slate-100 dark:border-white/10"
                   />
                 </label>
                 <label className="relative block">
@@ -208,7 +208,7 @@ export const WorkerAvailabilitySection: React.FC<WorkerAvailabilitySectionProps>
                     value={slot?.end_time || '17:00'}
                     disabled={!active}
                     onChange={(event) => updateSlot(day.value, { end_time: event.target.value })}
-                    className="h-14 w-full rounded-2xl border border-slate-200 bg-white px-3 pb-2 pt-6 text-sm font-black text-slate-900 outline-none transition focus:border-sky-400 focus:ring-4 focus:ring-sky-100 disabled:bg-slate-100 disabled:text-slate-400"
+                    className="h-14 w-full rounded-2xl border border-slate-200 bg-white px-3 pb-2 pt-6 text-sm font-black text-slate-900 outline-none transition focus:border-sky-400 focus:ring-4 focus:ring-sky-100 disabled:bg-slate-100 disabled:text-slate-400 dark:bg-slate-900 dark:text-slate-100 dark:border-white/10"
                   />
                 </label>
               </div>

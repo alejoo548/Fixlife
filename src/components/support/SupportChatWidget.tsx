@@ -109,7 +109,7 @@ export const SupportChatWidget: React.FC<SupportChatWidgetProps> = ({ token, use
               <div className="flex items-center justify-between border-b border-white/50 bg-white/70 px-5 py-4 backdrop-blur-xl">
                 <div className="min-w-0">
                   <div className="flex items-center gap-2">
-                    <div className="text-[17px] font-black tracking-[-0.2px] text-gray-900">{panelTitle}</div>
+                    <div className="text-[17px] font-black tracking-[-0.2px] text-gray-900 dark:text-slate-100">{panelTitle}</div>
                     {isOpen && (
                       <div
                         className={`h-2 w-2 rounded-full ${isSocketConnected ? 'bg-emerald-500' : 'bg-gray-300'}`}
@@ -117,7 +117,7 @@ export const SupportChatWidget: React.FC<SupportChatWidgetProps> = ({ token, use
                       />
                     )}
                   </div>
-                  <div className="truncate text-xs font-medium text-gray-500">
+                  <div className="truncate text-xs font-medium text-gray-500 dark:text-slate-400">
                     {activeThread ? activeThread.subject : panelSubtitleIdle}
                   </div>
                 </div>
@@ -134,7 +134,7 @@ export const SupportChatWidget: React.FC<SupportChatWidgetProps> = ({ token, use
 
                   <button
                     onClick={() => setIsOpen(false)}
-                    className="flex h-9 w-9 items-center justify-center rounded-2xl text-gray-400 transition hover:bg-white/70 hover:text-gray-600"
+                    className="flex h-9 w-9 items-center justify-center rounded-2xl text-gray-400 transition hover:bg-white/70 hover:text-gray-600 dark:text-slate-500"
                   >
                     <X size={20} />
                   </button>
@@ -168,7 +168,7 @@ export const SupportChatWidget: React.FC<SupportChatWidgetProps> = ({ token, use
               </div>
 
               {/* Footer - more subtle */}
-              <div className="border-t border-white/50 bg-white/60 px-5 py-3 text-center text-[11px] font-medium text-gray-500 backdrop-blur">
+              <div className="border-t border-white/50 bg-white/60 px-5 py-3 text-center text-[11px] font-medium text-gray-500 backdrop-blur dark:text-slate-400">
                 {footerCopy}
               </div>
             </motion.div>

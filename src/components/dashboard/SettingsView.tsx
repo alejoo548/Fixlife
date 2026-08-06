@@ -461,7 +461,7 @@ export const SettingsView: React.FC = () => {
 
   if (loading) {
     return (
-      <div className="w-full h-full flex items-center justify-center text-gray-600">
+      <div className="w-full h-full flex items-center justify-center text-gray-600 dark:text-slate-400">
         Loading settings...
       </div>
     );
@@ -469,7 +469,7 @@ export const SettingsView: React.FC = () => {
 
   return (
     <div className="w-full h-full overflow-y-auto custom-scrollbar p-4 md:p-6 lg:p-8 pb-24 md:pb-8 flex flex-col gap-6 animate-fade-in">
-      <div className="rounded-[28px] border border-slate-200 bg-white shadow-sm">
+      <div className="rounded-[28px] border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900 shadow-sm">
         <div className="flex flex-col lg:flex-row">
           <div className="w-full shrink-0 rounded-t-[28px] bg-slate-950 p-6 text-white lg:w-[340px] lg:rounded-l-[28px] lg:rounded-tr-none">
             <div className="flex items-center justify-between gap-3">
@@ -514,21 +514,21 @@ export const SettingsView: React.FC = () => {
               <div>
                 <div className="flex items-center gap-2">
                   <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">Profile photo</p>
-                  <span className="inline-flex items-center gap-1 rounded-full bg-sky-100 px-2 py-0.5 text-[9px] font-black uppercase tracking-[0.1em] text-sky-700">
+                  <span className="inline-flex items-center gap-1 rounded-full bg-sky-100 dark:bg-sky-900/40 px-2 py-0.5 text-[9px] font-black uppercase tracking-[0.1em] text-sky-700 dark:text-sky-300">
                     <Pencil className="h-2.5 w-2.5" />
                     Editable
                   </span>
                 </div>
-                <h3 className="mt-1 text-xl font-black text-slate-950">Keep your first impression clean</h3>
+                <h3 className="mt-1 text-xl font-black text-slate-950 dark:text-white">Keep your first impression clean</h3>
               </div>
-              <label className="group flex cursor-pointer flex-wrap items-center gap-4 rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-4 transition hover:border-sky-400 hover:bg-sky-50">
+              <label className="group flex cursor-pointer flex-wrap items-center gap-4 rounded-2xl border border-dashed border-slate-300 dark:border-white/15 bg-slate-50 dark:bg-slate-800 p-4 transition hover:border-sky-400 hover:bg-sky-50 dark:hover:bg-sky-900/20">
                 <div className="flex min-w-0 flex-1 items-center gap-3">
-                  <span className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-white text-sky-600 shadow-sm">
+                  <span className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-white dark:bg-slate-900 text-sky-600 dark:text-sky-400 shadow-sm">
                     <Camera className="h-5 w-5" />
                   </span>
                   <div className="min-w-0">
-                    <p className="text-sm font-black text-slate-900">Upload profile image</p>
-                    <p className="mt-0.5 text-xs font-semibold text-slate-500">PNG, JPG or WEBP. Maximum 5MB.</p>
+                    <p className="text-sm font-black text-slate-900 dark:text-slate-100">Upload profile image</p>
+                    <p className="mt-0.5 text-xs font-semibold text-slate-500 dark:text-slate-400">PNG, JPG or WEBP. Maximum 5MB.</p>
                   </div>
                 </div>
                 <span className="shrink-0 rounded-xl bg-slate-950 px-4 py-2 text-xs font-black text-white transition group-hover:bg-sky-600">
@@ -559,7 +559,7 @@ export const SettingsView: React.FC = () => {
               </div>
             </div>
 
-            <div className="w-full shrink-0 rounded-2xl border border-slate-200 bg-slate-50 p-4 xl:w-[320px]">
+            <div className="w-full shrink-0 rounded-2xl border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-slate-800 p-4 xl:w-[320px]">
               <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">Profile strength</p>
               <div className="mt-4 space-y-3">
                 {[
@@ -568,8 +568,8 @@ export const SettingsView: React.FC = () => {
                   { label: 'Bio description', ready: bio.trim().length >= 20 },
                   { label: 'Portfolio photos', ready: portfolio.length > 0 },
                 ].map((item) => (
-                  <div key={item.label} className="flex items-center justify-between gap-3 rounded-xl bg-white px-3 py-2">
-                    <span className="text-xs font-black text-slate-700">{item.label}</span>
+                  <div key={item.label} className="flex items-center justify-between gap-3 rounded-xl bg-white dark:bg-slate-900 px-3 py-2">
+                    <span className="text-xs font-black text-slate-700 dark:text-slate-300">{item.label}</span>
                     <CheckCircle2 className={`h-4 w-4 ${item.ready ? 'text-emerald-500' : 'text-slate-300'}`} />
                   </div>
                 ))}
@@ -585,15 +585,15 @@ export const SettingsView: React.FC = () => {
       />
 
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-        <div className="bg-white rounded-3xl border border-gray-200 p-5 md:p-6 shadow-sm">
-          <h3 className="mb-5 flex items-center gap-2 text-2xl font-black text-gray-900">
+        <div className="bg-white dark:bg-slate-900 rounded-3xl border border-gray-200 dark:border-white/10 p-5 md:p-6 shadow-sm">
+          <h3 className="mb-5 flex items-center gap-2 text-2xl font-black text-gray-900 dark:text-slate-100">
             <UserRound className="h-6 w-6 text-sky-500" />
             Personal Information
           </h3>
           <div className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <label className="mb-1 flex items-center gap-1.5 text-xs font-bold uppercase text-gray-500">
+                <label className="mb-1 flex items-center gap-1.5 text-xs font-bold uppercase text-gray-500 dark:text-slate-400">
                   <UserRound className="h-3.5 w-3.5" />
                   First Name
                 </label>
@@ -601,11 +601,11 @@ export const SettingsView: React.FC = () => {
                   value={firstName}
                   onChange={(e) => setFirstName(sanitizeNameInput(e.target.value))}
                   maxLength={16}
-                  className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-gray-900"
+                  className="w-full bg-gray-50 dark:bg-slate-800 border border-gray-200 dark:border-white/10 rounded-xl px-4 py-3 text-gray-900 dark:text-slate-100"
                 />
               </div>
               <div>
-                <label className="mb-1 flex items-center gap-1.5 text-xs font-bold uppercase text-gray-500">
+                <label className="mb-1 flex items-center gap-1.5 text-xs font-bold uppercase text-gray-500 dark:text-slate-400">
                   <UserRound className="h-3.5 w-3.5" />
                   Last Name
                 </label>
@@ -613,59 +613,59 @@ export const SettingsView: React.FC = () => {
                   value={lastName}
                   onChange={(e) => setLastName(sanitizeNameInput(e.target.value))}
                   maxLength={16}
-                  className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-gray-900"
+                  className="w-full bg-gray-50 dark:bg-slate-800 border border-gray-200 dark:border-white/10 rounded-xl px-4 py-3 text-gray-900 dark:text-slate-100"
                 />
               </div>
             </div>
 
             <div>
-              <label className="mb-1 flex items-center gap-1.5 text-xs font-bold uppercase text-gray-500">
+              <label className="mb-1 flex items-center gap-1.5 text-xs font-bold uppercase text-gray-500 dark:text-slate-400">
                 <Mail className="h-3.5 w-3.5" />
                 Current Email
               </label>
-              <input value={currentEmail} disabled className="w-full bg-gray-100 border border-gray-200 rounded-xl px-4 py-3 text-gray-600" />
+              <input value={currentEmail} disabled className="w-full bg-gray-100 dark:bg-slate-800 border border-gray-200 dark:border-white/10 rounded-xl px-4 py-3 text-gray-600 dark:text-slate-400" />
             </div>
 
             <div>
-              <label className="mb-1 flex items-center gap-1.5 text-xs font-bold uppercase text-gray-500">
+              <label className="mb-1 flex items-center gap-1.5 text-xs font-bold uppercase text-gray-500 dark:text-slate-400">
                 <Phone className="h-3.5 w-3.5" />
                 Phone Number
               </label>
               <input
                 value={phoneNumber}
                 onChange={(e) => setPhoneNumber(formatPhoneInput(e.target.value))}
-                className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-gray-900"
+                className="w-full bg-gray-50 dark:bg-slate-800 border border-gray-200 dark:border-white/10 rounded-xl px-4 py-3 text-gray-900 dark:text-slate-100"
                 placeholder="6074-6649"
                 inputMode="numeric"
                 maxLength={9}
               />
-              <p className="text-[11px] text-gray-500 mt-1">Must be exactly 8 digits, like 6074-6649.</p>
+              <p className="text-[11px] text-gray-500 dark:text-slate-400 mt-1">Must be exactly 8 digits, like 6074-6649.</p>
             </div>
 
             <div>
-              <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Description</label>
+              <label className="block text-xs font-bold text-gray-500 dark:text-slate-400 uppercase mb-1">Description</label>
               <textarea
                 value={bio}
                 onChange={(e) => setBio(sanitizeSafeTextInput(e.target.value, 500))}
-                className="w-full min-h-[110px] bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-gray-900"
+                className="w-full min-h-[110px] bg-gray-50 dark:bg-slate-800 border border-gray-200 dark:border-white/10 rounded-xl px-4 py-3 text-gray-900 dark:text-slate-100"
                 placeholder="Tell clients about your experience and services..."
               />
-              <p className="mt-1 text-[11px] text-gray-500">Only letters, numbers, spaces, and basic punctuation are allowed.</p>
+              <p className="mt-1 text-[11px] text-gray-500 dark:text-slate-400">Only letters, numbers, spaces, and basic punctuation are allowed.</p>
             </div>
           </div>
 
           <button
             onClick={handleSaveInfo}
             disabled={savingInfo}
-            className="mt-5 px-5 py-3 rounded-xl bg-blue-500 text-white font-bold hover:bg-blue-600 disabled:bg-gray-300"
+            className="mt-5 px-5 py-3 rounded-xl bg-blue-500 text-white font-bold hover:bg-blue-600 disabled:bg-gray-300 dark:disabled:bg-slate-700"
           >
             {savingInfo ? 'Saving...' : 'Save Profile'}
           </button>
         </div>
 
         <div>
-          <div className="bg-white rounded-3xl border border-gray-200 p-5 md:p-6 shadow-sm">
-          <h3 className="mb-4 flex items-center gap-2 text-2xl font-black text-gray-900">
+          <div className="bg-white dark:bg-slate-900 rounded-3xl border border-gray-200 dark:border-white/10 p-5 md:p-6 shadow-sm">
+          <h3 className="mb-4 flex items-center gap-2 text-2xl font-black text-gray-900 dark:text-slate-100">
             <Mail className="h-6 w-6 text-amber-500" />
             Change Email
           </h3>
@@ -676,12 +676,12 @@ export const SettingsView: React.FC = () => {
                 maxLength={100}
                 onChange={(e) => setNewEmail(e.target.value.trim().toLowerCase())}
                 placeholder="new-email@example.com"
-                className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3"
+                className="w-full bg-gray-50 dark:bg-slate-800 border border-gray-200 dark:border-white/10 rounded-xl px-4 py-3 text-gray-900 dark:text-slate-100"
               />
               <button
                 onClick={handleSendEmailToken}
                 disabled={sendingEmailToken}
-                className="w-full py-3 rounded-xl bg-amber-500 text-white font-bold hover:bg-amber-600 disabled:bg-gray-300"
+                className="w-full py-3 rounded-xl bg-amber-500 text-white font-bold hover:bg-amber-600 disabled:bg-gray-300 dark:disabled:bg-slate-700"
               >
                 {sendingEmailToken ? 'Sending...' : 'Send Verification Token'}
               </button>
@@ -691,12 +691,12 @@ export const SettingsView: React.FC = () => {
                 inputMode="numeric"
                 onChange={(e) => setEmailToken(e.target.value.replace(/\D/g, ''))}
                 placeholder="Enter token"
-                className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3"
+                className="w-full bg-gray-50 dark:bg-slate-800 border border-gray-200 dark:border-white/10 rounded-xl px-4 py-3 text-gray-900 dark:text-slate-100"
               />
               <button
                 onClick={handleVerifyEmailToken}
                 disabled={verifyingEmailToken}
-                className="w-full py-3 rounded-xl bg-slate-900 text-white font-bold hover:bg-black disabled:bg-gray-300"
+                className="w-full py-3 rounded-xl bg-slate-900 text-white font-bold hover:bg-black disabled:bg-gray-300 dark:disabled:bg-slate-700"
               >
                 {verifyingEmailToken ? 'Verifying...' : 'Verify Token and Update Email'}
               </button>
@@ -705,33 +705,33 @@ export const SettingsView: React.FC = () => {
         </div>
       </div>
 
-      <div className="rounded-[28px] border border-slate-200 bg-white p-5 shadow-sm md:p-6">
+      <div className="rounded-[28px] border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900 p-5 shadow-sm md:p-6">
         <div className="mb-5 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
           <div>
             <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">Portfolio</p>
-            <h3 className="mt-1 text-2xl font-black text-slate-950">Show your finished work</h3>
-            <p className="mt-1 text-sm font-semibold text-slate-500">{portfolio.length}/10 photos uploaded</p>
+            <h3 className="mt-1 text-2xl font-black text-slate-950 dark:text-white">Show your finished work</h3>
+            <p className="mt-1 text-sm font-semibold text-slate-500 dark:text-slate-400">{portfolio.length}/10 photos uploaded</p>
           </div>
-          <span className="inline-flex w-fit items-center gap-2 rounded-full border border-sky-100 bg-sky-50 px-3 py-1.5 text-xs font-black text-sky-700">
+          <span className="inline-flex w-fit items-center gap-2 rounded-full border border-sky-100 dark:border-sky-900/40 bg-sky-50 dark:bg-sky-900/30 px-3 py-1.5 text-xs font-black text-sky-700 dark:text-sky-300">
             <Images className="h-4 w-4" />
             Client-facing gallery
           </span>
         </div>
 
         <div className="grid grid-cols-1 gap-5 lg:grid-cols-[360px_minmax(0,1fr)]">
-          <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+          <div className="rounded-2xl border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-slate-800 p-4">
             <input
               value={portfolioDescription}
               onChange={(e) => setPortfolioDescription(sanitizeSafeTextInput(e.target.value, 500))}
               placeholder="Optional caption for these photos"
-              className="mb-3 w-full rounded-xl border border-slate-200 bg-white px-4 py-3 font-semibold outline-none transition focus:border-sky-400 focus:ring-4 focus:ring-sky-100"
+              className="mb-3 w-full rounded-xl border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 px-4 py-3 font-semibold outline-none transition focus:border-sky-400 focus:ring-4 focus:ring-sky-100 dark:focus:ring-sky-900/30"
             />
-            <p className="mb-3 text-[11px] text-gray-500">Use only letters, numbers, spaces, and basic punctuation.</p>
+            <p className="mb-3 text-[11px] text-gray-500 dark:text-slate-400">Use only letters, numbers, spaces, and basic punctuation.</p>
 
-            <label className="flex min-h-[180px] cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed border-slate-300 bg-white p-5 text-center transition hover:border-sky-400 hover:bg-sky-50">
+            <label className="flex min-h-[180px] cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed border-slate-300 dark:border-white/15 bg-white dark:bg-slate-900 p-5 text-center transition hover:border-sky-400 hover:bg-sky-50 dark:hover:bg-sky-900/20">
               <UploadCloud className="h-8 w-8 text-sky-500" />
-              <div className="mt-3 text-sm font-black text-slate-900">Add portfolio photos</div>
-              <div className="text-gray-500 text-xs">PNG, JPG or WEBP · max 5MB each · no GIF</div>
+              <div className="mt-3 text-sm font-black text-slate-900 dark:text-slate-100">Add portfolio photos</div>
+              <div className="text-gray-500 dark:text-slate-400 text-xs">PNG, JPG or WEBP · max 5MB each · no GIF</div>
               <span className="mt-4 inline-flex items-center gap-2 rounded-xl bg-sky-600 px-4 py-2 text-xs font-black text-white">
                 <ImagePlus className="h-4 w-4" />
                 Select files
@@ -758,22 +758,22 @@ export const SettingsView: React.FC = () => {
             )}
           </div>
 
-          <div className="rounded-2xl border border-slate-200 p-4">
-            <div className="mb-3 text-sm font-black text-slate-800">Your portfolio</div>
+          <div className="rounded-2xl border border-slate-200 dark:border-white/10 p-4">
+            <div className="mb-3 text-sm font-black text-slate-800 dark:text-slate-200">Your portfolio</div>
             {portfolio.length === 0 ? (
-              <div className="grid min-h-[260px] place-items-center rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-6 text-center">
+              <div className="grid min-h-[260px] place-items-center rounded-2xl border border-dashed border-slate-300 dark:border-white/15 bg-slate-50 dark:bg-slate-800 p-6 text-center">
                 <div>
-                  <Images className="mx-auto h-10 w-10 text-slate-300" />
-                  <p className="mt-3 text-sm font-black text-slate-700">No portfolio photos yet</p>
-                  <p className="mt-1 text-xs font-semibold text-slate-500">Add clear before/after or finished-work photos.</p>
+                  <Images className="mx-auto h-10 w-10 text-slate-300 dark:text-slate-600" />
+                  <p className="mt-3 text-sm font-black text-slate-700 dark:text-slate-300">No portfolio photos yet</p>
+                  <p className="mt-1 text-xs font-semibold text-slate-500 dark:text-slate-400">Add clear before/after or finished-work photos.</p>
                 </div>
               </div>
             ) : (
               <div className="grid grid-cols-2 gap-3 md:grid-cols-3 2xl:grid-cols-4">
                 {portfolio.map((photo) => (
-                  <div key={photo.id_photo} className="group relative overflow-hidden rounded-2xl border border-slate-200 bg-slate-100 shadow-sm">
+                  <div key={photo.id_photo} className="group relative overflow-hidden rounded-2xl border border-slate-200 dark:border-white/10 bg-slate-100 dark:bg-slate-800 shadow-sm">
                     {brokenPortfolio[photo.id_photo] ? (
-                      <div className="grid aspect-[4/3] place-items-center text-xs font-bold text-slate-500">Image not found</div>
+                      <div className="grid aspect-[4/3] place-items-center text-xs font-bold text-slate-500 dark:text-slate-400">Image not found</div>
                     ) : (
                       <>
                         <button
@@ -825,7 +825,7 @@ export const SettingsView: React.FC = () => {
 
       {selectedPortfolioPhoto && (
         <div className="fixed inset-0 z-[900] grid place-items-center bg-slate-950/72 p-4 backdrop-blur-md">
-          <div className="grid max-h-[86vh] w-full max-w-4xl overflow-hidden rounded-[24px] border border-white/10 bg-white shadow-2xl lg:grid-cols-[minmax(0,1fr)_340px]">
+          <div className="grid max-h-[86vh] w-full max-w-4xl overflow-hidden rounded-[24px] border border-white/10 bg-white dark:bg-slate-900 shadow-2xl lg:grid-cols-[minmax(0,1fr)_340px]">
             <div className="flex min-h-[300px] items-center justify-center bg-slate-950 p-4">
               {brokenPortfolio[selectedPortfolioPhoto.id_photo] ? (
                 <div className="grid h-full min-h-[360px] place-items-center text-sm font-black text-slate-300">
@@ -843,28 +843,28 @@ export const SettingsView: React.FC = () => {
               )}
             </div>
 
-            <div className="custom-scrollbar flex max-h-[86vh] flex-col overflow-y-auto bg-slate-50 p-5 md:p-6">
+            <div className="custom-scrollbar flex max-h-[86vh] flex-col overflow-y-auto bg-slate-50 dark:bg-slate-950 p-5 md:p-6">
               <div className="mb-5 flex items-start justify-between gap-3">
                 <div>
                   <p className="text-[11px] font-black uppercase tracking-[0.18em] text-sky-500">
                     Portfolio editor
                   </p>
-                  <h3 className="mt-1 text-2xl font-black text-slate-950">Edit photo details</h3>
-                  <p className="mt-1 text-sm font-semibold leading-5 text-slate-500">
+                  <h3 className="mt-1 text-2xl font-black text-slate-950 dark:text-white">Edit photo details</h3>
+                  <p className="mt-1 text-sm font-semibold leading-5 text-slate-500 dark:text-slate-400">
                     Add a short caption that helps clients understand the work.
                   </p>
                 </div>
                 <button
                   type="button"
                   onClick={() => setSelectedPortfolioPhoto(null)}
-                  className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-slate-100 text-slate-500 transition hover:bg-slate-200 hover:text-slate-900"
+                  className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 transition hover:bg-slate-200 dark:hover:bg-slate-700 hover:text-slate-900 dark:hover:text-white"
                   title="Close"
                 >
                   <X className="h-5 w-5" />
                 </button>
               </div>
 
-              <label className="block text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">
+              <label className="block text-[11px] font-black uppercase tracking-[0.14em] text-slate-500 dark:text-slate-400">
                 Photo description
               </label>
               <textarea
@@ -872,19 +872,19 @@ export const SettingsView: React.FC = () => {
                 onChange={(e) =>
                   setSelectedPortfolioDescription(sanitizeSafeTextInput(e.target.value, 500))
                 }
-                className="mt-2 min-h-[150px] w-full resize-none rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold leading-6 text-slate-900 outline-none transition focus:border-sky-400 focus:ring-4 focus:ring-sky-100"
+                className="mt-2 min-h-[150px] w-full resize-none rounded-2xl border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900 px-4 py-3 text-sm font-semibold leading-6 text-slate-900 dark:text-slate-100 outline-none transition focus:border-sky-400 focus:ring-4 focus:ring-sky-100 dark:focus:ring-sky-900/30"
                 placeholder="Example: Installed and cleaned a full AC unit, checked airflow, and verified cooling performance."
               />
-              <div className="mt-2 flex items-center justify-between gap-3 text-[11px] font-semibold text-slate-500">
+              <div className="mt-2 flex items-center justify-between gap-3 text-[11px] font-semibold text-slate-500 dark:text-slate-400">
                 <span>Only letters, numbers, spaces, and basic punctuation.</span>
                 <span>{selectedPortfolioDescription.length}/500</span>
               </div>
 
-              <div className="mt-5 rounded-2xl border border-slate-200 bg-white p-4">
+              <div className="mt-5 rounded-2xl border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900 p-4">
                 <p className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-400">
                   Client preview
                 </p>
-                <p className="mt-2 text-sm font-bold leading-6 text-slate-700">
+                <p className="mt-2 text-sm font-bold leading-6 text-slate-700 dark:text-slate-300">
                   {selectedPortfolioDescription.trim() || 'Recent portfolio work'}
                 </p>
               </div>
@@ -913,10 +913,10 @@ export const SettingsView: React.FC = () => {
         </div>
       )}
 
-      <div className="bg-white rounded-2xl border border-gray-200 p-4">
+      <div className="bg-white dark:bg-slate-900 rounded-2xl border border-gray-200 dark:border-white/10 p-4">
         <button
           onClick={handleSignOut}
-          className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-red-200 bg-red-50 py-3 font-bold text-red-600 hover:bg-red-100"
+          className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-red-200 dark:border-red-900/40 bg-red-50 dark:bg-red-900/20 py-3 font-bold text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/30"
         >
           <LogOut className="h-4 w-4" />
           Sign Out

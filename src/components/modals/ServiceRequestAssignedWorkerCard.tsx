@@ -60,7 +60,7 @@ export function ServiceRequestAssignedWorkerCard({
     );
 
     return (
-        <div className="mt-4 rounded-2xl border border-slate-100 bg-slate-50 p-4">
+        <div className="mt-4 rounded-2xl border border-slate-100 bg-slate-50 p-4 dark:bg-slate-800 dark:border-white/10">
             <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
                 <div className="flex items-start gap-3 min-w-0 w-full sm:w-auto">
                     {worker.profile_image_url ? (
@@ -93,14 +93,14 @@ export function ServiceRequestAssignedWorkerCard({
                                 </span>
                             )}
                         </div>
-                        <p className="mt-0.5 truncate text-base font-black text-slate-900">{worker.name}</p>
+                        <p className="mt-0.5 truncate text-base font-black text-slate-900 dark:text-slate-100">{worker.name}</p>
                         <p className="mt-1 text-[11px] font-bold text-slate-500">{experienceLabel}</p>
                     </div>
                 </div>
                 <button
                     type="button"
                     onClick={onViewProfile}
-                    className="w-full sm:w-auto shrink-0 rounded-xl border-2 border-slate-200 bg-white px-3 py-2.5 sm:py-2 text-[11px] font-black text-slate-900 shadow-sm transition hover:border-slate-900 hover:bg-slate-900 hover:text-white text-center"
+                    className="w-full sm:w-auto shrink-0 rounded-xl border-2 border-slate-200 bg-white px-3 py-2.5 sm:py-2 text-[11px] font-black text-slate-900 shadow-sm transition hover:border-slate-900 hover:bg-slate-900 hover:text-white text-center dark:bg-slate-900 dark:text-slate-100 dark:border-white/10"
                 >
                     {t('serviceRequest.assignedWorkerCard.viewProfilePortfolio')}
                 </button>
@@ -113,16 +113,16 @@ export function ServiceRequestAssignedWorkerCard({
                     { label: t('serviceRequest.assignedWorkerCard.experience'), value: experienceLabel, detail: t('serviceRequest.assignedWorkerCard.declaredLevel') },
                     { label: t('serviceRequest.assignedWorkerCard.portfolio'), value: portfolioLabel, detail: t('serviceRequest.assignedWorkerCard.tapProfile') },
                 ].map((item) => (
-                    <div key={item.label} className="rounded-xl border border-slate-100 bg-white px-3 py-2">
+                    <div key={item.label} className="rounded-xl border border-slate-100 bg-white px-3 py-2 dark:bg-slate-900 dark:border-white/10">
                         <p className="text-[9px] font-black uppercase tracking-[0.14em] text-slate-400">{item.label}</p>
-                        <p className="mt-1 truncate text-xs font-black text-slate-900">{item.value}</p>
+                        <p className="mt-1 truncate text-xs font-black text-slate-900 dark:text-slate-100">{item.value}</p>
                         <p className="mt-0.5 truncate text-[10px] font-semibold text-slate-500">{item.detail}</p>
                     </div>
                 ))}
             </div>
 
             {worker.bio && (
-                <p className="mt-3 line-clamp-2 text-xs font-medium text-slate-500 bg-white/50 p-2.5 rounded-lg border border-slate-100">
+                <p className="mt-3 line-clamp-2 text-xs font-medium text-slate-500 bg-white/50 p-2.5 rounded-lg border border-slate-100 dark:border-white/10">
                     "{worker.bio}"
                 </p>
             )}
@@ -135,7 +135,7 @@ export function ServiceRequestAssignedWorkerCard({
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
                             </svg>
                         </span>
-                        <p className="text-xs font-black uppercase tracking-widest text-slate-900">{t('serviceRequest.assignedWorkerCard.actionRequired')}</p>
+                        <p className="text-xs font-black uppercase tracking-widest text-slate-900 dark:text-slate-100">{t('serviceRequest.assignedWorkerCard.actionRequired')}</p>
                     </div>
                     <p className="text-[13px] font-medium text-slate-600 mb-3">
                         {t('serviceRequest.assignedWorkerCard.reviewApproveHelp')}
@@ -145,7 +145,7 @@ export function ServiceRequestAssignedWorkerCard({
                             type="button"
                             disabled={workerApprovalBusy}
                             onClick={onDecline}
-                            className="rounded-xl border-2 border-red-200 bg-white px-4 py-2.5 text-xs font-bold text-red-600 transition hover:bg-red-50 disabled:opacity-50 text-center"
+                            className="rounded-xl border-2 border-red-200 bg-white px-4 py-2.5 text-xs font-bold text-red-600 transition hover:bg-red-50 disabled:opacity-50 text-center dark:bg-slate-900"
                         >
                             {workerApprovalBusy ? t('serviceRequest.assignedWorkerCard.saving') : t('serviceRequest.assignedWorkerCard.decline')}
                         </button>

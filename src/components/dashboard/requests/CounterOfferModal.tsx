@@ -46,30 +46,30 @@ export const CounterOfferModal: React.FC<CounterOfferModalProps> = ({
           initial={{ scale: 0.9, opacity: 0 }}
           animate={{ scale: 1, opacity: 1 }}
           exit={{ scale: 0.9, opacity: 0 }}
-          className="bg-white rounded-3xl p-6 w-full max-w-sm shadow-2xl border border-gray-200"
+          className="bg-white rounded-3xl p-6 w-full max-w-sm shadow-2xl border border-gray-200 dark:bg-slate-900 dark:border-white/10"
         >
-          <h3 className="text-xl font-black text-gray-900 mb-2">Counter Offer</h3>
-          <p className="text-sm text-gray-500 mb-6">
+          <h3 className="text-xl font-black text-gray-900 mb-2 dark:text-slate-100">Counter Offer</h3>
+          <p className="text-sm text-gray-500 mb-6 dark:text-slate-400">
             Propose a new price for this job. The client will review it.
           </p>
 
-          <label className="block text-xs uppercase tracking-wider font-bold text-gray-500 mb-2">
+          <label className="block text-xs uppercase tracking-wider font-bold text-gray-500 mb-2 dark:text-slate-400">
             New Budget (USD)
           </label>
           <div className="relative mb-4">
-            <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-900 font-bold text-lg">$</span>
+            <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-900 font-bold text-lg dark:text-slate-100">$</span>
             <input
               type="text"
               inputMode="decimal"
               maxLength={7}
               value={amount}
               onChange={(event) => onAmountChange(sanitizeCounterAmount(event.target.value))}
-              className="w-full bg-gray-50 border-2 border-gray-200 rounded-xl py-3 pl-10 pr-4 text-gray-900 font-bold focus:outline-none focus:border-amber-500 transition-colors"
+              className="w-full bg-gray-50 border-2 border-gray-200 rounded-xl py-3 pl-10 pr-4 text-gray-900 font-bold focus:outline-none focus:border-amber-500 transition-colors dark:bg-slate-800 dark:text-slate-100 dark:border-white/10"
             />
-            <p className="mt-2 text-xs font-semibold text-gray-500">Maximum: $1,000.00</p>
+            <p className="mt-2 text-xs font-semibold text-gray-500 dark:text-slate-400">Maximum: $1,000.00</p>
           </div>
 
-          <label className="block text-xs uppercase tracking-wider font-bold text-gray-500 mb-2">
+          <label className="block text-xs uppercase tracking-wider font-bold text-gray-500 mb-2 dark:text-slate-400">
             Note (Optional)
           </label>
           <textarea
@@ -77,7 +77,7 @@ export const CounterOfferModal: React.FC<CounterOfferModalProps> = ({
             onChange={(event) => onNoteChange(guardValue(event.target.value))}
             maxLength={255}
             placeholder="Explain why the price changed..."
-            className="w-full bg-gray-50 border-2 border-gray-200 rounded-xl py-3 px-4 resize-none h-24 text-sm focus:outline-none focus:border-amber-500 transition-colors"
+            className="w-full bg-gray-50 border-2 border-gray-200 rounded-xl py-3 px-4 resize-none h-24 text-sm focus:outline-none focus:border-amber-500 transition-colors dark:bg-slate-800 dark:border-white/10"
           />
           <p className={`mt-1.5 mb-4 text-xs font-medium ${noteWarning ? 'text-red-500' : 'invisible'}`}>
             {noteWarning || '.'}
@@ -87,7 +87,7 @@ export const CounterOfferModal: React.FC<CounterOfferModalProps> = ({
             <button
               type="button"
               onClick={onClose}
-              className="py-3 rounded-xl border-2 border-gray-200 font-bold text-gray-600 hover:bg-gray-50 transition-colors"
+              className="py-3 rounded-xl border-2 border-gray-200 font-bold text-gray-600 hover:bg-gray-50 transition-colors dark:text-slate-400 dark:border-white/10"
             >
               Cancel
             </button>

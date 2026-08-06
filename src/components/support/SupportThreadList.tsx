@@ -20,7 +20,7 @@ export const SupportThreadList: React.FC<SupportThreadListProps> = ({
   if (isLoading) {
     return (
       <div className="flex h-full items-center justify-center">
-        <div className="text-sm font-medium text-gray-500">{t('serviceRequest.supportWidget.loadingCases')}</div>
+        <div className="text-sm font-medium text-gray-500 dark:text-slate-400">{t('serviceRequest.supportWidget.loadingCases')}</div>
       </div>
     );
   }
@@ -28,11 +28,11 @@ export const SupportThreadList: React.FC<SupportThreadListProps> = ({
   if (threads.length === 0) {
     return (
       <div className="flex h-full flex-col items-center justify-center px-6 text-center">
-        <div className="mb-4 rounded-2xl bg-gray-100 p-4">
-          <MessageCircle size={32} className="text-gray-400" />
+        <div className="mb-4 rounded-2xl bg-gray-100 p-4 dark:bg-slate-800">
+          <MessageCircle size={32} className="text-gray-400 dark:text-slate-500" />
         </div>
-        <div className="text-lg font-black text-gray-900">{t('serviceRequest.supportWidget.noOpenCases')}</div>
-        <p className="mt-2 max-w-[240px] text-sm text-gray-500">
+        <div className="text-lg font-black text-gray-900 dark:text-slate-100">{t('serviceRequest.supportWidget.noOpenCases')}</div>
+        <p className="mt-2 max-w-[240px] text-sm text-gray-500 dark:text-slate-400">
           {t('serviceRequest.supportWidget.noOpenCasesHelp')}
         </p>
         <button
@@ -55,7 +55,7 @@ export const SupportThreadList: React.FC<SupportThreadListProps> = ({
           <button
             key={thread.id}
             onClick={() => onOpenThread(thread.id)}
-            className="group mb-2 flex w-full items-start gap-3 rounded-3xl border border-transparent bg-white p-4 text-left transition-all hover:border-gray-200/70 hover:shadow-sm active:scale-[0.985]"
+            className="group mb-2 flex w-full items-start gap-3 rounded-3xl border border-transparent bg-white p-4 text-left transition-all hover:border-gray-200/70 hover:shadow-sm active:scale-[0.985] dark:bg-slate-900"
           >
             <div className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-bird-blue/10 to-bird-lightBlue/10 text-bird-blue">
               <MessageCircle size={18} />
@@ -63,7 +63,7 @@ export const SupportThreadList: React.FC<SupportThreadListProps> = ({
 
             <div className="min-w-0 flex-1">
               <div className="flex items-center justify-between gap-2">
-                <div className="truncate text-[15px] font-bold text-gray-900 group-hover:text-bird-blue">
+                <div className="truncate text-[15px] font-bold text-gray-900 group-hover:text-bird-blue dark:text-slate-100">
                   {thread.subject}
                 </div>
                 {thread.unreadCount > 0 && (
@@ -73,7 +73,7 @@ export const SupportThreadList: React.FC<SupportThreadListProps> = ({
                 )}
               </div>
 
-              <div className="mt-1 flex items-center gap-1.5 text-xs text-gray-500">
+              <div className="mt-1 flex items-center gap-1.5 text-xs text-gray-500 dark:text-slate-400">
                 <Clock size={13} />
                 <span>
                   {isRecent

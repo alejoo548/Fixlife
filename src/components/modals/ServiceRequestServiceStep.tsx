@@ -56,7 +56,7 @@ export function ServiceRequestServiceStep({
                             whileHover={{ scale: 1.01 }}
                             whileTap={{ scale: 0.98 }}
                             onClick={() => onSelectService(cat.name)}
-                            className="w-full flex items-center p-4 bg-white dark:bg-slate-800 hover:bg-gray-50 dark:hover:bg-slate-750 rounded-2xl border border-gray-100 dark:border-white/10 shadow-sm transition-all gap-4 text-left"
+                            className="w-full flex items-center p-4 bg-white dark:bg-slate-800 hover:bg-gray-50 dark:hover:bg-slate-700 rounded-2xl border border-gray-100 dark:border-white/10 shadow-sm transition-all gap-4 text-left"
                         >
                             <div className="w-12 h-12 rounded-xl bg-gray-50 dark:bg-slate-700 flex items-center justify-center shrink-0 border border-gray-100 dark:border-white/10">
                                 {cat.icon ? (

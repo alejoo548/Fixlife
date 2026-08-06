@@ -39,23 +39,23 @@ export const SupportChatWindow: React.FC<SupportChatWindowProps> = ({
   return (
     <div className="flex h-full flex-col bg-[#f8f9fb]">
       {/* Chat Header */}
-      <div className="flex items-center gap-3 border-b bg-white px-4 py-3">
+      <div className="flex items-center gap-3 border-b bg-white px-4 py-3 dark:bg-slate-900">
         <button
           onClick={onBack}
-          className="flex h-9 w-9 items-center justify-center rounded-xl text-gray-500 hover:bg-gray-100"
+          className="flex h-9 w-9 items-center justify-center rounded-xl text-gray-500 hover:bg-gray-100 dark:text-slate-400"
         >
           <ArrowLeft size={20} />
         </button>
         <div className="min-w-0 flex-1">
-          <div className="font-bold text-gray-900">{thread.subject}</div>
-          <div className="text-xs text-gray-500">{t('serviceRequest.supportWidget.chatHeader')}</div>
+          <div className="font-bold text-gray-900 dark:text-slate-100">{thread.subject}</div>
+          <div className="text-xs text-gray-500 dark:text-slate-400">{t('serviceRequest.supportWidget.chatHeader')}</div>
         </div>
       </div>
 
       {/* Messages */}
       <div className="flex-1 space-y-4 overflow-y-auto px-4 py-4 custom-scrollbar">
         {messages.length === 0 && (
-          <div className="py-8 text-center text-sm text-gray-500">
+          <div className="py-8 text-center text-sm text-gray-500 dark:text-slate-400">
             {t('serviceRequest.supportWidget.conversationStart')}
           </div>
         )}

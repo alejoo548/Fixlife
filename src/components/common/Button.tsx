@@ -29,8 +29,8 @@ export const Button: React.FC<ButtonProps> = ({
   const variants = {
     primary: 'bg-gradient-to-r from-bird-blue to-bird-lightBlue text-white shadow-lg shadow-bird-blue/30 hover:shadow-xl hover:shadow-bird-blue/40 hover:scale-[1.02] active:scale-[0.98]',
     secondary: 'bg-gradient-to-r from-bird-yellow to-bird-orange text-gray-900 shadow-lg shadow-bird-yellow/30 hover:shadow-xl hover:shadow-bird-yellow/40 hover:scale-[1.02] active:scale-[0.98]',
-    outline: 'bg-white border-2 border-gray-200 text-gray-900 hover:border-bird-blue hover:text-bird-blue hover:bg-bird-blue/5 hover:scale-[1.02] active:scale-[0.98]',
-    ghost: 'bg-transparent text-gray-700 hover:bg-gray-100 hover:text-bird-blue active:scale-[0.98]'
+    outline: 'bg-white dark:bg-slate-900 border-2 border-gray-200 dark:border-white/10 text-gray-900 dark:text-slate-100 hover:border-bird-blue hover:text-bird-blue hover:bg-bird-blue/5 hover:scale-[1.02] active:scale-[0.98]',
+    ghost: 'bg-transparent text-gray-700 dark:text-slate-300 hover:bg-gray-100 dark:hover:bg-white/10 hover:text-bird-blue active:scale-[0.98]'
   };
 
   const sizes = {

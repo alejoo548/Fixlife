@@ -66,7 +66,7 @@ export const SupportMessageInput: React.FC<SupportMessageInputProps> = ({
   return (
     <div className="border-t border-white/50 bg-white/70 p-3 backdrop-blur">
       {image && (
-        <div className="mb-2 flex items-center justify-between rounded-2xl border border-gray-200/70 bg-white px-3 py-2 text-xs text-gray-600">
+        <div className="mb-2 flex items-center justify-between rounded-2xl border border-gray-200/70 bg-white px-3 py-2 text-xs text-gray-600 dark:bg-slate-900 dark:text-slate-400 dark:border-white/10">
           <span className="truncate pr-3">{image.name}</span>
           <button
             type="button"
@@ -74,13 +74,13 @@ export const SupportMessageInput: React.FC<SupportMessageInputProps> = ({
               setImage(null);
               if (fileInputRef.current) fileInputRef.current.value = '';
             }}
-            className="flex h-6 w-6 items-center justify-center rounded-lg text-gray-400 hover:bg-gray-100 hover:text-gray-600"
+            className="flex h-6 w-6 items-center justify-center rounded-lg text-gray-400 hover:bg-gray-100 hover:text-gray-600 dark:text-slate-500"
           >
             <X size={14} />
           </button>
         </div>
       )}
-      <div className="flex items-center gap-2 rounded-3xl border border-gray-200/70 bg-white pl-4 pr-2 py-2 shadow-inner">
+      <div className="flex items-center gap-2 rounded-3xl border border-gray-200/70 bg-white pl-4 pr-2 py-2 shadow-inner dark:bg-slate-900 dark:border-white/10">
         <input
           ref={fileInputRef}
           type="file"
@@ -92,7 +92,7 @@ export const SupportMessageInput: React.FC<SupportMessageInputProps> = ({
         <button
           type="button"
           onClick={() => fileInputRef.current?.click()}
-          className="text-gray-400 transition hover:text-gray-500"
+          className="text-gray-400 transition hover:text-gray-500 dark:text-slate-500"
           disabled={disabled}
         >
           <Paperclip size={18} />

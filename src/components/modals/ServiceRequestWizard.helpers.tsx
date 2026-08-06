@@ -354,12 +354,12 @@ export const renderSavedPlaceActionIcon = (
 
 export const getSavedPlaceActionClassName = (action: 'use' | 'rename' | 'delete') => {
     if (action === 'use') {
-        return 'border-bird-blue/20 bg-bird-blue/10 text-slate-900 hover:bg-bird-blue hover:text-white hover:shadow-[0_12px_24px_rgba(29,78,216,0.18)]';
+        return 'border-bird-blue/20 bg-bird-blue/10 text-slate-900 dark:text-slate-100 hover:bg-bird-blue hover:text-white hover:shadow-[0_12px_24px_rgba(29,78,216,0.18)]';
     }
     if (action === 'rename') {
-        return 'border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-400 hover:border-amber-400 hover:text-white hover:shadow-[0_12px_24px_rgba(245,158,11,0.22)]';
+        return 'border-amber-200 dark:border-amber-900/40 bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-300 hover:bg-amber-400 hover:border-amber-400 hover:text-white hover:shadow-[0_12px_24px_rgba(245,158,11,0.22)]';
     }
-    return 'border-amber-100 bg-white text-slate-500 hover:border-amber-300 hover:bg-amber-50 hover:text-amber-700';
+    return 'border-amber-100 dark:border-amber-900/30 bg-white dark:bg-slate-900 text-slate-500 dark:text-slate-400 hover:border-amber-300 hover:bg-amber-50 dark:hover:bg-amber-900/20 hover:text-amber-700';
 };
 
 export const getInitials = (value: string) => {

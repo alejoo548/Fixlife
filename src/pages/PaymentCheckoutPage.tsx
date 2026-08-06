@@ -854,11 +854,11 @@ const PaymentCheckoutPage: React.FC<PaymentCheckoutPageProps> = ({ requestId, on
                 {checkoutMessage}
             </p>
 
-            <div className="mt-7 rounded-[28px] border border-slate-200 bg-slate-50 p-5 text-left">
+            <div className="mt-7 rounded-[28px] border border-slate-200 bg-slate-50 p-5 text-left dark:bg-slate-800 dark:border-white/10">
                 <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">{t('paymentCheckout.recap.title')}</p>
                 <div className="mt-4 grid gap-4 sm:grid-cols-2">
                     <div>
-                        <p className="text-sm font-black text-slate-900">{request?.service_name}</p>
+                        <p className="text-sm font-black text-slate-900 dark:text-slate-100">{request?.service_name}</p>
                         <p className="mt-1 text-xs font-black uppercase tracking-[0.16em] text-blue-600">{bookingLabel}</p>
                         {scheduledWindow && <p className="mt-1 text-sm font-semibold text-slate-600">{scheduledWindow}</p>}
                         <p className="mt-1 text-sm text-slate-500">{locationMeta.primary}</p>
@@ -872,14 +872,14 @@ const PaymentCheckoutPage: React.FC<PaymentCheckoutPageProps> = ({ requestId, on
             </div>
 
             <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                <div className="rounded-[24px] border border-slate-200 bg-white/85 p-4 text-left shadow-sm">
+                <div className="rounded-[24px] border border-slate-200 bg-white/85 p-4 text-left shadow-sm dark:border-white/10">
                     <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">{t('paymentCheckout.recap.referenceLabel')}</p>
                     <p className="mt-2 text-base font-black text-slate-950">
                         {request?.payment?.checkout_reference || t('paymentCheckout.recap.referenceFallback')}
                     </p>
                     <p className="mt-1 text-xs text-slate-500">{t('paymentCheckout.recap.referenceHint')}</p>
                 </div>
-                <div className="rounded-[24px] border border-slate-200 bg-white/85 p-4 text-left shadow-sm">
+                <div className="rounded-[24px] border border-slate-200 bg-white/85 p-4 text-left shadow-sm dark:border-white/10">
                     <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">{t('paymentCheckout.recap.statusLabel')}</p>
                     <p className="mt-2 text-base font-black text-slate-950">
                         {checkoutStage === 'success' ? t('paymentCheckout.recap.statusFundsSecured') : checkoutStage === 'pending' ? t('paymentCheckout.recap.statusWaitingWompi') : t('paymentCheckout.recap.statusRetryAvailable')}
@@ -899,7 +899,7 @@ const PaymentCheckoutPage: React.FC<PaymentCheckoutPageProps> = ({ requestId, on
                     <button
                         type="button"
                         onClick={() => setCheckoutStage('form')}
-                        className="rounded-2xl bg-bird-blue px-6 py-3 text-sm font-black text-slate-900 shadow-[0_16px_34px_rgba(29,78,216,0.24)] hover:bg-bird-darkBlue"
+                        className="rounded-2xl bg-bird-blue px-6 py-3 text-sm font-black text-slate-900 shadow-[0_16px_34px_rgba(29,78,216,0.24)] hover:bg-bird-darkBlue dark:text-slate-100"
                     >
                         {t('paymentCheckout.actions.tryAgain')}
                     </button>
@@ -909,7 +909,7 @@ const PaymentCheckoutPage: React.FC<PaymentCheckoutPageProps> = ({ requestId, on
                         type="button"
                         onClick={() => void handleWompiCheckAgain()}
                         disabled={isPaying}
-                        className="rounded-2xl bg-bird-blue px-6 py-3 text-sm font-black text-slate-900 shadow-[0_16px_34px_rgba(29,78,216,0.24)] hover:bg-bird-darkBlue disabled:cursor-not-allowed disabled:opacity-60"
+                        className="rounded-2xl bg-bird-blue px-6 py-3 text-sm font-black text-slate-900 shadow-[0_16px_34px_rgba(29,78,216,0.24)] hover:bg-bird-darkBlue disabled:cursor-not-allowed disabled:opacity-60 dark:text-slate-100"
                     >
                         {isPaying ? t('paymentCheckout.actions.checking') : t('paymentCheckout.actions.checkAgain')}
                     </button>
@@ -917,7 +917,7 @@ const PaymentCheckoutPage: React.FC<PaymentCheckoutPageProps> = ({ requestId, on
                 <button
                     type="button"
                     onClick={onBack}
-                    className="rounded-2xl border border-slate-200 bg-white px-6 py-3 text-sm font-black text-slate-700 hover:border-slate-300"
+                    className="rounded-2xl border border-slate-200 bg-white px-6 py-3 text-sm font-black text-slate-700 hover:border-slate-300 dark:bg-slate-900 dark:text-slate-300 dark:border-white/10"
                 >
                     {t('paymentCheckout.actions.backToRequests')}
                 </button>
@@ -956,19 +956,19 @@ const PaymentCheckoutPage: React.FC<PaymentCheckoutPageProps> = ({ requestId, on
                 </button>
 
                 {loading ? (
-                    <div className="rounded-[32px] bg-white p-8 shadow-sm border border-slate-100 flex flex-col items-center justify-center min-h-[400px]">
-                         <div className="h-8 w-8 rounded-full border-4 border-slate-100 border-t-bird-blue animate-spin" />
+                    <div className="rounded-[32px] bg-white p-8 shadow-sm border border-slate-100 flex flex-col items-center justify-center min-h-[400px] dark:bg-slate-900 dark:border-white/10">
+                         <div className="h-8 w-8 rounded-full border-4 border-slate-100 border-t-bird-blue animate-spin dark:border-white/10" />
                          <p className="mt-4 text-sm font-semibold text-slate-500">{t('paymentCheckout.loading')}</p>
                     </div>
                 ) : !request ? (
-                    <div className="rounded-[32px] bg-white p-10 text-center shadow-sm border border-slate-100">
+                    <div className="rounded-[32px] bg-white p-10 text-center shadow-sm border border-slate-100 dark:bg-slate-900 dark:border-white/10">
                         <p className="text-[11px] font-black uppercase tracking-[0.24em] text-slate-400">{t('paymentCheckout.errors.title')}</p>
-                        <h1 className="mt-3 text-2xl font-black text-slate-900">{t('paymentCheckout.errors.notFound')}</h1>
+                        <h1 className="mt-3 text-2xl font-black text-slate-900 dark:text-slate-100">{t('paymentCheckout.errors.notFound')}</h1>
                         <p className="mt-2 text-sm text-slate-500">{t('paymentCheckout.errors.notFoundDesc')}</p>
                         <button
                             type="button"
                             onClick={onBack}
-                            className="mt-6 rounded-2xl bg-bird-blue px-6 py-3 text-sm font-black text-slate-900 hover:bg-bird-darkBlue transition"
+                            className="mt-6 rounded-2xl bg-bird-blue px-6 py-3 text-sm font-black text-slate-900 hover:bg-bird-darkBlue transition dark:text-slate-100"
                         >
                             {t('paymentCheckout.errors.goBack')}
                         </button>
@@ -979,9 +979,9 @@ const PaymentCheckoutPage: React.FC<PaymentCheckoutPageProps> = ({ requestId, on
                         animate={{ opacity: 1, y: 0 }}
                         className="rounded-[32px] bg-white shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-slate-100 overflow-hidden dark:bg-slate-900/80 dark:border-white/10 dark:shadow-black/40"
                     >
-                        <div className="p-8 pb-6 border-b border-slate-100">
+                        <div className="p-8 pb-6 border-b border-slate-100 dark:border-white/10">
                             <p className="text-[11px] font-black uppercase tracking-[0.24em] text-slate-400 text-center">{t('paymentCheckout.header.securePayment')}</p>
-                            <h1 className="mt-4 text-3xl font-black text-slate-900 text-center">{t('paymentCheckout.header.title')}</h1>
+                            <h1 className="mt-4 text-3xl font-black text-slate-900 text-center dark:text-slate-100">{t('paymentCheckout.header.title')}</h1>
                             <p className="mt-2 text-sm text-slate-500 text-center">{request.service_name}</p>
                             <div className="mt-3 flex flex-col items-center gap-1">
                                 <span className="rounded-full border border-blue-100 bg-blue-50 px-3 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-blue-700">
@@ -1000,7 +1000,7 @@ const PaymentCheckoutPage: React.FC<PaymentCheckoutPageProps> = ({ requestId, on
                             </div>
                         </div>
 
-                        <div className="p-8 bg-slate-50/50">
+                        <div className="p-8 bg-slate-50/50 dark:bg-slate-800">
                             <p className="text-[12px] font-bold text-slate-500 mb-4 text-center">{t('paymentCheckout.chooseMethod')}</p>
 
                             <div className="space-y-2.5">
@@ -1031,7 +1031,7 @@ const PaymentCheckoutPage: React.FC<PaymentCheckoutPageProps> = ({ requestId, on
                                         )}
                                     </span>
                                     <span className="min-w-0 flex-1">
-                                        <span className="block text-sm font-black text-slate-900">{t('paymentCheckout.methods.paypal.name')}</span>
+                                        <span className="block text-sm font-black text-slate-900 dark:text-slate-100">{t('paymentCheckout.methods.paypal.name')}</span>
                                         <span className="mt-0.5 block text-xs font-semibold text-slate-500">{t('paymentCheckout.methods.paypal.desc')}</span>
                                     </span>
                                     <span className="shrink-0 rounded-full bg-emerald-100 px-2.5 py-1 text-[10px] font-black uppercase tracking-wide text-emerald-700">
@@ -1064,7 +1064,7 @@ const PaymentCheckoutPage: React.FC<PaymentCheckoutPageProps> = ({ requestId, on
                                         )}
                                     </span>
                                     <span className="min-w-0 flex-1">
-                                        <span className="block text-sm font-black text-slate-900">{t('paymentCheckout.methods.wompi.name')}</span>
+                                        <span className="block text-sm font-black text-slate-900 dark:text-slate-100">{t('paymentCheckout.methods.wompi.name')}</span>
                                         <span className="mt-0.5 block text-xs font-semibold text-slate-500">{t('paymentCheckout.methods.wompi.desc')}</span>
                                     </span>
                                     <span className="shrink-0 rounded-full bg-emerald-100 px-2.5 py-1 text-[10px] font-black uppercase tracking-wide text-emerald-700">
@@ -1098,7 +1098,7 @@ const PaymentCheckoutPage: React.FC<PaymentCheckoutPageProps> = ({ requestId, on
                                         )}
                                     </span>
                                     <span className="min-w-0 flex-1">
-                                        <span className="block text-sm font-black text-slate-900">{t('paymentCheckout.methods.cash.name')}</span>
+                                        <span className="block text-sm font-black text-slate-900 dark:text-slate-100">{t('paymentCheckout.methods.cash.name')}</span>
                                         <span className="mt-0.5 block text-xs font-semibold text-slate-500">{t('paymentCheckout.methods.cash.desc')}</span>
                                     </span>
                                     <span className="shrink-0 rounded-full bg-emerald-100 px-2.5 py-1 text-[10px] font-black uppercase tracking-wide text-emerald-700">
@@ -1127,7 +1127,7 @@ const PaymentCheckoutPage: React.FC<PaymentCheckoutPageProps> = ({ requestId, on
                                         )}
                                     </span>
                                     <span className="min-w-0 flex-1">
-                                        <span className="block text-sm font-black text-slate-900">{t('paymentCheckout.methods.virtualWallet.name')}</span>
+                                        <span className="block text-sm font-black text-slate-900 dark:text-slate-100">{t('paymentCheckout.methods.virtualWallet.name')}</span>
                                         <span className="mt-0.5 block text-xs font-semibold text-slate-500">{t('paymentCheckout.methods.virtualWallet.desc')}</span>
                                     </span>
                                     <span className="shrink-0 rounded-full bg-emerald-100 px-2.5 py-1 text-[10px] font-black uppercase tracking-wide text-emerald-700">
@@ -1175,7 +1175,7 @@ const PaymentCheckoutPage: React.FC<PaymentCheckoutPageProps> = ({ requestId, on
                                 </p>
                             )}
 
-                            <div className="mt-5 grid gap-3 rounded-[24px] border border-slate-200 bg-white/80 p-4 sm:grid-cols-3">
+                            <div className="mt-5 grid gap-3 rounded-[24px] border border-slate-200 bg-white/80 p-4 sm:grid-cols-3 dark:border-white/10">
                                 <div>
                                     <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">{isScheduledRequest(request) ? t('paymentCheckout.summary.visitPayment') : t('paymentCheckout.summary.protectedNow')}</p>
                                     <p className="mt-2 text-lg font-black text-slate-950">
@@ -1193,9 +1193,9 @@ const PaymentCheckoutPage: React.FC<PaymentCheckoutPageProps> = ({ requestId, on
                                     <p className="mt-1 text-[11px] text-slate-500">{t('paymentCheckout.summary.releasedAfter')}</p>
                                 </div>
                             </div>
-                            <div className="mt-3 rounded-[22px] border border-slate-200 bg-white/70 p-4">
+                            <div className="mt-3 rounded-[22px] border border-slate-200 bg-white/70 p-4 dark:border-white/10">
                                 <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">{t('paymentCheckout.summary.commissionPolicy')}</p>
-                                <p className="mt-2 text-sm font-semibold text-slate-700">{commissionLabel}</p>
+                                <p className="mt-2 text-sm font-semibold text-slate-700 dark:text-slate-300">{commissionLabel}</p>
                                 {appliedCommissionRules && (
                                     <p className="mt-1 text-xs text-slate-500">{appliedCommissionRules}</p>
                                 )}
