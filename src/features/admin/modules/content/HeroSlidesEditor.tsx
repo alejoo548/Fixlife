@@ -11,9 +11,13 @@ type HeroSlide = {
   title: string;
   description: string;
   cta: string;
+  tag_es?: string;
+  title_es?: string;
+  description_es?: string;
+  cta_es?: string;
 };
 
-const createSlide = (): HeroSlide => ({ image: '', tag: '', title: '', description: '', cta: '' });
+const createSlide = (): HeroSlide => ({ image: '', tag: '', title: '', description: '', cta: '', tag_es: '', title_es: '', description_es: '', cta_es: '' });
 
 export function HeroSlidesEditor() {
   const [slides, setSlides] = useState<HeroSlide[]>([]);
@@ -86,15 +90,22 @@ export function HeroSlidesEditor() {
                 <ChevronDown size={16} />
               </summary>
               <div className="admin-form-grid">
-                <label className="admin-field"><span>Tag</span><input value={slide.tag} maxLength={50} onChange={(event) => update(index, 'tag', event.target.value)} /></label>
-                <label className="admin-field"><span>CTA label</span><input value={slide.cta} maxLength={80} onChange={(event) => update(index, 'cta', event.target.value)} /></label>
-                <label className="admin-field admin-field--wide"><span>Title</span><input value={slide.title} maxLength={120} onChange={(event) => update(index, 'title', event.target.value)} /></label>
-                <label className="admin-field admin-field--wide"><span>Description</span><textarea value={slide.description} maxLength={255} onChange={(event) => update(index, 'description', event.target.value)} /></label>
+                <label className="admin-field"><span>Tag (English)</span><input value={slide.tag} maxLength={50} onChange={(event) => update(index, 'tag', event.target.value)} /></label>
+                <label className="admin-field"><span>CTA label (English)</span><input value={slide.cta} maxLength={80} onChange={(event) => update(index, 'cta', event.target.value)} /></label>
+                <label className="admin-field admin-field--wide"><span>Title (English)</span><input value={slide.title} maxLength={120} onChange={(event) => update(index, 'title', event.target.value)} /></label>
+                <label className="admin-field admin-field--wide"><span>Description (English)</span><textarea value={slide.description} maxLength={255} onChange={(event) => update(index, 'description', event.target.value)} /></label>
                 <DropifyUpload
                   label="Slide Image"
                   value={slide.image}
                   onChange={(url) => update(index, 'image', url)}
                 />
+              </div>
+              <p className="admin-muted" style={{ marginTop: '0.75rem' }}>Spanish translation (optional — falls back to English if left blank)</p>
+              <div className="admin-form-grid">
+                <label className="admin-field"><span>Tag (Español)</span><input value={slide.tag_es || ''} maxLength={50} onChange={(event) => update(index, 'tag_es', event.target.value)} /></label>
+                <label className="admin-field"><span>CTA label (Español)</span><input value={slide.cta_es || ''} maxLength={80} onChange={(event) => update(index, 'cta_es', event.target.value)} /></label>
+                <label className="admin-field admin-field--wide"><span>Title (Español)</span><input value={slide.title_es || ''} maxLength={120} onChange={(event) => update(index, 'title_es', event.target.value)} /></label>
+                <label className="admin-field admin-field--wide"><span>Description (Español)</span><textarea value={slide.description_es || ''} maxLength={255} onChange={(event) => update(index, 'description_es', event.target.value)} /></label>
               </div>
               <button
                 className="admin-button admin-button--danger admin-button--small"

@@ -232,6 +232,10 @@ export const AdminSchema = {
           title: nameLikeText(120).refine(v => v.length >= 1, 'Title is required.'),
           description: messageText(255).refine(v => v.length >= 1, 'Description is required.'),
           cta: nameLikeText(80).refine(v => v.length >= 1, 'CTA is required.'),
+          tag_es: nameLikeText(50).optional().or(z.literal('')),
+          title_es: nameLikeText(120).optional().or(z.literal('')),
+          description_es: messageText(255).optional().or(z.literal('')),
+          cta_es: nameLikeText(80).optional().or(z.literal('')),
         }).strict()
       )
       .min(1, 'At least one slide is required.')

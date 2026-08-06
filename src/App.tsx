@@ -249,27 +249,37 @@ const DEFAULT_HERO_TEXT = {
   roles: ['personal assistant.', 'trusted plumber.', 'expert electrician.', 'reliable cleaner.', 'local handyman.'],
 };
 
-const HERO_TEXT_CACHE_KEY = 'fixlife_hero_text_v1';
-
-const getHeroText = () => {
-  try {
-    const cached = localStorage.getItem(HERO_TEXT_CACHE_KEY);
-    if (cached) return JSON.parse(cached) as typeof DEFAULT_HERO_TEXT;
-  } catch { /* noop */ }
-  return DEFAULT_HERO_TEXT;
+const DEFAULT_HERO_TEXT_ES = {
+  headline_prefix: 'Conoce a Fixlife, tu',
+  description: 'Fixlife es un asistente personal que te ayuda a mantenerte organizado, encontrar profesionales de confianza para tu hogar y completar tareas. Todo a través de mensajes.',
+  roles: ['asistente personal.', 'plomero de confianza.', 'electricista experto.', 'limpiador confiable.', 'manitas local.'],
 };
 
-const fetchHeroText = async (): Promise<typeof DEFAULT_HERO_TEXT> => {
+const defaultHeroTextForLang = (lang: string) => (lang === 'es' ? DEFAULT_HERO_TEXT_ES : DEFAULT_HERO_TEXT);
+
+const HERO_TEXT_CACHE_KEY = 'fixlife_hero_text_v1';
+const heroTextCacheKeyForLang = (lang: string) => `${HERO_TEXT_CACHE_KEY}_${lang === 'es' ? 'es' : 'en'}`;
+
+const getHeroText = (lang: string) => {
   try {
-    const res = await fetch(API_ENDPOINTS.admin.heroTextPublic);
+    const cached = localStorage.getItem(heroTextCacheKeyForLang(lang));
+    if (cached) return JSON.parse(cached) as typeof DEFAULT_HERO_TEXT;
+  } catch { /* noop */ }
+  return defaultHeroTextForLang(lang);
+};
+
+const fetchHeroText = async (lang: string): Promise<typeof DEFAULT_HERO_TEXT> => {
+  const fallback = defaultHeroTextForLang(lang);
+  try {
+    const res = await fetch(`${API_ENDPOINTS.admin.heroTextPublic}?lang=${lang === 'es' ? 'es' : 'en'}`);
     const data = await res.json();
     if (res.ok && data.success && data.roles && data.headline_prefix) {
-      const result = { headline_prefix: String(data.headline_prefix), description: String(data.description || DEFAULT_HERO_TEXT.description), roles: Array.isArray(data.roles) ? data.roles.map(String) : DEFAULT_HERO_TEXT.roles };
-      try { localStorage.setItem(HERO_TEXT_CACHE_KEY, JSON.stringify(result)); } catch { /* noop */ }
+      const result = { headline_prefix: String(data.headline_prefix), description: String(data.description || fallback.description), roles: Array.isArray(data.roles) ? data.roles.map(String) : fallback.roles };
+      try { localStorage.setItem(heroTextCacheKeyForLang(lang), JSON.stringify(result)); } catch { /* noop */ }
       return result;
     }
   } catch { /* noop */ }
-  return getHeroText();
+  return getHeroText(lang);
 };
 
 const App: React.FC = () => {
@@ -277,11 +287,12 @@ const App: React.FC = () => {
   const location = useLocation();
   const { t, i18n } = useTranslation();
   const [roleIndex, setRoleIndex] = useState(0);
-  const [heroText, setHeroText] = useState<typeof DEFAULT_HERO_TEXT>(() => getHeroText());
+  const [heroText, setHeroText] = useState<typeof DEFAULT_HERO_TEXT>(() => getHeroText(i18n.language));
 
   useEffect(() => {
-    fetchHeroText().then((data) => setHeroText(data));
-  }, []);
+    setRoleIndex(0);
+    fetchHeroText(i18n.language).then((data) => setHeroText(data));
+  }, [i18n.language]);
 
   useEffect(() => {
     if (!heroText.roles.length) return;
@@ -291,16 +302,18 @@ const App: React.FC = () => {
     return () => clearInterval(interval);
   }, [heroText.roles.length]);
 
-  const [heroSlides, setHeroSlides] = useState<HeroSlideContent[]>(() => getHeroSlides());
+  const [heroSlides, setHeroSlides] = useState<HeroSlideContent[]>(() => getHeroSlides(i18n.language === 'es' ? 'es' : 'en'));
   const [currentHeroSlide, setCurrentHeroSlide] = useState(0);
 
   useEffect(() => {
-    fetchHeroSlides().then((fetched) => {
+    const lang = i18n.language === 'es' ? 'es' : 'en';
+    fetchHeroSlides(lang).then((fetched) => {
       if (Array.isArray(fetched) && fetched.length > 0) {
         setHeroSlides(fetched);
+        setCurrentHeroSlide(0);
       }
     });
-  }, []);
+  }, [i18n.language]);
 
   useEffect(() => {
     if (heroSlides.length <= 1) return;

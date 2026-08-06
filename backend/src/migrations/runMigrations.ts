@@ -23,7 +23,12 @@ import {
   ensureUsersPhoneNumberNullable,
 } from '../utils/users';
 import { ensureWorkerRewardsTables } from '../utils/workerRewards';
-import { ensurePublicFaqItemsTable, ensureHeroTextTable } from '../controllers/admin.controller';
+import {
+  ensurePublicFaqItemsTable,
+  ensureHeroTextTable,
+  ensureHeroTextEsColumns,
+  ensureHeroSlidesEsColumns,
+} from '../controllers/admin.controller';
 
 type MigrationDefinition = {
   id: string;
@@ -247,6 +252,14 @@ const MIGRATIONS: MigrationDefinition[] = [
           [minBudget, maxBudget, name]
         );
       }
+    },
+  },
+  {
+    id: '20260806_001_hero_text_and_slides_es_columns',
+    description: 'Spanish translations for hero text settings and hero slides',
+    run: async () => {
+      await ensureHeroTextEsColumns();
+      await ensureHeroSlidesEsColumns();
     },
   },
 ];

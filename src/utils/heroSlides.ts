@@ -13,6 +13,10 @@ export interface HeroSlideContent {
 export const HERO_SLIDES_STORAGE_KEY = 'fixlife_hero_slides_v1';
 export const HERO_SLIDES_UPDATED_EVENT = 'fixlife:hero-slides-updated';
 
+type HeroSlideLang = 'en' | 'es';
+
+const storageKeyForLang = (lang: HeroSlideLang) => `${HERO_SLIDES_STORAGE_KEY}_${lang}`;
+
 export const DEFAULT_HERO_SLIDES: HeroSlideContent[] = [
   {
     id: 1,
@@ -88,9 +92,9 @@ const isSlideShape = (slide: any): slide is HeroSlideContent => {
   );
 };
 
-export const getHeroSlides = (): HeroSlideContent[] => {
+export const getHeroSlides = (lang: HeroSlideLang = 'en'): HeroSlideContent[] => {
   try {
-    const raw = localStorage.getItem(HERO_SLIDES_STORAGE_KEY);
+    const raw = localStorage.getItem(storageKeyForLang(lang));
     if (!raw) return DEFAULT_HERO_SLIDES;
     const parsed = JSON.parse(raw);
     if (!Array.isArray(parsed) || parsed.length === 0) return DEFAULT_HERO_SLIDES;
@@ -101,35 +105,35 @@ export const getHeroSlides = (): HeroSlideContent[] => {
   }
 };
 
-const setHeroSlidesCache = (slides: HeroSlideContent[]) => {
-  localStorage.setItem(HERO_SLIDES_STORAGE_KEY, JSON.stringify(slides));
+const setHeroSlidesCache = (slides: HeroSlideContent[], lang: HeroSlideLang) => {
+  localStorage.setItem(storageKeyForLang(lang), JSON.stringify(slides));
   window.dispatchEvent(new Event(HERO_SLIDES_UPDATED_EVENT));
 };
 
-let lastHeroFetch = 0;
+const lastHeroFetchByLang: Partial<Record<HeroSlideLang, number>> = {};
 const HERO_FETCH_THROTTLE = 30000; // 30s to avoid repeated calls in logs/remounts
 
-export const fetchHeroSlides = async (): Promise<HeroSlideContent[]> => {
+export const fetchHeroSlides = async (lang: HeroSlideLang = 'en'): Promise<HeroSlideContent[]> => {
   const now = Date.now();
-  const cached = getHeroSlides();
+  const cached = getHeroSlides(lang);
 
   // Use cache if recently fetched to reduce network spam
-  if (now - lastHeroFetch < HERO_FETCH_THROTTLE && cached.length > 0) {
+  if (now - (lastHeroFetchByLang[lang] || 0) < HERO_FETCH_THROTTLE && cached.length > 0) {
     return cached;
   }
 
   try {
-    lastHeroFetch = now;
-    const response = await fetch(`${API_URL}/api/admin/hero-slides`);
+    lastHeroFetchByLang[lang] = now;
+    const response = await fetch(`${API_URL}/api/admin/hero-slides?lang=${lang}`);
     const data = await response.json();
     if (!response.ok) throw new Error(data?.error || 'Could not fetch hero slides.');
     const slides = Array.isArray(data?.slides) ? data.slides : [];
-    if (slides.length === 0) return getHeroSlides();
+    if (slides.length === 0) return getHeroSlides(lang);
     const normalizedSlides = slides.map(normalizeHeroSlideImage);
-    setHeroSlidesCache(normalizedSlides);
+    setHeroSlidesCache(normalizedSlides, lang);
     return normalizedSlides;
   } catch {
-    return cached.length > 0 ? cached : getHeroSlides();
+    return cached.length > 0 ? cached : getHeroSlides(lang);
   }
 };
 
@@ -151,7 +155,7 @@ export const saveHeroSlides = async (
 
   const nextSlides = Array.isArray(data?.slides) ? data.slides : slides;
   const normalizedSlides = nextSlides.map(normalizeHeroSlideImage);
-  setHeroSlidesCache(normalizedSlides);
+  setHeroSlidesCache(normalizedSlides, 'en');
   return normalizedSlides;
 };
 
@@ -174,9 +178,9 @@ export const uploadHeroSlideImage = async (
   const data = await response.json();
   if (!response.ok) throw new Error(data?.error || 'Could not upload image.');
 
-  const nextSlides = Array.isArray(data?.slides) ? data.slides : getHeroSlides();
+  const nextSlides = Array.isArray(data?.slides) ? data.slides : getHeroSlides('en');
   const normalizedSlides = nextSlides.map(normalizeHeroSlideImage);
-  setHeroSlidesCache(normalizedSlides);
+  setHeroSlidesCache(normalizedSlides, 'en');
   return normalizedSlides;
 };
 
@@ -201,6 +205,7 @@ export const uploadHeroImageAsset = async (file: File, token: string): Promise<s
 };
 
 export const resetHeroSlides = () => {
-  localStorage.removeItem(HERO_SLIDES_STORAGE_KEY);
+  localStorage.removeItem(storageKeyForLang('en'));
+  localStorage.removeItem(storageKeyForLang('es'));
   window.dispatchEvent(new Event(HERO_SLIDES_UPDATED_EVENT));
 };

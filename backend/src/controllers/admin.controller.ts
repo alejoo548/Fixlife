@@ -358,9 +358,34 @@ type HeroSlideRow = RowDataPacket & {
   title: string;
   description: string;
   cta: string;
+  tag_es: string | null;
+  title_es: string | null;
+  description_es: string | null;
+  cta_es: string | null;
 };
 
 let heroSlidesTableChecked = false;
+
+const HERO_SLIDES_SEED_ES: Array<{ tag: string; title: string; description: string; cta: string }> = [
+  {
+    tag: 'PREMIUM',
+    title: 'Expertos para el hogar',
+    description: 'Encuentra electricistas, plomeros y técnicos certificados listos para resolver cualquier problema.',
+    cta: 'Buscar técnico',
+  },
+  {
+    tag: 'RENOVACIÓN',
+    title: 'Transforma tu espacio',
+    description: 'Desde una mano de pintura hasta remodelaciones completas. Haz realidad el hogar que imaginas.',
+    cta: 'Solicitar cotización',
+  },
+  {
+    tag: 'LIMPIEZA',
+    title: 'Hogares impecables',
+    description: 'Servicios de limpieza profunda y mantenimiento regular para que disfrutes mejor tu tiempo libre.',
+    cta: 'Reservar limpieza',
+  },
+];
 
 const ensureHeroSlidesTable = async () => {
   if (heroSlidesTableChecked) return;
@@ -378,6 +403,10 @@ const ensureHeroSlidesTable = async () => {
       title VARCHAR(120) NOT NULL,
       description VARCHAR(255) NOT NULL,
       cta VARCHAR(80) NOT NULL,
+      tag_es VARCHAR(50) NULL,
+      title_es VARCHAR(120) NULL,
+      description_es VARCHAR(255) NULL,
+      cta_es VARCHAR(80) NULL,
       updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
       PRIMARY KEY (id_slide),
       UNIQUE KEY ux_hero_slides_sort (sort_order)
@@ -391,27 +420,30 @@ const ensureHeroSlidesTable = async () => {
 
   if (total === 0) {
     await pool.execute(
-      `INSERT INTO hero_slides (sort_order, image_url, tag, title, description, cta)
+      `INSERT INTO hero_slides (sort_order, image_url, tag, title, description, cta, tag_es, title_es, description_es, cta_es)
        VALUES
-       (1, ?, ?, ?, ?, ?),
-       (2, ?, ?, ?, ?, ?),
-       (3, ?, ?, ?, ?, ?)`,
+       (1, ?, ?, ?, ?, ?, ?, ?, ?, ?),
+       (2, ?, ?, ?, ?, ?, ?, ?, ?, ?),
+       (3, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         'https://images.unsplash.com/photo-1504328345606-18bbc8c9d7d1?q=80&w=2070&auto=format&fit=crop',
         'PREMIUM',
         'Home Experts',
         'Find certified electricians, plumbers, and technicians ready to solve any problem.',
         'Find Technician',
+        HERO_SLIDES_SEED_ES[0].tag, HERO_SLIDES_SEED_ES[0].title, HERO_SLIDES_SEED_ES[0].description, HERO_SLIDES_SEED_ES[0].cta,
         'https://images.unsplash.com/photo-1581578731117-10d52b43cc0a?q=80&w=2070&auto=format&fit=crop',
         'RENOVATION',
         'Transform Your Space',
         'From a fresh coat of paint to complete remodels. Make your dream home a reality.',
         'Get a Quote',
+        HERO_SLIDES_SEED_ES[1].tag, HERO_SLIDES_SEED_ES[1].title, HERO_SLIDES_SEED_ES[1].description, HERO_SLIDES_SEED_ES[1].cta,
         'https://images.unsplash.com/photo-1556911220-bff31c812dba?q=80&w=2668&auto=format&fit=crop',
         'CLEANING',
         'Spotless Homes',
         'Deep cleaning and regular maintenance services so you can enjoy your free time.',
         'Book Cleaning',
+        HERO_SLIDES_SEED_ES[2].tag, HERO_SLIDES_SEED_ES[2].title, HERO_SLIDES_SEED_ES[2].description, HERO_SLIDES_SEED_ES[2].cta,
       ]
     );
   }
@@ -419,25 +451,78 @@ const ensureHeroSlidesTable = async () => {
   heroSlidesTableChecked = true;
 };
 
-const toSlidesDto = (req: AuthRequest, rows: HeroSlideRow[]) =>
+let heroSlidesEsColumnsChecked = false;
+
+export const ensureHeroSlidesEsColumns = async () => {
+  if (heroSlidesEsColumnsChecked) return;
+  if (!shouldRunRuntimeSchemaSync()) {
+    heroSlidesEsColumnsChecked = true;
+    return;
+  }
+  await ensureHeroSlidesTable();
+
+  const columns: Array<[string, string]> = [
+    ['tag_es', 'ALTER TABLE hero_slides ADD COLUMN tag_es VARCHAR(50) NULL'],
+    ['title_es', 'ALTER TABLE hero_slides ADD COLUMN title_es VARCHAR(120) NULL'],
+    ['description_es', 'ALTER TABLE hero_slides ADD COLUMN description_es VARCHAR(255) NULL'],
+    ['cta_es', 'ALTER TABLE hero_slides ADD COLUMN cta_es VARCHAR(80) NULL'],
+  ];
+  for (const [columnName, alterSql] of columns) {
+    const [colRows] = await pool.execute<RowDataPacket[]>(
+      `SELECT COUNT(*) as total
+       FROM information_schema.COLUMNS
+       WHERE table_schema = DATABASE()
+         AND table_name = 'hero_slides'
+         AND column_name = ?`,
+      [columnName]
+    );
+    if (Number(colRows[0]?.total || 0) === 0) {
+      await pool.execute(alterSql);
+    }
+  }
+
+  const [seedRows] = await pool.execute<RowDataPacket[]>(
+    `SELECT id_slide, sort_order, tag, title, description, cta, tag_es FROM hero_slides ORDER BY sort_order ASC`
+  );
+  for (const row of seedRows) {
+    if (row.tag_es) continue;
+    const seedIndex = Number(row.sort_order) - 1;
+    const knownSeed = HERO_SLIDES_SEED_ES[seedIndex];
+    if (!knownSeed) continue;
+    await pool.execute(
+      `UPDATE hero_slides SET tag_es = ?, title_es = ?, description_es = ?, cta_es = ? WHERE id_slide = ?`,
+      [knownSeed.tag, knownSeed.title, knownSeed.description, knownSeed.cta, row.id_slide]
+    );
+  }
+
+  heroSlidesEsColumnsChecked = true;
+};
+
+const toSlidesDto = (req: AuthRequest, rows: HeroSlideRow[], lang: 'en' | 'es') =>
   rows.map((row) => ({
     id: Number(row.id_slide),
     image: buildPublicAssetUrl(req, row.image_url) || row.image_url,
-    tag: row.tag,
-    title: row.title,
-    description: row.description,
-    cta: row.cta,
+    tag: lang === 'es' ? (row.tag_es || row.tag) : row.tag,
+    title: lang === 'es' ? (row.title_es || row.title) : row.title,
+    description: lang === 'es' ? (row.description_es || row.description) : row.description,
+    cta: lang === 'es' ? (row.cta_es || row.cta) : row.cta,
+    tag_es: row.tag_es || '',
+    title_es: row.title_es || '',
+    description_es: row.description_es || '',
+    cta_es: row.cta_es || '',
   }));
 
 export const getHeroSlidesPublic = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     await ensureHeroSlidesTable();
+    await ensureHeroSlidesEsColumns();
+    const lang = String(req.query.lang || '').toLowerCase() === 'es' ? 'es' : 'en';
     const [rows] = await pool.execute<HeroSlideRow[]>(
-      `SELECT id_slide, sort_order, image_url, tag, title, description, cta
+      `SELECT id_slide, sort_order, image_url, tag, title, description, cta, tag_es, title_es, description_es, cta_es
        FROM hero_slides
        ORDER BY sort_order ASC`
     );
-    res.json({ success: true, slides: toSlidesDto(req, rows) });
+    res.json({ success: true, slides: toSlidesDto(req, rows, lang) });
   } catch (error) {
     console.error('Error in getHeroSlidesPublic:', error);
     res.status(500).json({ error: 'Internal server error' });
@@ -2763,6 +2848,7 @@ export const updateHeroSlides = async (req: AuthRequest, res: Response): Promise
   try {
     assertAllowedFields(req.body, ['slides']);
     await ensureHeroSlidesTable();
+    await ensureHeroSlidesEsColumns();
 
     const slides = Array.isArray(req.body?.slides) ? req.body.slides : null;
     if (!slides || slides.length === 0) {
@@ -2788,17 +2874,21 @@ export const updateHeroSlides = async (req: AuthRequest, res: Response): Promise
         const title = String(slide?.title || '').trim().slice(0, 120);
         const description = String(slide?.description || '').trim().slice(0, 255);
         const cta = String(slide?.cta || '').trim().slice(0, 80);
+        const tagEs = String(slide?.tag_es || '').trim().slice(0, 50);
+        const titleEs = String(slide?.title_es || '').trim().slice(0, 120);
+        const descriptionEs = String(slide?.description_es || '').trim().slice(0, 255);
+        const ctaEs = String(slide?.cta_es || '').trim().slice(0, 80);
 
         if (!image || !tag || !title || !description || !cta) {
           throw new Error(`Invalid slide payload at index ${idx}`);
         }
 
-        return [sortOrder, image, tag, title, description, cta];
+        return [sortOrder, image, tag, title, description, cta, tagEs || null, titleEs || null, descriptionEs || null, ctaEs || null];
       });
 
       await connection.execute<ResultSetHeader>(
-        `INSERT INTO hero_slides (sort_order, image_url, tag, title, description, cta)
-         VALUES ${sanitizedSlides.map(() => '(?, ?, ?, ?, ?, ?)').join(', ')}`,
+        `INSERT INTO hero_slides (sort_order, image_url, tag, title, description, cta, tag_es, title_es, description_es, cta_es)
+         VALUES ${sanitizedSlides.map(() => '(?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').join(', ')}`,
         sanitizedSlides.flat()
       );
 
@@ -2811,7 +2901,7 @@ export const updateHeroSlides = async (req: AuthRequest, res: Response): Promise
     }
 
     const [rows] = await pool.execute<HeroSlideRow[]>(
-      `SELECT id_slide, sort_order, image_url, tag, title, description, cta
+      `SELECT id_slide, sort_order, image_url, tag, title, description, cta, tag_es, title_es, description_es, cta_es
        FROM hero_slides
        ORDER BY sort_order ASC`
     );
@@ -2825,7 +2915,7 @@ export const updateHeroSlides = async (req: AuthRequest, res: Response): Promise
       { slides: slides.length }
     );
 
-    res.json({ success: true, slides: toSlidesDto(req, rows) });
+    res.json({ success: true, slides: toSlidesDto(req, rows, 'en') });
   } catch (error: any) {
     console.error('Error in updateHeroSlides:', error);
     res.status(400).json({ error: error?.message || 'Could not update slides' });
@@ -2874,7 +2964,7 @@ export const uploadHeroSlideImage = async (req: AuthRequest, res: Response): Pro
     }
 
     const [rows] = await pool.execute<HeroSlideRow[]>(
-      `SELECT id_slide, sort_order, image_url, tag, title, description, cta
+      `SELECT id_slide, sort_order, image_url, tag, title, description, cta, tag_es, title_es, description_es, cta_es
        FROM hero_slides
        ORDER BY sort_order ASC`
     );
@@ -2887,7 +2977,7 @@ export const uploadHeroSlideImage = async (req: AuthRequest, res: Response): Pro
       idSlide
     );
 
-    res.json({ success: true, image: imageUrl, slides: toSlidesDto(req, rows) });
+    res.json({ success: true, image: imageUrl, slides: toSlidesDto(req, rows, 'en') });
   } catch (error: any) {
     console.error('Error in uploadHeroSlideImage:', error);
     res.status(500).json({ error: 'Internal server error' });
@@ -3796,6 +3886,17 @@ const DEFAULT_HERO_HEADLINE = 'Meet Fixlife, your';
 const DEFAULT_HERO_DESCRIPTION =
   'Fixlife is a personal assistant that helps you stay organized, find trusted home professionals, and get chores done. All through messages.';
 
+const DEFAULT_HERO_ROLES_ES = [
+  'asistente personal.',
+  'plomero de confianza.',
+  'electricista experto.',
+  'limpiador confiable.',
+  'manitas local.',
+];
+const DEFAULT_HERO_HEADLINE_ES = 'Conoce a Fixlife, tu';
+const DEFAULT_HERO_DESCRIPTION_ES =
+  'Fixlife es un asistente personal que te ayuda a mantenerte organizado, encontrar profesionales de confianza para tu hogar y completar tareas. Todo a través de mensajes.';
+
 let heroTextTableChecked = false;
 
 export const ensureHeroTextTable = async () => {
@@ -3810,6 +3911,9 @@ export const ensureHeroTextTable = async () => {
       headline_prefix VARCHAR(120) NOT NULL DEFAULT 'Meet Fixlife, your',
       description TEXT NOT NULL,
       roles JSON NOT NULL,
+      headline_prefix_es VARCHAR(120) NULL,
+      description_es TEXT NULL,
+      roles_es JSON NULL,
       updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
       PRIMARY KEY (id)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
@@ -3817,29 +3921,95 @@ export const ensureHeroTextTable = async () => {
   const [rows] = await pool.execute<RowDataPacket[]>(`SELECT COUNT(*) AS total FROM hero_text_settings`);
   if (Number(rows[0]?.total || 0) === 0) {
     await pool.execute(
-      `INSERT INTO hero_text_settings (id, headline_prefix, description, roles) VALUES (1, ?, ?, ?)`,
-      [DEFAULT_HERO_HEADLINE, DEFAULT_HERO_DESCRIPTION, JSON.stringify(DEFAULT_HERO_ROLES)]
+      `INSERT INTO hero_text_settings (id, headline_prefix, description, roles, headline_prefix_es, description_es, roles_es) VALUES (1, ?, ?, ?, ?, ?, ?)`,
+      [
+        DEFAULT_HERO_HEADLINE, DEFAULT_HERO_DESCRIPTION, JSON.stringify(DEFAULT_HERO_ROLES),
+        DEFAULT_HERO_HEADLINE_ES, DEFAULT_HERO_DESCRIPTION_ES, JSON.stringify(DEFAULT_HERO_ROLES_ES),
+      ]
     );
   }
   heroTextTableChecked = true;
 };
 
-export const getHeroTextPublic = async (_req: AuthRequest, res: Response): Promise<void> => {
+let heroTextEsColumnsChecked = false;
+
+export const ensureHeroTextEsColumns = async () => {
+  if (heroTextEsColumnsChecked) return;
+  if (!shouldRunRuntimeSchemaSync()) {
+    heroTextEsColumnsChecked = true;
+    return;
+  }
+  await ensureHeroTextTable();
+
+  const columns: Array<[string, string]> = [
+    ['headline_prefix_es', 'ALTER TABLE hero_text_settings ADD COLUMN headline_prefix_es VARCHAR(120) NULL'],
+    ['description_es', 'ALTER TABLE hero_text_settings ADD COLUMN description_es TEXT NULL'],
+    ['roles_es', 'ALTER TABLE hero_text_settings ADD COLUMN roles_es JSON NULL'],
+  ];
+  for (const [columnName, alterSql] of columns) {
+    const [colRows] = await pool.execute<RowDataPacket[]>(
+      `SELECT COUNT(*) as total
+       FROM information_schema.COLUMNS
+       WHERE table_schema = DATABASE()
+         AND table_name = 'hero_text_settings'
+         AND column_name = ?`,
+      [columnName]
+    );
+    if (Number(colRows[0]?.total || 0) === 0) {
+      await pool.execute(alterSql);
+    }
+  }
+
+  const [seedRows] = await pool.execute<RowDataPacket[]>(
+    `SELECT headline_prefix_es FROM hero_text_settings WHERE id = 1 LIMIT 1`
+  );
+  if (seedRows.length > 0 && !seedRows[0].headline_prefix_es) {
+    await pool.execute(
+      `UPDATE hero_text_settings SET headline_prefix_es = ?, description_es = ?, roles_es = ? WHERE id = 1`,
+      [DEFAULT_HERO_HEADLINE_ES, DEFAULT_HERO_DESCRIPTION_ES, JSON.stringify(DEFAULT_HERO_ROLES_ES)]
+    );
+  }
+
+  heroTextEsColumnsChecked = true;
+};
+
+const parseHeroRoles = (value: unknown, fallback: string[]): string[] => {
+  try {
+    const parsed = typeof value === 'string' ? JSON.parse(value) : value;
+    if (Array.isArray(parsed) && parsed.length > 0) return parsed.map(String);
+  } catch { /* noop */ }
+  return fallback;
+};
+
+export const getHeroTextPublic = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     await ensureHeroTextTable();
+    await ensureHeroTextEsColumns();
+    const lang = String(req.query.lang || '').toLowerCase() === 'es' ? 'es' : 'en';
     const [rows] = await pool.execute<RowDataPacket[]>(
-      `SELECT headline_prefix, description, roles FROM hero_text_settings WHERE id = 1 LIMIT 1`
+      `SELECT headline_prefix, description, roles, headline_prefix_es, description_es, roles_es FROM hero_text_settings WHERE id = 1 LIMIT 1`
     );
     if (rows.length === 0) {
-      res.json({ success: true, headline_prefix: DEFAULT_HERO_HEADLINE, description: DEFAULT_HERO_DESCRIPTION, roles: DEFAULT_HERO_ROLES });
+      res.json(
+        lang === 'es'
+          ? { success: true, headline_prefix: DEFAULT_HERO_HEADLINE_ES, description: DEFAULT_HERO_DESCRIPTION_ES, roles: DEFAULT_HERO_ROLES_ES }
+          : { success: true, headline_prefix: DEFAULT_HERO_HEADLINE, description: DEFAULT_HERO_DESCRIPTION, roles: DEFAULT_HERO_ROLES }
+      );
       return;
     }
     const row = rows[0];
-    let roles: string[] = DEFAULT_HERO_ROLES;
-    try {
-      const parsed = typeof row.roles === 'string' ? JSON.parse(row.roles) : row.roles;
-      if (Array.isArray(parsed) && parsed.length > 0) roles = parsed.map(String);
-    } catch { roles = DEFAULT_HERO_ROLES; }
+    const roles = parseHeroRoles(row.roles, DEFAULT_HERO_ROLES);
+    const rolesEs = parseHeroRoles(row.roles_es, []);
+
+    if (lang === 'es') {
+      res.json({
+        success: true,
+        headline_prefix: String(row.headline_prefix_es || DEFAULT_HERO_HEADLINE_ES),
+        description: String(row.description_es || DEFAULT_HERO_DESCRIPTION_ES),
+        roles: rolesEs.length > 0 ? rolesEs : DEFAULT_HERO_ROLES_ES,
+      });
+      return;
+    }
     res.json({ success: true, headline_prefix: String(row.headline_prefix || DEFAULT_HERO_HEADLINE), description: String(row.description || DEFAULT_HERO_DESCRIPTION), roles });
   } catch (error) {
     console.error('Error in getHeroTextPublic:', error);
@@ -3849,7 +4019,7 @@ export const getHeroTextPublic = async (_req: AuthRequest, res: Response): Promi
 
 export const updateHeroText = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    const { headline_prefix, description, roles } = req.body;
+    const { headline_prefix, description, roles, headline_prefix_es, description_es, roles_es } = req.body;
     if (!headline_prefix || typeof headline_prefix !== 'string' || !headline_prefix.trim()) {
       res.status(400).json({ error: 'headline_prefix is required.' }); return;
     }
@@ -3863,14 +4033,33 @@ export const updateHeroText = async (req: AuthRequest, res: Response): Promise<v
     const safeDescription = sanitizeText(description, 500);
     const safeRoles = roles.map((r: unknown) => sanitizeText(String(r || ''), 80)).filter((r) => r.length > 0).slice(0, 20);
     if (safeRoles.length === 0) { res.status(400).json({ error: 'At least one non-empty role is required.' }); return; }
+
+    const safeHeadlineEs = typeof headline_prefix_es === 'string' ? sanitizeText(headline_prefix_es, 120) : '';
+    const safeDescriptionEs = typeof description_es === 'string' ? sanitizeText(description_es, 500) : '';
+    const safeRolesEs = Array.isArray(roles_es)
+      ? roles_es.map((r: unknown) => sanitizeText(String(r || ''), 80)).filter((r) => r.length > 0).slice(0, 20)
+      : [];
+
     await ensureHeroTextTable();
+    await ensureHeroTextEsColumns();
     await pool.execute(
-      `INSERT INTO hero_text_settings (id, headline_prefix, description, roles) VALUES (1, ?, ?, ?)
-       ON DUPLICATE KEY UPDATE headline_prefix = VALUES(headline_prefix), description = VALUES(description), roles = VALUES(roles)`,
-      [safeHeadline, safeDescription, JSON.stringify(safeRoles)]
+      `INSERT INTO hero_text_settings (id, headline_prefix, description, roles, headline_prefix_es, description_es, roles_es) VALUES (1, ?, ?, ?, ?, ?, ?)
+       ON DUPLICATE KEY UPDATE headline_prefix = VALUES(headline_prefix), description = VALUES(description), roles = VALUES(roles),
+         headline_prefix_es = VALUES(headline_prefix_es), description_es = VALUES(description_es), roles_es = VALUES(roles_es)`,
+      [
+        safeHeadline, safeDescription, JSON.stringify(safeRoles),
+        safeHeadlineEs || null, safeDescriptionEs || null, safeRolesEs.length > 0 ? JSON.stringify(safeRolesEs) : null,
+      ]
     );
     await logAdminActivity(req, 'update', 'hero_text', 'Updated hero text settings', null, { headline_prefix: safeHeadline, roles_count: safeRoles.length });
-    res.json({ success: true, message: 'Hero text updated successfully.', data: { headline_prefix: safeHeadline, description: safeDescription, roles: safeRoles } });
+    res.json({
+      success: true,
+      message: 'Hero text updated successfully.',
+      data: {
+        headline_prefix: safeHeadline, description: safeDescription, roles: safeRoles,
+        headline_prefix_es: safeHeadlineEs, description_es: safeDescriptionEs, roles_es: safeRolesEs,
+      },
+    });
   } catch (error: any) {
     console.error('Error in updateHeroText:', error);
     if (typeof error?.message === 'string' && error.message.toLowerCase().includes('invalid')) { res.status(400).json({ error: error.message }); return; }
