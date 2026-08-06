@@ -252,8 +252,16 @@ Esto evita despliegues “vacíos” cuando se monta en una máquina nueva.
 Referencia base:
 
 ```bash
-docker compose -f docker-compose.prod.yml up -d --build
+# Las imágenes se publican desde GitHub Actions al hacer push a main.
+# latest trae última versión; fijar sha-<commit> permite rollback reproducible.
+docker compose -f docker-compose.prod.yml pull
+docker compose -f docker-compose.prod.yml up -d --remove-orphans
 ```
+
+Producción consume imágenes `ghcr.io/alejoo548/fixlife-*`, no código local.
+Configura en GitHub → Settings → Secrets and variables → Actions los valores
+`VITE_*` necesarios para compilar frontend. Si paquetes GHCR quedan privados,
+configura credenciales de lectura de GHCR en Docker Manager antes de actualizar.
 
 Checklist mínimo:
 

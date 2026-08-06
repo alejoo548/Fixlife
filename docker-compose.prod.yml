@@ -1,14 +1,6 @@
 services:
   frontend:
-    build:
-      context: .
-      dockerfile: docker/Dockerfile.prod
-      args:
-        VITE_API_URL: ${VITE_API_URL:-}
-        VITE_ENABLE_GOOGLE_LOGIN: ${VITE_ENABLE_GOOGLE_LOGIN:-false}
-        VITE_GOOGLE_CLIENT_ID: ${VITE_GOOGLE_CLIENT_ID:-}
-        VITE_RECAPTCHA_SITE_KEY: ${VITE_RECAPTCHA_SITE_KEY:-}
-        VITE_TOMTOM_TRAFFIC_KEY: ${VITE_TOMTOM_TRAFFIC_KEY:-}
+    image: ghcr.io/alejoo548/fixlife-frontend:${FIXLIFE_IMAGE_TAG:-latest}
     container_name: fixlife_frontend_prod
     restart: unless-stopped
     mem_limit: 128m
@@ -49,10 +41,7 @@ services:
       - fixlife-network
 
   backend:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
-      target: prod
+    image: ghcr.io/alejoo548/fixlife-backend:${FIXLIFE_IMAGE_TAG:-latest}
     container_name: fixlife_backend_prod
     restart: unless-stopped
     mem_limit: 384m
@@ -130,9 +119,7 @@ services:
       - fixlife-network
 
   mysql-backup:
-    build:
-      context: ./docker
-      dockerfile: Dockerfile.mysql-backup
+    image: ghcr.io/alejoo548/fixlife-mysql-backup:${FIXLIFE_IMAGE_TAG:-latest}
     container_name: fixlife_mysql_backup_prod
     restart: unless-stopped
     mem_limit: 192m
