@@ -9,7 +9,6 @@ COPY package*.json ./
 FROM base AS dev
 
 RUN npm install
-RUN npm install -g nodemon ts-node typescript
 
 COPY . .
 
