@@ -1063,11 +1063,11 @@ export const Navbar: React.FC<NavbarProps> = ({
       </header>
 
       <div
-        className={`fixed inset-0 z-[60] bg-white/95 dark:bg-slate-950/95 backdrop-blur-xl xl:hidden transition-all duration-300 ease-in-out ${isMobileMenuOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
+        className={`fixed inset-0 z-[220] bg-white/95 dark:bg-slate-950/95 backdrop-blur-xl xl:hidden transition-all duration-300 ease-in-out ${isMobileMenuOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
           }`}
       >
         <div className="flex flex-col h-full p-6">
-          <div className="flex justify-between items-center mb-8">
+          <div className="flex shrink-0 justify-between items-center mb-8">
             <Logo onClick={handleGoHomeClick} />
             <button
               onClick={() => setIsMobileMenuOpen(false)}
@@ -1079,11 +1079,12 @@ export const Navbar: React.FC<NavbarProps> = ({
             </button>
           </div>
 
+          <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar flex flex-col">
           <div className="mb-6">
             <LanguageSwitcher mobile />
           </div>
 
-          <div className="flex flex-col gap-6 overflow-y-auto">
+          <div className="flex flex-col gap-6">
             {navItems.map((item) => (
               <div key={item.name} className="flex flex-col gap-3">
                 <button
@@ -1111,7 +1112,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             ))}
           </div>
 
-          <div className="mt-auto pt-8 border-t border-gray-200 dark:border-white/10 flex flex-col gap-4">
+          <div className="mt-auto pt-8 pb-2 border-t border-gray-200 dark:border-white/10 flex flex-col gap-4">
   {!user ? (
     <>
       <button
@@ -1156,6 +1157,7 @@ export const Navbar: React.FC<NavbarProps> = ({
     </>
   )}
 </div>
+          </div>
         </div>
       </div>
 
