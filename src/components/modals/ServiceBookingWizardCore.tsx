@@ -1932,17 +1932,17 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
             const { id_request, status, selection_mode, assigned_worker_profile } = createdRequest;
             const autoAssigned = status === 'assigned' && selection_mode === 'auto_assign' && assigned_worker_profile != null;
             await showSweetAlert({
-                title: autoAssigned ? t('serviceRequest.submitted.proMatchedTitle') : t('serviceRequest.submitted.requestSentTitle'),
+                title: autoAssigned ? t('serviceRequest.wizard.submitted.proMatchedTitle') : t('serviceRequest.wizard.submitted.requestSentTitle'),
                 message: autoAssigned
                     ? id_request
-                        ? t('serviceRequest.submitted.assignedMessage', { id: id_request })
-                        : t('serviceRequest.submitted.assignedMessageNoId')
+                        ? t('serviceRequest.wizard.submitted.assignedMessage', { id: id_request })
+                        : t('serviceRequest.wizard.submitted.assignedMessageNoId')
                     : id_request
-                        ? t('serviceRequest.submitted.createdMessage', { id: id_request })
-                        : t('serviceRequest.submitted.createdMessageNoId'),
+                        ? t('serviceRequest.wizard.submitted.createdMessage', { id: id_request })
+                        : t('serviceRequest.wizard.submitted.createdMessageNoId'),
                 html: buildSubmittedRequestSummaryHtml(createdRequest),
                 tone: 'success',
-                confirmText: t('serviceRequest.submitted.backToMainMap'),
+                confirmText: t('serviceRequest.wizard.submitted.backToMainMap'),
             });
             setIsHistoryModalOpen(false);
             navigate('/app');

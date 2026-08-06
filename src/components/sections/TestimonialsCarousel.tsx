@@ -125,7 +125,7 @@ export const TestimonialsCarousel: React.FC = () => {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isAutoPlaying, setIsAutoPlaying] = useState(true);
   const [animating, setAnimating] = useState(false);
-  const [displayItems, setDisplayItems] = useState<DisplayTestimonial[]>(testimonials);
+  const [displayItems, setDisplayItems] = useState<DisplayTestimonial[]>([]);
   const resumeTimerRef = useRef<number | null>(null);
 
   const fetchLiveReviews = useCallback(async () => {
