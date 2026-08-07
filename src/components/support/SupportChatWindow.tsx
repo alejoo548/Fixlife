@@ -67,7 +67,7 @@ export const SupportChatWindow: React.FC<SupportChatWindowProps> = ({
           return (
             <div key={msg.id} className={`flex ${isMine ? 'justify-end' : 'justify-start'}`}>
               <div
-                className={`max-w-[83%] rounded-3xl px-4 py-[13px] text-[14.8px] leading-snug tracking-[-0.1px] shadow-sm ${
+                className={`max-w-[83%] break-words rounded-3xl px-4 py-[13px] text-[14.8px] leading-snug tracking-[-0.1px] shadow-sm ${
                   isMine
                     ? 'bg-bird-blue text-white rounded-br-[14px]'
                     : 'bg-white text-gray-900 border border-gray-100/70 rounded-bl-[14px]'
