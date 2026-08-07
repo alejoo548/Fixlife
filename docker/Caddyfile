@@ -10,10 +10,7 @@ fixlife.site, www.fixlife.site {
 	}
 
 	handle /socket.io/* {
-		reverse_proxy backend:8000 {
-			header_up Connection {>Connection}
-			header_up Upgrade {>Upgrade}
-		}
+		reverse_proxy backend:8000
 	}
 
 	handle {
