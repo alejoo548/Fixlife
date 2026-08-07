@@ -47,7 +47,7 @@ export const SupportChatWindow: React.FC<SupportChatWindowProps> = ({
           <ArrowLeft size={20} />
         </button>
         <div className="min-w-0 flex-1">
-          <div className="font-bold text-gray-900 dark:text-slate-100">{thread.subject}</div>
+          <div className="truncate font-bold text-gray-900 dark:text-slate-100">{thread.subject}</div>
           <div className="text-xs text-gray-500 dark:text-slate-400">{t('serviceRequest.supportWidget.chatHeader')}</div>
         </div>
       </div>

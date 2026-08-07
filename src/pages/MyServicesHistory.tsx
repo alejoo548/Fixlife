@@ -699,7 +699,7 @@ const RequestCard: React.FC<{
                             <span>{formatDate(request.created_at, language)}</span>
                         </div>
                         <h3 className="mt-2 text-xl font-black text-slate-900 truncate dark:text-slate-100">{localizedServiceName}</h3>
-                        <p className="mt-1.5 line-clamp-2 text-sm text-slate-500 dark:text-slate-400">{localizedDescription}</p>
+                        <p className="mt-1.5 line-clamp-2 break-words text-sm text-slate-500 dark:text-slate-400">{localizedDescription}</p>
                     </div>
                     <span
                         className={`shrink-0 rounded-full border px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.14em] ${statusTone(request.status)}`}
