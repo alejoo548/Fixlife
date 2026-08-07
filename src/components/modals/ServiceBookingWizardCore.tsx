@@ -3750,7 +3750,7 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                     animate={{ opacity: 1, y: 0 }}
                                     className="text-2xl font-bold text-gray-900 dark:text-slate-100 mb-2"
                                 >
-                                    Finding the best pro...
+                                    {t('serviceRequest.wizard.search.title')}
                                 </motion.h2>
                                 <motion.p
                                     initial={{ opacity: 0, y: 20 }}
@@ -3758,7 +3758,7 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                     transition={{ delay: 0.1 }}
                                     className="text-gray-600 dark:text-slate-300 mb-8"
                                 >
-                                    This will only take a moment
+                                    {t('serviceRequest.wizard.search.subtitle')}
                                 </motion.p>
                                 <motion.button
                                     whileHover={{ scale: 1.05 }}
@@ -3766,7 +3766,7 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                     onClick={() => setIsSearching(false)}
                                     className="px-6 py-2 rounded-full border-2 border-gray-200 dark:border-white/10 text-gray-600 dark:text-slate-300 font-bold hover:border-gray-300 dark:hover:border-white/10 hover:bg-gray-50 dark:hover:bg-white/[0.04] transition-all"
                                 >
-                                    Cancel
+                                    {t('serviceRequest.wizard.search.cancel')}
                                 </motion.button>
                             </motion.div>
                         )}

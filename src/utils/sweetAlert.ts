@@ -19,11 +19,11 @@ export const showSweetAlert = (input: {
     confirmButtonText: input.confirmText || i18n.t('common.gotIt'),
     buttonsStyling: false,
     customClass: {
-      popup: 'rounded-[28px] border border-slate-200 px-5 pb-6 pt-7 shadow-2xl',
-      title: 'text-2xl font-black text-slate-950',
-      htmlContainer: 'text-sm font-semibold leading-6 text-slate-600',
+      popup: 'rounded-[28px] border border-slate-200 bg-white px-5 pb-6 pt-7 shadow-2xl dark:border-slate-700 dark:bg-slate-900',
+      title: 'text-2xl font-black text-slate-950 dark:text-slate-100',
+      htmlContainer: 'text-sm font-semibold leading-6 text-slate-600 dark:text-slate-300',
       confirmButton:
-        'rounded-2xl bg-slate-950 px-6 py-3 text-sm font-black text-white shadow-lg transition hover:bg-black',
+        'rounded-2xl bg-slate-950 px-6 py-3 text-sm font-black text-white shadow-lg transition hover:bg-black dark:bg-white dark:text-slate-950 dark:hover:bg-slate-200',
     },
   });
 
@@ -46,15 +46,15 @@ export const showSweetConfirm = async (input: {
     focusCancel: true,
     buttonsStyling: false,
     customClass: {
-      popup: 'rounded-[28px] border border-slate-200 px-5 pb-6 pt-7 shadow-2xl',
-      title: 'text-2xl font-black text-slate-950',
-      htmlContainer: 'text-sm font-semibold leading-6 text-slate-600',
+      popup: 'rounded-[28px] border border-slate-200 bg-white px-5 pb-6 pt-7 shadow-2xl dark:border-slate-700 dark:bg-slate-900',
+      title: 'text-2xl font-black text-slate-950 dark:text-slate-100',
+      htmlContainer: 'text-sm font-semibold leading-6 text-slate-600 dark:text-slate-300',
       actions: 'mt-6 flex w-full gap-3 px-3',
       cancelButton:
-        'flex-1 rounded-2xl border border-slate-200 bg-white px-5 py-3 text-sm font-black text-slate-700 transition hover:bg-slate-50',
+        'flex-1 rounded-2xl border border-slate-200 bg-white px-5 py-3 text-sm font-black text-slate-700 transition hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700',
       confirmButton: input.destructive
         ? 'flex-1 rounded-2xl bg-red-600 px-5 py-3 text-sm font-black text-white shadow-lg transition hover:bg-red-700'
-        : 'flex-1 rounded-2xl bg-slate-950 px-5 py-3 text-sm font-black text-white shadow-lg transition hover:bg-black',
+        : 'flex-1 rounded-2xl bg-slate-950 px-5 py-3 text-sm font-black text-white shadow-lg transition hover:bg-black dark:bg-white dark:text-slate-950 dark:hover:bg-slate-200',
     },
   });
 
@@ -78,8 +78,8 @@ export const showSweetToast = (input: {
     timerProgressBar: true,
     buttonsStyling: false,
     customClass: {
-      popup: 'rounded-2xl border border-slate-200 px-4 py-3 shadow-2xl',
-      title: 'text-sm font-black text-slate-950',
-      htmlContainer: 'text-xs font-semibold text-slate-600',
+      popup: 'rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-2xl dark:border-slate-700 dark:bg-slate-900',
+      title: 'text-sm font-black text-slate-950 dark:text-slate-100',
+      htmlContainer: 'text-xs font-semibold text-slate-600 dark:text-slate-300',
     },
   });
