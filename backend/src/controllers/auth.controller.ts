@@ -10,6 +10,7 @@ import { OAuth2Client } from 'google-auth-library';
 import { signAccessToken } from '../config/security';
 import { deleteUploadIfExists } from '../utils/assets';
 import { recordSystemEvent } from '../services/systemEvents.service';
+import { AuthErrorCode } from '../constants/authErrorCodes';
 
 const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || '';
 const RECAPTCHA_SECRET_KEY = process.env.RECAPTCHA_SECRET_KEY || '';
@@ -81,7 +82,7 @@ export const registerWorker = async (req: Request, res: Response): Promise<void>
     const { name, lastname, email, phone_number, password, username, service_ids } = req.body;
 
     if (!name || !lastname || !email || !phone_number || !password) {
-      res.status(400).json({ error: 'Missing required fields' });
+      res.status(400).json({ error: 'Missing required fields' , code: AuthErrorCode.MISSING_FIELDS });
       return;
     }
 
@@ -92,27 +93,27 @@ export const registerWorker = async (req: Request, res: Response): Promise<void>
     const trimmedUsername = username ? username.trim() : undefined;
 
     if (!isValidEmail(trimmedEmail)) {
-      res.status(400).json({ error: 'Invalid email.' });
+      res.status(400).json({ error: 'Invalid email.' , code: AuthErrorCode.INVALID_EMAIL });
       return;
     }
     if (!isValidName(trimmedName)) {
-      res.status(400).json({ error: 'First name is invalid.' });
+      res.status(400).json({ error: 'First name is invalid.' , code: AuthErrorCode.INVALID_FIRST_NAME });
       return;
     }
     if (!isValidName(trimmedLastname)) {
-      res.status(400).json({ error: 'Last name is invalid.' });
+      res.status(400).json({ error: 'Last name is invalid.' , code: AuthErrorCode.INVALID_LAST_NAME });
       return;
     }
     if (!isValidPhone(trimmedPhoneNumber)) {
-      res.status(400).json({ error: 'Phone number is invalid.' });
+      res.status(400).json({ error: 'Phone number is invalid.' , code: AuthErrorCode.INVALID_PHONE });
       return;
     }
     if (trimmedUsername && !isValidUsername(trimmedUsername)) {
-      res.status(400).json({ error: 'Username is invalid.' });
+      res.status(400).json({ error: 'Username is invalid.' , code: AuthErrorCode.INVALID_USERNAME });
       return;
     }
     if (!isValidPassword(String(password))) {
-      res.status(400).json({ error: 'Password must be 8-128 chars and include at least 1 uppercase letter, 1 lowercase letter and 1 number.' });
+      res.status(400).json({ error: 'Password must be 8-128 chars and include at least 1 uppercase letter, 1 lowercase letter and 1 number.' , code: AuthErrorCode.WEAK_PASSWORD });
       return;
     }
 
@@ -125,11 +126,11 @@ export const registerWorker = async (req: Request, res: Response): Promise<void>
       : [];
 
     if (normalizedServiceIds.length === 0) {
-      res.status(400).json({ error: 'Select at least one service you offer.' });
+      res.status(400).json({ error: 'Select at least one service you offer.' , code: AuthErrorCode.SELECT_SERVICE });
       return;
     }
     if (normalizedServiceIds.length > 3) {
-      res.status(400).json({ error: 'You can select up to 3 services.' });
+      res.status(400).json({ error: 'You can select up to 3 services.' , code: AuthErrorCode.TOO_MANY_SERVICES });
       return;
     }
 
@@ -144,7 +145,7 @@ export const registerWorker = async (req: Request, res: Response): Promise<void>
       );
       if (activeServiceRows.length !== normalizedServiceIds.length) {
         await connection.rollback();
-        res.status(400).json({ error: 'One or more selected services are not available.' });
+        res.status(400).json({ error: 'One or more selected services are not available.' , code: AuthErrorCode.SERVICES_UNAVAILABLE });
         return;
       }
 
@@ -197,7 +198,7 @@ export const registerWorker = async (req: Request, res: Response): Promise<void>
           const emailSent = await sendVerificationEmail(trimmedEmail, otp, trimmedName);
           if (!emailSent) {
             await connection.rollback();
-            res.status(500).json({ error: 'Could not deliver the verification email. Please try again.' });
+            res.status(500).json({ error: 'Could not deliver the verification email. Please try again.' , code: AuthErrorCode.EMAIL_DELIVERY_FAILED });
             return;
           }
 
@@ -207,7 +208,7 @@ export const registerWorker = async (req: Request, res: Response): Promise<void>
         }
 
         await connection.rollback();
-        res.status(400).json({ error: 'Email already registered' });
+        res.status(400).json({ error: 'Email already registered' , code: AuthErrorCode.EMAIL_ALREADY_REGISTERED });
         return;
       }
 
@@ -219,7 +220,7 @@ export const registerWorker = async (req: Request, res: Response): Promise<void>
 
         if (existingUsernames.length > 0) {
           await connection.rollback();
-          res.status(400).json({ error: 'Username is already taken' });
+          res.status(400).json({ error: 'Username is already taken' , code: AuthErrorCode.USERNAME_TAKEN });
           return;
         }
       }
@@ -258,7 +259,7 @@ export const registerWorker = async (req: Request, res: Response): Promise<void>
       
       if (!emailSent) {
         await connection.rollback();
-        res.status(500).json({ error: 'Could not deliver the verification email. Please try again or use another email.' });
+        res.status(500).json({ error: 'Could not deliver the verification email. Please try again or use another email.' , code: AuthErrorCode.EMAIL_DELIVERY_FAILED });
         return;
       }
 
@@ -277,7 +278,7 @@ export const registerWorker = async (req: Request, res: Response): Promise<void>
     }
   } catch (error: any) {
     console.error('Error in registerWorker:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    res.status(500).json({ error: 'Internal server error' , code: AuthErrorCode.INTERNAL_ERROR });
   }
 };
 
@@ -288,7 +289,7 @@ export const resendOtp = async (req: Request, res: Response): Promise<void> => {
     const { email } = req.body;
 
     if (!email) {
-      res.status(400).json({ error: 'Email is required' });
+      res.status(400).json({ error: 'Email is required' , code: AuthErrorCode.EMAIL_REQUIRED });
       return;
     }
     const trimmedEmail = String(email).trim().toLowerCase();
@@ -299,14 +300,14 @@ export const resendOtp = async (req: Request, res: Response): Promise<void> => {
     );
 
     if (users.length === 0) {
-      res.status(404).json({ error: 'User not found' });
+      res.status(404).json({ error: 'User not found' , code: AuthErrorCode.USER_NOT_FOUND });
       return;
     }
 
     const user = users[0];
 
     if (user.verification_token === null) {
-      res.status(400).json({ error: 'This account is already verified' });
+      res.status(400).json({ error: 'This account is already verified' , code: AuthErrorCode.ALREADY_VERIFIED });
       return;
     }
 
@@ -321,14 +322,14 @@ export const resendOtp = async (req: Request, res: Response): Promise<void> => {
     const emailSent = await sendVerificationEmail(trimmedEmail, otp, user.name);
 
     if (!emailSent) {
-      res.status(500).json({ error: 'Could not send verification email. Please try again.' });
+      res.status(500).json({ error: 'Could not send verification email. Please try again.' , code: AuthErrorCode.EMAIL_DELIVERY_FAILED });
       return;
     }
 
     res.json({ success: true, message: 'New verification code sent to your email.' });
   } catch (error: any) {
     console.error('Error in resendOtp:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    res.status(500).json({ error: 'Internal server error' , code: AuthErrorCode.INTERNAL_ERROR });
   }
 };
 
@@ -340,7 +341,7 @@ export const verifyWorkerEmail = async (req: Request, res: Response): Promise<vo
     const { email, otp } = req.body;
 
     if (!email || !otp) {
-      res.status(400).json({ error: 'Email and OTP are required' });
+      res.status(400).json({ error: 'Email and OTP are required' , code: AuthErrorCode.OTP_FIELDS_REQUIRED });
       return;
     }
     const trimmedEmail = String(email).trim().toLowerCase();
@@ -353,19 +354,19 @@ export const verifyWorkerEmail = async (req: Request, res: Response): Promise<vo
     );
 
     if (users.length === 0) {
-      res.status(404).json({ error: 'User not found' });
+      res.status(404).json({ error: 'User not found' , code: AuthErrorCode.USER_NOT_FOUND });
       return;
     }
 
     const user = users[0];
 
     if (user.verification_token !== trimmedOtp) {
-      res.status(400).json({ error: 'Invalid verification token' });
+      res.status(400).json({ error: 'Invalid verification token' , code: AuthErrorCode.INVALID_OTP });
       return;
     }
 
     if (new Date(user.token_expires_at) < new Date()) {
-      res.status(400).json({ error: 'Verification token has expired' });
+      res.status(400).json({ error: 'Verification token has expired' , code: AuthErrorCode.OTP_EXPIRED });
       return;
     }
 
@@ -427,7 +428,7 @@ export const verifyWorkerEmail = async (req: Request, res: Response): Promise<vo
     }
   } catch (error: any) {
     console.error('Error in verifyWorkerEmail:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    res.status(500).json({ error: 'Internal server error' , code: AuthErrorCode.INTERNAL_ERROR });
   }
 };
 
@@ -438,7 +439,7 @@ export const registerUser = async (req: Request, res: Response): Promise<void> =
     const { name, lastname, email, phone_number, password, username, captchaToken } = req.body;
 
     if (!name || !lastname || !email || !phone_number || !password) {
-      res.status(400).json({ error: 'Missing required fields' });
+      res.status(400).json({ error: 'Missing required fields' , code: AuthErrorCode.MISSING_FIELDS });
       return;
     }
 
@@ -449,39 +450,39 @@ export const registerUser = async (req: Request, res: Response): Promise<void> =
     const trimmedUsername = username ? String(username).trim() : '';
 
     if (!isValidEmail(trimmedEmail)) {
-      res.status(400).json({ error: 'Invalid email' });
+      res.status(400).json({ error: 'Invalid email' , code: AuthErrorCode.INVALID_EMAIL });
       return;
     }
 
     if (!isValidName(trimmedName) || !isValidName(trimmedLastname)) {
-      res.status(400).json({ error: 'Invalid name or lastname' });
+      res.status(400).json({ error: 'Invalid name or lastname' , code: AuthErrorCode.INVALID_NAME_LASTNAME });
       return;
     }
 
     if (!isValidPhone(trimmedPhoneNumber)) {
-      res.status(400).json({ error: 'Invalid phone number format' });
+      res.status(400).json({ error: 'Invalid phone number format' , code: AuthErrorCode.INVALID_PHONE });
       return;
     }
 
     if (trimmedUsername && !isValidUsername(trimmedUsername)) {
-      res.status(400).json({ error: 'Invalid username format' });
+      res.status(400).json({ error: 'Invalid username format' , code: AuthErrorCode.INVALID_USERNAME });
       return;
     }
 
     if (!isValidPassword(String(password))) {
-      res.status(400).json({ error: 'Password must be 8-128 chars and include at least 1 letter and 1 number' });
+      res.status(400).json({ error: 'Password must be 8-128 chars and include at least 1 letter and 1 number' , code: AuthErrorCode.WEAK_PASSWORD });
       return;
     }
 
     if (isRecaptchaEnabled && !captchaToken) {
-      res.status(400).json({ error: 'Captcha is required' });
+      res.status(400).json({ error: 'Captcha is required' , code: AuthErrorCode.CAPTCHA_REQUIRED });
       return;
     }
 
     if (isRecaptchaEnabled) {
       const captchaResult = await verifyRecaptchaToken(String(captchaToken), req.ip);
       if (!captchaResult.success) {
-        res.status(400).json({ error: captchaResult.error || 'Captcha validation failed' });
+        res.status(400).json({ error: captchaResult.error || 'Captcha validation failed', code: AuthErrorCode.CAPTCHA_FAILED });
         return;
       }
     }
@@ -498,7 +499,7 @@ export const registerUser = async (req: Request, res: Response): Promise<void> =
 
       if (existingUsers.length > 0) {
         await connection.rollback();
-        res.status(400).json({ error: 'Email already registered' });
+        res.status(400).json({ error: 'Email already registered' , code: AuthErrorCode.EMAIL_ALREADY_REGISTERED });
         return;
       }
 
@@ -540,7 +541,7 @@ export const registerUser = async (req: Request, res: Response): Promise<void> =
     }
   } catch (error: any) {
     console.error('Error in registerUser:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    res.status(500).json({ error: 'Internal server error' , code: AuthErrorCode.INTERNAL_ERROR });
   }
 };
 
@@ -549,7 +550,7 @@ export const login = async (req: Request, res: Response): Promise<void> => {
     const { email, password } = req.body;
 
     if (!email || !password) {
-      res.status(400).json({ error: 'Email and password required' });
+      res.status(400).json({ error: 'Email and password required' , code: AuthErrorCode.LOGIN_FIELDS_REQUIRED });
       return;
     }
 
@@ -567,7 +568,7 @@ export const login = async (req: Request, res: Response): Promise<void> => {
     );
 
     if (users.length === 0) {
-      res.status(401).json({ error: 'Invalid credentials' });
+      res.status(401).json({ error: 'Invalid credentials' , code: AuthErrorCode.INVALID_CREDENTIALS });
       return;
     }
 
@@ -575,7 +576,7 @@ export const login = async (req: Request, res: Response): Promise<void> => {
 
     // Account locked due to previous failed login attempts?
     if (user.locked_until && new Date(user.locked_until) > new Date()) {
-      res.status(403).json({ error: 'Too many failed attempts. Account temporarily locked. Try again later.' });
+      res.status(403).json({ error: 'Too many failed attempts. Account temporarily locked. Try again later.' , code: AuthErrorCode.ACCOUNT_LOCKED });
       await recordSystemEvent({
         level: 'warning',
         component: 'auth',
@@ -606,7 +607,7 @@ export const login = async (req: Request, res: Response): Promise<void> => {
 
       await pool.execute(updateSql, params);
 
-      res.status(401).json({ error: 'Invalid credentials' });
+      res.status(401).json({ error: 'Invalid credentials' , code: AuthErrorCode.INVALID_CREDENTIALS });
       await recordSystemEvent({
         level: 'warning',
         component: 'auth',
@@ -618,7 +619,7 @@ export const login = async (req: Request, res: Response): Promise<void> => {
     }
 
     if (user.is_active === 0) {
-      res.status(403).json({ error: 'Account is inactive. Contact support.' });
+      res.status(403).json({ error: 'Account is inactive. Contact support.' , code: AuthErrorCode.ACCOUNT_INACTIVE });
       return;
     }
 
@@ -680,7 +681,7 @@ export const login = async (req: Request, res: Response): Promise<void> => {
     });
   } catch (error: any) {
     console.error('Error in login:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    res.status(500).json({ error: 'Internal server error' , code: AuthErrorCode.INTERNAL_ERROR });
   }
 };
 
@@ -689,12 +690,12 @@ export const googleLogin = async (req: Request, res: Response): Promise<void> =>
     const { credential } = req.body;
 
     if (!credential) {
-      res.status(400).json({ error: 'Missing Google credential' });
+      res.status(400).json({ error: 'Missing Google credential' , code: AuthErrorCode.GOOGLE_CRED_MISSING });
       return;
     }
 
     if (!googleClient || !GOOGLE_CLIENT_ID) {
-      res.status(500).json({ error: 'Google login is not configured' });
+      res.status(500).json({ error: 'Google login is not configured' , code: AuthErrorCode.GOOGLE_NOT_CONFIGURED });
       return;
     }
 
@@ -713,12 +714,12 @@ export const googleLogin = async (req: Request, res: Response): Promise<void> =>
     const email = payload?.email ? String(payload.email).toLowerCase() : '';
 
     if (!email) {
-      res.status(400).json({ error: 'Google account email is missing' });
+      res.status(400).json({ error: 'Google account email is missing' , code: AuthErrorCode.GOOGLE_EMAIL_MISSING });
       return;
     }
 
     if (payload?.email_verified === false) {
-      res.status(400).json({ error: 'Google email is not verified' });
+      res.status(400).json({ error: 'Google email is not verified' , code: AuthErrorCode.GOOGLE_EMAIL_UNVERIFIED });
       return;
     }
 
@@ -750,13 +751,13 @@ export const googleLogin = async (req: Request, res: Response): Promise<void> =>
 
         if (user.locked_until && new Date(user.locked_until) > new Date()) {
           await connection.rollback();
-          res.status(403).json({ error: 'Too many failed attempts. Account temporarily locked. Try again later.' });
+          res.status(403).json({ error: 'Too many failed attempts. Account temporarily locked. Try again later.' , code: AuthErrorCode.ACCOUNT_LOCKED });
           return;
         }
 
         if (user.is_active === 0) {
           await connection.rollback();
-          res.status(403).json({ error: 'Account is inactive. Contact support.' });
+          res.status(403).json({ error: 'Account is inactive. Contact support.' , code: AuthErrorCode.ACCOUNT_INACTIVE });
           return;
         }
 
@@ -852,7 +853,7 @@ export const googleLogin = async (req: Request, res: Response): Promise<void> =>
     }
   } catch (error: any) {
     console.error('Error in googleLogin:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    res.status(500).json({ error: 'Internal server error' , code: AuthErrorCode.INTERNAL_ERROR });
   }
 };
 
@@ -861,7 +862,7 @@ export const forgotPassword = async (req: Request, res: Response): Promise<void>
     const { email } = req.body;
 
     if (!email || !email.trim()) {
-      res.status(400).json({ error: 'Email is required' });
+      res.status(400).json({ error: 'Email is required' , code: AuthErrorCode.EMAIL_REQUIRED });
       return;
     }
 
@@ -897,7 +898,7 @@ export const forgotPassword = async (req: Request, res: Response): Promise<void>
     const emailSent = await sendPasswordResetEmail(trimmedEmail, otp, user.name);
 
     if (!emailSent) {
-      res.status(500).json({ error: 'Could not send reset email. Please try again.' });
+      res.status(500).json({ error: 'Could not send reset email. Please try again.' , code: AuthErrorCode.EMAIL_DELIVERY_FAILED });
       return;
     }
 
@@ -908,7 +909,7 @@ export const forgotPassword = async (req: Request, res: Response): Promise<void>
 
   } catch (error: any) {
     console.error('Error in forgotPassword:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    res.status(500).json({ error: 'Internal server error' , code: AuthErrorCode.INTERNAL_ERROR });
   }
 };
 
@@ -917,7 +918,7 @@ export const resetPassword = async (req: Request, res: Response): Promise<void> 
     const { email, token, newPassword } = req.body;
 
     if (!email || !token || !newPassword) {
-      res.status(400).json({ error: 'Email, token, and new password are required' });
+      res.status(400).json({ error: 'Email, token, and new password are required' , code: AuthErrorCode.RESET_FIELDS_REQUIRED });
       return;
     }
 
@@ -925,7 +926,7 @@ export const resetPassword = async (req: Request, res: Response): Promise<void> 
     const trimmedToken = token.trim();
 
     if (!isValidPassword(newPassword)) {
-      res.status(400).json({ error: 'Password must be 8-128 chars and include at least 1 uppercase letter, 1 lowercase letter and 1 number.' });
+      res.status(400).json({ error: 'Password must be 8-128 chars and include at least 1 uppercase letter, 1 lowercase letter and 1 number.' , code: AuthErrorCode.WEAK_PASSWORD });
       return;
     }
 
@@ -945,7 +946,7 @@ export const resetPassword = async (req: Request, res: Response): Promise<void> 
       new Date(user.token_expires_at) >= new Date();
 
     if (!isValidReset) {
-      res.status(400).json({ error: 'Invalid email or verification code' });
+      res.status(400).json({ error: 'Invalid email or verification code' , code: AuthErrorCode.INVALID_RESET_CODE });
       return;
     }
 
@@ -971,7 +972,7 @@ export const resetPassword = async (req: Request, res: Response): Promise<void> 
     res.json({ success: true, message: 'Password updated successfully' });
   } catch (error: any) {
     console.error('Error in resetPassword:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    res.status(500).json({ error: 'Internal server error' , code: AuthErrorCode.INTERNAL_ERROR });
   }
 };
 
@@ -980,7 +981,7 @@ export const verifyResetToken = async (req: Request, res: Response): Promise<voi
     const { email, token } = req.body;
 
     if (!email || !token) {
-      res.status(400).json({ error: 'Email and token are required' });
+      res.status(400).json({ error: 'Email and token are required' , code: AuthErrorCode.RESET_TOKEN_FIELDS_REQUIRED });
       return;
     }
 
@@ -1003,7 +1004,7 @@ export const verifyResetToken = async (req: Request, res: Response): Promise<voi
       new Date(user.token_expires_at) >= new Date();
 
     if (!isValid) {
-      res.status(400).json({ error: 'Invalid email or verification code' });
+      res.status(400).json({ error: 'Invalid email or verification code' , code: AuthErrorCode.INVALID_RESET_CODE });
       return;
     }
 
@@ -1011,7 +1012,7 @@ export const verifyResetToken = async (req: Request, res: Response): Promise<voi
 
   } catch (error: any) {
     console.error('Error in verifyResetToken:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    res.status(500).json({ error: 'Internal server error' , code: AuthErrorCode.INTERNAL_ERROR });
   }
 };
 
@@ -1020,12 +1021,12 @@ export const uploadProfileImage = async (req: AuthRequest, res: Response): Promi
     const userId = req.user?.user_id;
 
     if (!userId) {
-      res.status(401).json({ error: 'Unauthorized' });
+      res.status(401).json({ error: 'Unauthorized' , code: AuthErrorCode.UNAUTHORIZED });
       return;
     }
 
     if (!req.file) {
-      res.status(400).json({ error: 'Profile image is required' });
+      res.status(400).json({ error: 'Profile image is required' , code: AuthErrorCode.PROFILE_IMAGE_REQUIRED });
       return;
     }
 
@@ -1037,7 +1038,7 @@ export const uploadProfileImage = async (req: AuthRequest, res: Response): Promi
     );
 
     if (existing.length === 0) {
-      res.status(404).json({ error: 'User not found' });
+      res.status(404).json({ error: 'User not found' , code: AuthErrorCode.USER_NOT_FOUND });
       return;
     }
 
@@ -1056,7 +1057,7 @@ export const uploadProfileImage = async (req: AuthRequest, res: Response): Promi
     });
   } catch (error: any) {
     console.error('uploadProfileImage error:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    res.status(500).json({ error: 'Internal server error' , code: AuthErrorCode.INTERNAL_ERROR });
   }
 };
 
@@ -1065,7 +1066,7 @@ export const removeProfileImage = async (req: AuthRequest, res: Response): Promi
     const userId = req.user?.user_id;
 
     if (!userId) {
-      res.status(401).json({ error: 'Unauthorized' });
+      res.status(401).json({ error: 'Unauthorized' , code: AuthErrorCode.UNAUTHORIZED });
       return;
     }
 
@@ -1075,7 +1076,7 @@ export const removeProfileImage = async (req: AuthRequest, res: Response): Promi
     );
 
     if (existing.length === 0) {
-      res.status(404).json({ error: 'User not found' });
+      res.status(404).json({ error: 'User not found' , code: AuthErrorCode.USER_NOT_FOUND });
       return;
     }
 
@@ -1094,7 +1095,7 @@ export const removeProfileImage = async (req: AuthRequest, res: Response): Promi
     });
   } catch (error: any) {
     console.error('removeProfileImage error:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    res.status(500).json({ error: 'Internal server error' , code: AuthErrorCode.INTERNAL_ERROR });
   }
 };
 
@@ -1106,7 +1107,7 @@ export const updateProfile = async (req: AuthRequest, res: Response): Promise<vo
     const userId = req.user?.user_id;
 
     if (!userId) {
-      res.status(401).json({ error: 'Unauthorized' });
+      res.status(401).json({ error: 'Unauthorized' , code: AuthErrorCode.UNAUTHORIZED });
       return;
     }
 
@@ -1116,22 +1117,22 @@ export const updateProfile = async (req: AuthRequest, res: Response): Promise<vo
     const username = sanitizeText(req.body.username);
 
     if (!name || !lastname) {
-      res.status(400).json({ error: 'Name and lastname are required' });
+      res.status(400).json({ error: 'Name and lastname are required' , code: AuthErrorCode.NAME_LASTNAME_REQUIRED });
       return;
     }
 
     if (!isValidName(name) || !isValidName(lastname)) {
-      res.status(400).json({ error: 'Invalid name or lastname format' });
+      res.status(400).json({ error: 'Invalid name or lastname format' , code: AuthErrorCode.INVALID_NAME_LASTNAME });
       return;
     }
 
     if (!isValidPhone(phone_number)) {
-      res.status(400).json({ error: 'Invalid phone number format' });
+      res.status(400).json({ error: 'Invalid phone number format' , code: AuthErrorCode.INVALID_PHONE });
       return;
     }
 
     if (!isValidUsername(username)) {
-      res.status(400).json({ error: 'Invalid username format' });
+      res.status(400).json({ error: 'Invalid username format' , code: AuthErrorCode.INVALID_USERNAME });
       return;
     }
 
@@ -1141,7 +1142,7 @@ export const updateProfile = async (req: AuthRequest, res: Response): Promise<vo
     );
 
     if (currentUsers.length === 0) {
-      res.status(404).json({ error: 'User not found' });
+      res.status(404).json({ error: 'User not found' , code: AuthErrorCode.USER_NOT_FOUND });
       return;
     }
 
@@ -1151,7 +1152,7 @@ export const updateProfile = async (req: AuthRequest, res: Response): Promise<vo
       const lastChangedAt = new Date(currentUsers[0].username_changed_at);
       const nextAllowedAt = new Date(lastChangedAt.getTime() + 30 * 24 * 60 * 60 * 1000);
       if (nextAllowedAt.getTime() > Date.now()) {
-        res.status(429).json({ error: `Username can be changed again on ${nextAllowedAt.toISOString().slice(0, 10)}.` });
+        res.status(429).json({ error: `Username can be changed again on ${nextAllowedAt.toISOString().slice(0, 10)}.`, code: AuthErrorCode.USERNAME_COOLDOWN, retryAfter: nextAllowedAt.toISOString().slice(0, 10) });
         return;
       }
     }
@@ -1163,7 +1164,7 @@ export const updateProfile = async (req: AuthRequest, res: Response): Promise<vo
       );
 
       if (duplicateUsernames.length > 0) {
-        res.status(409).json({ error: 'Username already in use' });
+        res.status(409).json({ error: 'Username already in use' , code: AuthErrorCode.USERNAME_TAKEN });
         return;
       }
     }
@@ -1183,7 +1184,7 @@ export const updateProfile = async (req: AuthRequest, res: Response): Promise<vo
     );
 
     if (users.length === 0) {
-      res.status(404).json({ error: 'User not found' });
+      res.status(404).json({ error: 'User not found' , code: AuthErrorCode.USER_NOT_FOUND });
       return;
     }
 
@@ -1193,6 +1194,6 @@ export const updateProfile = async (req: AuthRequest, res: Response): Promise<vo
     });
   } catch (error: any) {
     console.error('updateProfile error:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    res.status(500).json({ error: 'Internal server error' , code: AuthErrorCode.INTERNAL_ERROR });
   }
 };

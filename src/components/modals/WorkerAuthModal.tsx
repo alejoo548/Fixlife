@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { API_ENDPOINTS, API_URL } from '../../config/api';
 import { showSweetToast } from '../../utils/sweetAlert';
+import { translateApiError } from '../../utils/apiError';
 import { motion, AnimatePresence } from 'framer-motion';
 import WorkerForgotPassword from '../../pages/WorkerForgotPassword';
 import { getAuthUser, getToken, setAuthSession, updateStoredAuthUser } from '../../utils/session';
@@ -39,6 +41,7 @@ const formatPhoneInput = (value: string) => {
 };
 
 export const WorkerAuthModal: React.FC<WorkerAuthModalProps> = ({ isOpen, onClose, mode: initialMode, onSuccess }) => {
+  const { t } = useTranslation();
   const [view, setView] = useState<'signin' | 'signup' | 'specialties' | 'verify' | 'upload' | 'forgot'>(initialMode);
   const [registeredEmail, setRegisteredEmail] = useState('');
   const [otp, setOtp] = useState('');
@@ -108,7 +111,7 @@ export const WorkerAuthModal: React.FC<WorkerAuthModalProps> = ({ isOpen, onClos
         return current.filter((id) => id !== serviceId);
       }
       if (current.length >= MAX_WORKER_SPECIALTIES) {
-        void showSweetToast({ tone: 'warning', message: `You can select up to ${MAX_WORKER_SPECIALTIES} services.` });
+        void showSweetToast({ tone: 'warning', message: t('workerAuth.messages.tooManyServices', { max: MAX_WORKER_SPECIALTIES }) });
         return current;
       }
       return [...current, serviceId];
@@ -121,7 +124,7 @@ export const WorkerAuthModal: React.FC<WorkerAuthModalProps> = ({ isOpen, onClos
     setLoading(true);
 
     if (formData.password !== formData.confirmPassword) {
-      void showSweetToast({ tone: 'error', message: 'Passwords do not match' });
+      void showSweetToast({ tone: 'error', message: t('workerAuth.messages.passwordsDoNotMatch') });
       setLoading(false);
       return;
     }
@@ -133,37 +136,37 @@ export const WorkerAuthModal: React.FC<WorkerAuthModalProps> = ({ isOpen, onClos
     const trimmedUsername = formData.username.trim();
 
     if (!nameRegex.test(trimmedName) || trimmedName.length < 2 || trimmedName.length > 16) {
-      void showSweetToast({ tone: 'error', message: 'First name must be 2-16 characters and contain letters only' });
+      void showSweetToast({ tone: 'error', message: t('workerAuth.messages.invalidFirstName') });
       setLoading(false);
       return;
     }
 
     if (!nameRegex.test(trimmedLastname) || trimmedLastname.length < 2 || trimmedLastname.length > 16) {
-      void showSweetToast({ tone: 'error', message: 'Last name must be 2-16 characters and contain letters only' });
+      void showSweetToast({ tone: 'error', message: t('workerAuth.messages.invalidLastName') });
       setLoading(false);
       return;
     }
 
     if (trimmedUsername && (!usernameRegex.test(trimmedUsername) || trimmedUsername.length > 30)) {
-      void showSweetToast({ tone: 'error', message: 'Username is invalid or too long (max 30 chars, alphanumeric and underscores only)' });
+      void showSweetToast({ tone: 'error', message: t('workerAuth.messages.invalidUsername') });
       setLoading(false);
       return;
     }
 
     if (!phoneRegex.test(trimmedPhone)) {
-      void showSweetToast({ tone: 'error', message: 'Phone must contain exactly 8 digits, like 6074-6649' });
+      void showSweetToast({ tone: 'error', message: t('workerAuth.messages.invalidPhone') });
       setLoading(false);
       return;
     }
     
     if (!emailRegex.test(trimmedEmail) || trimmedEmail.length > 100) {
-      void showSweetToast({ tone: 'error', message: 'Email must be a valid .com address' });
+      void showSweetToast({ tone: 'error', message: t('workerAuth.messages.invalidEmailLength') });
       setLoading(false);
       return;
     }
 
     if (formData.password.length < 8 || formData.password.length > 128) {
-      void showSweetToast({ tone: 'error', message: 'Password must be between 8 and 128 characters' });
+      void showSweetToast({ tone: 'error', message: t('workerAuth.messages.invalidPasswordLength') });
       setLoading(false);
       return;
     }
@@ -175,7 +178,7 @@ export const WorkerAuthModal: React.FC<WorkerAuthModalProps> = ({ isOpen, onClos
       setView('specialties');
     } catch (err) {
       console.error('[WorkerAuthModal] Error:', err);
-      void showSweetToast({ tone: 'error', message: 'Connection error. Please try again.' });
+      void showSweetToast({ tone: 'error', message: t('workerAuth.messages.connectionError') });
     } finally {
       setLoading(false);
     }
@@ -186,13 +189,13 @@ export const WorkerAuthModal: React.FC<WorkerAuthModalProps> = ({ isOpen, onClos
     setLoading(true);
 
     if (selectedServiceIds.length === 0) {
-      void showSweetToast({ tone: 'error', message: 'Select at least one service you offer.' });
+      void showSweetToast({ tone: 'error', message: t('workerAuth.messages.selectService') });
       setLoading(false);
       return;
     }
 
     if (selectedServiceIds.length > MAX_WORKER_SPECIALTIES) {
-      void showSweetToast({ tone: 'error', message: `You can select up to ${MAX_WORKER_SPECIALTIES} services.` });
+      void showSweetToast({ tone: 'error', message: t('workerAuth.messages.tooManyServices', { max: MAX_WORKER_SPECIALTIES }) });
       setLoading(false);
       return;
     }
@@ -215,17 +218,17 @@ export const WorkerAuthModal: React.FC<WorkerAuthModalProps> = ({ isOpen, onClos
       const data = await response.json();
 
       if (!response.ok) {
-        void showSweetToast({ tone: 'error', message: data.error || 'Registration failed' });
+        void showSweetToast({ tone: 'error', message: translateApiError(data, 'workerAuth.messages.registrationFailed') });
         setLoading(false);
         return;
       }
 
       setRegisteredEmail(formData.email);
-      void showSweetToast({ tone: 'success', message: 'OTP sent to your email!' });
+      void showSweetToast({ tone: 'success', message: t('workerAuth.messages.otpSent') });
       setView('verify');
     } catch (err) {
       console.error('[WorkerAuthModal] Error:', err);
-      void showSweetToast({ tone: 'error', message: 'Connection error. Please try again.' });
+      void showSweetToast({ tone: 'error', message: t('workerAuth.messages.connectionError') });
     } finally {
       setLoading(false);
     }
@@ -237,7 +240,7 @@ export const WorkerAuthModal: React.FC<WorkerAuthModalProps> = ({ isOpen, onClos
     setLoading(true);
 
     if (otp.length !== 6) {
-      void showSweetToast({ tone: 'error', message: 'Please enter a valid 6-digit OTP code' });
+      void showSweetToast({ tone: 'error', message: t('workerAuth.messages.invalidOtp') });
       setLoading(false);
       return;
     }
@@ -255,17 +258,17 @@ export const WorkerAuthModal: React.FC<WorkerAuthModalProps> = ({ isOpen, onClos
       const data = await response.json();
 
       if (!response.ok) {
-        void showSweetToast({ tone: 'error', message: data.error || 'Verification failed' });
+        void showSweetToast({ tone: 'error', message: translateApiError(data, 'workerAuth.messages.verificationFailed') });
         setLoading(false);
         return;
       }
 
       setAuthSession(data.user, data.token, 'worker');
-      void showSweetToast({ tone: 'success', message: 'Email verified! Pro account created.' });
+      void showSweetToast({ tone: 'success', message: t('workerAuth.messages.emailVerified') });
       setView('upload');
     } catch (err) {
       console.error('[WorkerAuthModal] Error verifying:', err);
-      void showSweetToast({ tone: 'error', message: 'Connection error. Please try again.' });
+      void showSweetToast({ tone: 'error', message: t('workerAuth.messages.connectionError') });
     } finally {
       setLoading(false);
     }
@@ -288,27 +291,27 @@ export const WorkerAuthModal: React.FC<WorkerAuthModalProps> = ({ isOpen, onClos
       const data = await response.json();
 
       if (!response.ok) {
-        void showSweetToast({ tone: 'error', message: data.error || 'Login failed' });
+        void showSweetToast({ tone: 'error', message: translateApiError(data, 'workerAuth.messages.loginFailed') });
         setLoading(false);
         return;
       }
 
       const isWorker = data.user?.rol === 'worker' || data.user?.pending_worker === 1 || data.user?.pending_worker === true;
       if (!isWorker) {
-        void showSweetToast({ tone: 'error', message: 'This account is not registered as a worker' });
+        void showSweetToast({ tone: 'error', message: t('workerAuth.messages.notWorkerAccount') });
         setLoading(false);
         return;
       }
 
       setAuthSession(data.user, data.token, 'worker');
-      void showSweetToast({ tone: 'success', message: 'Welcome back, Pro!' });
+      void showSweetToast({ tone: 'success', message: t('workerAuth.messages.welcomeBack') });
       onClose();
       setTimeout(() => {
         onSuccess?.();
       }, 100);
     } catch (err) {
       console.error('[WorkerAuthModal] Error:', err);
-      void showSweetToast({ tone: 'error', message: 'Connection error. Please try again.' });
+      void showSweetToast({ tone: 'error', message: t('workerAuth.messages.connectionError') });
     } finally {
       setLoading(false);
     }
@@ -323,22 +326,22 @@ export const WorkerAuthModal: React.FC<WorkerAuthModalProps> = ({ isOpen, onClos
 
   const handleUploadDocuments = async () => {
     if (!duiFile) {
-      void showSweetToast({ tone: 'error', message: 'Please select your ID document (DUI)' });
+      void showSweetToast({ tone: 'error', message: t('workerAuth.messages.duiRequired') });
       return;
     }
 
     if (!certFile) {
-      void showSweetToast({ tone: 'error', message: 'Please select your certification document' });
+      void showSweetToast({ tone: 'error', message: t('workerAuth.messages.certRequired') });
       return;
     }
 
     const MAX_SIZE = 10 * 1024 * 1024;
     if (duiFile.size > MAX_SIZE) {
-      void showSweetToast({ tone: 'error', message: 'The ID file is too large. Max size is 10MB.' });
+      void showSweetToast({ tone: 'error', message: t('workerAuth.messages.duiTooLarge') });
       return;
     }
     if (certFile && certFile.size > MAX_SIZE) {
-      void showSweetToast({ tone: 'error', message: 'The certification file is too large. Max size is 10MB.' });
+      void showSweetToast({ tone: 'error', message: t('workerAuth.messages.certTooLarge') });
       return;
     }
 
@@ -361,7 +364,7 @@ export const WorkerAuthModal: React.FC<WorkerAuthModalProps> = ({ isOpen, onClos
       const data = await response.json();
 
       if (!response.ok) {
-        void showSweetToast({ tone: 'error', message: data.error || 'Error uploading documents' });
+        void showSweetToast({ tone: 'error', message: translateApiError(data, 'workerAuth.messages.uploadError') });
         setLoading(false);
         return;
       }
@@ -375,11 +378,11 @@ export const WorkerAuthModal: React.FC<WorkerAuthModalProps> = ({ isOpen, onClos
           updateStoredAuthUser(userObj, 'worker');
       }
 
-      void showSweetToast({ tone: 'success', message: 'Documents uploaded! Pending admin review.' });
+      void showSweetToast({ tone: 'success', message: t('workerAuth.messages.uploadSuccess') });
       handleFinishUpload();
     } catch (err) {
       console.error('[WorkerAuthModal] Upload error:', err);
-      void showSweetToast({ tone: 'error', message: 'Connection error. Please try again.' });
+      void showSweetToast({ tone: 'error', message: t('workerAuth.messages.connectionError') });
     } finally {
       setLoading(false);
     }
@@ -427,13 +430,13 @@ export const WorkerAuthModal: React.FC<WorkerAuthModalProps> = ({ isOpen, onClos
           className={`absolute top-0 left-0 w-1/2 h-full z-30 flex flex-col items-center justify-center text-center px-12 gap-6 ${transitionClass}
            ${isSignup && view !== 'upload' ? 'translate-x-0 opacity-100 pointer-events-auto' : '-translate-x-[20%] opacity-0 pointer-events-none'}`}
         >
-          <h2 className="text-4xl font-bold tracking-tight text-white">Welcome Back Pro!</h2>
+          <h2 className="text-4xl font-bold tracking-tight text-white">{t('workerAuth.welcomeBackTitle')}</h2>
           <p className="text-sm text-white/90 leading-relaxed">
-             Access your professional dashboard to manage your services and connect with clients.
+             {t('workerAuth.welcomeBackDescription')}
           </p>
           {view === 'signup' && (
             <button onClick={toggleView} className="mt-2 px-10 py-3 rounded-full border border-white/50 bg-white/10 text-white font-bold hover:bg-white hover:text-bird-orange transition-all duration-300 backdrop-blur-sm shadow-lg">
-              SIGN IN
+              {t('workerAuth.actions.signIn')}
             </button>
           )}
         </div>
@@ -452,22 +455,22 @@ export const WorkerAuthModal: React.FC<WorkerAuthModalProps> = ({ isOpen, onClos
                 className="w-full"
               >
                 <div className="flex flex-col items-center text-center w-full">
-                  <h2 className="text-3xl font-bold mb-2 text-bird-orange dark:text-amber-400">Join as a Pro</h2>
-                  <p className="text-xs text-gray-500 dark:text-slate-400 mb-4">Start earning by offering your services</p>
+                  <h2 className="text-3xl font-bold mb-2 text-bird-orange dark:text-amber-400">{t('workerAuth.joinTitle')}</h2>
+                  <p className="text-xs text-gray-500 dark:text-slate-400 mb-4">{t('workerAuth.joinDescription')}</p>
 
                   <form className="w-full flex flex-col gap-2.5" onSubmit={handleSignupSubmit}>
                     <div className="grid grid-cols-2 gap-2.5">
                       <div className="bg-gray-50 dark:bg-slate-800 rounded-lg p-1 border border-gray-200 dark:border-white/10 focus-within:border-bird-orange/50 transition-colors">
-                        <input required value={formData.name} onChange={e => setFormData({...formData, name: sanitizeNameInput(e.target.value)})} type="text" maxLength={16} placeholder="First Name" className="w-full bg-transparent px-3 py-2 text-sm text-gray-900 dark:text-slate-100 outline-none placeholder-gray-500 dark:placeholder-slate-400" />
+                        <input required value={formData.name} onChange={e => setFormData({...formData, name: sanitizeNameInput(e.target.value)})} type="text" maxLength={16} placeholder={t('workerAuth.fields.firstName')} className="w-full bg-transparent px-3 py-2 text-sm text-gray-900 dark:text-slate-100 outline-none placeholder-gray-500 dark:placeholder-slate-400" />
                       </div>
                       <div className="bg-gray-50 dark:bg-slate-800 rounded-lg p-1 border border-gray-200 dark:border-white/10 focus-within:border-bird-orange/50 transition-colors">
-                        <input required value={formData.lastname} onChange={e => setFormData({...formData, lastname: sanitizeNameInput(e.target.value)})} type="text" maxLength={16} placeholder="Last Name" className="w-full bg-transparent px-3 py-2 text-sm text-gray-900 dark:text-slate-100 outline-none placeholder-gray-500 dark:placeholder-slate-400" />
+                        <input required value={formData.lastname} onChange={e => setFormData({...formData, lastname: sanitizeNameInput(e.target.value)})} type="text" maxLength={16} placeholder={t('workerAuth.fields.lastName')} className="w-full bg-transparent px-3 py-2 text-sm text-gray-900 dark:text-slate-100 outline-none placeholder-gray-500 dark:placeholder-slate-400" />
                       </div>
                     </div>
 
                     <div className="grid grid-cols-2 gap-2.5">
                       <div className="bg-gray-50 dark:bg-slate-800 rounded-lg p-1 border border-gray-200 dark:border-white/10 focus-within:border-bird-orange/50 transition-colors">
-                        <input value={formData.username} onChange={e => setFormData({...formData, username: e.target.value})} type="text" maxLength={30} placeholder="Username (Optional)" className="w-full bg-transparent px-3 py-2 text-sm text-gray-900 dark:text-slate-100 outline-none placeholder-gray-500 dark:placeholder-slate-400" />
+                        <input value={formData.username} onChange={e => setFormData({...formData, username: e.target.value})} type="text" maxLength={30} placeholder={t('workerAuth.fields.usernameOptional')} className="w-full bg-transparent px-3 py-2 text-sm text-gray-900 dark:text-slate-100 outline-none placeholder-gray-500 dark:placeholder-slate-400" />
                       </div>
                       <div className="bg-gray-50 dark:bg-slate-800 rounded-lg p-1 border border-gray-200 dark:border-white/10 focus-within:border-bird-orange/50 transition-colors">
                         <input required value={formData.phone_number} onChange={e => setFormData({...formData, phone_number: formatPhoneInput(e.target.value)})} type="tel" maxLength={9} placeholder="6074-6649" className="w-full bg-transparent px-3 py-2 text-sm text-gray-900 dark:text-slate-100 outline-none placeholder-gray-500 dark:placeholder-slate-400" />
@@ -475,20 +478,20 @@ export const WorkerAuthModal: React.FC<WorkerAuthModalProps> = ({ isOpen, onClos
                     </div>
 
                     <div className="bg-gray-50 dark:bg-slate-800 rounded-lg p-1 border border-gray-200 dark:border-white/10 focus-within:border-bird-orange/50 transition-colors">
-                      <input required value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} type="email" maxLength={100} placeholder="Email Address" className="w-full bg-transparent px-3 py-2 text-sm text-gray-900 dark:text-slate-100 outline-none placeholder-gray-500 dark:placeholder-slate-400" />
+                      <input required value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} type="email" maxLength={100} placeholder={t('workerAuth.fields.emailAddress')} className="w-full bg-transparent px-3 py-2 text-sm text-gray-900 dark:text-slate-100 outline-none placeholder-gray-500 dark:placeholder-slate-400" />
                     </div>
 
                     <div className="grid grid-cols-2 gap-2.5">
                       <div className="bg-gray-50 dark:bg-slate-800 rounded-lg p-1 border border-gray-200 dark:border-white/10 focus-within:border-bird-orange/50 transition-colors">
-                        <PasswordInput required value={formData.password} onChange={e => setFormData({...formData, password: e.target.value})}  maxLength={128} placeholder="Password" className="w-full bg-transparent px-3 py-2 text-sm text-gray-900 dark:text-slate-100 outline-none placeholder-gray-500 dark:placeholder-slate-400" />
+                        <PasswordInput required value={formData.password} onChange={e => setFormData({...formData, password: e.target.value})}  maxLength={128} placeholder={t('workerAuth.fields.password')} className="w-full bg-transparent px-3 py-2 text-sm text-gray-900 dark:text-slate-100 outline-none placeholder-gray-500 dark:placeholder-slate-400" />
                       </div>
                       <div className="bg-gray-50 dark:bg-slate-800 rounded-lg p-1 border border-gray-200 dark:border-white/10 focus-within:border-bird-orange/50 transition-colors">
-                        <PasswordInput required value={formData.confirmPassword} onChange={e => setFormData({...formData, confirmPassword: e.target.value})}  maxLength={128} placeholder="Confirm Password" className="w-full bg-transparent px-3 py-2 text-sm text-gray-900 dark:text-slate-100 outline-none placeholder-gray-500 dark:placeholder-slate-400" />
+                        <PasswordInput required value={formData.confirmPassword} onChange={e => setFormData({...formData, confirmPassword: e.target.value})}  maxLength={128} placeholder={t('workerAuth.fields.confirmPassword')} className="w-full bg-transparent px-3 py-2 text-sm text-gray-900 dark:text-slate-100 outline-none placeholder-gray-500 dark:placeholder-slate-400" />
                       </div>
                     </div>
 
                     <button disabled={loading} type="submit" className="mt-2 w-full py-3 rounded-full bg-gradient-to-r from-bird-orange to-bird-gold text-white font-bold text-sm tracking-wide shadow-lg shadow-bird-orange/20 hover:scale-[1.02] transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed">
-                      {loading ? 'PROCESSING...' : 'CREATE PRO ACCOUNT'}
+                      {loading ? t('workerAuth.actions.processing') : t('workerAuth.actions.createProAccount')}
                     </button>
                   </form>
                 </div>
@@ -508,13 +511,13 @@ export const WorkerAuthModal: React.FC<WorkerAuthModalProps> = ({ isOpen, onClos
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19.428 15.428a2 2 0 00-1.022-.547l-2.384-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" />
                   </svg>
                 </div>
-                <h2 className="text-3xl font-bold mb-2 text-bird-orange dark:text-amber-400">Your Specialties</h2>
-                <p className="text-sm text-gray-600 dark:text-slate-400 mb-2">Select up to {MAX_WORKER_SPECIALTIES} services you specialize in</p>
-                <p className="text-xs font-semibold text-bird-orange mb-4">{selectedServiceIds.length}/{MAX_WORKER_SPECIALTIES} selected</p>
+                <h2 className="text-3xl font-bold mb-2 text-bird-orange dark:text-amber-400">{t('workerAuth.specialtiesTitle')}</h2>
+                <p className="text-sm text-gray-600 dark:text-slate-400 mb-2">{t('workerAuth.specialtiesDescription', { max: MAX_WORKER_SPECIALTIES })}</p>
+                <p className="text-xs font-semibold text-bird-orange mb-4">{t('workerAuth.specialtiesCount', { count: selectedServiceIds.length, max: MAX_WORKER_SPECIALTIES })}</p>
 
                 <div className="w-full grid grid-cols-2 gap-2 max-h-[220px] overflow-y-auto custom-scrollbar mb-4 px-1">
                   {availableServices.length === 0 ? (
-                    <p className="col-span-2 text-sm text-gray-400 py-4">No services available yet.</p>
+                    <p className="col-span-2 text-sm text-gray-400 py-4">{t('workerAuth.noServices')}</p>
                   ) : availableServices.map(svc => {
                     const isSelected = selectedServiceIds.includes(svc.id_service);
                     return (
@@ -545,10 +548,10 @@ export const WorkerAuthModal: React.FC<WorkerAuthModalProps> = ({ isOpen, onClos
                   onClick={handleSpecialtiesSubmit}
                   className="w-full py-4 rounded-full bg-gradient-to-r from-bird-orange to-bird-gold text-white font-bold text-sm tracking-wide shadow-lg shadow-bird-orange/20 hover:scale-[1.02] transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  {loading ? 'CREATING ACCOUNT...' : 'CONTINUE'}
+                  {loading ? t('workerAuth.actions.creatingAccount') : t('workerAuth.actions.continue')}
                 </button>
                 <button onClick={() => setView('signup')} className="mt-3 text-sm text-gray-500 dark:text-slate-400 hover:text-gray-700 dark:hover:text-slate-200 font-semibold transition-colors">
-                  ← Go Back
+                  ← {t('workerAuth.goBack')}
                 </button>
               </motion.div>
             )}
@@ -566,9 +569,9 @@ export const WorkerAuthModal: React.FC<WorkerAuthModalProps> = ({ isOpen, onClos
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
                   </svg>
                 </div>
-                <h2 className="text-3xl font-bold mb-2 text-bird-orange dark:text-amber-400">Check your email</h2>
+                <h2 className="text-3xl font-bold mb-2 text-bird-orange dark:text-amber-400">{t('workerAuth.verifyTitle')}</h2>
                 <p className="text-sm text-gray-600 dark:text-slate-400 mb-6">
-                  We've sent a 6-digit verification code to <br/><span className="font-semibold text-gray-900 dark:text-slate-100">{registeredEmail}</span>
+                  {t('workerAuth.verifyDescription')} <br/><span className="font-semibold text-gray-900 dark:text-slate-100">{registeredEmail}</span>
                 </p>
 
                 <form className="w-full flex flex-col gap-4 max-w-[280px]" onSubmit={handleVerifySubmit}>
@@ -578,18 +581,18 @@ export const WorkerAuthModal: React.FC<WorkerAuthModalProps> = ({ isOpen, onClos
                       value={otp} 
                       onChange={e => setOtp(e.target.value.replace(/[^0-9]/g, '').slice(0, 6))} 
                       type="text" 
-                      placeholder="Enter 6-digit code" 
+                      placeholder={t('workerAuth.verifyPlaceholder')} 
                       className="w-full bg-transparent px-3 py-3 text-center text-xl tracking-[0.5em] font-bold text-gray-900 dark:text-slate-100 outline-none placeholder-gray-400" 
                     />
                   </div>
                   <button disabled={loading || otp.length !== 6} type="submit" className="w-full py-4 rounded-full bg-gradient-to-r from-bird-orange to-bird-gold text-white font-bold text-sm tracking-wide shadow-lg shadow-bird-orange/20 hover:scale-[1.02] transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed">
-                    {loading ? 'VERIFYING...' : 'VERIFY EMAIL'}
+                    {loading ? t('workerAuth.actions.verifying') : t('workerAuth.actions.verifyEmail')}
                   </button>
                 </form>
 
                 <div className="flex items-center gap-4 mt-4">
                   <button onClick={() => { setView('signup'); setOtp(''); }} className="text-sm text-gray-500 dark:text-slate-400 hover:text-gray-700 dark:hover:text-slate-200 font-semibold transition-colors">
-                    ← Go Back
+                    ← {t('workerAuth.goBack')}
                   </button>
                   <button 
                     disabled={!canResend || loading} 
@@ -604,17 +607,17 @@ export const WorkerAuthModal: React.FC<WorkerAuthModalProps> = ({ isOpen, onClos
                         });
                         const data = await res.json();
                         if (res.ok) {
-                          void showSweetToast({ tone: 'success', message: 'New code sent!' });
+                          void showSweetToast({ tone: 'success', message: t('workerAuth.messages.resendSuccess') });
                         } else {
-                          void showSweetToast({ tone: 'error', message: data.error || 'Failed to resend' });
+                          void showSweetToast({ tone: 'error', message: translateApiError(data, 'workerAuth.messages.resendFailed') });
                         }
                       } catch {
-                        void showSweetToast({ tone: 'error', message: 'Connection error' });
+                        void showSweetToast({ tone: 'error', message: t('workerAuth.messages.connectionErrorShort') });
                       }
                     }}
                     className="text-sm font-semibold transition-colors disabled:text-gray-400 text-bird-orange hover:text-bird-orange/80 disabled:cursor-not-allowed"
                   >
-                    {canResend ? 'Resend Code' : `Resend in ${resendTimer}s`}
+                    {canResend ? t('workerAuth.resendCode') : t('workerAuth.resendIn', { count: resendTimer })}
                   </button>
                 </div>
               </motion.div>
@@ -633,31 +636,31 @@ export const WorkerAuthModal: React.FC<WorkerAuthModalProps> = ({ isOpen, onClos
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                   </svg>
                 </div>
-                <h2 className="text-3xl font-bold mb-2 text-gray-900 dark:text-slate-100">Upload Documents</h2>
+                <h2 className="text-3xl font-bold mb-2 text-gray-900 dark:text-slate-100">{t('workerAuth.uploadTitle')}</h2>
                 <p className="text-sm text-gray-600 dark:text-slate-400 mb-4 px-4">
-                  Upload your ID (DUI) to get verified by our team.
+                  {t('workerAuth.uploadDescription')}
                 </p>
 
                 <label className="w-full border-2 border-dashed border-gray-300 dark:border-white/10 rounded-2xl p-6 mb-3 bg-gray-50 dark:bg-slate-800 flex flex-col items-center justify-center hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors cursor-pointer group">
                   <svg className="w-10 h-10 text-gray-400 group-hover:text-bird-orange transition-colors mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
                   </svg>
-                  <span className="text-sm font-semibold text-gray-700 dark:text-slate-200">{duiFile ? duiFile.name : 'ID Document (Required)'}</span>
-                  <span className="text-xs text-gray-500 dark:text-slate-400 mt-1">PDF, JPG, PNG (Max 10MB)</span>
+                  <span className="text-sm font-semibold text-gray-700 dark:text-slate-200">{duiFile ? duiFile.name : t('workerAuth.duiLabel')}</span>
+                  <span className="text-xs text-gray-500 dark:text-slate-400 mt-1">{t('workerAuth.fileTypesHint')}</span>
                   <input type="file" className="hidden" accept="image/*,.pdf" onChange={(e) => setDuiFile(e.target.files?.[0] || null)} />
                 </label>
 
                 <label className="w-full border-2 border-dashed border-gray-200 dark:border-white/10 rounded-2xl p-4 mb-4 bg-gray-50 dark:bg-slate-800 flex flex-col items-center justify-center hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors cursor-pointer">
-                  <span className="text-sm font-semibold text-gray-600 dark:text-slate-300">{certFile ? certFile.name : 'Certifications (Required)'}</span>
+                  <span className="text-sm font-semibold text-gray-600 dark:text-slate-300">{certFile ? certFile.name : t('workerAuth.certLabel')}</span>
                   <input type="file" className="hidden" accept="image/*,.pdf" onChange={(e) => setCertFile(e.target.files?.[0] || null)} />
                 </label>
 
                 <div className="w-full flex gap-3">
                   <button onClick={handleFinishUpload} className="flex-1 py-3 rounded-full border border-gray-200 dark:border-white/10 text-gray-600 dark:text-slate-300 font-bold text-sm tracking-wide hover:bg-gray-50 dark:hover:bg-slate-800 transition-all duration-300">
-                    SKIP FOR NOW
+                    {t('workerAuth.actions.skipForNow')}
                   </button>
                   <button disabled={loading || !duiFile || !certFile} onClick={handleUploadDocuments} className="flex-1 py-3 rounded-full bg-gradient-to-r from-bird-orange to-bird-gold text-white font-bold text-sm tracking-wide shadow-lg shadow-bird-orange/20 hover:scale-[1.02] transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed">
-                    {loading ? 'UPLOADING...' : 'UPLOAD FILES'}
+                    {loading ? t('workerAuth.actions.uploading') : t('workerAuth.actions.uploadFiles')}
                   </button>
                 </div>
               </motion.div>
@@ -669,12 +672,12 @@ export const WorkerAuthModal: React.FC<WorkerAuthModalProps> = ({ isOpen, onClos
           className={`absolute top-0 left-1/2 w-1/2 h-full z-30 flex flex-col items-center justify-center text-center px-12 gap-6 ${transitionClass}
            ${!isSignup ? 'translate-x-0 opacity-100 pointer-events-auto' : 'translate-x-[20%] opacity-0 pointer-events-none'}`}
         >
-          <h2 className="text-4xl font-bold tracking-tight text-white">Join Fixlife Pros!</h2>
+          <h2 className="text-4xl font-bold tracking-tight text-white">{t('workerAuth.joinHeroTitle')}</h2>
           <p className="text-sm text-white/90 leading-relaxed">
-            Enter your professional details and start earning by offering your services to clients.
+            {t('workerAuth.joinHeroDescription')}
           </p>
           <button onClick={toggleView} className="mt-2 px-10 py-3 rounded-full border border-white/50 bg-white/10 text-white font-bold hover:bg-white hover:text-bird-orange transition-all duration-300 backdrop-blur-sm shadow-lg">
-            SIGN UP
+            {t('workerAuth.actions.signUp')}
           </button>
         </div>
 
@@ -682,15 +685,15 @@ export const WorkerAuthModal: React.FC<WorkerAuthModalProps> = ({ isOpen, onClos
           className={`absolute top-0 left-0 w-1/2 h-full z-10 flex flex-col items-center justify-center px-14 ${transitionClass}
            ${!isSignup ? 'translate-x-0 opacity-100 z-10' : '-translate-x-[20%] opacity-0 z-0'}`}
         >
-          <h2 className="text-3xl font-bold mb-2 text-bird-orange dark:text-amber-400">Pro Sign In</h2>
-          <p className="text-xs text-gray-500 dark:text-slate-400 mb-6">Welcome back to your dashboard</p>
+          <h2 className="text-3xl font-bold mb-2 text-bird-orange dark:text-amber-400">{t('workerAuth.signInTitle')}</h2>
+          <p className="text-xs text-gray-500 dark:text-slate-400 mb-6">{t('workerAuth.signInDescription')}</p>
 
           <form className="w-full flex flex-col gap-4" onSubmit={handleSigninSubmit}>
             <div className="bg-gray-50 dark:bg-slate-800 rounded-lg p-1 border border-gray-200 dark:border-white/10 focus-within:border-bird-orange/50 transition-colors">
-              <input required value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} type="email" maxLength={100} placeholder="Email Address" className="w-full bg-transparent px-3 py-3 text-sm text-gray-900 dark:text-slate-100 outline-none placeholder-gray-500 dark:placeholder-slate-400" />
+              <input required value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} type="email" maxLength={100} placeholder={t('workerAuth.fields.emailAddress')} className="w-full bg-transparent px-3 py-3 text-sm text-gray-900 dark:text-slate-100 outline-none placeholder-gray-500 dark:placeholder-slate-400" />
             </div>
             <div className="bg-gray-50 dark:bg-slate-800 rounded-lg p-1 border border-gray-200 dark:border-white/10 focus-within:border-bird-orange/50 transition-colors">
-              <PasswordInput required value={formData.password} onChange={e => setFormData({...formData, password: e.target.value})}  maxLength={128} placeholder="Password" className="w-full bg-transparent px-3 py-3 text-sm text-gray-900 dark:text-slate-100 outline-none placeholder-gray-500 dark:placeholder-slate-400" />
+              <PasswordInput required value={formData.password} onChange={e => setFormData({...formData, password: e.target.value})}  maxLength={128} placeholder={t('workerAuth.fields.password')} className="w-full bg-transparent px-3 py-3 text-sm text-gray-900 dark:text-slate-100 outline-none placeholder-gray-500 dark:placeholder-slate-400" />
             </div>
             
             <button
@@ -698,11 +701,11 @@ export const WorkerAuthModal: React.FC<WorkerAuthModalProps> = ({ isOpen, onClos
               onClick={() => setView('forgot')}
               className="text-xs text-gray-500 dark:text-slate-400 hover:text-bird-orange transition-colors self-end my-1"
             >
-              Forgot your password?
+              {t('workerAuth.forgotPassword')}
             </button>
             
             <button disabled={loading} type="submit" className="w-full py-4 rounded-full bg-gradient-to-r from-bird-orange to-bird-gold text-white font-bold text-sm tracking-wide shadow-lg shadow-bird-orange/20 hover:scale-[1.02] transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed">
-              {loading ? 'PROCESSING...' : 'SIGN IN'}
+              {loading ? t('workerAuth.actions.processing') : t('workerAuth.actions.signIn')}
             </button>
           </form>
         </div>
@@ -735,14 +738,14 @@ export const WorkerAuthModal: React.FC<WorkerAuthModalProps> = ({ isOpen, onClos
                 className={`flex-1 relative z-10 text-xs font-bold tracking-wide transition-colors duration-300 flex items-center justify-center
                     ${!isSignup ? 'text-white' : 'text-gray-600 dark:text-slate-300 hover:text-gray-900 dark:hover:text-slate-100'}`}
               >
-                SIGN IN
+                {t('workerAuth.actions.signIn')}
               </button>
               <button
                 onClick={() => { setView('signup'); setError(''); }}
                 className={`flex-1 relative z-10 text-xs font-bold tracking-wide transition-colors duration-300 flex items-center justify-center
                     ${isSignup ? 'text-white' : 'text-gray-600 dark:text-slate-300 hover:text-gray-900 dark:hover:text-slate-100'}`}
               >
-                SIGN UP
+                {t('workerAuth.actions.signUp')}
               </button>
             </div>
           )}
@@ -758,37 +761,37 @@ export const WorkerAuthModal: React.FC<WorkerAuthModalProps> = ({ isOpen, onClos
                   className="flex flex-col gap-3"
                 >
                   <div className="text-center mb-6">
-                    <h2 className="text-2xl font-bold text-gray-900 dark:text-slate-100 mb-2">Join as a Pro</h2>
-                    <p className="text-xs text-gray-600 dark:text-slate-400 px-4">Start earning by offering your services.</p>
+                    <h2 className="text-2xl font-bold text-gray-900 dark:text-slate-100 mb-2">{t('workerAuth.joinTitle')}</h2>
+                    <p className="text-xs text-gray-600 dark:text-slate-400 px-4">{t('workerAuth.joinDescription')}</p>
                   </div>
                   <form className="flex flex-col gap-3" onSubmit={handleSignupSubmit}>
                     <div className="grid grid-cols-2 gap-3">
                       <div className="bg-white dark:bg-slate-800 rounded-xl px-4 py-3 border border-gray-200 dark:border-white/10 focus-within:border-bird-orange/50 transition-colors shadow-sm">
-                        <input required value={formData.name} onChange={e => setFormData({...formData, name: sanitizeNameInput(e.target.value)})} type="text" maxLength={16} placeholder="First Name" className="w-full bg-transparent text-sm text-gray-900 dark:text-slate-100 outline-none placeholder-gray-500 dark:placeholder-slate-400" />
+                        <input required value={formData.name} onChange={e => setFormData({...formData, name: sanitizeNameInput(e.target.value)})} type="text" maxLength={16} placeholder={t('workerAuth.fields.firstName')} className="w-full bg-transparent text-sm text-gray-900 dark:text-slate-100 outline-none placeholder-gray-500 dark:placeholder-slate-400" />
                       </div>
                       <div className="bg-white dark:bg-slate-800 rounded-xl px-4 py-3 border border-gray-200 dark:border-white/10 focus-within:border-bird-orange/50 transition-colors shadow-sm">
-                        <input required value={formData.lastname} onChange={e => setFormData({...formData, lastname: sanitizeNameInput(e.target.value)})} type="text" maxLength={16} placeholder="Last Name" className="w-full bg-transparent text-sm text-gray-900 dark:text-slate-100 outline-none placeholder-gray-500 dark:placeholder-slate-400" />
+                        <input required value={formData.lastname} onChange={e => setFormData({...formData, lastname: sanitizeNameInput(e.target.value)})} type="text" maxLength={16} placeholder={t('workerAuth.fields.lastName')} className="w-full bg-transparent text-sm text-gray-900 dark:text-slate-100 outline-none placeholder-gray-500 dark:placeholder-slate-400" />
                       </div>
                     </div>
                     <div className="bg-white dark:bg-slate-800 rounded-xl px-4 py-3 border border-gray-200 dark:border-white/10 focus-within:border-bird-orange/50 transition-colors shadow-sm">
-                      <input value={formData.username} onChange={e => setFormData({...formData, username: e.target.value})} type="text" maxLength={30} placeholder="Username (Optional)" className="w-full bg-transparent text-sm text-gray-900 dark:text-slate-100 outline-none placeholder-gray-500 dark:placeholder-slate-400" />
+                      <input value={formData.username} onChange={e => setFormData({...formData, username: e.target.value})} type="text" maxLength={30} placeholder={t('workerAuth.fields.usernameOptional')} className="w-full bg-transparent text-sm text-gray-900 dark:text-slate-100 outline-none placeholder-gray-500 dark:placeholder-slate-400" />
                     </div>
                     <div className="bg-white dark:bg-slate-800 rounded-xl px-4 py-3 border border-gray-200 dark:border-white/10 focus-within:border-bird-orange/50 transition-colors shadow-sm">
                       <input required value={formData.phone_number} onChange={e => setFormData({...formData, phone_number: formatPhoneInput(e.target.value)})} type="tel" maxLength={9} placeholder="6074-6649" className="w-full bg-transparent text-sm text-gray-900 dark:text-slate-100 outline-none placeholder-gray-500 dark:placeholder-slate-400" />
                     </div>
                     <div className="bg-white dark:bg-slate-800 rounded-xl px-4 py-3 border border-gray-200 dark:border-white/10 focus-within:border-bird-orange/50 transition-colors shadow-sm">
-                      <input required value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} type="email" maxLength={100} placeholder="Email Address" className="w-full bg-transparent text-sm text-gray-900 dark:text-slate-100 outline-none placeholder-gray-500 dark:placeholder-slate-400" />
+                      <input required value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} type="email" maxLength={100} placeholder={t('workerAuth.fields.emailAddress')} className="w-full bg-transparent text-sm text-gray-900 dark:text-slate-100 outline-none placeholder-gray-500 dark:placeholder-slate-400" />
                     </div>
                     <div className="grid grid-cols-1 gap-3">
                       <div className="bg-white dark:bg-slate-800 rounded-xl px-4 py-3 border border-gray-200 dark:border-white/10 focus-within:border-bird-orange/50 transition-colors shadow-sm">
-                        <PasswordInput required value={formData.password} onChange={e => setFormData({...formData, password: e.target.value})}  maxLength={128} placeholder="Password" className="w-full bg-transparent text-sm text-gray-900 dark:text-slate-100 outline-none placeholder-gray-500 dark:placeholder-slate-400" />
+                        <PasswordInput required value={formData.password} onChange={e => setFormData({...formData, password: e.target.value})}  maxLength={128} placeholder={t('workerAuth.fields.password')} className="w-full bg-transparent text-sm text-gray-900 dark:text-slate-100 outline-none placeholder-gray-500 dark:placeholder-slate-400" />
                       </div>
                       <div className="bg-white dark:bg-slate-800 rounded-xl px-4 py-3 border border-gray-200 dark:border-white/10 focus-within:border-bird-orange/50 transition-colors shadow-sm animate-fade-in-up">
-                        <PasswordInput required value={formData.confirmPassword} onChange={e => setFormData({...formData, confirmPassword: e.target.value})}  maxLength={128} placeholder="Confirm Password" className="w-full bg-transparent text-sm text-gray-900 dark:text-slate-100 outline-none placeholder-gray-500 dark:placeholder-slate-400" />
+                        <PasswordInput required value={formData.confirmPassword} onChange={e => setFormData({...formData, confirmPassword: e.target.value})}  maxLength={128} placeholder={t('workerAuth.fields.confirmPassword')} className="w-full bg-transparent text-sm text-gray-900 dark:text-slate-100 outline-none placeholder-gray-500 dark:placeholder-slate-400" />
                       </div>
                     </div>
                     <button disabled={loading} type="submit" className="mt-4 w-full py-4 rounded-xl font-bold text-sm tracking-wide shadow-lg active:scale-[0.98] transition-all duration-300 bg-gradient-to-r from-bird-yellow to-bird-gold text-gray-900 shadow-bird-yellow/20 disabled:opacity-50 disabled:cursor-not-allowed">
-                      {loading ? 'PROCESSING...' : "Create Pro Account"}
+                      {loading ? t('workerAuth.actions.processing') : t('workerAuth.actions.createProAccountMobile')}
                     </button>
                   </form>
                 </motion.div>
@@ -807,13 +810,13 @@ export const WorkerAuthModal: React.FC<WorkerAuthModalProps> = ({ isOpen, onClos
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19.428 15.428a2 2 0 00-1.022-.547l-2.384-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" />
                     </svg>
                   </div>
-                  <h2 className="text-2xl font-bold text-gray-900 mb-1">Your Specialties</h2>
-                  <p className="text-sm text-gray-600 mb-2 px-2">Select up to {MAX_WORKER_SPECIALTIES} services you specialize in</p>
-                  <p className="text-xs font-semibold text-bird-orange mb-4">{selectedServiceIds.length}/{MAX_WORKER_SPECIALTIES} selected</p>
+                  <h2 className="text-2xl font-bold text-gray-900 mb-1">{t('workerAuth.specialtiesTitle')}</h2>
+                  <p className="text-sm text-gray-600 mb-2 px-2">{t('workerAuth.specialtiesDescription', { max: MAX_WORKER_SPECIALTIES })}</p>
+                  <p className="text-xs font-semibold text-bird-orange mb-4">{t('workerAuth.specialtiesCount', { count: selectedServiceIds.length, max: MAX_WORKER_SPECIALTIES })}</p>
 
                   <div className="w-full grid grid-cols-2 gap-2 max-h-[200px] overflow-y-auto custom-scrollbar mb-4">
                     {availableServices.length === 0 ? (
-                      <p className="col-span-2 text-sm text-gray-400 py-4">No services available yet.</p>
+                      <p className="col-span-2 text-sm text-gray-400 py-4">{t('workerAuth.noServices')}</p>
                     ) : availableServices.map(svc => {
                       const isSelected = selectedServiceIds.includes(svc.id_service);
                       return (
@@ -844,10 +847,10 @@ export const WorkerAuthModal: React.FC<WorkerAuthModalProps> = ({ isOpen, onClos
                     onClick={handleSpecialtiesSubmit}
                     className="w-full py-4 rounded-xl font-bold text-sm tracking-wide shadow-lg active:scale-[0.98] transition-all duration-300 bg-gradient-to-r from-bird-orange to-bird-gold text-white shadow-bird-orange/20 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                    {loading ? 'CREATING ACCOUNT...' : 'Continue'}
+                    {loading ? t('workerAuth.actions.creatingAccount') : t('workerAuth.actions.continue')}
                   </button>
                   <button onClick={() => setView('signup')} className="mt-3 text-sm text-gray-500 hover:text-gray-700 font-semibold transition-colors">
-                    ← Go Back
+                    ← {t('workerAuth.goBack')}
                   </button>
                 </motion.div>
               )}
@@ -865,9 +868,9 @@ export const WorkerAuthModal: React.FC<WorkerAuthModalProps> = ({ isOpen, onClos
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
                     </svg>
                   </div>
-                  <h2 className="text-2xl font-bold text-gray-900 mb-2">Check Email</h2>
+                  <h2 className="text-2xl font-bold text-gray-900 mb-2">{t('workerAuth.verifyMobileTitle')}</h2>
                   <p className="text-sm text-gray-600 mb-8">
-                    OTP sent to <span className="font-semibold text-gray-900">{registeredEmail}</span>
+                    {t('workerAuth.verifyMobileDescription')} <span className="font-semibold text-gray-900">{registeredEmail}</span>
                   </p>
                   <form className="w-full" onSubmit={handleVerifySubmit}>
                     <div className="bg-white rounded-xl px-4 py-3 border border-gray-200 focus-within:border-bird-orange/50 transition-colors shadow-sm mb-6">
@@ -876,18 +879,18 @@ export const WorkerAuthModal: React.FC<WorkerAuthModalProps> = ({ isOpen, onClos
                         value={otp} 
                         onChange={e => setOtp(e.target.value.replace(/[^0-9]/g, '').slice(0, 6))}  
                         type="text" 
-                        placeholder="000000" 
+                        placeholder={t('workerAuth.verifyMobilePlaceholder', { defaultValue: '000000' })} 
                         className="w-full bg-transparent text-center text-2xl tracking-[0.5em] font-bold text-gray-900 outline-none placeholder-gray-400" 
                       />
                     </div>
                     <button disabled={loading || otp.length !== 6} type="submit" className="w-full py-4 rounded-xl font-bold text-sm tracking-wide shadow-lg active:scale-[0.98] transition-all duration-300 bg-gradient-to-r from-bird-orange to-bird-gold text-white shadow-bird-orange/20 disabled:opacity-50 disabled:cursor-not-allowed">
-                      {loading ? 'VERIFYING...' : "Verify Email"}
+                      {loading ? t('workerAuth.actions.verifying') : t('workerAuth.actions.verifyEmailMobile')}
                     </button>
                   </form>
 
                   <div className="flex items-center justify-between mt-6 w-full">
                     <button onClick={() => { setView('signup'); setOtp(''); }} className="text-sm text-gray-500 hover:text-gray-700 font-semibold transition-colors">
-                      ← Go Back
+                      ← {t('workerAuth.goBack')}
                     </button>
                     <button 
                       disabled={!canResend || loading} 
@@ -902,17 +905,17 @@ export const WorkerAuthModal: React.FC<WorkerAuthModalProps> = ({ isOpen, onClos
                           });
                           const data = await res.json();
                           if (res.ok) {
-                            void showSweetToast({ tone: 'success', message: 'New code sent!' });
+                            void showSweetToast({ tone: 'success', message: t('workerAuth.messages.resendSuccess') });
                           } else {
-                            void showSweetToast({ tone: 'error', message: data.error || 'Failed to resend' });
+                            void showSweetToast({ tone: 'error', message: translateApiError(data, 'workerAuth.messages.resendFailed') });
                           }
                         } catch {
-                          void showSweetToast({ tone: 'error', message: 'Connection error' });
+                          void showSweetToast({ tone: 'error', message: t('workerAuth.messages.connectionErrorShort') });
                         }
                       }}
                       className="text-sm font-semibold transition-colors disabled:text-gray-400 text-bird-orange hover:text-bird-orange/80 disabled:cursor-not-allowed"
                     >
-                      {canResend ? 'Resend Code' : `Resend in ${resendTimer}s`}
+                      {canResend ? t('workerAuth.resendCode') : t('workerAuth.resendIn', { count: resendTimer })}
                     </button>
                   </div>
                 </motion.div>
@@ -931,30 +934,30 @@ export const WorkerAuthModal: React.FC<WorkerAuthModalProps> = ({ isOpen, onClos
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                     </svg>
                   </div>
-                  <h2 className="text-2xl font-bold text-gray-900 mb-2">Documents</h2>
+                  <h2 className="text-2xl font-bold text-gray-900 mb-2">{t('workerAuth.uploadMobileTitle')}</h2>
                   <p className="text-sm text-gray-600 mb-6 px-2">
-                    Upload your ID (DUI) to get verified.
+                    {t('workerAuth.uploadMobileDescription')}
                   </p>
                   
                   <label className="w-full border-2 border-dashed border-gray-300 rounded-2xl p-6 mb-3 bg-gray-50 flex flex-col items-center justify-center hover:bg-gray-100 transition-colors cursor-pointer">
                     <svg className="w-8 h-8 text-gray-400 mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
                     </svg>
-                    <span className="text-sm font-semibold text-gray-700">{duiFile ? duiFile.name : 'ID Document (Required)'}</span>
+                    <span className="text-sm font-semibold text-gray-700">{duiFile ? duiFile.name : t('workerAuth.duiLabel')}</span>
                     <input type="file" className="hidden" accept="image/*,.pdf" onChange={(e) => setDuiFile(e.target.files?.[0] || null)} />
                   </label>
 
                   <label className="w-full border-2 border-dashed border-gray-200 rounded-2xl p-4 mb-6 bg-gray-50 flex flex-col items-center justify-center hover:bg-gray-100 transition-colors cursor-pointer">
-                    <span className="text-sm font-semibold text-gray-600">{certFile ? certFile.name : 'Certifications (Required)'}</span>
+                    <span className="text-sm font-semibold text-gray-600">{certFile ? certFile.name : t('workerAuth.certLabel')}</span>
                     <input type="file" className="hidden" accept="image/*,.pdf" onChange={(e) => setCertFile(e.target.files?.[0] || null)} />
                   </label>
 
                   <div className="w-full flex flex-col gap-3">
                     <button disabled={loading || !duiFile || !certFile} onClick={handleUploadDocuments} className="w-full py-4 rounded-xl font-bold text-sm tracking-wide shadow-lg active:scale-[0.98] transition-all duration-300 bg-gradient-to-r from-bird-orange to-bird-gold text-white shadow-bird-orange/20 disabled:opacity-50 disabled:cursor-not-allowed">
-                      {loading ? 'UPLOADING...' : 'Upload Files'}
+                      {loading ? t('workerAuth.actions.uploading') : t('workerAuth.actions.uploadFilesMobile')}
                     </button>
                     <button onClick={handleFinishUpload} className="w-full py-4 rounded-xl border border-gray-200 text-gray-600 font-bold text-sm tracking-wide hover:bg-gray-50 transition-all duration-300">
-                      Skip for Now
+                      {t('workerAuth.actions.skipForNowMobile')}
                     </button>
                   </div>
                 </motion.div>
@@ -968,15 +971,15 @@ export const WorkerAuthModal: React.FC<WorkerAuthModalProps> = ({ isOpen, onClos
                   exit={{ opacity: 0, scale: 1.05 }}
                 >
                   <div className="text-center mb-6">
-                    <h2 className="text-2xl font-bold text-gray-900 mb-2">Pro Sign In</h2>
-                    <p className="text-xs text-gray-600 px-4">Enter your credentials to access your dashboard.</p>
+                    <h2 className="text-2xl font-bold text-gray-900 mb-2">{t('workerAuth.signInTitle')}</h2>
+                    <p className="text-xs text-gray-600 px-4">{t('workerAuth.signInMobileDescription')}</p>
                   </div>
                   <form className="flex flex-col gap-3" onSubmit={handleSigninSubmit}>
                     <div className="bg-white rounded-xl px-4 py-3 border border-gray-200 focus-within:border-bird-orange/50 transition-colors shadow-sm">
-                      <input required value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} type="email" maxLength={100} placeholder="Email Address" className="w-full bg-transparent text-sm text-gray-900 outline-none placeholder-gray-500" />
+                      <input required value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} type="email" maxLength={100} placeholder={t('workerAuth.fields.emailAddress')} className="w-full bg-transparent text-sm text-gray-900 outline-none placeholder-gray-500" />
                     </div>
                     <div className="bg-white rounded-xl px-4 py-3 border border-gray-200 focus-within:border-bird-orange/50 transition-colors shadow-sm">
-                      <PasswordInput required value={formData.password} onChange={e => setFormData({...formData, password: e.target.value})}  maxLength={128} placeholder="Password" className="w-full bg-transparent text-sm text-gray-900 outline-none placeholder-gray-500" />
+                      <PasswordInput required value={formData.password} onChange={e => setFormData({...formData, password: e.target.value})}  maxLength={128} placeholder={t('workerAuth.fields.password')} className="w-full bg-transparent text-sm text-gray-900 outline-none placeholder-gray-500" />
                     </div>
                     <div className="flex justify-end mt-1">
                       <button
@@ -984,11 +987,11 @@ export const WorkerAuthModal: React.FC<WorkerAuthModalProps> = ({ isOpen, onClos
                         onClick={() => setView('forgot')}
                         className="text-xs text-gray-600 hover:text-bird-orange transition-colors"
                       >
-                        Forgot password?
+                        {t('workerAuth.forgotPassword')}
                       </button>
                     </div>
                     <button disabled={loading} type="submit" className="mt-4 w-full py-4 rounded-xl font-bold text-sm tracking-wide shadow-lg active:scale-[0.98] transition-all duration-300 bg-gradient-to-r from-bird-orange to-bird-gold text-white shadow-bird-orange/20 disabled:opacity-50 disabled:cursor-not-allowed">
-                      {loading ? 'PROCESSING...' : "Sign In"}
+                      {loading ? t('workerAuth.actions.processing') : t('workerAuth.actions.signInMobile', { defaultValue: t('workerAuth.actions.signIn') })}
                     </button>
                   </form>
                 </motion.div>

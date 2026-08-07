@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { API_ENDPOINTS } from '../../config/api';
 import { AuthMode } from '../../types';
 import { showSweetToast } from '../../utils/sweetAlert';
+import { translateApiError } from '../../utils/apiError';
 import { useAuth } from '../../context/AuthContext';
 import { setAuthSession } from '../../utils/session';
 import ForgotPassword from '../../pages/ForgotPassword';
@@ -279,7 +280,7 @@ const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const data = await res.json();
 
     if (!res.ok) {
-      void showSweetToast({ tone: 'error', message: data.error || t('auth.messages.registrationFailed') });
+      void showSweetToast({ tone: 'error', message: translateApiError(data, 'auth.messages.registrationFailed') });
       return;
     }
 
@@ -343,7 +344,7 @@ const handleGoogleSignin = async (credential: string) => {
     const data = await res.json();
 
     if (!res.ok) {
-      void showSweetToast({ tone: 'error', message: data.error || t('auth.messages.googleLoginFailed') });
+      void showSweetToast({ tone: 'error', message: translateApiError(data, 'auth.messages.googleLoginFailed') });
       return;
     }
 
@@ -381,7 +382,7 @@ if (!emailRegex.test(signinEmail)) {
     const data = await res.json();
 
     if (!res.ok) {
-      void showSweetToast({ tone: 'error', message: data.error || t('auth.messages.loginFailed') });
+      void showSweetToast({ tone: 'error', message: translateApiError(data, 'auth.messages.loginFailed') });
       return;
     }
 
