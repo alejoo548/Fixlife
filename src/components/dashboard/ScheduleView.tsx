@@ -16,7 +16,7 @@ import { useWorkerWorkspace, WorkerAgendaJob } from '../../hooks/useWorkerWorksp
 import { getToken } from '../../utils/session';
 import i18n from '../../i18n';
 
-const dateLocale = () => (i18n.language === 'es' ? 'es-SV' : dateLocale());
+const dateLocale = () => (i18n.language === 'es' ? 'es-SV' : 'en-US');
 
 type ViewMode = 'day' | 'week' | 'month';
 type DisplayMode = 'overview' | 'calendar';
