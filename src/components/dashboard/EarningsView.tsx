@@ -1,5 +1,6 @@
 import React from 'react';
 import { motion } from 'framer-motion';
+import { useTranslation } from 'react-i18next';
 import { BadgeDollarSign, CalendarClock, TrendingUp } from 'lucide-react';
 import { useWorkerRewardsDashboard } from '../../hooks/useWorkerRewardsDashboard';
 import {formatDate,formatMoney,getBonusProgramLabel,getCalendarBatchSummary,getNextPayoutLabel,} from './workerRewardsUi';
@@ -43,6 +44,7 @@ const EarningsSkeleton: React.FC = () => (
 );
 
 export const EarningsView: React.FC = () => {
+  const { t } = useTranslation();
   const { data, loading, error } = useWorkerRewardsDashboard();
 
   if (loading && !data) return <EarningsSkeleton />;
@@ -66,38 +68,38 @@ export const EarningsView: React.FC = () => {
 
   const overviewCards = [
     {
-      title: 'Base earnings paid',
+      title: t('workerDashboard.earnings.cardBaseEarningsPaid'),
       value: formatMoney(summary.released_worker_payout),
       detail:
         summary.released_worker_payout > 0
-          ? `${formatMoney(summary.pending_worker_payout)} from completed work is already queued for later payout dates.`
-          : 'Completed jobs will move here after the payout batch is marked as paid.',
+          ? t('workerDashboard.earnings.cardBaseEarningsPaidDetailPending', { amount: formatMoney(summary.pending_worker_payout) })
+          : t('workerDashboard.earnings.cardBaseEarningsPaidDetailEmpty'),
       accent: 'bg-bird-blue/15',
       glow: 'bg-bird-blue/15',
     },
     {
-      title: 'Bonuses paid',
+      title: t('workerDashboard.earnings.cardBonusesPaid'),
       value: formatMoney(summary.paid_bonus_payout),
-      detail: `${formatMoney(summary.scheduled_bonus_payout)} in commission and monthly bonuses is still scheduled.`,
+      detail: t('workerDashboard.earnings.cardBonusesPaidDetail', { amount: formatMoney(summary.scheduled_bonus_payout) }),
       accent: 'bg-emerald-100',
       glow: 'bg-emerald-200/20',
     },
     {
-      title: 'Next scheduled payout',
+      title: t('workerDashboard.earnings.cardNextScheduledPayout'),
       value: formatMoney(summary.next_payout_amount),
       detail: summary.next_payout_date
-        ? `${getNextPayoutLabel(summary.next_payout_label)} on ${formatDate(summary.next_payout_date)}.`
-        : `New payout batches land every ${program.payout_day_label}.`,
+        ? t('workerDashboard.earnings.cardNextScheduledPayoutDetail', { label: getNextPayoutLabel(summary.next_payout_label), date: formatDate(summary.next_payout_date) })
+        : t('workerDashboard.earnings.cardNextScheduledPayoutDetailEmpty', { day: program.payout_day_label }),
       accent: 'bg-amber-100',
       glow: 'bg-amber-200/20',
     },
     {
-      title: 'Waiting on release',
+      title: t('workerDashboard.earnings.cardWaitingOnRelease'),
       value: formatMoney(summary.pending_release_worker_payout),
       detail:
         summary.pending_release_worker_payout > 0
-          ? 'These funds are secured by the client but still need to move into the payout calendar.'
-          : 'Nothing is waiting on client confirmation or payout release right now.',
+          ? t('workerDashboard.earnings.cardWaitingOnReleaseDetailPending')
+          : t('workerDashboard.earnings.cardWaitingOnReleaseDetailEmpty'),
       accent: 'bg-slate-200',
       glow: 'bg-slate-300/20',
     },
@@ -105,22 +107,22 @@ export const EarningsView: React.FC = () => {
 
   const payoutBreakdownRows = [
     {
-      label: 'Base earnings already paid',
+      label: t('workerDashboard.earnings.breakdownBaseEarningsPaid'),
       value: formatMoney(summary.released_worker_payout),
       tone: 'text-bird-blue',
     },
     {
-      label: 'Base earnings still scheduled',
+      label: t('workerDashboard.earnings.breakdownBaseEarningsScheduled'),
       value: formatMoney(summary.pending_worker_payout),
       tone: 'text-slate-900 dark:text-white',
     },
     {
-      label: 'Bonuses already paid',
+      label: t('workerDashboard.earnings.breakdownBonusesPaid'),
       value: formatMoney(summary.paid_bonus_payout),
       tone: 'text-emerald-700 dark:text-emerald-400',
     },
     {
-      label: 'Bonuses still scheduled',
+      label: t('workerDashboard.earnings.breakdownBonusesScheduled'),
       value: formatMoney(summary.scheduled_bonus_payout),
       tone: 'text-amber-700 dark:text-amber-400',
     },
@@ -140,13 +142,13 @@ export const EarningsView: React.FC = () => {
             </span>
             <div className="min-w-0">
               <p className="text-[11px] font-black uppercase tracking-[0.2em] text-bird-blue">
-                Worker payout plan
+                {t('workerDashboard.earnings.planLabel')}
               </p>
               <h2 className="mt-2 max-w-3xl text-2xl font-black leading-tight text-slate-950 dark:text-white md:text-3xl">
-                Clear payout tracking for base earnings and bonuses
+                {t('workerDashboard.earnings.heroTitle')}
               </h2>
               <p className="mt-3 max-w-4xl text-sm font-semibold leading-6 text-slate-600 dark:text-slate-300">
-                See what has already been paid, what is scheduled for the next payout batch, and which bonus rules are still in progress.
+                {t('workerDashboard.earnings.heroSubtitle')}
               </p>
             </div>
           </div>
@@ -155,25 +157,25 @@ export const EarningsView: React.FC = () => {
             <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 dark:border-white/10 dark:bg-slate-800">
               <div className="flex items-center gap-2 text-sky-500">
                 <TrendingUp className="h-4 w-4" />
-                <p className="text-[10px] font-black uppercase tracking-[0.16em]">Commission unlock</p>
+                <p className="text-[10px] font-black uppercase tracking-[0.16em]">{t('workerDashboard.earnings.commissionUnlock')}</p>
               </div>
               <p className="mt-3 text-xl font-black text-slate-950 dark:text-white">
-                {program.trial_min_completed_jobs} jobs
+                {t('workerDashboard.earnings.jobsCount', { count: program.trial_min_completed_jobs })}
               </p>
               <p className="mt-1 text-xs font-semibold leading-5 text-slate-500 dark:text-slate-400">
-                Lifetime completed jobs required.
+                {t('workerDashboard.earnings.lifetimeJobsRequired')}
               </p>
             </div>
             <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 dark:border-white/10 dark:bg-slate-800">
               <div className="flex items-center gap-2 text-emerald-500">
                 <CalendarClock className="h-4 w-4" />
-                <p className="text-[10px] font-black uppercase tracking-[0.16em]">Monthly target</p>
+                <p className="text-[10px] font-black uppercase tracking-[0.16em]">{t('workerDashboard.earnings.monthlyTarget')}</p>
               </div>
               <p className="mt-3 text-xl font-black text-slate-950 dark:text-white">
-                {program.royalty_min_jobs} jobs
+                {t('workerDashboard.earnings.jobsCount', { count: program.royalty_min_jobs })}
               </p>
               <p className="mt-1 text-xs font-semibold leading-5 text-slate-500 dark:text-slate-400">
-                Plus {program.royalty_min_completion_rate}% completion rate.
+                {t('workerDashboard.earnings.plusCompletionRate', { rate: program.royalty_min_completion_rate })}
               </p>
             </div>
           </div>
@@ -209,11 +211,11 @@ export const EarningsView: React.FC = () => {
         >
           <div className="flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
             <div>
-              <p className="text-xs font-black uppercase tracking-[0.18em] text-bird-blue">Bonus progress</p>
-              <h3 className="mt-2 text-xl font-black text-slate-900 dark:text-white sm:text-2xl">Track the two bonus rules clearly</h3>
+              <p className="text-xs font-black uppercase tracking-[0.18em] text-bird-blue">{t('workerDashboard.earnings.bonusProgress')}</p>
+              <h3 className="mt-2 text-xl font-black text-slate-900 dark:text-white sm:text-2xl">{t('workerDashboard.earnings.bonusProgressTitle')}</h3>
             </div>
             <div className="rounded-full border border-slate-200 bg-slate-50 px-4 py-2 text-xs font-bold text-slate-600 dark:border-white/10 dark:bg-slate-800 dark:text-slate-300">
-              Payout day: every {program.payout_day_label}
+              {t('workerDashboard.earnings.payoutDay', { day: program.payout_day_label })}
             </div>
           </div>
 
@@ -221,12 +223,12 @@ export const EarningsView: React.FC = () => {
             <div className="rounded-3xl border border-slate-200 bg-slate-50 p-4 dark:border-white/10 dark:bg-slate-800/60">
               <div className="flex items-center justify-between gap-3">
                 <div>
-                  <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400 dark:text-slate-500">Commission bonus</p>
+                  <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400 dark:text-slate-500">{t('workerDashboard.earnings.commissionBonus')}</p>
                   <p className="mt-2 text-lg font-black text-slate-900 dark:text-white sm:text-xl">
-                    {summary.trial_unlocked ? 'Unlocked' : `${progress.jobs_until_trial} lifetime job(s) left`}
+                    {summary.trial_unlocked ? t('workerDashboard.earnings.unlocked') : t('workerDashboard.earnings.jobsLeft', { count: progress.jobs_until_trial })}
                   </p>
                   <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
-                    After {program.trial_min_completed_jobs} lifetime completed jobs, each eligible job can add a {Math.round(program.commission_rate * 100)}% commission bonus.
+                    {t('workerDashboard.earnings.commissionBonusDetail', { jobs: program.trial_min_completed_jobs, rate: Math.round(program.commission_rate * 100) })}
                   </p>
                 </div>
                 <span
@@ -236,14 +238,14 @@ export const EarningsView: React.FC = () => {
                       : 'border border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-400'
                   }`}
                 >
-                  {summary.trial_unlocked ? 'Active' : 'Locked'}
+                  {summary.trial_unlocked ? t('workerDashboard.earnings.active') : t('workerDashboard.earnings.locked')}
                 </span>
               </div>
               <div className="mt-4">
                 <ProgressBar value={progress.trial_progress_percent} tone="blue" />
               </div>
               <div className="mt-3 flex items-center justify-between text-sm text-slate-500 dark:text-slate-400">
-                <span>{summary.lifetime_completed_jobs} lifetime jobs counted</span>
+                <span>{t('workerDashboard.earnings.lifetimeJobsCounted', { count: summary.lifetime_completed_jobs })}</span>
                 <span>{progress.trial_progress_percent}%</span>
               </div>
             </div>
@@ -251,14 +253,14 @@ export const EarningsView: React.FC = () => {
             <div className="rounded-3xl border border-slate-200 bg-slate-50 p-4 dark:border-white/10 dark:bg-slate-800/60">
               <div className="flex items-center justify-between gap-3">
                 <div>
-                  <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400 dark:text-slate-500">Monthly performance bonus</p>
+                  <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400 dark:text-slate-500">{t('workerDashboard.earnings.monthlyPerformanceBonus')}</p>
                   <p className="mt-2 text-xl font-black text-slate-900 dark:text-white">
                     {summary.royalty_unlocked
-                      ? 'Unlocked this cycle'
-                      : `${progress.jobs_until_royalty} job(s) + ${progress.completion_rate_gap}% left`}
+                      ? t('workerDashboard.earnings.unlockedThisCycle')
+                      : t('workerDashboard.earnings.jobsAndRateLeft', { jobs: progress.jobs_until_royalty, rate: progress.completion_rate_gap })}
                   </p>
                   <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
-                    Hit {program.royalty_min_jobs} jobs in the current cycle and keep at least {program.royalty_min_completion_rate}% completion to add a {Math.round(program.royalty_rate * 100)}% monthly bonus.
+                    {t('workerDashboard.earnings.monthlyBonusDetail', { jobs: program.royalty_min_jobs, rate: program.royalty_min_completion_rate, bonusRate: Math.round(program.royalty_rate * 100) })}
                   </p>
                 </div>
                 <span
@@ -268,14 +270,14 @@ export const EarningsView: React.FC = () => {
                       : 'border border-bird-blue/15 bg-bird-blue/10 text-bird-blue dark:border-bird-blue/25 dark:bg-bird-blue/15'
                   }`}
                 >
-                  {summary.royalty_unlocked ? 'Ready' : 'In progress'}
+                  {summary.royalty_unlocked ? t('workerDashboard.earnings.ready') : t('workerDashboard.earnings.inProgress')}
                 </span>
               </div>
 
               <div className="mt-4 space-y-3">
                 <div>
                   <div className="mb-2 flex items-center justify-between text-sm font-semibold text-slate-500 dark:text-slate-400">
-                    <span>Jobs in this cycle</span>
+                    <span>{t('workerDashboard.earnings.jobsInCycle')}</span>
                     <span>
                       {summary.current_cycle_completed_jobs} / {program.royalty_min_jobs}
                     </span>
@@ -284,7 +286,7 @@ export const EarningsView: React.FC = () => {
                 </div>
                 <div>
                   <div className="mb-2 flex items-center justify-between text-sm font-semibold text-slate-500 dark:text-slate-400">
-                    <span>Completion rate</span>
+                    <span>{t('workerDashboard.earnings.completionRate')}</span>
                     <span>
                       {summary.completion_rate}% / {program.royalty_min_completion_rate}%
                     </span>
@@ -298,13 +300,13 @@ export const EarningsView: React.FC = () => {
           <div className="mt-6 rounded-3xl border border-slate-200 bg-slate-50 p-4 dark:border-white/10 dark:bg-slate-800/60">
             <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
               <div className="max-w-3xl">
-                <p className="text-[11px] font-black uppercase tracking-[0.18em] text-bird-blue">Payout policy</p>
+                <p className="text-[11px] font-black uppercase tracking-[0.18em] text-bird-blue">{t('workerDashboard.earnings.payoutPolicy')}</p>
                 <p className="mt-2 text-sm font-semibold text-slate-700 dark:text-slate-300">
-                  Base earnings are scheduled into payout batches first. Commission bonuses unlock after {program.trial_min_completed_jobs} lifetime completed jobs, and the monthly performance bonus unlocks once the worker closes at least {program.royalty_min_jobs} jobs with a {program.royalty_min_completion_rate}% completion rate during the cycle.
+                  {t('workerDashboard.earnings.payoutPolicyDetail', { trialJobs: program.trial_min_completed_jobs, royaltyJobs: program.royalty_min_jobs, rate: program.royalty_min_completion_rate })}
                 </p>
               </div>
               <div className="shrink-0 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-right dark:border-white/10 dark:bg-slate-800">
-                <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400 dark:text-slate-500">Cycle gross base earnings</p>
+                <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400 dark:text-slate-500">{t('workerDashboard.earnings.cycleGrossEarnings')}</p>
                 <p className="mt-1 text-xl font-black text-slate-900 dark:text-white sm:text-2xl">{formatMoney(summary.cycle_gross_earnings)}</p>
               </div>
             </div>
@@ -319,11 +321,11 @@ export const EarningsView: React.FC = () => {
         >
           <div className="flex items-center justify-between gap-3">
             <div>
-              <p className="text-xs font-black uppercase tracking-[0.18em] text-slate-400 dark:text-slate-500">Current money breakdown</p>
-              <h3 className="mt-2 text-xl font-black text-slate-900 dark:text-white sm:text-2xl">What those totals mean</h3>
+              <p className="text-xs font-black uppercase tracking-[0.18em] text-slate-400 dark:text-slate-500">{t('workerDashboard.earnings.currentMoneyBreakdown')}</p>
+              <h3 className="mt-2 text-xl font-black text-slate-900 dark:text-white sm:text-2xl">{t('workerDashboard.earnings.whatTotalsMean')}</h3>
             </div>
             <div className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-black text-slate-600 dark:border-white/10 dark:bg-slate-800 dark:text-slate-300">
-              {summary.lifetime_completed_jobs} jobs counted
+              {t('workerDashboard.earnings.jobsCounted', { count: summary.lifetime_completed_jobs })}
             </div>
           </div>
 
@@ -337,26 +339,26 @@ export const EarningsView: React.FC = () => {
           </div>
 
           <div className="mt-6 rounded-3xl border border-slate-200 bg-slate-50 p-4 dark:border-white/10 dark:bg-slate-800/60">
-            <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400 dark:text-slate-500">Next payout batch</p>
+            <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400 dark:text-slate-500">{t('workerDashboard.earnings.nextPayoutBatch')}</p>
             <p className="mt-2 text-2xl font-black text-slate-900 dark:text-white sm:text-3xl">{formatMoney(summary.next_payout_amount)}</p>
             <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
               {summary.next_payout_date
-                ? `${getNextPayoutLabel(summary.next_payout_label)} scheduled for ${formatDate(summary.next_payout_date)}.`
-                : 'As soon as work is released into a payout cycle, the next batch will show here.'}
+                ? t('workerDashboard.earnings.nextPayoutScheduled', { label: getNextPayoutLabel(summary.next_payout_label), date: formatDate(summary.next_payout_date) })
+                : t('workerDashboard.earnings.nextPayoutEmpty')}
             </p>
 
             {nextBatchBreakdown && (
               <div className="mt-4 grid gap-3 sm:grid-cols-3">
                 <div className="rounded-2xl border border-white/70 bg-white px-3 py-3 dark:border-white/10 dark:bg-slate-800">
-                  <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400 dark:text-slate-500">Base earnings</p>
+                  <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400 dark:text-slate-500">{t('workerDashboard.earnings.baseEarnings')}</p>
                   <p className="mt-2 text-xl font-black text-slate-900 dark:text-white">{formatMoney(nextBatchBreakdown.base)}</p>
                 </div>
                 <div className="rounded-2xl border border-white/70 bg-white px-3 py-3 dark:border-white/10 dark:bg-slate-800">
-                  <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400 dark:text-slate-500">Commission bonus</p>
+                  <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400 dark:text-slate-500">{t('workerDashboard.earnings.commissionBonusShort')}</p>
                   <p className="mt-2 text-xl font-black text-amber-700 dark:text-amber-400">{formatMoney(nextBatchBreakdown.commission)}</p>
                 </div>
                 <div className="rounded-2xl border border-white/70 bg-white px-3 py-3 dark:border-white/10 dark:bg-slate-800">
-                  <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400 dark:text-slate-500">Monthly bonus</p>
+                  <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400 dark:text-slate-500">{t('workerDashboard.earnings.monthlyBonusShort')}</p>
                   <p className="mt-2 text-xl font-black text-emerald-700 dark:text-emerald-400">{formatMoney(nextBatchBreakdown.performance)}</p>
                 </div>
               </div>
@@ -364,22 +366,22 @@ export const EarningsView: React.FC = () => {
           </div>
 
           <div className="mt-6 rounded-3xl border border-slate-200 bg-white p-4 dark:border-white/10 dark:bg-slate-800/60">
-            <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400 dark:text-slate-500">At a glance</p>
+            <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400 dark:text-slate-500">{t('workerDashboard.earnings.atAGlance')}</p>
             <div className="mt-3 space-y-2 text-sm font-semibold text-slate-600 dark:text-slate-300">
               <div className="flex items-center justify-between gap-3">
                 <span>{getBonusProgramLabel('commission')}</span>
                 <span className="font-black text-slate-900 dark:text-white">
-                  {summary.trial_unlocked ? 'Unlocked' : `${progress.jobs_until_trial} job(s) left`}
+                  {summary.trial_unlocked ? t('workerDashboard.earnings.unlocked') : t('workerDashboard.earnings.jobsLeftShort', { count: progress.jobs_until_trial })}
                 </span>
               </div>
               <div className="flex items-center justify-between gap-3">
                 <span>{getBonusProgramLabel('royalty')}</span>
                 <span className="font-black text-slate-900 dark:text-white">
-                  {summary.royalty_unlocked ? 'Unlocked' : `${progress.jobs_until_royalty} job(s) left`}
+                  {summary.royalty_unlocked ? t('workerDashboard.earnings.unlocked') : t('workerDashboard.earnings.jobsLeftShort', { count: progress.jobs_until_royalty })}
                 </span>
               </div>
               <div className="flex items-center justify-between gap-3">
-                <span>Completion rate gap</span>
+                <span>{t('workerDashboard.earnings.completionRateGap')}</span>
                 <span className="font-black text-slate-900 dark:text-white">{progress.completion_rate_gap}%</span>
               </div>
             </div>

@@ -11,8 +11,12 @@ import {
   UserRound,
   Wifi,
 } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { useWorkerWorkspace, WorkerAgendaJob } from '../../hooks/useWorkerWorkspace';
 import { getToken } from '../../utils/session';
+import i18n from '../../i18n';
+
+const dateLocale = () => (i18n.language === 'es' ? 'es-SV' : dateLocale());
 
 type ViewMode = 'day' | 'week' | 'month';
 type DisplayMode = 'overview' | 'calendar';
@@ -36,16 +40,17 @@ const jobDateKey = (job: WorkerAgendaJob) =>
 
 const statusLabel = (status: string) => {
   const value = String(status || '').toLowerCase();
-  if (value === 'assigned') return 'Client approval';
-  if (value === 'payment_pending') return 'Payment pending';
-  if (value === 'paid') return 'Ready';
-  if (value === 'in_progress') return 'Working';
-  if (value === 'awaiting_confirmation') return 'Confirmation';
-  if (value === 'done') return 'Completed';
-  return value || 'Pending';
+  if (value === 'assigned') return i18n.t('workerDashboard.schedule.statusAssigned');
+  if (value === 'payment_pending') return i18n.t('workerDashboard.schedule.statusPaymentPending');
+  if (value === 'paid') return i18n.t('workerDashboard.schedule.statusPaid');
+  if (value === 'in_progress') return i18n.t('workerDashboard.schedule.statusInProgress');
+  if (value === 'awaiting_confirmation') return i18n.t('workerDashboard.schedule.statusAwaitingConfirmation');
+  if (value === 'done') return i18n.t('workerDashboard.schedule.statusDone');
+  return value || i18n.t('workerDashboard.schedule.statusPending');
 };
 
 export const ScheduleView: React.FC = () => {
+  const { t } = useTranslation();
   const token = getToken('worker');
   const [mode, setMode] = useState<ViewMode>('week');
   const [displayMode, setDisplayMode] = useState<DisplayMode>('overview');
@@ -140,20 +145,20 @@ export const ScheduleView: React.FC = () => {
 
   const rangeLabel =
     mode === 'day'
-      ? anchor.toLocaleDateString('en-US', {
+      ? anchor.toLocaleDateString(dateLocale(), {
           weekday: 'long',
           month: 'long',
           day: 'numeric',
         })
       : mode === 'month'
-        ? anchor.toLocaleDateString('en-US', {
+        ? anchor.toLocaleDateString(dateLocale(), {
             month: 'long',
             year: 'numeric',
           })
-      : `${weekDays[0].toLocaleDateString('en-US', {
+      : `${weekDays[0].toLocaleDateString(dateLocale(), {
           month: 'short',
           day: 'numeric',
-        })} - ${weekDays[6].toLocaleDateString('en-US', {
+        })} - ${weekDays[6].toLocaleDateString(dateLocale(), {
           month: 'short',
           day: 'numeric',
         })}`;
@@ -166,7 +171,7 @@ export const ScheduleView: React.FC = () => {
             <div>
               <div className="flex items-center gap-2">
                 <p className="text-[10px] font-black uppercase tracking-[0.2em] text-bird-blue">
-                  Work calendar
+                  {t('workerDashboard.schedule.workCalendar')}
                 </p>
                 <span
                   className={`inline-flex items-center gap-1 text-[10px] font-black ${
@@ -174,12 +179,12 @@ export const ScheduleView: React.FC = () => {
                   }`}
                 >
                   <Wifi className="h-3.5 w-3.5" />
-                  {connected ? 'Live' : 'Reconnecting'}
+                  {connected ? t('workerDashboard.schedule.live') : t('workerDashboard.schedule.reconnecting')}
                 </span>
               </div>
               <h2 className="mt-1 text-2xl font-black text-slate-950 dark:text-white">{rangeLabel}</h2>
               <p className="mt-1 text-sm font-semibold text-slate-500 dark:text-slate-400">
-                Each visit includes a {bufferMinutes}-minute protected travel window.
+                {t('workerDashboard.schedule.travelWindowHint', { minutes: bufferMinutes })}
               </p>
             </div>
 
@@ -196,7 +201,7 @@ export const ScheduleView: React.FC = () => {
                         : 'text-slate-500 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white'
                     }`}
                   >
-                    {value === 'overview' ? 'Overview' : 'Full calendar'}
+                    {value === 'overview' ? t('workerDashboard.schedule.overview') : t('workerDashboard.schedule.fullCalendar')}
                   </button>
                 ))}
               </div>
@@ -212,7 +217,7 @@ export const ScheduleView: React.FC = () => {
                         : 'text-slate-500 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white'
                     }`}
                   >
-                    {value}
+                    {value === 'day' ? t('workerDashboard.schedule.modeDay') : value === 'week' ? t('workerDashboard.schedule.modeWeek') : t('workerDashboard.schedule.modeMonth')}
                   </button>
                 ))}
               </div>
@@ -220,7 +225,7 @@ export const ScheduleView: React.FC = () => {
                 type="button"
                 onClick={() => shift(-1)}
                 className="flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-slate-50 text-slate-600 shadow-sm transition hover:bg-slate-100 dark:border-white/10 dark:bg-white/5 dark:text-slate-200 dark:hover:bg-white/10"
-                title="Previous period"
+                title={t('workerDashboard.schedule.previousPeriod')}
               >
                 <ChevronLeft className="h-4 w-4" />
               </button>
@@ -234,13 +239,13 @@ export const ScheduleView: React.FC = () => {
                 }}
                 className="h-10 rounded-xl border border-slate-200 bg-slate-50 px-4 text-xs font-black text-slate-700 shadow-sm transition hover:bg-slate-100 dark:border-white/10 dark:bg-white/5 dark:text-slate-100 dark:hover:bg-white/10"
               >
-                Today
+                {t('workerDashboard.schedule.today')}
               </button>
               <button
                 type="button"
                 onClick={() => shift(1)}
                 className="flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-slate-50 text-slate-600 shadow-sm transition hover:bg-slate-100 dark:border-white/10 dark:bg-white/5 dark:text-slate-200 dark:hover:bg-white/10"
-                title="Next period"
+                title={t('workerDashboard.schedule.nextPeriod')}
               >
                 <ChevronRight className="h-4 w-4" />
               </button>
@@ -257,10 +262,10 @@ export const ScheduleView: React.FC = () => {
               <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-amber-700" />
               <div>
                 <p className="text-sm font-black text-amber-950">
-                  Two visits need more travel time
+                  {t('workerDashboard.schedule.conflictTitle')}
                 </p>
                 <p className="mt-0.5 text-xs font-semibold text-amber-800">
-                  They are highlighted below. New requests that overlap this protected time are blocked automatically.
+                  {t('workerDashboard.schedule.conflictDetail')}
                 </p>
               </div>
             </div>
@@ -365,12 +370,12 @@ const SchedulePlanner = ({
           <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <p className="text-[10px] font-black uppercase tracking-[0.2em] text-bird-blue">
-                {mode === 'week' ? 'Week overview' : 'Day overview'}
+                {mode === 'week' ? i18n.t('workerDashboard.schedule.weekOverview') : i18n.t('workerDashboard.schedule.dayOverview')}
               </p>
-              <h3 className="mt-1 text-lg font-black text-slate-950 dark:text-white">Scheduled workload</h3>
+              <h3 className="mt-1 text-lg font-black text-slate-950 dark:text-white">{i18n.t('workerDashboard.schedule.scheduledWorkload')}</h3>
             </div>
             <span className="w-fit rounded-full border border-sky-400/20 bg-sky-400/10 px-3 py-1 text-[10px] font-black uppercase tracking-[0.14em] text-sky-200">
-              {bufferMinutes} min travel buffer
+              {i18n.t('workerDashboard.schedule.minTravelBuffer', { minutes: bufferMinutes })}
             </span>
           </div>
 
@@ -397,7 +402,7 @@ const SchedulePlanner = ({
                   <div className="flex items-start justify-between gap-3">
                     <div>
                       <p className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-500 dark:text-slate-400">
-                        {day.toLocaleDateString('en-US', { weekday: mode === 'day' ? 'long' : 'short' })}
+                        {day.toLocaleDateString(dateLocale(), { weekday: mode === 'day' ? 'long' : 'short' })}
                       </p>
                       <p className={`${compactMonth ? 'text-2xl' : 'text-3xl'} mt-1 font-black text-slate-950 dark:text-white`}>
                         {day.getDate()}
@@ -406,7 +411,7 @@ const SchedulePlanner = ({
                     <span className={`rounded-full px-2.5 py-1 text-[10px] font-black ${
                       jobs.length ? 'bg-sky-400/15 text-sky-700 dark:text-sky-200' : 'bg-slate-100 text-slate-500 dark:bg-white/10 dark:text-slate-400'
                     }`}>
-                      {jobs.length} {jobs.length === 1 ? 'job' : 'jobs'}
+                      {i18n.t('workerDashboard.schedule.jobsCount', { count: jobs.length })}
                     </span>
                   </div>
 
@@ -415,26 +420,26 @@ const SchedulePlanner = ({
                       <p className="truncate text-xs font-black text-slate-950 dark:text-white">{firstJob.service_name}</p>
                       <p className="mt-1 flex items-center gap-1.5 text-[11px] font-bold text-slate-500 dark:text-slate-400">
                         <Clock3 className="h-3.5 w-3.5" />
-                        {new Date(firstJob.scheduled_start_time || 0).toLocaleTimeString('en-US', {
+                        {new Date(firstJob.scheduled_start_time || 0).toLocaleTimeString(dateLocale(), {
                           hour: 'numeric',
                           minute: '2-digit',
                         })}
                       </p>
                       {jobs.length > 1 && (
                         <p className="mt-1 text-[10px] font-black uppercase tracking-[0.14em] text-sky-700 dark:text-sky-300">
-                          +{jobs.length - 1} more
+                          {i18n.t('workerDashboard.schedule.moreCount', { count: jobs.length - 1 })}
                         </p>
                       )}
                     </div>
                   ) : (
                     <div className="mt-4 flex items-center gap-2 rounded-xl border border-dashed border-slate-200 p-3 text-xs font-black text-slate-400 dark:border-white/10 dark:text-slate-500">
                       <CalendarDays className="h-4 w-4" />
-                      Available
+                      {i18n.t('workerDashboard.schedule.available')}
                     </div>
                   )}
 
                   <div className={`${compactMonth ? 'mt-3' : 'mt-4'} flex items-center justify-between text-xs font-black text-slate-500 dark:text-slate-400`}>
-                    <span>Estimate</span>
+                    <span>{i18n.t('workerDashboard.schedule.estimate')}</span>
                     <span className="text-slate-950 dark:text-white">${dayTotal.toFixed(0)}</span>
                   </div>
                 </button>
@@ -444,9 +449,9 @@ const SchedulePlanner = ({
         </div>
 
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-1">
-          <MetricCard label="Jobs" value={String(totalJobs)} />
-          <MetricCard label="Estimate" value={`$${totalEstimate.toFixed(0)}`} />
-          <MetricCard label="Selected day" value={String(selectedDayJobs.length)} />
+          <MetricCard label={i18n.t('workerDashboard.schedule.jobsLabel')} value={String(totalJobs)} />
+          <MetricCard label={i18n.t('workerDashboard.schedule.estimate')} value={`$${totalEstimate.toFixed(0)}`} />
+          <MetricCard label={i18n.t('workerDashboard.schedule.selectedDayLabel')} value={String(selectedDayJobs.length)} />
         </div>
       </section>
 
@@ -467,7 +472,7 @@ const SchedulePlanner = ({
 };
 
 const formatCalendarHour = (hour: number) =>
-  new Date(2026, 0, 1, hour).toLocaleTimeString('en-US', {
+  new Date(2026, 0, 1, hour).toLocaleTimeString(dateLocale(), {
     hour: 'numeric',
     minute: '2-digit',
   });
@@ -528,11 +533,11 @@ const FullCalendarView = ({
         <div className="border-b border-slate-200 p-4 dark:border-white/10">
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <p className="text-[10px] font-black uppercase tracking-[0.2em] text-bird-blue">Full calendar</p>
-              <h3 className="mt-1 text-lg font-black text-slate-950 dark:text-white">24-hour schedule</h3>
+              <p className="text-[10px] font-black uppercase tracking-[0.2em] text-bird-blue">{i18n.t('workerDashboard.schedule.fullCalendar')}</p>
+              <h3 className="mt-1 text-lg font-black text-slate-950 dark:text-white">{i18n.t('workerDashboard.schedule.hourSchedule')}</h3>
             </div>
             <span className="w-fit rounded-full border border-sky-400/20 bg-sky-400/10 px-3 py-1 text-[10px] font-black uppercase tracking-[0.14em] text-sky-200">
-              Scroll to see the whole day
+              {i18n.t('workerDashboard.schedule.scrollWholeDay')}
             </span>
           </div>
         </div>
@@ -563,7 +568,7 @@ const FullCalendarView = ({
                     }`}
                   >
                     <p className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-500 dark:text-slate-400">
-                      {day.toLocaleDateString('en-US', { weekday: mode === 'day' ? 'long' : 'short' })}
+                      {day.toLocaleDateString(dateLocale(), { weekday: mode === 'day' ? 'long' : 'short' })}
                     </p>
                     <div className="mt-1 flex items-center gap-2">
                       <span
@@ -574,7 +579,7 @@ const FullCalendarView = ({
                         {day.getDate()}
                       </span>
                       <span className="text-xs font-black text-slate-500 dark:text-slate-400">
-                        {jobs.length} {jobs.length === 1 ? 'job' : 'jobs'}
+                        {i18n.t('workerDashboard.schedule.jobsCount', { count: jobs.length })}
                       </span>
                     </div>
                   </button>
@@ -624,7 +629,7 @@ const FullCalendarView = ({
                         className="absolute left-1/2 top-28 flex -translate-x-1/2 flex-col items-center rounded-2xl border border-dashed border-slate-200 px-5 py-4 text-slate-400 transition hover:border-sky-400/40 hover:text-sky-600 dark:border-white/10 dark:text-slate-600 dark:hover:text-sky-200"
                       >
                         <CalendarDays className="h-5 w-5" />
-                        <span className="mt-1 text-[10px] font-black">Available</span>
+                        <span className="mt-1 text-[10px] font-black">{i18n.t('workerDashboard.schedule.available')}</span>
                       </button>
                     )}
 
@@ -698,17 +703,17 @@ const MonthCalendarView = ({
         <div className="border-b border-slate-200 p-4 dark:border-white/10">
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <p className="text-[10px] font-black uppercase tracking-[0.2em] text-bird-blue">Full calendar</p>
-              <h3 className="mt-1 text-lg font-black text-slate-950 dark:text-white">Month schedule</h3>
+              <p className="text-[10px] font-black uppercase tracking-[0.2em] text-bird-blue">{i18n.t('workerDashboard.schedule.fullCalendar')}</p>
+              <h3 className="mt-1 text-lg font-black text-slate-950 dark:text-white">{i18n.t('workerDashboard.schedule.monthSchedule')}</h3>
             </div>
             <span className="w-fit rounded-full border border-sky-400/20 bg-sky-400/10 px-3 py-1 text-[10px] font-black uppercase tracking-[0.14em] text-sky-700 dark:text-sky-200">
-              Select any future day
+              {i18n.t('workerDashboard.schedule.selectFutureDay')}
             </span>
           </div>
         </div>
 
         <div className="grid grid-cols-7 border-b border-slate-200 bg-slate-50 dark:border-white/10 dark:bg-white/[0.03]">
-          {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((label) => (
+          {[i18n.t('workerDashboard.schedule.weekdayMon'), i18n.t('workerDashboard.schedule.weekdayTue'), i18n.t('workerDashboard.schedule.weekdayWed'), i18n.t('workerDashboard.schedule.weekdayThu'), i18n.t('workerDashboard.schedule.weekdayFri'), i18n.t('workerDashboard.schedule.weekdaySat'), i18n.t('workerDashboard.schedule.weekdaySun')].map((label) => (
             <div key={label} className="border-r border-slate-200 px-3 py-3 text-[10px] font-black uppercase tracking-[0.16em] text-slate-500 last:border-r-0 dark:border-white/10 dark:text-slate-400">
               {label}
             </div>
@@ -771,13 +776,13 @@ const MonthCalendarView = ({
                     </p>
                     {jobs.length > 1 && (
                       <p className="mt-1 text-[10px] font-black uppercase tracking-[0.14em] text-sky-700 dark:text-sky-300">
-                        +{jobs.length - 1} more
+                        {i18n.t('workerDashboard.schedule.moreCount', { count: jobs.length - 1 })}
                       </p>
                     )}
                   </div>
                 ) : (
                   <div className="mt-3 rounded-xl border border-dashed border-slate-200 px-3 py-2 text-center text-[10px] font-black text-slate-400 dark:border-white/10 dark:text-slate-600">
-                    Available
+                    {i18n.t('workerDashboard.schedule.available')}
                   </div>
                 )}
               </button>
@@ -829,7 +834,7 @@ const FullCalendarJob = ({
         <div
           className="absolute inset-x-3 rounded-b-xl border-x border-b border-dashed border-slate-300 bg-slate-100 dark:border-slate-600 dark:bg-slate-800/60"
           style={{ top: top + height, height: bufferHeight }}
-          title={`${bufferMinutes} minutes reserved for travel`}
+          title={i18n.t('workerDashboard.schedule.minutesReservedForTravel', { minutes: bufferMinutes })}
         />
       )}
       <button
@@ -843,7 +848,7 @@ const FullCalendarJob = ({
               : 'border-sky-400/30 bg-sky-500/15 text-slate-800 hover:border-sky-300 dark:text-slate-100'
         }`}
         style={{ top, height }}
-        title={`${job.service_name} - ${formatJobTimeRange(job)} - ${job.location_text}`}
+        title={i18n.t('workerDashboard.schedule.jobTitleAttr', { name: job.service_name, range: formatJobTimeRange(job), location: job.location_text })}
       >
         <div className="flex min-w-0 items-start justify-between gap-2">
           <div className="min-w-0">
@@ -868,7 +873,7 @@ const FullCalendarJob = ({
         {height > 106 && (
           <div className={`mt-2 flex items-center justify-between gap-2 border-t pt-2 ${selected ? 'border-white/15' : 'border-slate-200 dark:border-white/10'}`}>
             <span className="min-w-0 truncate text-[10px] font-bold text-white/70">
-              {job.client_name || `Request #${job.id_request}`}
+              {job.client_name || i18n.t('workerDashboard.schedule.requestNumber', { id: job.id_request })}
             </span>
             <span className="shrink-0 text-xs font-black">${job.amount.toFixed(0)}</span>
           </div>
@@ -888,11 +893,11 @@ const MetricCard = ({ label, value }: { label: string; value: string }) => (
 const formatJobTimeRange = (job: WorkerAgendaJob) => {
   const start = new Date(job.scheduled_start_time || 0);
   const end = new Date(job.scheduled_end_time || start.getTime() + job.duration_minutes * 60_000);
-  if (Number.isNaN(start.getTime())) return 'Time pending';
-  const startLabel = start.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+  if (Number.isNaN(start.getTime())) return i18n.t('workerDashboard.schedule.timePending');
+  const startLabel = start.toLocaleTimeString(dateLocale(), { hour: 'numeric', minute: '2-digit' });
   const endLabel = Number.isNaN(end.getTime())
     ? null
-    : end.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+    : end.toLocaleTimeString(dateLocale(), { hour: 'numeric', minute: '2-digit' });
   return endLabel ? `${startLabel} - ${endLabel}` : startLabel;
 };
 
@@ -916,14 +921,14 @@ const SelectedDayAgenda = ({
   <div className="rounded-[28px] border border-slate-200 bg-white p-4 shadow-2xl shadow-slate-200/40 dark:border-white/10 dark:bg-slate-950 dark:shadow-slate-950/30">
     <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
       <div>
-        <p className="text-[10px] font-black uppercase tracking-[0.2em] text-bird-blue">Selected day</p>
+        <p className="text-[10px] font-black uppercase tracking-[0.2em] text-bird-blue">{i18n.t('workerDashboard.schedule.selectedDay')}</p>
         <h3 className="mt-1 text-2xl font-black text-slate-950 dark:text-white">
-          {day.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })}
+          {day.toLocaleDateString(dateLocale(), { weekday: 'long', month: 'short', day: 'numeric' })}
         </h3>
       </div>
       <div className="flex gap-2">
         <span className="rounded-full bg-slate-100 px-3 py-1.5 text-xs font-black text-slate-700 dark:bg-white/10 dark:text-slate-200">
-          {jobs.length} {jobs.length === 1 ? 'job' : 'jobs'}
+          {i18n.t('workerDashboard.schedule.jobsCount', { count: jobs.length })}
         </span>
         <span className="rounded-full bg-slate-100 px-3 py-1.5 text-xs font-black text-slate-700 dark:bg-white/10 dark:text-slate-200">
           ${total.toFixed(0)}
@@ -935,8 +940,8 @@ const SelectedDayAgenda = ({
       <div className="grid min-h-[260px] place-items-center rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-8 text-center dark:border-white/10 dark:bg-white/[0.03]">
         <div>
           <CalendarDays className="mx-auto h-10 w-10 text-slate-400 dark:text-slate-600" />
-          <p className="mt-3 text-sm font-black text-slate-700 dark:text-slate-300">No visits this day</p>
-          <p className="mt-1 text-xs font-semibold text-slate-500">Accepted scheduled services will appear here.</p>
+          <p className="mt-3 text-sm font-black text-slate-700 dark:text-slate-300">{i18n.t('workerDashboard.schedule.noVisitsThisDay')}</p>
+          <p className="mt-1 text-xs font-semibold text-slate-500">{i18n.t('workerDashboard.schedule.acceptedServicesHint')}</p>
         </div>
       </div>
     ) : (
@@ -956,7 +961,7 @@ const SelectedDayAgenda = ({
               }`}
             >
               <div className="rounded-xl bg-slate-100 px-3 py-2 text-center dark:bg-slate-950/70">
-                <p className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-500">Stop {index + 1}</p>
+                <p className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-500">{i18n.t('workerDashboard.schedule.stopNumber', { number: index + 1 })}</p>
                 <p className="mt-1 text-sm font-black text-slate-950 dark:text-white">{formatJobTimeRange(job).split(' - ')[0]}</p>
               </div>
 
@@ -969,7 +974,7 @@ const SelectedDayAgenda = ({
                   {conflict && (
                     <span className="inline-flex items-center gap-1 rounded-full bg-amber-400/15 px-2 py-1 text-[10px] font-black uppercase text-amber-700 dark:text-amber-200">
                       <AlertTriangle className="h-3 w-3" />
-                      Travel conflict
+                      {i18n.t('workerDashboard.schedule.travelConflict')}
                     </span>
                   )}
                 </div>
@@ -979,7 +984,7 @@ const SelectedDayAgenda = ({
                 </p>
                 <p className="mt-1 flex items-center gap-2 text-xs font-bold text-slate-500">
                   <Route className="h-3.5 w-3.5 text-violet-300" />
-                  {bufferMinutes} min protected travel window
+                  {i18n.t('workerDashboard.schedule.minProtectedTravel', { minutes: bufferMinutes })}
                 </p>
               </div>
 
@@ -1003,11 +1008,11 @@ const VisitDetailsCard = ({
   bufferMinutes: number;
 }) => (
   <aside className="rounded-[28px] border border-slate-200 bg-white p-5 shadow-2xl shadow-slate-200/40 dark:border-white/10 dark:bg-slate-950 dark:shadow-slate-950/30">
-    <p className="text-[10px] font-black uppercase tracking-[0.2em] text-bird-blue">Visit details</p>
+    <p className="text-[10px] font-black uppercase tracking-[0.2em] text-bird-blue">{i18n.t('workerDashboard.schedule.visitDetails')}</p>
     {!selectedJob ? (
       <div className="mt-4 rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-6 text-center dark:border-white/10 dark:bg-white/[0.03]">
-        <p className="text-sm font-black text-slate-700 dark:text-slate-300">Select a visit</p>
-        <p className="mt-1 text-xs font-semibold text-slate-500">The route, client and estimate will appear here.</p>
+        <p className="text-sm font-black text-slate-700 dark:text-slate-300">{i18n.t('workerDashboard.schedule.selectAVisit')}</p>
+        <p className="mt-1 text-xs font-semibold text-slate-500">{i18n.t('workerDashboard.schedule.routeClientEstimateHint')}</p>
       </div>
     ) : (
       <div className="mt-4">
@@ -1021,7 +1026,7 @@ const VisitDetailsCard = ({
           </p>
           <p className="flex gap-3">
             <UserRound className="mt-0.5 h-4 w-4 shrink-0 text-sky-300" />
-            {selectedJob.client_name || `Request #${selectedJob.id_request}`}
+            {selectedJob.client_name || i18n.t('workerDashboard.schedule.requestNumber', { id: selectedJob.id_request })}
           </p>
           <p className="flex gap-3">
             <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-sky-300" />
@@ -1033,7 +1038,7 @@ const VisitDetailsCard = ({
           </p>
           <p className="flex gap-3">
             <Route className="mt-0.5 h-4 w-4 shrink-0 text-violet-300" />
-            {bufferMinutes} min protected travel window
+            {i18n.t('workerDashboard.schedule.minProtectedTravel', { minutes: bufferMinutes })}
           </p>
         </div>
         {selectedJob.description && (
