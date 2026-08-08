@@ -22,7 +22,21 @@ export const authLimiter = rateLimit({
 
 // Dedicated stricter limiter for account creation (anti mass-signup abuse) —
 // separate from the general authLimiter which also covers OTP resend/verify.
+// Client and worker registration each get their OWN instance (own in-memory
+// store) so testing/using one flow never eats into the other's quota, even
+// though both requests come from the same IP.
 export const registrationLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  max: 8,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many registration attempts. Try again in an hour.' },
+  handler: (_req: any, res: any) => {
+    res.status(429).json({ error: 'Too many registration attempts. Try again in an hour.' });
+  },
+});
+
+export const workerRegistrationLimiter = rateLimit({
   windowMs: 60 * 60 * 1000,
   max: 8,
   standardHeaders: true,
