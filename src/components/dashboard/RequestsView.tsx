@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { AnimatePresence, motion } from 'framer-motion';
 import { BriefcaseBusiness, MapPinned, Navigation, RefreshCw, WifiOff, X } from 'lucide-react';
 import { API_ENDPOINTS } from '../../config/api';
@@ -88,6 +89,7 @@ export const RequestsView: React.FC<RequestsViewProps> = ({
   isDark = false,
   onOpenHistory,
 }) => {
+  const { t } = useTranslation();
   const [statusFilter, setStatusFilter] = useState<RequestTab>('new');
   const [requests, setRequests] = useState<WorkerRequest[]>([]);
   const [selectedRequestId, setSelectedRequestId] = useState<number | null>(null);
@@ -164,7 +166,7 @@ export const RequestsView: React.FC<RequestsViewProps> = ({
         tone,
         message: payload.title
           ? `${payload.title}${payload.message ? `: ${payload.message}` : ''}`
-          : payload.message || 'Your workspace was updated.',
+          : payload.message || t('workerDashboard.requests.workspaceUpdated'),
         duration: 3600,
       });
       void fetchRequests(true);
@@ -251,11 +253,11 @@ export const RequestsView: React.FC<RequestsViewProps> = ({
       );
       const payload: WorkerRequestsPayload = await response.json();
       if (response.status === 401) {
-        if (!silent) notify.error('Worker session could not be validated. Please reopen the dashboard.');
+        if (!silent) notify.error(t('workerDashboard.requests.sessionInvalid'));
         return;
       }
       if (!response.ok || !payload?.success) {
-        if (!silent) notify.error((payload as any)?.error || 'Could not load requests.');
+        if (!silent) notify.error((payload as any)?.error || t('workerDashboard.requests.couldNotLoadRequests'));
         return;
       }
       const next = Array.isArray(payload.requests)
@@ -295,7 +297,7 @@ export const RequestsView: React.FC<RequestsViewProps> = ({
 
       if (statusFilter === 'new' && activeProfileRequest && next.length === 0) {
         setStatusFilter('accepted');
-        if (!silent) notify.info('This request is already assigned. Showing it in My jobs.');
+        if (!silent) notify.info(t('workerDashboard.requests.alreadyAssignedNotice'));
         return;
       }
 
@@ -304,14 +306,14 @@ export const RequestsView: React.FC<RequestsViewProps> = ({
         const ids = new Set(next.map((request) => request.id_request));
         if (!firstLoadRef.current) {
           freshCount = [...ids].filter((id) => !knownNewIdsRef.current.has(id)).length;
-          if (freshCount > 0) notify.success(`${freshCount} new request(s) nearby.`);
+          if (freshCount > 0) notify.success(t('workerDashboard.requests.newRequestsNearby', { count: freshCount }));
         }
         knownNewIdsRef.current = ids;
         firstLoadRef.current = false;
       }
-      if (!silent && freshCount === 0) notify.success('Requests updated.');
+      if (!silent && freshCount === 0) notify.success(t('workerDashboard.requests.requestsUpdated'));
     } catch {
-      if (!silent) notify.error('Network error loading requests.');
+      if (!silent) notify.error(t('workerDashboard.requests.networkErrorLoading'));
     } finally {
       if (!silent) setLoading(false);
     }
@@ -391,7 +393,7 @@ export const RequestsView: React.FC<RequestsViewProps> = ({
           if (!chatPanelOpen) {
             void showSweetToast({
               tone: 'info',
-              message: 'New client message. Open chat to reply.',
+              message: t('workerDashboard.requests.newClientMessage'),
               duration: 2600,
             });
           }
@@ -424,7 +426,7 @@ export const RequestsView: React.FC<RequestsViewProps> = ({
       if (!chatPanelOpen && incoming.some((message) => message.sender_role === 'client')) {
         void showSweetToast({
           tone: 'info',
-          message: 'New client message. Open chat to reply.',
+          message: t('workerDashboard.requests.newClientMessage'),
           duration: 2600,
         });
       }
@@ -451,14 +453,14 @@ export const RequestsView: React.FC<RequestsViewProps> = ({
             status: String(payload.active_request_status || '').toLowerCase(),
           });
         }
-        notify.error(payload?.error || 'Could not update this request.');
+        notify.error(payload?.error || t('workerDashboard.requests.couldNotUpdateRequest'));
         return false;
       }
       notify.success(successMessage);
       await Promise.all([fetchRequests(true), refreshWorkspace(true)]);
       return true;
     } catch {
-      notify.error('Network error updating this request.');
+      notify.error(t('workerDashboard.requests.networkErrorUpdating'));
       return false;
     } finally {
       setBusyId(null);
@@ -467,13 +469,13 @@ export const RequestsView: React.FC<RequestsViewProps> = ({
 
   const handleAction = async (idRequest: number, action: 'accept' | 'reject') => {
     const confirmed = await showSweetConfirm({
-      title: action === 'accept' ? 'Accept this request?' : 'Pass on this request?',
+      title: action === 'accept' ? t('workerDashboard.requests.acceptTitle') : t('workerDashboard.requests.passTitle'),
       message:
         action === 'accept'
-          ? 'The visit will be added to your jobs and its reserved time will no longer be available for another service.'
-          : 'This request will leave your available list. The client will continue looking for another professional.',
+          ? t('workerDashboard.requests.acceptMessage')
+          : t('workerDashboard.requests.passMessage'),
       tone: action === 'accept' ? 'info' : 'warning',
-      confirmText: action === 'accept' ? 'Accept request' : 'Pass request',
+      confirmText: action === 'accept' ? t('workerDashboard.requests.acceptRequestBtn') : t('workerDashboard.requests.passRequestBtn'),
       destructive: action === 'reject',
     });
     if (!confirmed) return;
@@ -482,7 +484,7 @@ export const RequestsView: React.FC<RequestsViewProps> = ({
       action === 'accept'
         ? API_ENDPOINTS.worker.acceptRequest(idRequest)
         : API_ENDPOINTS.worker.rejectRequest(idRequest),
-      action === 'accept' ? 'Request accepted.' : 'Request rejected.'
+      action === 'accept' ? t('workerDashboard.requests.requestAccepted') : t('workerDashboard.requests.requestRejected')
     );
     if (success && action === 'accept') {
       setSelectedRequestId(idRequest);
@@ -495,13 +497,13 @@ export const RequestsView: React.FC<RequestsViewProps> = ({
     action: 'start_work' | 'finish_work' | 'complete_service'
   ) => {
     const labels = {
-      start_work: ['Approve work start?', 'Approve start'],
-      finish_work: ['Approve work finish?', 'Approve finish'],
-      complete_service: ['Approve final service closure?', 'Approve closure'],
+      start_work: [t('workerDashboard.requests.approveStartTitle'), t('workerDashboard.requests.approveStartBtn')],
+      finish_work: [t('workerDashboard.requests.approveFinishTitle'), t('workerDashboard.requests.approveFinishBtn')],
+      complete_service: [t('workerDashboard.requests.approveClosureTitle'), t('workerDashboard.requests.approveClosureBtn')],
     } as const;
     const confirmed = await showSweetConfirm({
       title: labels[action][0],
-      message: 'Your approval is saved. Service advances only after client also approves.',
+      message: t('workerDashboard.requests.approvalSavedMessage'),
       tone: action === 'start_work' ? 'info' : 'warning',
       confirmText: labels[action][1],
     });
@@ -518,19 +520,19 @@ export const RequestsView: React.FC<RequestsViewProps> = ({
       });
       const payload = await response.json();
       if (!response.ok || !payload?.success) {
-        notify.error(payload?.error || 'Could not save approval.');
+        notify.error(payload?.error || t('workerDashboard.requests.couldNotSaveApproval'));
         return;
       }
       nextRequestStatus = String(payload.request_status || '').toLowerCase();
       notify.success(
         action === 'complete_service' && nextRequestStatus === 'done'
-          ? 'Service completed and moved to History.'
-          : payload.message || 'Approval saved.'
+          ? t('workerDashboard.requests.serviceCompletedHistory')
+          : payload.message || t('workerDashboard.requests.approvalSaved')
       );
       success = true;
       await Promise.all([fetchRequests(true), refreshWorkspace(true)]);
     } catch {
-      notify.error('Network error saving approval.');
+      notify.error(t('workerDashboard.requests.networkErrorApproval'));
     } finally {
       setBusyId(null);
     }
@@ -558,10 +560,10 @@ export const RequestsView: React.FC<RequestsViewProps> = ({
 
   const handleConfirmCash = async (idRequest: number) => {
     const confirmed = await showSweetConfirm({
-      title: 'Confirm cash collected?',
-      message: 'Only confirm after receiving the full cash payment from the client. The platform commission will be deducted from your next scheduled payout.',
+      title: t('workerDashboard.requests.confirmCashTitle'),
+      message: t('workerDashboard.requests.confirmCashMessage'),
       tone: 'warning',
-      confirmText: 'I collected the cash',
+      confirmText: t('workerDashboard.requests.iCollectedCash'),
     });
     if (!confirmed) return;
     if (!token) return;
@@ -573,13 +575,13 @@ export const RequestsView: React.FC<RequestsViewProps> = ({
       });
       const payload = await response.json();
       if (!response.ok || !payload?.success) {
-        notify.error(payload?.error || 'Could not confirm cash payment.');
+        notify.error(payload?.error || t('workerDashboard.requests.couldNotConfirmCash'));
         return;
       }
-      notify.success(payload.message || 'Cash payment confirmed.');
+      notify.success(payload.message || t('workerDashboard.requests.cashConfirmed'));
       await Promise.all([fetchRequests(true), refreshWorkspace(true)]);
     } catch {
-      notify.error('Network error confirming cash payment.');
+      notify.error(t('workerDashboard.requests.networkErrorCash'));
     } finally {
       setBusyId(null);
     }
@@ -587,10 +589,10 @@ export const RequestsView: React.FC<RequestsViewProps> = ({
 
   const markArrived = async (idRequest: number) => {
     const confirmed = await showSweetConfirm({
-      title: 'Confirm your arrival',
-      message: 'Only confirm after reaching the service address. The Start work action will become available.',
+      title: t('workerDashboard.requests.confirmArrivalTitle'),
+      message: t('workerDashboard.requests.confirmArrivalMessage'),
       tone: 'info',
-      confirmText: 'I have arrived',
+      confirmText: t('workerDashboard.requests.iHaveArrived'),
     });
     if (!confirmed) return;
     if (!token) return;
@@ -615,14 +617,14 @@ export const RequestsView: React.FC<RequestsViewProps> = ({
       });
       const payload = await response.json();
       if (!response.ok || !payload?.success) {
-        notify.error(payload?.error || 'Could not verify arrival.');
+        notify.error(payload?.error || t('workerDashboard.requests.couldNotVerifyArrival'));
         return;
       }
-      notify.success(payload.warning || 'Arrival confirmed. Both parties can approve work start.');
+      notify.success(payload.warning || t('workerDashboard.requests.arrivalConfirmed'));
       success = true;
       await Promise.all([fetchRequests(true), refreshWorkspace(true)]);
     } catch {
-      notify.error('Could not confirm arrival. Retry once.');
+      notify.error(t('workerDashboard.requests.couldNotConfirmArrivalRetry'));
     } finally {
       setBusyId(null);
     }
@@ -645,7 +647,7 @@ export const RequestsView: React.FC<RequestsViewProps> = ({
     const amount = Number(counterAmount);
     if (!token || !counterTargetId) return;
     if (!Number.isFinite(amount) || amount <= 0 || amount > 1000) {
-      notify.error('Amount must be between $0.01 and $1,000.00.');
+      notify.error(t('workerDashboard.requests.amountRange'));
       return;
     }
     setCounterModalOpen(false);
@@ -664,13 +666,13 @@ export const RequestsView: React.FC<RequestsViewProps> = ({
       });
       const payload = await response.json();
       if (!response.ok || !payload?.success) {
-        notify.error(payload?.error || 'Could not send counter offer.');
+        notify.error(payload?.error || t('workerDashboard.requests.couldNotSendCounter'));
         return;
       }
-      notify.success('Counter offer sent successfully.');
+      notify.success(t('workerDashboard.requests.counterOfferSent'));
       await Promise.all([fetchRequests(true), refreshWorkspace(true)]);
     } catch {
-      notify.error('Network error sending counter offer.');
+      notify.error(t('workerDashboard.requests.networkErrorCounter'));
     } finally {
       setBusyId(null);
       setCounterTargetId(null);
@@ -684,32 +686,32 @@ export const RequestsView: React.FC<RequestsViewProps> = ({
       const success = await postWorkerAction(
         selectedRequest.id_request,
         API_ENDPOINTS.worker.startRoute(selectedRequest.id_request),
-        'Route started. Live GPS is shared with client.'
+        t('workerDashboard.requests.routeStarted')
       );
       if (!success) return;
     }
     setActiveRouteRequestId(starting ? selectedRequest.id_request : null);
     showRouteAlert({
       tone: 'info',
-      title: starting ? 'Navigation started' : 'Navigation paused',
+      title: starting ? t('workerDashboard.requests.navigationStarted') : t('workerDashboard.requests.navigationPaused'),
       message: starting
-        ? 'Fixlife will update the route using your real GPS position.'
-        : 'Live route tracking was paused for this request.',
+        ? t('workerDashboard.requests.navigationStartedDetail')
+        : t('workerDashboard.requests.navigationPausedDetail'),
     });
   };
 
   const listHint = !isWorkerActive
-    ? 'Go online to receive and manage requests.'
+    ? t('workerDashboard.requests.goOnlineToReceive')
     : statusFilter === 'new'
-      ? `Live updates${presenceBusy ? ' - syncing location' : ''}`
+      ? `${t('workerDashboard.requests.liveUpdates')}${presenceBusy ? t('workerDashboard.requests.syncingLocation') : ''}`
       : statusFilter === 'accepted'
-        ? 'Manage your active jobs and client communication.'
-        : 'Rejected requests remain available for reference.';
+        ? t('workerDashboard.requests.manageActiveJobs')
+        : t('workerDashboard.requests.rejectedAvailable');
   const routeStatus =
     routeStatusLabel === 'Idle'
-      ? 'Ready'
+      ? t('workerDashboard.requests.routeIdle')
       : routeStatusLabel === 'Live Route'
-        ? 'On route'
+        ? t('workerDashboard.requests.routeOnRoute')
         : routeStatusLabel;
   const selectedScheduled = isScheduledRequest(selectedRequest);
   const selectedArrived = selectedRequest
@@ -718,19 +720,19 @@ export const RequestsView: React.FC<RequestsViewProps> = ({
     : false;
   const showInlineCurrentJob =
     !!selectedRequest && statusFilter === 'accepted' && !isTerminalWorkerRequest(selectedRequest);
-  const requestCountLabel = `${visibleRequests.length} ${visibleRequests.length === 1 ? 'request' : 'requests'}`;
+  const requestCountLabel = t('workerDashboard.requests.requestCount', { count: visibleRequests.length });
   const tabLabel =
-    statusFilter === 'new' ? 'Available' : statusFilter === 'accepted' ? 'My jobs' : 'Passed';
+    statusFilter === 'new' ? t('workerDashboard.requests.tabAvailable') : statusFilter === 'accepted' ? t('workerDashboard.requests.tabMyJobs') : t('workerDashboard.requests.tabPassed');
   const emptyTitle = !isWorkerActive
-    ? 'You are offline'
+    ? t('workerDashboard.requests.youAreOffline')
     : statusFilter === 'accepted'
-      ? 'No active jobs'
-      : 'Nothing here right now';
+      ? t('workerDashboard.requests.noActiveJobs')
+      : t('workerDashboard.requests.nothingHereRightNow');
   const emptyMessage = !isWorkerActive
-    ? 'Go online to view nearby requests and manage active jobs.'
+    ? t('workerDashboard.requests.goOnlineViewNearby')
     : statusFilter === 'accepted'
-      ? 'Completed services move to History automatically so this workspace stays focused.'
-      : 'New nearby requests will appear here automatically.';
+      ? t('workerDashboard.requests.completedMoveHistory')
+      : t('workerDashboard.requests.newNearbyWillAppear');
 
   return (
     <>
@@ -746,16 +748,16 @@ export const RequestsView: React.FC<RequestsViewProps> = ({
           <div className="flex items-start justify-between gap-4">
             <div>
               <p className="text-[10px] font-black uppercase tracking-[0.2em] text-bird-blue">
-                Worker workspace
+                {t('workerDashboard.requests.workspace')}
               </p>
-              <h2 className="mt-1 text-xl font-black text-slate-950">Service requests</h2>
+              <h2 className="mt-1 text-xl font-black text-slate-950">{t('workerDashboard.requests.serviceRequests')}</h2>
               <p className="mt-1 text-xs font-semibold text-slate-500">{listHint}</p>
             </div>
             <button
               type="button"
               onClick={() => void fetchRequests()}
               disabled={loading || !isWorkerActive}
-              title="Refresh requests"
+              title={t('workerDashboard.requests.refreshTitle')}
               className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 shadow-sm transition hover:border-sky-200 hover:text-bird-blue active:scale-90 active:bg-sky-50 disabled:opacity-40 dark:bg-slate-900 dark:border-white/10"
             >
               <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
@@ -764,9 +766,9 @@ export const RequestsView: React.FC<RequestsViewProps> = ({
 
           <div className="mt-4 grid grid-cols-3 rounded-xl bg-slate-100 p-1 dark:bg-slate-800">
             {([
-              ['new', 'Available'],
-              ['accepted', 'My jobs'],
-              ['rejected', 'Passed'],
+              ['new', t('workerDashboard.requests.tabAvailable')],
+              ['accepted', t('workerDashboard.requests.tabMyJobs')],
+              ['rejected', t('workerDashboard.requests.tabPassed')],
             ] as const).map(([tab, label]) => (
               <button
                 key={tab}
@@ -785,7 +787,7 @@ export const RequestsView: React.FC<RequestsViewProps> = ({
             <div className="mt-3 flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5">
               <Navigation className="mt-0.5 h-4 w-4 shrink-0 text-amber-700" />
               <p className="text-xs font-semibold leading-5 text-amber-900">
-                Request #{activeWorkerRequest.id_request} is active. Finish it before accepting another job.
+                {t('workerDashboard.requests.activeRequestNotice', { id: activeWorkerRequest.id_request })}
               </p>
             </div>
           )}
@@ -803,15 +805,15 @@ export const RequestsView: React.FC<RequestsViewProps> = ({
                 </div>
                 <div className="min-w-0 flex-1">
                   <p className="text-[10px] font-black uppercase tracking-[0.18em] text-bird-blue">
-                    Current assigned job
+                    {t('workerDashboard.requests.currentAssignedJob')}
                   </p>
                   <h3 className="mt-1 truncate text-base font-black text-slate-950">
                     {currentAssignedRequest.service_name} #{currentAssignedRequest.id_request}
                   </h3>
                   <p className="mt-1 text-xs font-semibold leading-5 text-slate-600">
                     {isScheduledRequest(currentAssignedRequest)
-                      ? `Scheduled: ${formatScheduledWindow(currentAssignedRequest)}`
-                      : 'Express service assigned. Open it to manage route, chat and approvals.'}
+                      ? t('workerDashboard.requests.scheduledPrefix', { window: formatScheduledWindow(currentAssignedRequest) })
+                      : t('workerDashboard.requests.expressAssigned')}
                   </p>
                 </div>
               </div>
@@ -823,7 +825,7 @@ export const RequestsView: React.FC<RequestsViewProps> = ({
                 }}
                 className="mt-3 flex h-10 w-full items-center justify-center gap-2 rounded-xl bg-slate-950 text-xs font-black text-white transition hover:bg-slate-800"
               >
-                Open current job
+                {t('workerDashboard.requests.openCurrentJob')}
                 <Navigation className="h-4 w-4" />
               </button>
             </div>
@@ -831,8 +833,8 @@ export const RequestsView: React.FC<RequestsViewProps> = ({
           {loading ? (
             <div className="rounded-2xl border border-slate-200 bg-white px-4 py-10 text-center shadow-sm dark:bg-slate-900 dark:border-white/10">
               <RefreshCw className="mx-auto h-5 w-5 animate-spin text-bird-blue" />
-              <p className="mt-3 text-sm font-black text-slate-800 dark:text-slate-200">Finding nearby work</p>
-              <p className="mt-1 text-xs font-semibold text-slate-500">Syncing the latest requests for you.</p>
+              <p className="mt-3 text-sm font-black text-slate-800 dark:text-slate-200">{t('workerDashboard.requests.findingNearbyWork')}</p>
+              <p className="mt-1 text-xs font-semibold text-slate-500">{t('workerDashboard.requests.syncingRequests')}</p>
             </div>
           ) : !visibleRequests.length ? (
             <div className="flex h-full min-h-[280px] flex-col items-center justify-center px-8 text-center">
@@ -855,7 +857,7 @@ export const RequestsView: React.FC<RequestsViewProps> = ({
                   onClick={onOpenHistory}
                   className="mt-5 rounded-2xl bg-bird-blue px-5 py-3 text-sm font-black text-white shadow-[0_14px_30px_rgba(14,165,233,0.22)] transition hover:bg-blue-600"
                 >
-                  View History
+                  {t('workerDashboard.requests.viewHistory')}
                 </button>
               )}
             </div>
@@ -898,14 +900,14 @@ export const RequestsView: React.FC<RequestsViewProps> = ({
           <div className="absolute inset-0 z-30 flex items-center justify-center bg-slate-100 p-8 text-center dark:bg-slate-800">
             <div>
               <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-white text-2xl dark:bg-slate-900">🗺️</div>
-              <p className="text-sm font-bold text-slate-700 dark:text-slate-300">Map failed to load</p>
-              <p className="mt-1 text-[11px] text-slate-500">Check your connection and try again.</p>
+              <p className="text-sm font-bold text-slate-700 dark:text-slate-300">{t('workerDashboard.requests.mapFailedToLoad')}</p>
+              <p className="mt-1 text-[11px] text-slate-500">{t('workerDashboard.requests.checkConnectionRetry')}</p>
               <button
                 type="button"
                 onClick={retryLeafletLoad}
                 className="mt-4 rounded-full bg-slate-900 px-5 py-2 text-xs font-bold text-white shadow-sm transition-colors hover:bg-slate-700"
               >
-                Retry
+                {t('workerDashboard.requests.retry')}
               </button>
             </div>
           </div>
@@ -913,7 +915,7 @@ export const RequestsView: React.FC<RequestsViewProps> = ({
         <div className="absolute left-4 top-4 z-30 flex max-w-[calc(100%-7rem)] items-start gap-3">
           <div className="rounded-2xl border border-white/80 bg-white/92 p-3 text-slate-900 shadow-[0_18px_40px_rgba(15,23,42,0.24)] backdrop-blur-xl dark:text-slate-100">
             <p className="text-[10px] font-black uppercase tracking-[0.16em] text-bird-blue/80">
-              Worker workspace
+              {t('workerDashboard.requests.workspace')}
             </p>
             <div className="mt-2 flex items-center gap-3">
               <button
@@ -921,7 +923,7 @@ export const RequestsView: React.FC<RequestsViewProps> = ({
                 onClick={() => setRequestsPanelOpen(true)}
                 className="rounded-xl border border-white/70 bg-white px-4 py-2 text-sm font-black text-slate-950 transition hover:bg-slate-100 dark:bg-slate-900"
               >
-                Open requests
+                {t('workerDashboard.requests.openRequests')}
               </button>
               <div className="min-w-0">
                 <p className="truncate text-sm font-black text-slate-900 dark:text-slate-100">{tabLabel}</p>
@@ -936,9 +938,9 @@ export const RequestsView: React.FC<RequestsViewProps> = ({
               <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-slate-100 dark:bg-slate-800">
                 <WifiOff className="h-6 w-6 text-slate-500" />
               </div>
-              <h3 className="text-xl font-black text-slate-900 dark:text-slate-100">Location hidden while offline</h3>
+              <h3 className="text-xl font-black text-slate-900 dark:text-slate-100">{t('workerDashboard.requests.locationHiddenOffline')}</h3>
               <p className="mt-2 text-sm font-semibold text-slate-600">
-                Go online to share your GPS position and receive request updates.
+                {t('workerDashboard.requests.goOnlineGpsHint')}
               </p>
             </div>
           </div>
@@ -982,7 +984,7 @@ export const RequestsView: React.FC<RequestsViewProps> = ({
             <>
               <motion.button
                 type="button"
-                aria-label="Close requests panel"
+                aria-label={t('workerDashboard.requests.closeRequestsPanel')}
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
@@ -1000,9 +1002,9 @@ export const RequestsView: React.FC<RequestsViewProps> = ({
                   <div className="flex items-start justify-between gap-4">
                     <div>
                       <p className="text-[10px] font-black uppercase tracking-[0.2em] text-bird-blue">
-                        Worker workspace
+                        {t('workerDashboard.requests.workspace')}
                       </p>
-                      <h2 className="mt-1 text-xl font-black text-slate-950">Service requests</h2>
+                      <h2 className="mt-1 text-xl font-black text-slate-950">{t('workerDashboard.requests.serviceRequests')}</h2>
                       <p className="mt-1 text-xs font-semibold text-slate-500">{listHint}</p>
                     </div>
                     <div className="flex items-center gap-2">
@@ -1010,7 +1012,7 @@ export const RequestsView: React.FC<RequestsViewProps> = ({
                         type="button"
                         onClick={() => void fetchRequests()}
                         disabled={loading || !isWorkerActive}
-                        title="Refresh requests"
+                        title={t('workerDashboard.requests.refreshTitle')}
                         className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 shadow-sm transition hover:border-sky-200 hover:text-bird-blue active:scale-90 active:bg-sky-50 disabled:opacity-40 dark:bg-slate-900 dark:border-white/10"
                       >
                         <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
@@ -1019,7 +1021,7 @@ export const RequestsView: React.FC<RequestsViewProps> = ({
                         type="button"
                         onClick={() => setRequestsPanelOpen(false)}
                         className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-slate-100 text-slate-500 transition hover:bg-slate-200 hover:text-slate-900 dark:bg-slate-800"
-                        aria-label="Close requests"
+                        aria-label={t('workerDashboard.requests.closeRequests')}
                       >
                         <X className="h-4 w-4" />
                       </button>
@@ -1028,9 +1030,9 @@ export const RequestsView: React.FC<RequestsViewProps> = ({
 
                   <div className="mt-4 grid grid-cols-3 rounded-xl bg-slate-100 p-1 dark:bg-slate-800">
                     {([
-                      ['new', 'Available'],
-                      ['accepted', 'My jobs'],
-                      ['rejected', 'Passed'],
+                      ['new', t('workerDashboard.requests.tabAvailable')],
+                      ['accepted', t('workerDashboard.requests.tabMyJobs')],
+                      ['rejected', t('workerDashboard.requests.tabPassed')],
                     ] as const).map(([tab, label]) => (
                       <button
                         key={tab}
@@ -1049,7 +1051,7 @@ export const RequestsView: React.FC<RequestsViewProps> = ({
                     <div className="mt-3 flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5">
                       <Navigation className="mt-0.5 h-4 w-4 shrink-0 text-amber-700" />
                       <p className="text-xs font-semibold leading-5 text-amber-900">
-                        Request #{activeWorkerRequest.id_request} is active. Finish it before accepting another job.
+                        {t('workerDashboard.requests.activeRequestNotice', { id: activeWorkerRequest.id_request })}
                       </p>
                     </div>
                   )}
@@ -1062,8 +1064,8 @@ export const RequestsView: React.FC<RequestsViewProps> = ({
                   {loading ? (
                     <div className="rounded-2xl bg-white px-4 py-10 text-center shadow-sm dark:bg-slate-900">
                       <RefreshCw className="mx-auto h-5 w-5 animate-spin text-bird-blue" />
-                      <p className="mt-3 text-sm font-black text-slate-800 dark:text-slate-200">Finding nearby work</p>
-                      <p className="mt-1 text-xs font-semibold text-slate-500">Syncing the latest requests for you.</p>
+                      <p className="mt-3 text-sm font-black text-slate-800 dark:text-slate-200">{t('workerDashboard.requests.findingNearbyWork')}</p>
+                      <p className="mt-1 text-xs font-semibold text-slate-500">{t('workerDashboard.requests.syncingRequests')}</p>
                     </div>
                   ) : !visibleRequests.length ? (
                     <div className="flex h-full min-h-[280px] flex-col items-center justify-center px-8 text-center">
@@ -1089,7 +1091,7 @@ export const RequestsView: React.FC<RequestsViewProps> = ({
                           }}
                           className="mt-5 rounded-2xl bg-bird-blue px-5 py-3 text-sm font-black text-white shadow-[0_14px_30px_rgba(14,165,233,0.22)] transition hover:bg-blue-600"
                         >
-                          View History
+                          {t('workerDashboard.requests.viewHistory')}
                         </button>
                       )}
                     </div>
