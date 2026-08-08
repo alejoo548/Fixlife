@@ -19,6 +19,7 @@ import {
   polylineDistanceKm,
   toFiniteNumber,
 } from './workerRequestUtils';
+import i18n from '../../../i18n';
 
 type Coordinates = { lat: number; lng: number };
 type RoutePreview = {
@@ -216,7 +217,7 @@ export const useWorkerRequestsMap = ({
   useEffect(() => {
     if (!isValidCoord(workerCoords) || !selectedRequest || !selectedRequestCoords) {
       setRoutePreview(null);
-      setRouteError(selectedRequest && !selectedRequestCoords ? 'Client location is missing for this request.' : null);
+      setRouteError(selectedRequest && !selectedRequestCoords ? i18n.t('workerDashboard.requestsMap.clientLocationMissing') : null);
       return;
     }
 
@@ -429,7 +430,7 @@ export const useWorkerRequestsMap = ({
           fillOpacity: 1,
         })
         .addTo(map)
-        .bindPopup('Your current GPS position');
+        .bindPopup(i18n.t('workerDashboard.requestsMap.yourCurrentGpsPosition'));
     } else {
       workerMarkerRef.current.setLatLng([workerCoords.lat, workerCoords.lng]);
     }
@@ -456,8 +457,8 @@ export const useWorkerRequestsMap = ({
         arrivedRef.current.add(selectedRequest.id_request);
         showRouteAlert({
           tone: 'success',
-          title: 'You are at the destination',
-          message: 'Confirm arrival with the client before starting the work.',
+          title: i18n.t('workerDashboard.requestsMap.atDestinationTitle'),
+          message: i18n.t('workerDashboard.requestsMap.atDestinationMessage'),
         });
       }
     } else if (remainingKm <= 0.3) {
@@ -466,8 +467,8 @@ export const useWorkerRequestsMap = ({
         arrivalSoonRef.current.add(selectedRequest.id_request);
         showRouteAlert({
           tone: 'success',
-          title: 'Almost there',
-          message: 'You are within a few minutes of the client location.',
+          title: i18n.t('workerDashboard.requestsMap.almostThereTitle'),
+          message: i18n.t('workerDashboard.requestsMap.almostThereMessage'),
         });
       }
     } else if (nearestRouteDistanceKm(workerCoords, routePreview.points) > 0.12) {

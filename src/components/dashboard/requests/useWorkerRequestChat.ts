@@ -3,6 +3,7 @@ import { API_ENDPOINTS } from '../../../config/api';
 import { showSweetToast } from '../../../utils/sweetAlert';
 import type { ChatMessage } from './workerRequestTypes';
 import { getLatestChatMessageId, mergeChatMessages } from './workerRequestUtils';
+import i18n from '../../../i18n';
 
 interface UseWorkerRequestChatOptions {
   token: string | null;
@@ -41,7 +42,7 @@ export const useWorkerRequestChat = ({
       const payload = await response.json();
       if (!response.ok || !payload?.success) {
         if (!options.silent) {
-          void showSweetToast({ tone: 'error', message: payload?.error || 'Could not load chat.' });
+          void showSweetToast({ tone: 'error', message: payload?.error || i18n.t('workerDashboard.requestChat.couldNotLoadChat') });
         }
         return;
       }
@@ -56,7 +57,7 @@ export const useWorkerRequestChat = ({
       });
     } catch {
       if (!options.silent) {
-        void showSweetToast({ tone: 'error', message: 'Network error loading chat.' });
+        void showSweetToast({ tone: 'error', message: i18n.t('workerDashboard.requestChat.networkErrorLoadingChat') });
       }
     }
   };
@@ -79,7 +80,7 @@ export const useWorkerRequestChat = ({
       });
       const payload = await response.json();
       if (!response.ok || !payload?.success) {
-        void showSweetToast({ tone: 'error', message: payload?.error || 'Could not send message.' });
+        void showSweetToast({ tone: 'error', message: payload?.error || i18n.t('workerDashboard.requestChat.couldNotSendMessage') });
         return;
       }
       setChatTextByRequest((previous) => ({ ...previous, [idRequest]: '' }));
@@ -94,7 +95,7 @@ export const useWorkerRequestChat = ({
         await fetchRequestChat(idRequest, { silent: true });
       }
     } catch {
-      void showSweetToast({ tone: 'error', message: 'Network error sending chat message.' });
+      void showSweetToast({ tone: 'error', message: i18n.t('workerDashboard.requestChat.networkErrorSendingChat') });
     } finally {
       setChatBusyId(null);
     }

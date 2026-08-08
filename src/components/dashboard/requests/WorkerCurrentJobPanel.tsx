@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   AlertTriangle,
   ExternalLink,
@@ -84,6 +85,7 @@ export const WorkerCurrentJobPanel = ({
   onFinalize,
   onConfirmCash,
 }: WorkerCurrentJobPanelProps) => {
+  const { t } = useTranslation();
   const overlay = layout === 'overlay';
   const [tab, setTab] = useState<PanelTab>('info');
 
@@ -124,18 +126,18 @@ export const WorkerCurrentJobPanel = ({
             </div>
             <div className="flex shrink-0 items-center gap-1">
               <IconButton
-                title="Chat with client"
+                title={t('workerDashboard.currentJobPanel.chatWithClient')}
                 onClick={onOpenChat}
                 disabled={!canChat}
                 variant="primary"
               >
                 <MessageCircle className="h-4 w-4" />
               </IconButton>
-              <IconButton title="Report issue" onClick={onReport} variant="danger">
+              <IconButton title={t('workerDashboard.currentJobPanel.reportIssue')} onClick={onReport} variant="danger">
                 <AlertTriangle className="h-4 w-4" />
               </IconButton>
               {onClose && (
-                <IconButton title="Close" onClick={onClose} variant="ghost">
+                <IconButton title={t('workerDashboard.currentJobPanel.close')} onClick={onClose} variant="ghost">
                   <X className="h-4 w-4" />
                 </IconButton>
               )}
@@ -145,10 +147,10 @@ export const WorkerCurrentJobPanel = ({
           {/* Tabs */}
           <div className="mt-3 grid grid-cols-2 gap-1 rounded-xl bg-slate-100 dark:bg-slate-800 p-1">
             <TabButton active={tab === 'info'} onClick={() => setTab('info')} icon={<Info className="h-3.5 w-3.5" />}>
-              Info
+              {t('workerDashboard.currentJobPanel.info')}
             </TabButton>
             <TabButton active={tab === 'route'} onClick={() => setTab('route')} icon={<Route className="h-3.5 w-3.5" />}>
-              Route
+              {t('workerDashboard.currentJobPanel.route')}
             </TabButton>
           </div>
         </header>
@@ -218,36 +220,40 @@ const InfoTab = ({
   scheduled: boolean;
   routeActive: boolean;
   arrived: boolean;
-}) => (
+}) => {
+  const { t } = useTranslation();
+  return (
   <div className="space-y-4">
     <div className="flex items-start gap-2 rounded-2xl bg-slate-50 dark:bg-slate-800/80 px-3 py-2.5">
       <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-slate-500 dark:text-slate-400" />
       <p className="text-xs font-semibold leading-5 text-slate-700 dark:text-slate-200">
-        {request.location_text || 'Location pending'}
+        {request.location_text || t('workerDashboard.currentJobPanel.locationPending')}
       </p>
     </div>
 
     <div className="flex flex-wrap gap-2">
-      <Chip tone="sky">{scheduled ? formatScheduledWindow(request) : 'Express request'}</Chip>
-      <Chip tone="amber">Budget ${request.budget.toFixed(2)}</Chip>
+      <Chip tone="sky">{scheduled ? formatScheduledWindow(request) : t('workerDashboard.currentJobPanel.expressRequest')}</Chip>
+      <Chip tone="amber">{t('workerDashboard.currentJobPanel.budget', { amount: request.budget.toFixed(2) })}</Chip>
       {request.payment_method && <Chip tone="slate">{String(request.payment_method).toUpperCase()}</Chip>}
     </div>
 
     <div className="grid grid-cols-2 gap-2">
-      <Detail label="Client" value={request.client?.name || 'Client'} />
+      <Detail label={t('workerDashboard.currentJobPanel.client')} value={request.client?.name || t('workerDashboard.currentJobPanel.clientFallback')} />
       <Detail
-        label="Duration"
+        label={t('workerDashboard.currentJobPanel.duration')}
         value={
           request.scheduled_start_time && request.scheduled_end_time
-            ? `${Math.max(
-                1,
-                Math.round(
-                  (new Date(request.scheduled_end_time).getTime() -
-                    new Date(request.scheduled_start_time).getTime()) /
-                    3_600_000
-                )
-              )}h`
-            : 'Flexible'
+            ? t('workerDashboard.currentJobPanel.hoursShort', {
+                hours: Math.max(
+                  1,
+                  Math.round(
+                    (new Date(request.scheduled_end_time).getTime() -
+                      new Date(request.scheduled_start_time).getTime()) /
+                      3_600_000
+                  )
+                ),
+              })
+            : t('workerDashboard.currentJobPanel.flexible')
         }
       />
     </div>
@@ -255,7 +261,7 @@ const InfoTab = ({
     {request.images && request.images.length > 0 && (
       <div>
         <p className="mb-2 text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">
-          Problem photos ({request.images.length})
+          {t('workerDashboard.currentJobPanel.problemPhotos', { count: request.images.length })}
         </p>
         <div className="grid grid-cols-3 gap-2">
           {request.images.slice(0, 3).map((image, index) => (
@@ -268,7 +274,7 @@ const InfoTab = ({
             >
               <img
                 src={image.url}
-                alt={`Problem attachment ${index + 1}`}
+                alt={t('workerDashboard.currentJobPanel.problemAttachment', { index: index + 1 })}
                 className="h-full w-full object-cover"
               />
             </a>
@@ -279,7 +285,7 @@ const InfoTab = ({
 
     <div>
       <p className="mb-2 text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">
-        Progress
+        {t('workerDashboard.currentJobPanel.progress')}
       </p>
       <WorkerRequestTimeline
         status={request.request_status}
@@ -288,7 +294,8 @@ const InfoTab = ({
       />
     </div>
   </div>
-);
+  );
+};
 
 const RouteTab = ({
   routeLoading,
@@ -318,18 +325,20 @@ const RouteTab = ({
   onCenterRoute: () => void;
   onCameraModeChange: (mode: 'balanced' | 'close') => void;
   onTrafficToggle: () => void;
-}) => (
+}) => {
+  const { t } = useTranslation();
+  return (
   <div className="space-y-4">
     <div className="grid grid-cols-3 gap-2">
       <Metric
-        label="ETA"
+        label={t('workerDashboard.currentJobPanel.eta')}
         value={routeLoading ? '...' : routeMetrics ? formatEta(routeMetrics.durationMin) : '--'}
       />
       <Metric
-        label="Distance"
+        label={t('workerDashboard.currentJobPanel.distance')}
         value={routeMetrics ? `${routeMetrics.distanceKm.toFixed(1)} km` : '--'}
       />
-      <Metric label="Status" value={routeStatus} />
+      <Metric label={t('workerDashboard.currentJobPanel.status')} value={routeStatus} />
     </div>
 
     {routeError && (
@@ -340,7 +349,7 @@ const RouteTab = ({
 
     <div>
       <p className="mb-2 text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">
-        Camera
+        {t('workerDashboard.currentJobPanel.camera')}
       </p>
       <div className="grid grid-cols-2 gap-2">
         {(['balanced', 'close'] as const).map((mode) => (
@@ -354,7 +363,7 @@ const RouteTab = ({
                 : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'
             }`}
           >
-            {mode === 'close' ? 'Close follow' : 'Balanced'}
+            {mode === 'close' ? t('workerDashboard.currentJobPanel.closeFollow') : t('workerDashboard.currentJobPanel.balanced')}
           </button>
         ))}
       </div>
@@ -367,7 +376,7 @@ const RouteTab = ({
       className="flex w-full items-center justify-center gap-2 rounded-xl bg-slate-950 dark:bg-bird-blue hover:bg-slate-800 dark:hover:bg-bird-blue/90 py-3 text-sm font-black text-white transition disabled:cursor-not-allowed disabled:opacity-40"
     >
       <LocateFixed className="h-4 w-4" />
-      Center map on route
+      {t('workerDashboard.currentJobPanel.centerMapOnRoute')}
     </button>
 
     {destinationLat != null && destinationLng != null && (
@@ -378,7 +387,7 @@ const RouteTab = ({
         className="flex w-full items-center justify-center gap-2 rounded-xl border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-800 py-3 text-sm font-black text-slate-700 dark:text-slate-200 transition hover:bg-slate-50 dark:hover:bg-slate-700"
       >
         <ExternalLink className="h-4 w-4" />
-        Open in Google Maps
+        {t('workerDashboard.currentJobPanel.openInGoogleMaps')}
       </a>
     )}
 
@@ -388,18 +397,19 @@ const RouteTab = ({
       className="flex w-full items-center justify-between rounded-xl bg-slate-50 dark:bg-slate-800/80 px-4 py-3 text-xs font-bold text-slate-700 dark:text-slate-200 transition hover:bg-slate-100 dark:hover:bg-slate-800"
     >
       <span>
-        Traffic {trafficEnabled && trafficDelayMinutes > 0 ? `+${Math.ceil(trafficDelayMinutes)} min delay` : ''}
+        {t('workerDashboard.currentJobPanel.traffic')} {trafficEnabled && trafficDelayMinutes > 0 ? t('workerDashboard.currentJobPanel.trafficDelay', { minutes: Math.ceil(trafficDelayMinutes) }) : ''}
       </span>
       <span
         className={`rounded-full px-2 py-0.5 text-[10px] font-black uppercase ${
           trafficEnabled ? 'bg-emerald-100 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300' : 'bg-slate-200 dark:bg-slate-700 text-slate-500 dark:text-slate-400'
         }`}
       >
-        {trafficEnabled ? 'On' : 'Off'}
+        {trafficEnabled ? t('workerDashboard.currentJobPanel.on') : t('workerDashboard.currentJobPanel.off')}
       </span>
     </button>
   </div>
-);
+  );
+};
 
 const TabButton = ({
   active,

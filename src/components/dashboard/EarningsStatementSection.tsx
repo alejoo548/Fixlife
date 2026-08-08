@@ -1,4 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
+import i18n from '../../i18n';
 import { createPortal } from 'react-dom';
 import { AnimatePresence, motion } from 'framer-motion';
 import type { WorkerRewardHistoryItem } from '../../hooks/useWorkerRewardsDashboard';
@@ -59,9 +61,9 @@ const getStatementStatus = (item: WorkerRewardHistoryItem): Exclude<StatementSta
 };
 
 const getStatementStatusLabel = (status: Exclude<StatementStatus, 'all'>) => {
-  if (status === 'paid') return 'Paid';
-  if (status === 'scheduled') return 'Scheduled';
-  return 'Waiting on release';
+  if (status === 'paid') return i18n.t('workerDashboard.earningsStatement.statusPaid');
+  if (status === 'scheduled') return i18n.t('workerDashboard.earningsStatement.statusScheduled');
+  return i18n.t('workerDashboard.earningsStatement.statusWaiting');
 };
 
 const getStatementStatusChip = (status: Exclude<StatementStatus, 'all'>) => {
@@ -75,6 +77,7 @@ interface EarningsStatementSectionProps {
 }
 
 export const EarningsStatementSection: React.FC<EarningsStatementSectionProps> = ({ history }) => {
+  const { t } = useTranslation();
   const [periodFilter, setPeriodFilter] = useState<StatementPeriod>('all');
   const [statusFilter, setStatusFilter] = useState<StatementStatus>('all');
   const [fromDate, setFromDate] = useState('');
@@ -153,15 +156,15 @@ export const EarningsStatementSection: React.FC<EarningsStatementSectionProps> =
   }, [filteredHistory]);
 
   const statementPeriodLabel = useMemo(() => {
-    if (periodFilter === 'week') return 'This week';
-    if (periodFilter === 'month') return 'This month';
+    if (periodFilter === 'week') return t('workerDashboard.earningsStatement.thisWeek');
+    if (periodFilter === 'month') return t('workerDashboard.earningsStatement.thisMonth');
     if (periodFilter === 'custom') {
       if (resolvedDateRange.from || resolvedDateRange.to) {
-        return `${resolvedDateRange.from || 'Start'} to ${resolvedDateRange.to || 'Today'}`;
+        return `${resolvedDateRange.from || t('workerDashboard.earningsStatement.start')} to ${resolvedDateRange.to || t('workerDashboard.earningsStatement.today')}`;
       }
-      return 'Custom range';
+      return t('workerDashboard.earningsStatement.customRange');
     }
-    return 'All available history';
+    return t('workerDashboard.earningsStatement.allHistory');
   }, [periodFilter, resolvedDateRange.from, resolvedDateRange.to]);
 
   const exportRows = useMemo(
@@ -171,7 +174,7 @@ export const EarningsStatementSection: React.FC<EarningsStatementSectionProps> =
         return {
           date: formatDate(item.completed_at),
           request: `#${item.id_request}`,
-          client: item.client_name || 'Client',
+          client: item.client_name || t('workerDashboard.earningsStatement.clientFallback'),
           service: item.service_name,
           base: Number(item.worker_payout || 0),
           commissionBonus: Number(item.commission_bonus || 0),
@@ -188,10 +191,10 @@ export const EarningsStatementSection: React.FC<EarningsStatementSectionProps> =
     if (exportRows.length === 0) return;
     setActionError(null);
     const lines = [
-      ['Statement period', statementPeriodLabel].join(','),
-      ['Generated at', formatDate(new Date())].join(','),
+      [t('workerDashboard.earningsStatement.statementPeriod'), statementPeriodLabel].join(','),
+      [t('workerDashboard.earningsStatement.csvGeneratedAt'), formatDate(new Date())].join(','),
       '',
-      ['Date', 'Request', 'Client', 'Service', 'Base earnings', 'Commission bonus', 'Monthly bonus', 'Total', 'Status', 'Payout date'].join(','),
+      [t('workerDashboard.earningsStatement.colDate'), t('workerDashboard.earningsStatement.colRequest'), t('workerDashboard.earningsStatement.colClient'), t('workerDashboard.earningsStatement.colService'), t('workerDashboard.earningsStatement.baseEarnings'), t('workerDashboard.earningsStatement.colCommBonus'), t('workerDashboard.earningsStatement.colMonthlyBonus'), t('workerDashboard.earningsStatement.colTotal'), t('workerDashboard.earningsStatement.colStatus'), t('workerDashboard.earningsStatement.colPayoutDate')].join(','),
       ...exportRows.map((row) =>
         [
           row.date,
@@ -224,7 +227,7 @@ export const EarningsStatementSection: React.FC<EarningsStatementSectionProps> =
     setActionError(null);
     const token = getToken('worker');
     if (!token) {
-      setActionError('Login required to generate the PDF statement.');
+      setActionError(t('workerDashboard.earningsStatement.loginRequired'));
       return;
     }
 
@@ -241,7 +244,7 @@ export const EarningsStatementSection: React.FC<EarningsStatementSectionProps> =
       .then(async (response) => {
         if (!response.ok) {
           const payload = await response.json().catch(() => null);
-          throw new Error(payload?.error || 'Could not generate the PDF statement.');
+          throw new Error(payload?.error || t('workerDashboard.earningsStatement.couldNotGeneratePdf'));
         }
 
         return {
@@ -254,7 +257,7 @@ export const EarningsStatementSection: React.FC<EarningsStatementSectionProps> =
         };
       })
       .catch((reason) => {
-        setActionError(reason instanceof Error ? reason.message : 'Could not generate the PDF statement.');
+        setActionError(reason instanceof Error ? reason.message : t('workerDashboard.earningsStatement.couldNotGeneratePdf'));
         return null;
       })
       .finally(() => {
@@ -293,10 +296,10 @@ export const EarningsStatementSection: React.FC<EarningsStatementSectionProps> =
       <div className="flex flex-col gap-4">
         <div className="flex flex-col gap-3 xl:flex-row xl:items-end xl:justify-between">
           <div>
-            <p className="text-xs font-black uppercase tracking-[0.18em] text-slate-400 dark:text-slate-500">Payout statement</p>
-            <h3 className="mt-2 text-xl font-black text-slate-900 dark:text-white sm:text-2xl">Filter, review, and export completed work</h3>
+            <p className="text-xs font-black uppercase tracking-[0.18em] text-slate-400 dark:text-slate-500">{t('workerDashboard.earningsStatement.payoutStatement')}</p>
+            <h3 className="mt-2 text-xl font-black text-slate-900 dark:text-white sm:text-2xl">{t('workerDashboard.earningsStatement.filterReviewExport')}</h3>
             <p className="mt-2 text-sm font-semibold text-slate-500 dark:text-slate-400">
-              Build a statement by period, filter by payout status, and export what is visible. The branded PDF is also emailed to your account on file.
+              {t('workerDashboard.earningsStatement.buildStatementHint')}
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -306,7 +309,7 @@ export const EarningsStatementSection: React.FC<EarningsStatementSectionProps> =
               disabled={exportRows.length === 0}
               className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-black text-slate-700 transition hover:border-bird-blue/30 hover:bg-bird-blue/5 disabled:cursor-not-allowed disabled:opacity-45 dark:border-white/10 dark:bg-slate-800 dark:text-slate-300 dark:hover:border-bird-blue/40 dark:hover:bg-bird-blue/10"
             >
-              {pdfLoading ? 'Generating PDF...' : 'Preview PDF'}
+              {pdfLoading ? t('workerDashboard.earningsStatement.generatingPdf') : t('workerDashboard.earningsStatement.previewPdf')}
             </button>
             <button
               type="button"
@@ -314,7 +317,7 @@ export const EarningsStatementSection: React.FC<EarningsStatementSectionProps> =
               disabled={exportRows.length === 0}
               className="rounded-2xl bg-bird-blue px-4 py-3 text-sm font-black text-white transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-45"
             >
-              Export CSV
+              {t('workerDashboard.earningsStatement.exportCsv')}
             </button>
           </div>
         </div>
@@ -345,8 +348,8 @@ export const EarningsStatementSection: React.FC<EarningsStatementSectionProps> =
                   >
                     <div className="flex flex-col gap-3 border-b border-slate-200 bg-slate-50 px-4 py-4 dark:border-white/10 dark:bg-slate-800 md:flex-row md:items-center md:justify-between md:px-5">
                       <div>
-                        <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400 dark:text-slate-500">Payout statement</p>
-                        <h3 className="text-lg font-black text-slate-900 dark:text-white">PDF preview</h3>
+                        <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400 dark:text-slate-500">{t('workerDashboard.earningsStatement.payoutStatement')}</p>
+                        <h3 className="text-lg font-black text-slate-900 dark:text-white">{t('workerDashboard.earningsStatement.pdfPreview')}</h3>
                       </div>
                       <div className="flex flex-wrap items-center gap-2">
                         <button
@@ -354,7 +357,7 @@ export const EarningsStatementSection: React.FC<EarningsStatementSectionProps> =
                           onClick={handleDownloadStatementPdf}
                           className="rounded-2xl bg-bird-blue px-4 py-2.5 text-sm font-black text-white transition hover:opacity-90"
                         >
-                          Download PDF
+                          {t('workerDashboard.earningsStatement.downloadPdf')}
                         </button>
                         <button
                           type="button"
@@ -364,14 +367,14 @@ export const EarningsStatementSection: React.FC<EarningsStatementSectionProps> =
                           }}
                           className="rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-black text-slate-600 transition hover:border-red-200 hover:bg-red-50 hover:text-red-600 dark:border-white/10 dark:bg-slate-800 dark:text-slate-300 dark:hover:border-red-500/30 dark:hover:bg-red-500/10 dark:hover:text-red-400"
                         >
-                          Close
+                          {t('workerDashboard.earningsStatement.close')}
                         </button>
                       </div>
                     </div>
                     <div className="min-h-0 flex-1 overflow-auto bg-slate-100/70 p-3 md:p-4">
                       <iframe
                         src={pdfPreview.url}
-                        title="Worker payout statement preview"
+                        title={t('workerDashboard.earningsStatement.previewIframeTitle')}
                         className="h-full min-h-[540px] w-full rounded-3xl border border-slate-200 bg-white shadow-sm"
                       />
                     </div>
@@ -385,13 +388,13 @@ export const EarningsStatementSection: React.FC<EarningsStatementSectionProps> =
         <div className="rounded-3xl border border-slate-200 bg-slate-50 p-4 dark:border-white/10 dark:bg-slate-800/60">
           <div className="grid gap-4 xl:grid-cols-[1.2fr_1fr_1fr]">
             <div>
-              <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400 dark:text-slate-500">Statement period</p>
+              <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400 dark:text-slate-500">{t('workerDashboard.earningsStatement.statementPeriod')}</p>
               <div className="mt-3 flex flex-wrap gap-2">
                 {([
-                  ['all', 'All history'],
-                  ['week', 'This week'],
-                  ['month', 'This month'],
-                  ['custom', 'Custom'],
+                  ['all', t('workerDashboard.earningsStatement.allHistoryShort')],
+                  ['week', t('workerDashboard.earningsStatement.thisWeekShort')],
+                  ['month', t('workerDashboard.earningsStatement.thisMonthShort')],
+                  ['custom', t('workerDashboard.earningsStatement.custom')],
                 ] as const).map(([value, label]) => (
                   <button
                     key={value}
@@ -410,7 +413,7 @@ export const EarningsStatementSection: React.FC<EarningsStatementSectionProps> =
             </div>
 
             <div>
-              <label className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400 dark:text-slate-500">From</label>
+              <label className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400 dark:text-slate-500">{t('workerDashboard.earningsStatement.from')}</label>
               <input
                 type="date"
                 value={resolvedDateRange.from}
@@ -423,7 +426,7 @@ export const EarningsStatementSection: React.FC<EarningsStatementSectionProps> =
             </div>
 
             <div>
-              <label className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400 dark:text-slate-500">To</label>
+              <label className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400 dark:text-slate-500">{t('workerDashboard.earningsStatement.to')}</label>
               <input
                 type="date"
                 value={resolvedDateRange.to}
@@ -438,13 +441,13 @@ export const EarningsStatementSection: React.FC<EarningsStatementSectionProps> =
 
           <div className="mt-4 grid gap-4 xl:grid-cols-[1fr_auto] xl:items-end">
             <div>
-              <label className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400 dark:text-slate-500">Status</label>
+              <label className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400 dark:text-slate-500">{t('workerDashboard.earningsStatement.status')}</label>
               <div className="mt-3 flex flex-wrap gap-2">
                 {([
-                  ['all', 'All'],
-                  ['paid', 'Paid'],
-                  ['scheduled', 'Scheduled'],
-                  ['waiting_release', 'Waiting on release'],
+                  ['all', t('workerDashboard.earningsStatement.all')],
+                  ['paid', t('workerDashboard.earningsStatement.statusPaid')],
+                  ['scheduled', t('workerDashboard.earningsStatement.statusScheduled')],
+                  ['waiting_release', t('workerDashboard.earningsStatement.waitingOnRelease')],
                 ] as const).map(([value, label]) => (
                   <button
                     key={value}
@@ -463,33 +466,33 @@ export const EarningsStatementSection: React.FC<EarningsStatementSectionProps> =
             </div>
 
             <div className="rounded-2xl border border-white/70 bg-white px-4 py-3 text-sm font-semibold text-slate-600 dark:border-white/10 dark:bg-slate-800 dark:text-slate-300">
-              Showing <span className="font-black text-slate-900 dark:text-white">{filteredHistory.length}</span> job(s) / {statementPeriodLabel}
+              {t('workerDashboard.earningsStatement.showingJobs', { count: filteredHistory.length, period: statementPeriodLabel })}
             </div>
           </div>
         </div>
 
         <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
           <div className="rounded-3xl border border-slate-200/70 bg-slate-50 p-4 dark:border-white/10 dark:bg-slate-800/60">
-            <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400 dark:text-slate-500">Jobs in range</p>
+            <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400 dark:text-slate-500">{t('workerDashboard.earningsStatement.jobsInRange')}</p>
             <p className="mt-2 text-xl font-black text-slate-900 dark:text-white sm:text-2xl">{statementSummary.jobs}</p>
           </div>
           <div className="rounded-3xl border border-slate-200/70 bg-slate-50 p-4 dark:border-white/10 dark:bg-slate-800/60">
-            <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400 dark:text-slate-500">Base earnings</p>
+            <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400 dark:text-slate-500">{t('workerDashboard.earningsStatement.baseEarnings')}</p>
             <p className="mt-2 text-xl font-black text-slate-900 dark:text-white sm:text-2xl">{formatMoney(statementSummary.base)}</p>
           </div>
           <div className="rounded-3xl border border-slate-200/70 bg-slate-50 p-4 dark:border-white/10 dark:bg-slate-800/60">
-            <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400 dark:text-slate-500">Bonuses</p>
+            <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400 dark:text-slate-500">{t('workerDashboard.earningsStatement.bonuses')}</p>
             <p className="mt-2 text-xl font-black text-amber-700 dark:text-amber-400 sm:text-2xl">{formatMoney(statementSummary.commission + statementSummary.performance)}</p>
           </div>
           <div className="rounded-3xl border border-slate-200/70 bg-slate-50 p-4 dark:border-white/10 dark:bg-slate-800/60">
-            <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400 dark:text-slate-500">Combined total</p>
+            <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400 dark:text-slate-500">{t('workerDashboard.earningsStatement.combinedTotal')}</p>
             <p className="mt-2 text-xl font-black text-bird-blue sm:text-2xl">{formatMoney(statementSummary.total)}</p>
           </div>
         </div>
 
         {filteredHistory.length === 0 ? (
           <div className="rounded-3xl border border-dashed border-slate-200 bg-slate-50 px-4 py-10 text-center text-sm font-semibold text-slate-500 dark:border-white/10 dark:bg-slate-800/60 dark:text-slate-400">
-            No completed jobs match the current filters yet.
+            {t('workerDashboard.earningsStatement.noJobsMatchFilters')}
           </div>
         ) : (
           <>
@@ -498,7 +501,7 @@ export const EarningsStatementSection: React.FC<EarningsStatementSectionProps> =
                 <table className="min-w-[760px] divide-y divide-slate-200 dark:divide-slate-700">
                   <thead className="bg-slate-50 dark:bg-slate-800">
                     <tr>
-                      {['Date', 'Request', 'Client', 'Service', 'Base', 'Comm. bonus', 'Monthly bonus', 'Total', 'Status', 'Payout date'].map((label) => (
+                      {[t('workerDashboard.earningsStatement.colDate'), t('workerDashboard.earningsStatement.colRequest'), t('workerDashboard.earningsStatement.colClient'), t('workerDashboard.earningsStatement.colService'), t('workerDashboard.earningsStatement.colBase'), t('workerDashboard.earningsStatement.colCommBonus'), t('workerDashboard.earningsStatement.colMonthlyBonus'), t('workerDashboard.earningsStatement.colTotal'), t('workerDashboard.earningsStatement.colStatus'), t('workerDashboard.earningsStatement.colPayoutDate')].map((label) => (
                         <th key={label} className="px-4 py-3 text-left text-[11px] font-black uppercase tracking-[0.16em] text-slate-400 dark:text-slate-500">
                           {label}
                         </th>
@@ -513,7 +516,7 @@ export const EarningsStatementSection: React.FC<EarningsStatementSectionProps> =
                         <tr key={item.id_request}>
                           <td className="px-4 py-4 text-sm font-semibold text-slate-600 dark:text-slate-300">{formatDate(item.completed_at)}</td>
                           <td className="px-4 py-4 text-sm font-black text-slate-900 dark:text-white">#{item.id_request}</td>
-                          <td className="px-4 py-4 text-sm font-semibold text-slate-700 dark:text-slate-300">{item.client_name || 'Client'}</td>
+                          <td className="px-4 py-4 text-sm font-semibold text-slate-700 dark:text-slate-300">{item.client_name || t('workerDashboard.earningsStatement.clientFallback')}</td>
                           <td className="px-4 py-4 text-sm font-black text-slate-900 dark:text-white">{item.service_name}</td>
                           <td className="px-4 py-4 text-sm font-black text-slate-900 dark:text-white">{formatMoney(item.worker_payout)}</td>
                           <td className="px-4 py-4 text-sm font-black text-amber-700 dark:text-amber-400">{formatMoney(item.commission_bonus)}</td>
@@ -542,7 +545,7 @@ export const EarningsStatementSection: React.FC<EarningsStatementSectionProps> =
                     <div className="flex flex-wrap items-center justify-between gap-2">
                       <div>
                         <p className="text-lg font-black text-slate-900 dark:text-white">{item.service_name}</p>
-                        <p className="mt-1 text-sm font-semibold text-slate-500 dark:text-slate-400">#{item.id_request} / {item.client_name || 'Client'}</p>
+                        <p className="mt-1 text-sm font-semibold text-slate-500 dark:text-slate-400">#{item.id_request} / {item.client_name || t('workerDashboard.earningsStatement.clientFallback')}</p>
                       </div>
                       <span className={`rounded-full px-3 py-1 text-[11px] font-black uppercase tracking-[0.14em] ${getStatementStatusChip(rowStatus)}`}>
                         {getStatementStatusLabel(rowStatus)}
@@ -550,25 +553,25 @@ export const EarningsStatementSection: React.FC<EarningsStatementSectionProps> =
                     </div>
                     <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
                       <div className="rounded-2xl border border-white/70 bg-white p-3 dark:border-white/10 dark:bg-slate-800">
-                        <p className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-400 dark:text-slate-500">Base</p>
+                        <p className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-400 dark:text-slate-500">{t('workerDashboard.earningsStatement.colBase')}</p>
                         <p className="mt-2 text-lg font-black text-slate-900 dark:text-white">{formatMoney(item.worker_payout)}</p>
                       </div>
                       <div className="rounded-2xl border border-white/70 bg-white p-3 dark:border-white/10 dark:bg-slate-800">
-                        <p className="text-[11px] font-black uppercase tracking-[0.16em] text-amber-700 dark:text-amber-400">Comm. bonus</p>
+                        <p className="text-[11px] font-black uppercase tracking-[0.16em] text-amber-700 dark:text-amber-400">{t('workerDashboard.earningsStatement.colCommBonus')}</p>
                         <p className="mt-2 text-lg font-black text-amber-700 dark:text-amber-400">{formatMoney(item.commission_bonus)}</p>
                       </div>
                       <div className="rounded-2xl border border-white/70 bg-white p-3 dark:border-white/10 dark:bg-slate-800">
-                        <p className="text-[11px] font-black uppercase tracking-[0.16em] text-emerald-700 dark:text-emerald-400">Monthly bonus</p>
+                        <p className="text-[11px] font-black uppercase tracking-[0.16em] text-emerald-700 dark:text-emerald-400">{t('workerDashboard.earningsStatement.colMonthlyBonus')}</p>
                         <p className="mt-2 text-lg font-black text-emerald-700 dark:text-emerald-400">{formatMoney(item.royalty_bonus)}</p>
                       </div>
                       <div className="rounded-2xl border border-bird-blue/15 bg-bird-blue/10 p-3 dark:border-bird-blue/25 dark:bg-bird-blue/15">
-                        <p className="text-[11px] font-black uppercase tracking-[0.16em] text-bird-blue">Total</p>
+                        <p className="text-[11px] font-black uppercase tracking-[0.16em] text-bird-blue">{t('workerDashboard.earningsStatement.colTotal')}</p>
                         <p className="mt-2 text-lg font-black text-bird-blue">{formatMoney(totalFromJob)}</p>
                       </div>
                     </div>
                     <div className="mt-4 flex flex-wrap gap-2 text-xs font-semibold text-slate-500 dark:text-slate-400">
                       <span>{formatDate(item.completed_at)}</span>
-                      <span>{`/ Payout ${formatDate(item.scheduled_payout_date)}`}</span>
+                      <span>{t('workerDashboard.earningsStatement.payoutPrefix', { date: formatDate(item.scheduled_payout_date) })}</span>
                     </div>
                   </div>
                 );

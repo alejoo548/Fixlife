@@ -4,6 +4,9 @@
   SimulatedTrafficSummary,
   WorkerRequest,
 } from './workerRequestTypes';
+import i18n from '../../../i18n';
+
+const dateLocale = () => (i18n.language === 'es' ? 'es-SV' : 'en-US');
 
 export const getLatestChatMessageId = (messages: ChatMessage[]) =>
   messages.length > 0 ? Number(messages[messages.length - 1].id_message || 0) : 0;
@@ -48,18 +51,18 @@ export const getServiceIconLabel = (icon: string | null | undefined, serviceName
 
 export const workerRequestStatusLabel = (statusRaw: string) => {
   const status = String(statusRaw || '').toLowerCase();
-  if (status === 'assigned') return 'Ready for route';
-  if (status === 'route_in_progress') return 'On the way';
-  if (status === 'arrived') return 'Arrival verified';
-  if (status === 'start_pending') return 'Start approval';
-  if (status === 'finish_pending') return 'Finish approval';
-  if (status === 'payment_pending') return 'Payment pending';
-  if (status === 'completion_pending') return 'Final approval';
-  if (status === 'awaiting_confirmation') return 'Client confirmation';
-  if (status === 'in_progress') return 'In progress';
-  if (status === 'done') return 'Completed';
-  if (status === 'paid') return 'Final approval';
-  return status ? status.charAt(0).toUpperCase() + status.slice(1) : 'Pending';
+  if (status === 'assigned') return i18n.t('workerDashboard.requestUtils.statusReadyForRoute');
+  if (status === 'route_in_progress') return i18n.t('workerDashboard.requestUtils.statusOnTheWay');
+  if (status === 'arrived') return i18n.t('workerDashboard.requestUtils.statusArrivalVerified');
+  if (status === 'start_pending') return i18n.t('workerDashboard.requestUtils.statusStartApproval');
+  if (status === 'finish_pending') return i18n.t('workerDashboard.requestUtils.statusFinishApproval');
+  if (status === 'payment_pending') return i18n.t('workerDashboard.requestUtils.statusPaymentPending');
+  if (status === 'completion_pending') return i18n.t('workerDashboard.requestUtils.statusFinalApproval');
+  if (status === 'awaiting_confirmation') return i18n.t('workerDashboard.requestUtils.statusClientConfirmation');
+  if (status === 'in_progress') return i18n.t('workerDashboard.requestUtils.statusInProgress');
+  if (status === 'done') return i18n.t('workerDashboard.requestUtils.statusCompleted');
+  if (status === 'paid') return i18n.t('workerDashboard.requestUtils.statusFinalApproval');
+  return status ? status.charAt(0).toUpperCase() + status.slice(1) : i18n.t('workerDashboard.requestUtils.statusPending');
 };
 
 export const isScheduledRequest = (
@@ -77,19 +80,19 @@ export const formatScheduledWindow = (
     (request.scheduled_date && request.scheduled_time
       ? `${request.scheduled_date}T${request.scheduled_time}`
       : null);
-  if (!startValue) return 'Time pending';
+  if (!startValue) return i18n.t('workerDashboard.requestUtils.timePending');
   const start = new Date(startValue);
   const end = request.scheduled_end_time ? new Date(request.scheduled_end_time) : null;
-  if (Number.isNaN(start.getTime())) return 'Time pending';
-  const dateLabel = start.toLocaleDateString('en-US', {
+  if (Number.isNaN(start.getTime())) return i18n.t('workerDashboard.requestUtils.timePending');
+  const dateLabel = start.toLocaleDateString(dateLocale(), {
     weekday: 'short',
     month: 'short',
     day: 'numeric',
   });
-  const startLabel = start.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+  const startLabel = start.toLocaleTimeString(dateLocale(), { hour: 'numeric', minute: '2-digit' });
   const endLabel =
     end && !Number.isNaN(end.getTime())
-      ? end.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
+      ? end.toLocaleTimeString(dateLocale(), { hour: 'numeric', minute: '2-digit' })
       : null;
   return endLabel ? `${dateLabel} · ${startLabel} - ${endLabel}` : `${dateLabel} · ${startLabel}`;
 };
@@ -216,12 +219,12 @@ export const buildSimulatedTraffic = (
   distanceKm: number
 ): SimulatedTrafficSummary => {
   const palette = {
-    light: { color: '#22c55e', factor: 0.04, label: 'Smooth flow' },
-    moderate: { color: '#f59e0b', factor: 0.11, label: 'Busy streets' },
-    heavy: { color: '#ef4444', factor: 0.2, label: 'Slow traffic' },
+    light: { color: '#22c55e', factor: 0.04, label: i18n.t('workerDashboard.requestUtils.smoothFlow') },
+    moderate: { color: '#f59e0b', factor: 0.11, label: i18n.t('workerDashboard.requestUtils.busyStreets') },
+    heavy: { color: '#ef4444', factor: 0.2, label: i18n.t('workerDashboard.requestUtils.slowTraffic') },
   } as const;
   if (points.length < 2) {
-    return { level: 'Light', delayMin: 0, segments: [], note: 'Traffic simulation is light on this route.' };
+    return { level: 'Light', delayMin: 0, segments: [], note: i18n.t('workerDashboard.requestUtils.trafficLightNote') };
   }
   const segmentCount = Math.min(4, Math.max(2, Math.floor(points.length / 18)));
   const segments: SimulatedTrafficSegment[] = [];
@@ -250,10 +253,10 @@ export const buildSimulatedTraffic = (
     segments,
     note:
       level === 'Heavy'
-        ? 'Demo traffic is slow around the client area.'
+        ? i18n.t('workerDashboard.requestUtils.trafficHeavyNote')
         : level === 'Moderate'
-          ? 'Demo traffic shows some slower segments on the route.'
-          : 'Demo traffic is mostly clear on this route.',
+          ? i18n.t('workerDashboard.requestUtils.trafficModerateNote')
+          : i18n.t('workerDashboard.requestUtils.trafficClearNote'),
   };
 };
 

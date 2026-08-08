@@ -1,4 +1,5 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import { motion } from 'framer-motion';
 import { useWorkerRewardsDashboard } from '../../hooks/useWorkerRewardsDashboard';
 import {
@@ -17,6 +18,7 @@ const CompletedWorkSkeleton: React.FC = () => (
 );
 
 export const CompletedWorkView: React.FC = () => {
+  const { t } = useTranslation();
   const { data, loading, error } = useWorkerRewardsDashboard();
 
   if (loading && !data) return <CompletedWorkSkeleton />;
@@ -44,18 +46,18 @@ export const CompletedWorkView: React.FC = () => {
       >
         <div className="flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
           <div>
-            <p className="text-xs font-black uppercase tracking-[0.18em] text-slate-400 dark:text-slate-500">Recent completed work</p>
-            <h3 className="mt-2 text-xl font-black text-slate-900 dark:text-white sm:text-2xl">See what each recent job contributes</h3>
+            <p className="text-xs font-black uppercase tracking-[0.18em] text-slate-400 dark:text-slate-500">{t('workerDashboard.completedWork.recentCompletedWork')}</p>
+            <h3 className="mt-2 text-xl font-black text-slate-900 dark:text-white sm:text-2xl">{t('workerDashboard.completedWork.seeWhatContributes')}</h3>
           </div>
           <div className="rounded-full border border-slate-200 bg-slate-50 px-4 py-2 text-xs font-bold text-slate-600 dark:border-white/10 dark:bg-slate-800 dark:text-slate-300">
-            {summary.lifetime_completed_jobs} completed jobs total
+            {t('workerDashboard.completedWork.completedJobsTotal', { count: summary.lifetime_completed_jobs })}
           </div>
         </div>
 
         <div className="mt-6 space-y-3">
           {recentHistory.length === 0 ? (
             <div className="rounded-3xl border border-dashed border-slate-200 bg-slate-50 px-4 py-6 text-sm font-semibold text-slate-500 dark:border-white/10 dark:bg-slate-800/60 dark:text-slate-400">
-              Completed jobs will show here once the client confirms them.
+              {t('workerDashboard.completedWork.willShowHere')}
             </div>
           ) : (
             recentHistory.map((item) => {
@@ -71,17 +73,17 @@ export const CompletedWorkView: React.FC = () => {
                         <span
                           className={`rounded-full px-3 py-1 text-[11px] font-black uppercase tracking-[0.16em] ${getPayoutStatusBadge(item.worker_payout_status)}`}
                         >
-                          Base {getPayoutStatusLabel(item.worker_payout_status)}
+                          {t('workerDashboard.completedWork.basePrefix', { status: getPayoutStatusLabel(item.worker_payout_status) })}
                         </span>
                         <span
                           className={`rounded-full px-3 py-1 text-[11px] font-black uppercase tracking-[0.16em] ${getPayoutStatusBadge(item.bonus_status)}`}
                         >
-                          Bonus {getPayoutStatusLabel(item.bonus_status)}
+                          {t('workerDashboard.completedWork.bonusPrefix', { status: getPayoutStatusLabel(item.bonus_status) })}
                         </span>
                       </div>
 
                       <p className="mt-2 truncate text-sm font-semibold text-slate-600 dark:text-slate-300">
-                        {item.client_name || 'Client'} / {formatDate(item.completed_at)}
+                        {item.client_name || t('workerDashboard.completedWork.clientFallback')} / {formatDate(item.completed_at)}
                       </p>
                       <p className="mt-2 truncate text-sm text-slate-500 dark:text-slate-400">{item.location_text}</p>
                       <p className="mt-3 text-sm leading-6 text-slate-500 dark:text-slate-400">{item.description}</p>
@@ -89,23 +91,23 @@ export const CompletedWorkView: React.FC = () => {
 
                     <div className="grid flex-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
                       <div className="rounded-2xl border border-white/70 bg-white p-3 dark:border-white/10 dark:bg-slate-800">
-                        <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400 dark:text-slate-500">Base earnings</p>
+                        <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400 dark:text-slate-500">{t('workerDashboard.completedWork.baseEarnings')}</p>
                         <p className="mt-2 text-xl font-black text-slate-900 dark:text-white">{formatMoney(item.worker_payout)}</p>
                       </div>
                       <div className="rounded-2xl border border-amber-200 bg-amber-50 p-3 dark:border-amber-500/30 dark:bg-amber-500/10">
-                        <p className="text-[11px] font-black uppercase tracking-[0.18em] text-amber-700 dark:text-amber-400">Commission bonus</p>
+                        <p className="text-[11px] font-black uppercase tracking-[0.18em] text-amber-700 dark:text-amber-400">{t('workerDashboard.rewardsUi.commissionBonus')}</p>
                         <p className="mt-2 text-xl font-black text-amber-700 dark:text-amber-400">{formatMoney(item.commission_bonus)}</p>
                       </div>
                       <div className="rounded-2xl border border-bird-blue/15 bg-bird-blue/10 p-3 dark:border-bird-blue/25 dark:bg-bird-blue/15">
-                        <p className="text-[11px] font-black uppercase tracking-[0.18em] text-bird-blue">Total from job</p>
+                        <p className="text-[11px] font-black uppercase tracking-[0.18em] text-bird-blue">{t('workerDashboard.completedWork.totalFromJob')}</p>
                         <p className="mt-2 text-xl font-black text-bird-blue">{formatMoney(totalFromJob)}</p>
                       </div>
                       <div className="rounded-2xl border border-slate-200 bg-white p-3 dark:border-white/10 dark:bg-slate-800">
-                        <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400 dark:text-slate-500">Scheduled payout date</p>
+                        <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400 dark:text-slate-500">{t('workerDashboard.completedWork.scheduledPayoutDate')}</p>
                         <p className="mt-2 text-base font-black text-slate-900 dark:text-white">{formatDate(item.scheduled_payout_date)}</p>
                         {item.worker_payout_paid_at && (
                           <p className="mt-1 text-xs font-semibold text-emerald-700 dark:text-emerald-400">
-                            Paid {formatDate(item.worker_payout_paid_at)}
+                            {t('workerDashboard.completedWork.paidOn', { date: formatDate(item.worker_payout_paid_at) })}
                           </p>
                         )}
                       </div>

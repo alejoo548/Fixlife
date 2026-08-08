@@ -1,4 +1,5 @@
 ﻿import React, { useEffect, useMemo, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import { AnimatePresence, motion } from 'framer-motion';
 import {
   CheckCheck,
@@ -12,6 +13,7 @@ import {
 } from 'lucide-react';
 import { showSweetToast } from '../../../utils/sweetAlert';
 import { normalizeImageUrl } from '../../../utils/imageUrls';
+import i18n from '../../../i18n';
 import type { ChatMessage, WorkerRequest } from './workerRequestTypes';
 
 const CHAT_IMAGE_TYPES = new Set(['image/png', 'image/jpeg', 'image/webp']);
@@ -48,6 +50,8 @@ export const WorkerRequestChatPanel: React.FC<WorkerRequestChatPanelProps> = ({
   onSend,
   dockBesideRequestsPanel = false,
 }) => {
+  const { t, i18n } = useTranslation();
+  const dateLocale = i18n.language === 'es' ? 'es-SV' : 'en-US';
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const imagePreview = useMemo(() => (image ? URL.createObjectURL(image) : null), [image]);
   const canSend = !busy && Boolean(text.trim() || image);
@@ -72,14 +76,14 @@ export const WorkerRequestChatPanel: React.FC<WorkerRequestChatPanelProps> = ({
     if (!CHAT_IMAGE_TYPES.has(file.type)) {
       void showSweetToast({
         tone: 'error',
-        message: 'Use a PNG, JPG or WEBP image. GIF is not allowed.',
+        message: t('workerDashboard.chatPanel.imageTypeError'),
       });
       return;
     }
     if (file.size > CHAT_IMAGE_MAX_BYTES) {
       void showSweetToast({
         tone: 'error',
-        message: 'Chat images must be 5MB or smaller.',
+        message: t('workerDashboard.chatPanel.imageSizeError'),
       });
       return;
     }
@@ -92,7 +96,7 @@ export const WorkerRequestChatPanel: React.FC<WorkerRequestChatPanelProps> = ({
         <>
           <motion.button
             type="button"
-            aria-label="Close client chat"
+            aria-label={t('workerDashboard.chatPanel.closeChat')}
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
@@ -108,7 +112,7 @@ export const WorkerRequestChatPanel: React.FC<WorkerRequestChatPanelProps> = ({
               dockBesideRequestsPanel ? 'lg:left-4 lg:right-4' : 'lg:left-auto lg:right-4 lg:w-[410px]'
             }`}
             style={desktopDockedStyle}
-            aria-label={`Chat with ${request.client?.name || 'client'}`}
+            aria-label={t('workerDashboard.chatPanel.chatWith', { name: request.client?.name || t('workerDashboard.chatPanel.clientFallback') })}
           >
             <header className="shrink-0 border-b border-slate-200/80 bg-white px-4 py-3.5 dark:bg-slate-900 dark:border-white/10">
               <div className="flex items-center gap-3">
@@ -126,7 +130,7 @@ export const WorkerRequestChatPanel: React.FC<WorkerRequestChatPanelProps> = ({
                     />
                   ) : (
                     <div className="flex h-11 w-11 items-center justify-center rounded-full bg-sky-100 text-sm font-black text-bird-blue">
-                      {getInitials(request.client?.name || 'Client')}
+                      {getInitials(request.client?.name || t('workerDashboard.chatPanel.clientNameFallback'))}
                     </div>
                   )}
                   <span
@@ -139,7 +143,7 @@ export const WorkerRequestChatPanel: React.FC<WorkerRequestChatPanelProps> = ({
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2">
                     <h3 className="truncate text-sm font-black text-slate-950">
-                      {request.client?.name || 'Client'}
+                      {request.client?.name || t('workerDashboard.chatPanel.clientNameFallback')}
                     </h3>
                     <ShieldCheck className="h-4 w-4 shrink-0 text-bird-blue" />
                   </div>
@@ -149,7 +153,7 @@ export const WorkerRequestChatPanel: React.FC<WorkerRequestChatPanelProps> = ({
                     ) : (
                       <WifiOff className="h-3.5 w-3.5 text-amber-500" />
                     )}
-                    {connected ? 'Live chat' : 'Reconnecting'}
+                    {connected ? t('workerDashboard.chatPanel.liveChat') : t('workerDashboard.chatPanel.reconnecting')}
                     <span className="text-slate-300">•</span>
                     <span className="truncate">{request.service_name} #{request.id_request}</span>
                   </p>
@@ -158,7 +162,7 @@ export const WorkerRequestChatPanel: React.FC<WorkerRequestChatPanelProps> = ({
                 <button
                   type="button"
                   onClick={onClose}
-                  title="Close chat"
+                  title={t('workerDashboard.chatPanel.closeChatTitle')}
                   className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-500 transition hover:bg-slate-100 hover:text-slate-800 dark:bg-slate-900 dark:border-white/10"
                 >
                   <X className="h-5 w-5" />
@@ -168,7 +172,7 @@ export const WorkerRequestChatPanel: React.FC<WorkerRequestChatPanelProps> = ({
 
             <div className="flex items-center gap-2 border-b border-slate-200/70 bg-sky-50/80 px-4 py-2.5 text-[10px] font-bold text-sky-800 dark:border-white/10">
               <ShieldCheck className="h-3.5 w-3.5 shrink-0" />
-              Keep service details and payment inside Fixlife.
+              {t('workerDashboard.chatPanel.keepDetailsInside')}
             </div>
 
             <div className="custom-scrollbar min-h-0 flex-1 overflow-y-auto px-4 py-5">
@@ -177,9 +181,9 @@ export const WorkerRequestChatPanel: React.FC<WorkerRequestChatPanelProps> = ({
                   <div className="flex h-14 w-14 items-center justify-center rounded-full bg-white text-bird-blue shadow-sm dark:bg-slate-900">
                     <MessageCircle className="h-6 w-6" />
                   </div>
-                  <h4 className="mt-4 text-sm font-black text-slate-900 dark:text-slate-100">Start the conversation</h4>
+                  <h4 className="mt-4 text-sm font-black text-slate-900 dark:text-slate-100">{t('workerDashboard.chatPanel.startConversation')}</h4>
                   <p className="mt-1 max-w-[250px] text-xs font-semibold leading-5 text-slate-500">
-                    Confirm arrival details or ask the client a question about the service.
+                    {t('workerDashboard.chatPanel.confirmArrivalDetails')}
                   </p>
                 </div>
               ) : (
@@ -213,7 +217,7 @@ export const WorkerRequestChatPanel: React.FC<WorkerRequestChatPanelProps> = ({
                               >
                                 <img
                                   src={normalizeImageUrl(message.image_url)}
-                                  alt="Chat attachment"
+                                  alt={t('workerDashboard.chatPanel.chatAttachment')}
                                   loading="lazy"
                                   decoding="async"
                                   onError={(event) => {
@@ -232,7 +236,7 @@ export const WorkerRequestChatPanel: React.FC<WorkerRequestChatPanelProps> = ({
                                 mine ? 'text-white/65' : 'text-slate-400'
                               }`}
                             >
-                              {new Date(message.created_at).toLocaleTimeString('en-US', {
+                              {new Date(message.created_at).toLocaleTimeString(dateLocale, {
                                 hour: 'numeric',
                                 minute: '2-digit',
                               })}
@@ -253,7 +257,7 @@ export const WorkerRequestChatPanel: React.FC<WorkerRequestChatPanelProps> = ({
                 <div className="mb-2 flex items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-2 dark:bg-slate-800 dark:border-white/10">
                   <img
                     src={imagePreview}
-                    alt="Selected attachment"
+                    alt={t('workerDashboard.chatPanel.selectedAttachment')}
                     className="h-12 w-12 rounded-xl object-cover"
                   />
                   <div className="min-w-0 flex-1">
@@ -265,7 +269,7 @@ export const WorkerRequestChatPanel: React.FC<WorkerRequestChatPanelProps> = ({
                   <button
                     type="button"
                     onClick={() => onImageChange(null)}
-                    title="Remove attachment"
+                    title={t('workerDashboard.chatPanel.removeAttachment')}
                     className="flex h-8 w-8 items-center justify-center rounded-lg bg-white text-slate-400 shadow-sm hover:text-red-500 dark:bg-slate-900"
                   >
                     <X className="h-4 w-4" />
@@ -290,7 +294,7 @@ export const WorkerRequestChatPanel: React.FC<WorkerRequestChatPanelProps> = ({
                   type="button"
                   onClick={() => fileInputRef.current?.click()}
                   disabled={busy}
-                  title="Attach image"
+                  title={t('workerDashboard.chatPanel.attachImage')}
                   className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-slate-400 transition hover:bg-white hover:text-bird-blue disabled:opacity-40"
                 >
                   <ImagePlus className="h-[18px] w-[18px]" />
@@ -313,21 +317,21 @@ export const WorkerRequestChatPanel: React.FC<WorkerRequestChatPanelProps> = ({
                       if (canSend) onSend();
                     }
                   }}
-                  placeholder="Write a message..."
+                  placeholder={t('workerDashboard.chatPanel.writeMessage')}
                   className="max-h-28 min-h-9 flex-1 resize-none bg-transparent px-1 py-2 text-sm leading-5 text-slate-800 outline-none placeholder:text-slate-400 dark:text-slate-200"
                 />
                 <button
                   type="button"
                   onClick={onSend}
                   disabled={!canSend}
-                  title="Send message"
+                  title={t('workerDashboard.chatPanel.sendMessage')}
                   className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-bird-blue text-white shadow-[0_8px_18px_rgba(0,144,255,0.25)] transition hover:bg-bird-darkBlue active:scale-95 disabled:cursor-not-allowed disabled:bg-slate-300 disabled:shadow-none"
                 >
                   <Send className={`h-4 w-4 ${busy ? 'animate-pulse' : ''}`} />
                 </button>
               </div>
               <div className="mt-2 flex items-center justify-between px-1 text-[9px] font-semibold text-slate-400">
-                <span>Enter to send · Shift + Enter for a new line</span>
+                <span>{t('workerDashboard.chatPanel.enterToSend')}</span>
                 <span>{text.length}/500</span>
               </div>
             </footer>
@@ -352,12 +356,13 @@ const ChatDate = ({ date }: { date: string }) => {
   const today = new Date();
   const yesterday = new Date();
   yesterday.setDate(today.getDate() - 1);
+  const dateLocale = i18n.language === 'es' ? 'es-SV' : 'en-US';
   const label =
     value.toDateString() === today.toDateString()
-      ? 'Today'
+      ? i18n.t('workerDashboard.chatPanel.today')
       : value.toDateString() === yesterday.toDateString()
-        ? 'Yesterday'
-        : value.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+        ? i18n.t('workerDashboard.chatPanel.yesterday')
+        : value.toLocaleDateString(dateLocale, { month: 'short', day: 'numeric' });
 
   return (
     <div className="flex items-center gap-3 py-1">

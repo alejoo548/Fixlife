@@ -746,7 +746,7 @@ export const SettingsView: React.FC = () => {
                 <div className="mt-4 mb-2 text-xs font-black uppercase tracking-[0.14em] text-slate-500">{t('workerDashboard.settings.readyToUpload')}</div>
                 <div className="grid grid-cols-3 gap-2">
                   {portfolioPreviews.map((preview, idx) => (
-                    <img key={`${preview}-${idx}`} src={preview} alt="Portfolio preview" loading="lazy" className="aspect-square w-full rounded-xl border border-slate-200 object-cover" />
+                    <img key={`${preview}-${idx}`} src={preview} alt={t('workerDashboard.settings.portfolioPreview')} loading="lazy" className="aspect-square w-full rounded-xl border border-slate-200 object-cover" />
                   ))}
                 </div>
                 <button
@@ -786,7 +786,7 @@ export const SettingsView: React.FC = () => {
                         >
                           <img
                             src={photo.image_full_url || toPublicUrl(photo.image_url) || ''}
-                            alt="Portfolio"
+                            alt={t('workerDashboard.settings.portfolio')}
                             className="aspect-[4/3] w-full object-cover transition duration-300 group-hover:scale-105"
                             onError={() =>
                               setBrokenPortfolio((prev) => ({ ...prev, [photo.id_photo]: true }))
@@ -836,7 +836,7 @@ export const SettingsView: React.FC = () => {
               ) : (
                 <img
                   src={selectedPortfolioPhoto.image_full_url || toPublicUrl(selectedPortfolioPhoto.image_url) || ''}
-                  alt="Portfolio preview"
+                  alt={t('workerDashboard.settings.portfolioPreview')}
                   className="max-h-[68vh] w-full rounded-2xl object-contain shadow-[0_24px_70px_rgba(0,0,0,0.28)]"
                   onError={() =>
                     setBrokenPortfolio((prev) => ({ ...prev, [selectedPortfolioPhoto.id_photo]: true }))

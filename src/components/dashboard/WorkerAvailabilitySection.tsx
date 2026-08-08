@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { CalendarDays, CheckCircle2, Clock3 } from 'lucide-react';
 import { API_ENDPOINTS } from '../../config/api';
 import { getToken as getSessionToken } from '../../utils/session';
@@ -10,14 +11,14 @@ type AvailabilitySlot = {
   is_active: boolean;
 };
 
-const DAYS = [
-  { value: 1, label: 'Mon' },
-  { value: 2, label: 'Tue' },
-  { value: 3, label: 'Wed' },
-  { value: 4, label: 'Thu' },
-  { value: 5, label: 'Fri' },
-  { value: 6, label: 'Sat' },
-  { value: 0, label: 'Sun' },
+const DAY_KEYS: { value: number; key: string }[] = [
+  { value: 1, key: 'mon' },
+  { value: 2, key: 'tue' },
+  { value: 3, key: 'wed' },
+  { value: 4, key: 'thu' },
+  { value: 5, key: 'fri' },
+  { value: 6, key: 'sat' },
+  { value: 0, key: 'sun' },
 ];
 
 const defaultSlot = (day: number): AvailabilitySlot => ({
@@ -38,13 +39,14 @@ export const WorkerAvailabilitySection: React.FC<WorkerAvailabilitySectionProps>
   onError,
   onSuccess,
 }) => {
+  const { t } = useTranslation();
   const [slots, setSlots] = useState<AvailabilitySlot[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
   const authFetch = async (url: string, options: RequestInit = {}) => {
     const token = getSessionToken('worker');
-    if (!token) throw new Error('No token found. Please sign in again.');
+    if (!token) throw new Error(t('workerDashboard.availability.noTokenFound'));
     const headers = new Headers(options.headers || {});
     headers.set('Authorization', `Bearer ${token}`);
     return fetch(url, { ...options, headers });
@@ -55,7 +57,7 @@ export const WorkerAvailabilitySection: React.FC<WorkerAvailabilitySectionProps>
       setLoading(true);
       const res = await authFetch(API_ENDPOINTS.worker.availability);
       const payload = await res.json();
-      if (!res.ok || !payload?.success) throw new Error(payload?.error || 'Could not load availability.');
+      if (!res.ok || !payload?.success) throw new Error(payload?.error || t('workerDashboard.availability.couldNotLoadAvailability'));
 
       setSlots(
         Array.isArray(payload.slots)
@@ -68,7 +70,7 @@ export const WorkerAvailabilitySection: React.FC<WorkerAvailabilitySectionProps>
           : []
       );
     } catch (error: any) {
-      onError(error.message || 'Could not load availability.');
+      onError(error.message || t('workerDashboard.availability.couldNotLoadAvailability'));
     } finally {
       setLoading(false);
     }
@@ -98,7 +100,7 @@ export const WorkerAvailabilitySection: React.FC<WorkerAvailabilitySectionProps>
   const saveAvailability = async () => {
     const invalid = slots.find((slot) => !slot.start_time || !slot.end_time || slot.start_time >= slot.end_time);
     if (invalid) {
-      onError('Each active day needs a valid start and end time.');
+      onError(t('workerDashboard.availability.eachDayNeedsValidTime'));
       return;
     }
 
@@ -110,11 +112,11 @@ export const WorkerAvailabilitySection: React.FC<WorkerAvailabilitySectionProps>
         body: JSON.stringify({ slots }),
       });
       const payload = await res.json();
-      if (!res.ok || !payload?.success) throw new Error(payload?.error || 'Could not save availability.');
-      onSuccess('Availability saved.');
+      if (!res.ok || !payload?.success) throw new Error(payload?.error || t('workerDashboard.availability.couldNotSaveAvailability'));
+      onSuccess(t('workerDashboard.availability.availabilitySaved'));
       void loadAvailability();
     } catch (error: any) {
-      onError(error.message || 'Could not save availability.');
+      onError(error.message || t('workerDashboard.availability.couldNotSaveAvailability'));
     } finally {
       setSaving(false);
     }
@@ -130,17 +132,17 @@ export const WorkerAvailabilitySection: React.FC<WorkerAvailabilitySectionProps>
             <CalendarDays className="h-6 w-6" />
           </span>
           <div>
-            <p className="text-[11px] font-black uppercase tracking-[0.18em] text-sky-500">Scheduled jobs</p>
-            <h3 className="mt-1 text-2xl font-black text-slate-950">Weekly working hours</h3>
+            <p className="text-[11px] font-black uppercase tracking-[0.18em] text-sky-500">{t('workerDashboard.availability.scheduledJobs')}</p>
+            <h3 className="mt-1 text-2xl font-black text-slate-950">{t('workerDashboard.availability.weeklyWorkingHours')}</h3>
             <p className="mt-1 max-w-2xl text-sm font-semibold leading-6 text-slate-500">
-              These hours are only for scheduled visits. When you are using the dashboard, your live status is handled automatically.
+              {t('workerDashboard.availability.hoursOnlyForScheduled')}
             </p>
           </div>
         </div>
         <div className="flex flex-col gap-2 sm:flex-row xl:justify-end">
           <div className="inline-flex items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-black text-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:border-white/10">
             <CheckCircle2 className="h-4 w-4 text-emerald-500" />
-            {activeCount} active day{activeCount === 1 ? '' : 's'}
+            {t('workerDashboard.availability.activeDay', { count: activeCount })}
           </div>
           <button
             type="button"
@@ -148,13 +150,13 @@ export const WorkerAvailabilitySection: React.FC<WorkerAvailabilitySectionProps>
             disabled={saving || loading}
             className="inline-flex items-center justify-center gap-2 rounded-2xl bg-sky-600 px-5 py-3 text-sm font-black text-white transition hover:bg-sky-700 disabled:cursor-not-allowed disabled:bg-slate-300"
           >
-            {saving ? 'Saving...' : 'Save hours'}
+            {saving ? t('workerDashboard.availability.saving') : t('workerDashboard.availability.saveHours')}
           </button>
         </div>
       </div>
 
       <div className="mt-6 grid gap-3">
-        {DAYS.map((day) => {
+        {DAY_KEYS.map((day) => {
           const slot = getSlot(day.value);
           const active = Boolean(slot);
 
@@ -174,20 +176,20 @@ export const WorkerAvailabilitySection: React.FC<WorkerAvailabilitySectionProps>
                   onChange={(event) => setDayActive(day.value, event.target.checked)}
                   className="h-5 w-5 shrink-0 accent-sky-600"
                 />
-                <span className="w-10">{day.label}</span>
+                <span className="w-10">{t(`workerDashboard.availability.days.${day.key}`)}</span>
                 <span
                   className={`rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-[0.14em] ${
                     active ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-200 text-slate-500'
                   }`}
                 >
-                  {active ? 'Working' : 'Off'}
+                  {active ? t('workerDashboard.availability.working') : t('workerDashboard.availability.off')}
                 </span>
               </label>
 
               <div className="grid gap-2 sm:grid-cols-2">
                 <label className="relative block">
                   <span className="absolute left-3 top-2 text-[10px] font-black uppercase tracking-[0.12em] text-slate-400">
-                    Start
+                    {t('workerDashboard.availability.start')}
                   </span>
                   <Clock3 className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
                   <input
@@ -200,7 +202,7 @@ export const WorkerAvailabilitySection: React.FC<WorkerAvailabilitySectionProps>
                 </label>
                 <label className="relative block">
                   <span className="absolute left-3 top-2 text-[10px] font-black uppercase tracking-[0.12em] text-slate-400">
-                    End
+                    {t('workerDashboard.availability.end')}
                   </span>
                   <Clock3 className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
                   <input

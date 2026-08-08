@@ -1,12 +1,13 @@
 import type { WorkerRewardCalendarItem } from '../../hooks/useWorkerRewardsDashboard';
+import i18n from '../../i18n';
 
 export const formatMoney = (value: number) => `$${Number(value || 0).toFixed(2)}`;
 
 export const formatDate = (value: string | Date | null | undefined, options?: Intl.DateTimeFormatOptions) => {
-  if (!value) return 'Not scheduled yet';
+  if (!value) return i18n.t('workerDashboard.rewardsUi.notScheduledYet');
   const date = value instanceof Date ? value : new Date(value);
   return date.toLocaleDateString(
-    'en-US',
+    i18n.language === 'es' ? 'es-SV' : 'en-US',
     options || {
       month: 'short',
       day: 'numeric',
@@ -25,21 +26,21 @@ export const getPayoutStatusBadge = (status: string) => {
 
 export const getPayoutStatusLabel = (status: string) => {
   const normalized = String(status || '').toLowerCase();
-  if (normalized === 'paid') return 'Paid';
-  if (normalized === 'scheduled') return 'Scheduled';
-  if (normalized === 'cancelled') return 'Cancelled';
-  return 'Not eligible';
+  if (normalized === 'paid') return i18n.t('workerDashboard.rewardsUi.statusPaid');
+  if (normalized === 'scheduled') return i18n.t('workerDashboard.rewardsUi.statusScheduled');
+  if (normalized === 'cancelled') return i18n.t('workerDashboard.rewardsUi.statusCancelled');
+  return i18n.t('workerDashboard.rewardsUi.statusNotEligible');
 };
 
 export const getBonusProgramLabel = (type: 'commission' | 'royalty') => {
-  return type === 'commission' ? 'Commission bonus' : 'Monthly performance bonus';
+  return type === 'commission' ? i18n.t('workerDashboard.rewardsUi.commissionBonus') : i18n.t('workerDashboard.rewardsUi.monthlyPerformanceBonus');
 };
 
 export const getCalendarItemLabel = (item: Pick<WorkerRewardCalendarItem, 'type' | 'label'>) => {
-  if (item.type === 'worker_payout') return 'Base earnings batch';
-  if (item.type === 'commission') return 'Commission bonus batch';
-  if (item.type === 'royalty') return 'Monthly performance bonus';
-  return 'Mixed payout batch';
+  if (item.type === 'worker_payout') return i18n.t('workerDashboard.rewardsUi.baseEarningsBatch');
+  if (item.type === 'commission') return i18n.t('workerDashboard.rewardsUi.commissionBonusBatch');
+  if (item.type === 'royalty') return i18n.t('workerDashboard.rewardsUi.monthlyPerformanceBonus');
+  return i18n.t('workerDashboard.rewardsUi.mixedPayoutBatch');
 };
 
 export const getCalendarItemTone = (type: WorkerRewardCalendarItem['type']) => {
@@ -87,9 +88,9 @@ export const getCalendarBatchSummary = (items: WorkerRewardCalendarItem[]) => {
 
 export const getNextPayoutLabel = (label: string | null | undefined) => {
   const normalized = String(label || '').toLowerCase();
-  if (normalized.includes('royalty')) return 'Monthly performance bonus';
-  if (normalized.includes('commission')) return 'Commission bonus batch';
-  if (normalized.includes('mixed')) return 'Mixed payout batch';
-  if (normalized.includes('base')) return 'Base earnings batch';
-  return 'Scheduled payout batch';
+  if (normalized.includes('royalty')) return i18n.t('workerDashboard.rewardsUi.monthlyPerformanceBonus');
+  if (normalized.includes('commission')) return i18n.t('workerDashboard.rewardsUi.commissionBonusBatch');
+  if (normalized.includes('mixed')) return i18n.t('workerDashboard.rewardsUi.mixedPayoutBatch');
+  if (normalized.includes('base')) return i18n.t('workerDashboard.rewardsUi.baseEarningsBatch');
+  return i18n.t('workerDashboard.rewardsUi.scheduledPayoutBatch');
 };

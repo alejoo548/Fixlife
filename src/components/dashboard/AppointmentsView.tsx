@@ -1,7 +1,9 @@
 ﻿import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { API_ENDPOINTS } from '../../config/api';
 import { useSSE } from '../../hooks/useSSE';
 import { getAuthUser, getToken } from '../../utils/session';
+import i18n from '../../i18n';
 
 interface Appointment {
   id_request: number;
@@ -21,11 +23,13 @@ interface Appointment {
   } | null;
 }
 
+const dateLocale = () => (i18n.language === 'es' ? 'es-SV' : 'en-US');
+
 const formatDateTime = (value: string | null) => {
-  if (!value) return 'Not scheduled';
+  if (!value) return i18n.t('workerDashboard.appointments.notScheduled');
   const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return 'Not scheduled';
-  return date.toLocaleString('en-US', {
+  if (Number.isNaN(date.getTime())) return i18n.t('workerDashboard.appointments.notScheduled');
+  return date.toLocaleString(dateLocale(), {
     weekday: 'short',
     month: 'short',
     day: 'numeric',
@@ -38,15 +42,15 @@ const formatTime = (value: string | null) => {
   if (!value) return '';
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return '';
-  return date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+  return date.toLocaleTimeString(dateLocale(), { hour: 'numeric', minute: '2-digit' });
 };
 
 const statusLabel = (status: string) => {
   const normalized = String(status || '').toLowerCase();
-  if (normalized === 'payment_pending') return 'Payment pending';
-  if (normalized === 'awaiting_confirmation') return 'Client confirmation';
-  if (normalized === 'in_progress') return 'In progress';
-  return normalized ? normalized.charAt(0).toUpperCase() + normalized.slice(1) : 'Scheduled';
+  if (normalized === 'payment_pending') return i18n.t('workerDashboard.appointments.statusPaymentPending');
+  if (normalized === 'awaiting_confirmation') return i18n.t('workerDashboard.appointments.statusAwaitingConfirmation');
+  if (normalized === 'in_progress') return i18n.t('workerDashboard.appointments.statusInProgress');
+  return normalized ? normalized.charAt(0).toUpperCase() + normalized.slice(1) : i18n.t('workerDashboard.appointments.statusScheduled');
 };
 
 const statusClass = (status: string) => {
@@ -58,6 +62,7 @@ const statusClass = (status: string) => {
 };
 
 export const AppointmentsView: React.FC = () => {
+  const { t } = useTranslation();
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -86,16 +91,16 @@ export const AppointmentsView: React.FC = () => {
       });
       const payload = await res.json();
       if (res.status === 401) {
-        setError('Worker session could not be validated. Please reopen the dashboard.');
+        setError(t('workerDashboard.appointments.sessionInvalid'));
         return;
       }
       if (!res.ok || !payload?.success) {
-        setError(payload?.error || 'Could not load appointments.');
+        setError(payload?.error || t('workerDashboard.appointments.couldNotLoad'));
         return;
       }
       setAppointments(Array.isArray(payload.appointments) ? payload.appointments : []);
     } catch {
-      setError('Network error loading appointments.');
+      setError(t('workerDashboard.appointments.networkError'));
     } finally {
       setLoading(false);
     }
@@ -121,21 +126,21 @@ export const AppointmentsView: React.FC = () => {
     <div className="h-full overflow-y-auto p-4 sm:p-6">
       <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <p className="text-[11px] font-black uppercase tracking-[0.18em] text-bird-blue">Upcoming</p>
-          <h2 className="mt-1 text-2xl font-black text-slate-900 dark:text-slate-100">Scheduled visits</h2>
+          <p className="text-[11px] font-black uppercase tracking-[0.18em] text-bird-blue">{t('workerDashboard.appointments.upcoming')}</p>
+          <h2 className="mt-1 text-2xl font-black text-slate-900 dark:text-slate-100">{t('workerDashboard.appointments.scheduledVisits')}</h2>
         </div>
         <button
           type="button"
           onClick={() => void fetchAppointments()}
           className="rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-black text-slate-700 shadow-sm transition hover:border-bird-blue hover:text-bird-blue dark:bg-slate-900 dark:text-slate-300 dark:border-white/10"
         >
-          Refresh
+          {t('workerDashboard.appointments.refresh')}
         </button>
       </div>
 
       {loading ? (
         <div className="rounded-3xl border border-slate-200 bg-white p-6 text-sm font-bold text-slate-500 shadow-sm dark:bg-slate-900 dark:border-white/10">
-          Loading appointments...
+          {t('workerDashboard.appointments.loadingAppointments')}
         </div>
       ) : error ? (
         <div className="rounded-3xl border border-red-200 bg-red-50 p-6 text-sm font-bold text-red-700">
@@ -143,9 +148,9 @@ export const AppointmentsView: React.FC = () => {
         </div>
       ) : appointments.length === 0 ? (
         <div className="rounded-3xl border border-slate-200 bg-white p-8 text-center shadow-sm dark:bg-slate-900 dark:border-white/10">
-          <p className="text-lg font-black text-slate-900 dark:text-slate-100">No scheduled visits yet</p>
+          <p className="text-lg font-black text-slate-900 dark:text-slate-100">{t('workerDashboard.appointments.noScheduledVisits')}</p>
           <p className="mt-2 text-sm font-semibold text-slate-500">
-            Future scheduled jobs will appear here after you accept them.
+            {t('workerDashboard.appointments.futureJobsAppearHere')}
           </p>
         </div>
       ) : (
@@ -163,7 +168,7 @@ export const AppointmentsView: React.FC = () => {
                     </span>
                     <div>
                       <h3 className="text-lg font-black text-slate-900 dark:text-slate-100">{appointment.service_name}</h3>
-                      <p className="text-xs font-bold text-slate-500">Request #{appointment.id_request}</p>
+                      <p className="text-xs font-bold text-slate-500">{t('workerDashboard.appointments.requestHash', { id: appointment.id_request })}</p>
                     </div>
                   </div>
 
@@ -174,7 +179,7 @@ export const AppointmentsView: React.FC = () => {
                 </div>
 
                 <div className="shrink-0 rounded-2xl border border-slate-200 bg-slate-50 p-4 lg:w-72 dark:bg-slate-800 dark:border-white/10">
-                  <p className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-400">Visit window</p>
+                  <p className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-400">{t('workerDashboard.appointments.visitWindow')}</p>
                   <p className="mt-1 text-sm font-black text-slate-900 dark:text-slate-100">
                     {formatDateTime(appointment.scheduled_start_time)}
                   </p>
@@ -195,9 +200,9 @@ export const AppointmentsView: React.FC = () => {
 
               {appointment.client && (
                 <div className="mt-4 border-t border-slate-100 pt-4 dark:border-white/10">
-                  <p className="text-xs font-black uppercase tracking-[0.14em] text-slate-400">Client</p>
+                  <p className="text-xs font-black uppercase tracking-[0.14em] text-slate-400">{t('workerDashboard.appointments.client')}</p>
                   <p className="mt-1 text-sm font-bold text-slate-700 dark:text-slate-300">
-                    {appointment.client.name || 'Client'}
+                    {appointment.client.name || t('workerDashboard.appointments.clientFallback')}
                     {appointment.client.phone_number ? ` · ${appointment.client.phone_number}` : ''}
                   </p>
                 </div>

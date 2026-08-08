@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { motion } from 'framer-motion';
 import { FileUp, CheckCircle, AlertCircle, Loader2, UploadCloud } from 'lucide-react';
 import { API_URL } from '../../config/api';
@@ -10,6 +11,7 @@ interface UploadDocumentsViewProps {
 }
 
 export const UploadDocumentsView: React.FC<UploadDocumentsViewProps> = ({ token, onSuccess }) => {
+  const { t } = useTranslation();
   const [duiFile, setDuiFile] = useState<File | null>(null);
   const [certFile, setCertFile] = useState<File | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -18,12 +20,12 @@ export const UploadDocumentsView: React.FC<UploadDocumentsViewProps> = ({ token,
   const handleUpload = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!duiFile) {
-      setError('The ID document is required.');
+      setError(t('workerDashboard.uploadDocuments.idRequired'));
       return;
     }
 
     if (!certFile) {
-      setError('The certification document is required.');
+      setError(t('workerDashboard.uploadDocuments.certRequired'));
       return;
     }
 
@@ -33,12 +35,12 @@ export const UploadDocumentsView: React.FC<UploadDocumentsViewProps> = ({ token,
     // Frontend size validation (10MB)
     const MAX_SIZE = 10 * 1024 * 1024;
     if (duiFile.size > MAX_SIZE) {
-      setError('The ID file is too large. Max size is 10MB.');
+      setError(t('workerDashboard.uploadDocuments.idTooLarge'));
       setIsLoading(false);
       return;
     }
     if (certFile && certFile.size > MAX_SIZE) {
-      setError('The certification file is too large. Max size is 10MB.');
+      setError(t('workerDashboard.uploadDocuments.certTooLarge'));
       setIsLoading(false);
       return;
     }
@@ -62,7 +64,7 @@ export const UploadDocumentsView: React.FC<UploadDocumentsViewProps> = ({ token,
         data = JSON.parse(text);
       } catch (e) {
         console.error("Non-JSON response from server:", text);
-        setError(`Server error: ${text.substring(0, 100)}...`);
+        setError(t('workerDashboard.uploadDocuments.serverError', { text: text.substring(0, 100) }));
         return;
       }
 
@@ -78,11 +80,11 @@ export const UploadDocumentsView: React.FC<UploadDocumentsViewProps> = ({ token,
         
         onSuccess(); // Change state to "hasUploadedDocs: true"
       } else {
-        setError(data.error || 'There was an error uploading the documents.');
+        setError(data.error || t('workerDashboard.uploadDocuments.uploadError'));
       }
     } catch (err: any) {
       console.error("Fetch error:", err);
-      setError('Network or connection error: ' + (err.message || ''));
+      setError(t('workerDashboard.uploadDocuments.networkError', { message: err.message || '' }));
     } finally {
       setIsLoading(false);
     }
@@ -99,9 +101,9 @@ export const UploadDocumentsView: React.FC<UploadDocumentsViewProps> = ({ token,
           <div className="w-14 h-14 sm:w-16 sm:h-16 bg-bird-blue/10 dark:bg-bird-blue/20 rounded-full flex items-center justify-center mx-auto mb-4">
             <UploadCloud className="w-7 h-7 sm:w-8 sm:h-8 text-bird-blue" />
           </div>
-          <h2 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-slate-100 mb-2">Upload Your Documents</h2>
+          <h2 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-slate-100 mb-2">{t('workerDashboard.uploadDocuments.title')}</h2>
           <p className="text-sm sm:text-base text-gray-500 dark:text-slate-400">
-            To ensure the safety of our clients, we need to validate your identity and skills before you can start receiving requests.
+            {t('workerDashboard.uploadDocuments.subtitle')}
           </p>
         </div>
 
@@ -123,10 +125,10 @@ export const UploadDocumentsView: React.FC<UploadDocumentsViewProps> = ({ token,
                   <FileUp className="w-8 h-8 sm:w-10 sm:h-10 text-gray-400 dark:text-slate-500 mb-2 sm:mb-3" />
                 )}
                 <p className="mb-1 sm:mb-2 text-sm text-gray-700 dark:text-slate-200 font-semibold">
-                  <span className="text-bird-blue">Upload your ID or Passport</span> (Required)
+                  <span className="text-bird-blue">{t('workerDashboard.uploadDocuments.uploadId')}</span> {t('workerDashboard.uploadDocuments.required')}
                 </p>
                 <p className="text-xs text-gray-500 dark:text-slate-400 px-4 text-center">
-                  {duiFile ? duiFile.name : 'PNG, JPG or PDF (Max 10MB)'}
+                  {duiFile ? duiFile.name : t('workerDashboard.uploadDocuments.idPlaceholder')}
                 </p>
               </div>
               <input 
@@ -148,10 +150,10 @@ export const UploadDocumentsView: React.FC<UploadDocumentsViewProps> = ({ token,
                   <FileUp className="w-8 h-8 sm:w-10 sm:h-10 text-gray-400 dark:text-slate-500 mb-2 sm:mb-3" />
                 )}
                 <p className="mb-1 sm:mb-2 text-sm text-gray-700 dark:text-slate-200 font-semibold">
-                  <span className="text-amber-500">Upload your Certifications</span> (Required)
+                  <span className="text-amber-500">{t('workerDashboard.uploadDocuments.uploadCert')}</span> {t('workerDashboard.uploadDocuments.required')}
                 </p>
                 <p className="text-xs text-gray-500 dark:text-slate-400 px-4 text-center">
-                  {certFile ? certFile.name : 'Degrees, diplomas or licenses. PNG, JPG or PDF (Max 10MB).'}
+                  {certFile ? certFile.name : t('workerDashboard.uploadDocuments.certPlaceholder')}
                 </p>
               </div>
               <input 
@@ -177,10 +179,10 @@ export const UploadDocumentsView: React.FC<UploadDocumentsViewProps> = ({ token,
             {isLoading ? (
               <>
                 <Loader2 className="w-5 h-5 sm:w-6 sm:h-6 animate-spin" />
-                Uploading documents...
+                {t('workerDashboard.uploadDocuments.uploadingDocuments')}
               </>
             ) : (
-              'Submit Documents for Review'
+              t('workerDashboard.uploadDocuments.submitForReview')
             )}
           </motion.button>
         </form>

@@ -1,13 +1,14 @@
 import { Check } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 
 const steps = [
-  { key: 'assigned', label: 'Pro approved' },
-  { key: 'route_in_progress', label: 'On route' },
-  { key: 'arrived', label: 'Arrived' },
-  { key: 'in_progress', label: 'Working' },
-  { key: 'payment_pending', label: 'Work finished' },
-  { key: 'paid', label: 'Paid' },
-  { key: 'done', label: 'Completed' },
+  { key: 'assigned', labelKey: 'assigned' },
+  { key: 'route_in_progress', labelKey: 'routeInProgress' },
+  { key: 'arrived', labelKey: 'arrived' },
+  { key: 'in_progress', labelKey: 'inProgress' },
+  { key: 'payment_pending', labelKey: 'paymentPending' },
+  { key: 'paid', labelKey: 'paid' },
+  { key: 'done', labelKey: 'done' },
 ] as const;
 
 export const WorkerRequestTimeline = ({
@@ -19,6 +20,7 @@ export const WorkerRequestTimeline = ({
   routeActive?: boolean;
   arrived?: boolean;
 }) => {
+  const { t } = useTranslation();
   const normalized = String(status || '').toLowerCase();
   const visualStatus =
     normalized === 'start_pending'
@@ -59,7 +61,7 @@ export const WorkerRequestTimeline = ({
               <span className={`mt-1 text-center text-[8px] font-black ${
                 completed ? 'text-slate-700' : 'text-slate-400'
               }`}>
-                {step.label}
+                {t(`workerDashboard.timeline.${step.labelKey}`)}
               </span>
             </div>
           );

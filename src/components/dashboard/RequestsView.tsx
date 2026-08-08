@@ -712,7 +712,13 @@ export const RequestsView: React.FC<RequestsViewProps> = ({
       ? t('workerDashboard.requests.routeIdle')
       : routeStatusLabel === 'Live Route'
         ? t('workerDashboard.requests.routeOnRoute')
-        : routeStatusLabel;
+        : routeStatusLabel === 'Nearby'
+          ? t('workerDashboard.requests.routeNearby')
+          : routeStatusLabel === 'Rerouting'
+            ? t('workerDashboard.requests.routeRerouting')
+            : routeStatusLabel === 'Arrived'
+              ? t('workerDashboard.requests.routeArrived')
+              : routeStatusLabel;
   const selectedScheduled = isScheduledRequest(selectedRequest);
   const selectedArrived = selectedRequest
     ? Boolean(selectedRequest.worker_arrived_at) ||
