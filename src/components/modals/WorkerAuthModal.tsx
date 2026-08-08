@@ -478,7 +478,7 @@ export const WorkerAuthModal: React.FC<WorkerAuthModalProps> = ({ isOpen, onClos
                     </div>
 
                     <div className="bg-gray-50 dark:bg-slate-800 rounded-lg p-1 border border-gray-200 dark:border-white/10 focus-within:border-bird-orange/50 transition-colors">
-                      <input required value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} type="email" maxLength={100} placeholder={t('workerAuth.fields.emailAddress')} className="w-full bg-transparent px-3 py-2 text-sm text-gray-900 dark:text-slate-100 outline-none placeholder-gray-500 dark:placeholder-slate-400" />
+                      <input required value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} type="email" maxLength={254} placeholder={t('workerAuth.fields.emailAddress')} className="w-full bg-transparent px-3 py-2 text-sm text-gray-900 dark:text-slate-100 outline-none placeholder-gray-500 dark:placeholder-slate-400" />
                     </div>
 
                     <div className="grid grid-cols-2 gap-2.5">
@@ -690,7 +690,7 @@ export const WorkerAuthModal: React.FC<WorkerAuthModalProps> = ({ isOpen, onClos
 
           <form className="w-full flex flex-col gap-4" onSubmit={handleSigninSubmit}>
             <div className="bg-gray-50 dark:bg-slate-800 rounded-lg p-1 border border-gray-200 dark:border-white/10 focus-within:border-bird-orange/50 transition-colors">
-              <input required value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} type="email" maxLength={100} placeholder={t('workerAuth.fields.emailAddress')} className="w-full bg-transparent px-3 py-3 text-sm text-gray-900 dark:text-slate-100 outline-none placeholder-gray-500 dark:placeholder-slate-400" />
+              <input required value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} type="email" maxLength={254} placeholder={t('workerAuth.fields.emailAddress')} className="w-full bg-transparent px-3 py-3 text-sm text-gray-900 dark:text-slate-100 outline-none placeholder-gray-500 dark:placeholder-slate-400" />
             </div>
             <div className="bg-gray-50 dark:bg-slate-800 rounded-lg p-1 border border-gray-200 dark:border-white/10 focus-within:border-bird-orange/50 transition-colors">
               <PasswordInput required value={formData.password} onChange={e => setFormData({...formData, password: e.target.value})}  maxLength={128} placeholder={t('workerAuth.fields.password')} className="w-full bg-transparent px-3 py-3 text-sm text-gray-900 dark:text-slate-100 outline-none placeholder-gray-500 dark:placeholder-slate-400" />
@@ -780,7 +780,7 @@ export const WorkerAuthModal: React.FC<WorkerAuthModalProps> = ({ isOpen, onClos
                       <input required value={formData.phone_number} onChange={e => setFormData({...formData, phone_number: formatPhoneInput(e.target.value)})} type="tel" maxLength={9} placeholder="6074-6649" className="w-full bg-transparent text-sm text-gray-900 dark:text-slate-100 outline-none placeholder-gray-500 dark:placeholder-slate-400" />
                     </div>
                     <div className="bg-white dark:bg-slate-800 rounded-xl px-4 py-3 border border-gray-200 dark:border-white/10 focus-within:border-bird-orange/50 transition-colors shadow-sm">
-                      <input required value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} type="email" maxLength={100} placeholder={t('workerAuth.fields.emailAddress')} className="w-full bg-transparent text-sm text-gray-900 dark:text-slate-100 outline-none placeholder-gray-500 dark:placeholder-slate-400" />
+                      <input required value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} type="email" maxLength={254} placeholder={t('workerAuth.fields.emailAddress')} className="w-full bg-transparent text-sm text-gray-900 dark:text-slate-100 outline-none placeholder-gray-500 dark:placeholder-slate-400" />
                     </div>
                     <div className="grid grid-cols-1 gap-3">
                       <div className="bg-white dark:bg-slate-800 rounded-xl px-4 py-3 border border-gray-200 dark:border-white/10 focus-within:border-bird-orange/50 transition-colors shadow-sm">
@@ -976,7 +976,7 @@ export const WorkerAuthModal: React.FC<WorkerAuthModalProps> = ({ isOpen, onClos
                   </div>
                   <form className="flex flex-col gap-3" onSubmit={handleSigninSubmit}>
                     <div className="bg-white rounded-xl px-4 py-3 border border-gray-200 focus-within:border-bird-orange/50 transition-colors shadow-sm">
-                      <input required value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} type="email" maxLength={100} placeholder={t('workerAuth.fields.emailAddress')} className="w-full bg-transparent text-sm text-gray-900 outline-none placeholder-gray-500" />
+                      <input required value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} type="email" maxLength={254} placeholder={t('workerAuth.fields.emailAddress')} className="w-full bg-transparent text-sm text-gray-900 outline-none placeholder-gray-500" />
                     </div>
                     <div className="bg-white rounded-xl px-4 py-3 border border-gray-200 focus-within:border-bird-orange/50 transition-colors shadow-sm">
                       <PasswordInput required value={formData.password} onChange={e => setFormData({...formData, password: e.target.value})}  maxLength={128} placeholder={t('workerAuth.fields.password')} className="w-full bg-transparent text-sm text-gray-900 outline-none placeholder-gray-500" />

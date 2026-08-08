@@ -262,6 +262,15 @@ const MIGRATIONS: MigrationDefinition[] = [
       await ensureHeroSlidesEsColumns();
     },
   },
+  {
+    id: '20260808_001_widen_users_name_email_columns',
+    description: 'Widen users.name to match lastname and email columns to RFC 5321 max length',
+    run: async () => {
+      await pool.execute(`ALTER TABLE users MODIFY COLUMN name VARCHAR(100) NOT NULL`);
+      await pool.execute(`ALTER TABLE users MODIFY COLUMN email VARCHAR(254) NOT NULL`);
+      await pool.execute(`ALTER TABLE users MODIFY COLUMN pending_email VARCHAR(254) NULL`);
+    },
+  },
 ];
 
 const ensureMigrationsTable = async () => {

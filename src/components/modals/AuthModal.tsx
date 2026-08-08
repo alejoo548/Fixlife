@@ -468,7 +468,7 @@ if (!emailRegex.test(signinEmail)) {
               </div>
 
               <div className="bg-gray-50 dark:bg-slate-800 rounded-lg p-1 border border-gray-200 dark:border-white/10 focus-within:border-bird-blue/50 transition-colors">
-                <input type="email" name="email" maxLength={100} value={formData.email} onChange={handleChange} placeholder={t('auth.fields.email')} className="w-full bg-transparent px-3 py-2 text-sm text-gray-900 dark:text-slate-100 outline-none placeholder-gray-500 dark:placeholder-slate-400" />
+                <input type="email" name="email" maxLength={254} value={formData.email} onChange={handleChange} placeholder={t('auth.fields.email')} className="w-full bg-transparent px-3 py-2 text-sm text-gray-900 dark:text-slate-100 outline-none placeholder-gray-500 dark:placeholder-slate-400" />
               </div>
 
               <div className="grid grid-cols-2 gap-2.5">
@@ -521,7 +521,7 @@ if (!emailRegex.test(signinEmail)) {
             <p className="text-xs text-gray-500 dark:text-slate-400 mb-4">{t('auth.signInWithEmail')}</p>
             <form className="w-full flex flex-col gap-3" onSubmit={handleSignin}>
               <div className="bg-gray-50 dark:bg-slate-800 rounded-lg p-1 border border-gray-200 dark:border-white/10 focus-within:border-bird-blue/50 transition-colors">
-                <input type="email" name="email" maxLength={100} value={formData.email} onChange={handleChange} placeholder={t('auth.fields.email')} className="w-full bg-transparent px-3 py-2 text-sm text-gray-900 dark:text-slate-100 outline-none placeholder-gray-500 dark:placeholder-slate-400" />
+                <input type="email" name="email" maxLength={254} value={formData.email} onChange={handleChange} placeholder={t('auth.fields.email')} className="w-full bg-transparent px-3 py-2 text-sm text-gray-900 dark:text-slate-100 outline-none placeholder-gray-500 dark:placeholder-slate-400" />
               </div>
               <div className="bg-gray-50 dark:bg-slate-800 rounded-lg p-1 border border-gray-200 dark:border-white/10 focus-within:border-bird-blue/50 transition-colors">
                 <PasswordInput maxLength={128}  name="password" value={formData.password} onChange={handleChange} placeholder={t('auth.fields.password')} className="w-full bg-transparent px-3 py-2 text-sm text-gray-900 dark:text-slate-100 outline-none placeholder-gray-500 dark:placeholder-slate-400" />
@@ -594,7 +594,7 @@ if (!emailRegex.test(signinEmail)) {
                 )}
 
                 <div className="bg-gray-50 dark:bg-slate-800 rounded-xl px-4 py-3 border border-gray-200 dark:border-white/10 focus-within:border-bird-blue/50 transition-colors">
-                  <input type="email" name="email" maxLength={100} value={formData.email} onChange={handleChange} placeholder={t('auth.fields.emailAddress')} className="w-full bg-transparent text-sm text-gray-900 dark:text-slate-100 outline-none placeholder-gray-500 dark:placeholder-slate-400" />
+                  <input type="email" name="email" maxLength={254} value={formData.email} onChange={handleChange} placeholder={t('auth.fields.emailAddress')} className="w-full bg-transparent text-sm text-gray-900 dark:text-slate-100 outline-none placeholder-gray-500 dark:placeholder-slate-400" />
                 </div>
 
                 <div className="grid grid-cols-1 gap-3">

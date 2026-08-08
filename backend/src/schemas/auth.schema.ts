@@ -24,7 +24,7 @@ export const AuthSchema = {
       .string()
       .trim()
       .toLowerCase()
-      .max(100, 'Invalid email format.')
+      .max(254, 'Invalid email format.')
       .regex(emailRegex, 'Invalid email format.'),
     password: z
       .string()
@@ -49,7 +49,7 @@ export const AuthSchema = {
       .string()
       .trim()
       .toLowerCase()
-      .max(100, 'Invalid email format.')
+      .max(254, 'Invalid email format.')
       .regex(emailRegex, 'Invalid email format.'),
     phone_number: phoneText,
     password: z
@@ -84,7 +84,7 @@ export const AuthSchema = {
       .string()
       .trim()
       .toLowerCase()
-      .max(100, 'Invalid email format.')
+      .max(254, 'Invalid email format.')
       .regex(emailRegex, 'Invalid email format.'),
     phone_number: phoneText,
     password: z
@@ -115,7 +115,7 @@ export const AuthSchema = {
       .string()
       .trim()
       .toLowerCase()
-      .max(100, 'Invalid email format.')
+      .max(254, 'Invalid email format.')
       .regex(emailRegex, 'Invalid email format.'),
     otp: z
       .string()
@@ -128,7 +128,7 @@ export const AuthSchema = {
       .string()
       .trim()
       .toLowerCase()
-      .max(100, 'Invalid email format.')
+      .max(254, 'Invalid email format.')
       .regex(emailRegex, 'Invalid email format.'),
   }),
 
@@ -137,7 +137,7 @@ export const AuthSchema = {
       .string()
       .trim()
       .toLowerCase()
-      .max(100, 'Invalid email format.')
+      .max(254, 'Invalid email format.')
       .regex(emailRegex, 'Invalid email format.'),
     token: z
       .string()
@@ -153,7 +153,7 @@ export const AuthSchema = {
       .string()
       .trim()
       .toLowerCase()
-      .max(100, 'Invalid email format.')
+      .max(254, 'Invalid email format.')
       .regex(emailRegex, 'Invalid email format.'),
     token: z
       .string()
