@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useLocation } from 'react-router-dom';
+import { getLanguageScope, setScopedLanguage } from '../../hooks/useScopedLanguage';
 
 const languageOptions = [
   { code: 'en', labelKey: 'common.language.english' },
@@ -73,11 +75,12 @@ const FlagIcon: React.FC<{ code: 'en' | 'es' }> = ({ code }) => {
 
 export const LanguageSwitcher: React.FC<LanguageSwitcherProps> = ({ mobile = false }) => {
   const { i18n, t } = useTranslation();
+  const location = useLocation();
   const [isOpen, setIsOpen] = useState(false);
   const activeLanguage = languageOptions.find((option) => option.code === i18n.resolvedLanguage) || languageOptions[0];
 
   const handleChangeLanguage = (code: string) => {
-    void i18n.changeLanguage(code);
+    setScopedLanguage(getLanguageScope(location.pathname), code);
     setIsOpen(false);
   };
 

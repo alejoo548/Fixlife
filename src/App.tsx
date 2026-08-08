@@ -2,6 +2,7 @@ import React, { useState, useEffect, Suspense, lazy } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Navigate, Route, Routes, useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
+import { useApplyScopedLanguage } from './hooks/useScopedLanguage';
 import { Navbar } from './components/layout/Navbar';
 import { NavItemType, AuthMode } from './types';
 import { AuthModal } from './components/modals/AuthModal';
@@ -286,6 +287,7 @@ const App: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { t, i18n } = useTranslation();
+  useApplyScopedLanguage();
   const [roleIndex, setRoleIndex] = useState(0);
   const [heroText, setHeroText] = useState<typeof DEFAULT_HERO_TEXT>(() => getHeroText(i18n.language));
 

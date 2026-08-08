@@ -8,6 +8,7 @@ import { API_URL } from '../../config/api';
 import { AUTH_SESSION_CHANGED_EVENT, getAuthUser, getToken as getSessionToken, isAuthenticated, logoutAndReload, updateStoredAuthUser } from '../../utils/session';
 import { NotificationCenter } from '../common/NotificationCenter';
 import { DashboardThemeToggle } from '../common/DashboardThemeToggle';
+import { LanguageSwitcher } from '../common/LanguageSwitcher';
 import { useDashboardTheme } from '../../hooks/useDashboardTheme';
 import { showSweetAlert } from '../../utils/sweetAlert';
 import { normalizeImageUrl } from '../../utils/imageUrls';
@@ -547,6 +548,7 @@ export const ProDashboard: React.FC<ProDashboardProps> = ({ isOpen, onClose, onS
                </div>
 
                <div className="flex min-w-0 items-center justify-end gap-1.5 sm:gap-2 md:gap-3">
+                  <LanguageSwitcher />
                   <DashboardThemeToggle
                      theme={theme}
                      onToggle={toggleTheme}
