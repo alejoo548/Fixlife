@@ -45,7 +45,7 @@ services:
       - DB_NAME=${MYSQL_DATABASE:-fixlife_db}
       - DB_USER=${DB_USER:-fixlife_app}
       - DB_PASSWORD=${DB_PASSWORD:-Info2026/*-}
-      - DB_SSL=${DB_SSL:-true}
+      - DB_SSL=${DB_SSL:-false}
       - NODE_ENV=development
       - PORT=8000
       - DB_MIGRATIONS_MODE=${DB_MIGRATIONS_MODE:-auto}
@@ -71,11 +71,11 @@ services:
       mysql:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:8000/api/health').then((res) => process.exit(res.ok ? 0 : 1)).catch(() => process.exit(1))"]
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8000/api/health"]
       timeout: 10s
-      retries: 12
+      retries: 30
       interval: 5s
-      start_period: 20s
+      start_period: 240s
     networks:
       - fixlife-network
 
@@ -102,14 +102,17 @@ services:
     ports:
       - "3307:3306"
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      test: ["CMD-SHELL", "mysqladmin ping -h localhost -uroot -p\"$${MYSQL_ROOT_PASSWORD}\" --silent"]
       timeout: 30s
-      retries: 5
+      retries: 30
       interval: 10s
+      start_period: 180s
     networks:
       - fixlife-network
 
   mysql-backup:
+    profiles:
+      - backup
     build:
       context: ./docker
       dockerfile: Dockerfile.mysql-backup
@@ -126,7 +129,7 @@ services:
       - CRON_TIME=0 3 * * *
       - GZIP_LEVEL=6
       - TIMEOUT=60s
-      - MYSQLDUMP_OPTS=--single-transaction --no-tablespaces --routines --triggers --events --master-data=2
+      - MYSQLDUMP_OPTS=--single-transaction --no-tablespaces --routines --triggers --events
     volumes:
       - mysql_backups:/backup
       - mysql_data:/var/lib/mysql:ro
@@ -169,6 +172,8 @@ services:
       - fixlife-network
 
   cloudflared:
+    profiles:
+      - tunnel
     image: cloudflare/cloudflared:latest
     container_name: fixlife_cloudflared
     restart: unless-stopped

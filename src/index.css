@@ -145,6 +145,52 @@
   color: #f8fafc;
 }
 
+.admin-app.dashboard-theme-light {
+  color-scheme: light;
+}
+
+.admin-app.dashboard-theme-light [class*="dark:bg-slate-"],
+.admin-app.dashboard-theme-light [class*="dark:bg-gray-"],
+.admin-app.dashboard-theme-light [class*="dark:bg-zinc-"],
+.admin-app.dashboard-theme-light [class*="dark:bg-neutral-"] {
+  background-color: var(--admin-surface) !important;
+}
+
+.admin-app.dashboard-theme-light [class*="dark:bg-slate-800"],
+.admin-app.dashboard-theme-light [class*="dark:bg-slate-900"],
+.admin-app.dashboard-theme-light [class*="dark:bg-gray-800"],
+.admin-app.dashboard-theme-light [class*="dark:bg-gray-900"] {
+  background-color: var(--admin-surface-muted) !important;
+}
+
+.admin-app.dashboard-theme-light [class*="dark:text-slate-50"],
+.admin-app.dashboard-theme-light [class*="dark:text-slate-100"],
+.admin-app.dashboard-theme-light [class*="dark:text-slate-200"],
+.admin-app.dashboard-theme-light [class*="dark:text-gray-50"],
+.admin-app.dashboard-theme-light [class*="dark:text-gray-100"],
+.admin-app.dashboard-theme-light [class*="dark:text-gray-200"] {
+  color: var(--admin-text) !important;
+}
+
+.admin-app.dashboard-theme-light [class*="dark:text-slate-300"],
+.admin-app.dashboard-theme-light [class*="dark:text-slate-400"],
+.admin-app.dashboard-theme-light [class*="dark:text-gray-300"],
+.admin-app.dashboard-theme-light [class*="dark:text-gray-400"] {
+  color: var(--admin-muted) !important;
+}
+
+.admin-app.dashboard-theme-light [class*="dark:border-slate-"],
+.admin-app.dashboard-theme-light [class*="dark:border-gray-"],
+.admin-app.dashboard-theme-light [class*="dark:border-white/"] {
+  border-color: var(--admin-border) !important;
+}
+
+.admin-app.dashboard-theme-light input,
+.admin-app.dashboard-theme-light textarea,
+.admin-app.dashboard-theme-light select {
+  color-scheme: light;
+}
+
 .dashboard-theme-dark [class~="bg-white"],
 .dashboard-theme-dark [class~="bg-white/96"],
 .dashboard-theme-dark [class~="bg-white/95"],
@@ -1377,6 +1423,72 @@ html {
   border-color: var(--admin-border-strong);
 }
 
+.admin-hero-text-editor > .grid > div,
+.admin-hero-text-editor [role="button"],
+.admin-slide-editor {
+  background: var(--admin-surface) !important;
+  border-color: var(--admin-border) !important;
+  color: var(--admin-text) !important;
+}
+
+.admin-hero-text-editor h3,
+.admin-hero-text-editor label,
+.admin-slide-editor summary strong,
+.admin-slide-editor legend {
+  color: var(--admin-text) !important;
+}
+
+.admin-hero-text-editor .text-slate-500,
+.admin-hero-text-editor .text-slate-400,
+.admin-slide-editor summary span {
+  color: var(--admin-muted) !important;
+}
+
+.admin-hero-text-editor input,
+.admin-hero-text-editor textarea,
+.admin-hero-text-editor button:not(.bg-bird-blue),
+.admin-slide-editor input,
+.admin-slide-editor textarea,
+.admin-slide-editor select {
+  background: var(--admin-surface-muted) !important;
+  border-color: var(--admin-border) !important;
+  color: var(--admin-text) !important;
+}
+
+.admin-hero-text-editor input::placeholder,
+.admin-hero-text-editor textarea::placeholder,
+.admin-slide-editor input::placeholder,
+.admin-slide-editor textarea::placeholder {
+  color: var(--admin-soft) !important;
+}
+
+.dashboard-theme-dark .admin-hero-preview,
+.dashboard-theme-dark .admin-hero-preview h2,
+.dashboard-theme-dark .admin-hero-preview p {
+  color: #f8fafc !important;
+}
+
+.dashboard-theme-dark .admin-hero-preview .text-slate-500,
+.dashboard-theme-dark .admin-hero-preview .text-slate-400 {
+  color: rgba(226, 232, 240, 0.64) !important;
+}
+
+.dashboard-theme-light .admin-hero-preview {
+  background: linear-gradient(135deg, #ffffff 0%, #f1f5f9 54%, #e0f2fe 100%) !important;
+  border: 1px solid var(--admin-border);
+}
+
+.dashboard-theme-light .admin-hero-preview,
+.dashboard-theme-light .admin-hero-preview h2,
+.dashboard-theme-light .admin-hero-preview p {
+  color: var(--admin-text) !important;
+}
+
+.dashboard-theme-light .admin-hero-preview .text-slate-500,
+.dashboard-theme-light .admin-hero-preview .text-slate-400 {
+  color: var(--admin-muted) !important;
+}
+
 /* ── Metrics Grid ── */
 .admin-metrics-grid {
   display: grid;
@@ -1682,6 +1794,153 @@ html {
   border-color: rgba(var(--admin-primary-rgb), 0.5);
   background: var(--admin-surface);
   box-shadow: 0 0 0 3px rgba(var(--admin-primary-rgb), 0.1);
+}
+
+.admin-date-picker {
+  position: relative;
+  min-width: 190px;
+}
+
+.admin-date-trigger {
+  width: 100%;
+  height: 42px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  border: 1px solid var(--admin-border);
+  border-radius: 10px;
+  background: var(--admin-surface-muted);
+  color: var(--admin-text);
+  padding: 0 12px;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.admin-date-trigger span {
+  color: inherit;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.admin-date-trigger svg {
+  color: var(--admin-muted);
+  flex-shrink: 0;
+}
+
+.admin-calendar-popover {
+  position: absolute;
+  z-index: 80;
+  top: calc(100% + 8px);
+  left: 0;
+  width: 292px;
+  border: 1px solid var(--admin-border);
+  border-radius: 16px;
+  background: var(--admin-surface);
+  color: var(--admin-text);
+  box-shadow: var(--admin-shadow-lg);
+  padding: 12px;
+}
+
+.admin-calendar-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.admin-calendar-head strong {
+  font-size: 13px;
+  font-weight: 900;
+  text-transform: capitalize;
+}
+
+.admin-calendar-head button,
+.admin-calendar-actions button,
+.admin-calendar-grid button {
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--admin-text);
+  cursor: pointer;
+}
+
+.admin-calendar-head button {
+  width: 32px;
+  height: 32px;
+  display: grid;
+  place-items: center;
+  border-radius: 10px;
+}
+
+.admin-calendar-head button:hover,
+.admin-calendar-grid button:hover {
+  background: var(--admin-surface-muted);
+  border-color: var(--admin-border);
+}
+
+.admin-calendar-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 4px;
+}
+
+.admin-calendar-weekdays {
+  margin-bottom: 4px;
+}
+
+.admin-calendar-weekdays span {
+  text-align: center;
+  color: var(--admin-muted);
+  font-size: 10px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.admin-calendar-grid button {
+  height: 34px;
+  border-radius: 10px;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.admin-calendar-grid button.muted {
+  color: var(--admin-soft);
+  opacity: 0.62;
+}
+
+.admin-calendar-grid button.today {
+  border-color: rgba(var(--admin-primary-rgb), 0.35);
+  color: var(--admin-primary);
+}
+
+.admin-calendar-grid button.selected {
+  background: var(--admin-primary);
+  color: #fff;
+  border-color: var(--admin-primary);
+}
+
+.admin-calendar-actions {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--admin-border);
+}
+
+.admin-calendar-actions button {
+  border-radius: 10px;
+  padding: 7px 10px;
+  color: var(--admin-primary);
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.admin-calendar-actions button:hover {
+  background: var(--admin-primary-soft);
 }
 
 /* ── Table ── */

@@ -270,10 +270,11 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({
 
   const localizeNotificationText = (item: NotificationItem) => {
     const requestId = item.id_request ?? '';
+    const amount = item.message.match(/\$[\d,.]+/)?.[0]?.replace('$', '') || '';
     const titleKey = `${notificationCopy}.messages.${item.event_type}.title`;
     const messageKey = `${notificationCopy}.messages.${item.event_type}.message`;
-    const localizedTitle = t(titleKey, { requestId, defaultValue: item.title });
-    const localizedMessage = t(messageKey, { requestId, defaultValue: item.message });
+    const localizedTitle = t(titleKey, { requestId, amount, defaultValue: item.title });
+    const localizedMessage = t(messageKey, { requestId, amount, defaultValue: item.message });
     return {
       title: localizedTitle,
       message: localizedMessage,
@@ -425,7 +426,7 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({
                 key={`peek-${item.id_notification}`}
                 className={`admin-notification-chip rounded-full border px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.14em] ${toneClasses[item.tone]}`}
               >
-                {item.title}
+                {localizeNotificationText(item).title}
               </span>
             ))}
           </div>

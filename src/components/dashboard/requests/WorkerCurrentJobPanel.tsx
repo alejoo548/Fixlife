@@ -135,7 +135,7 @@ export const WorkerCurrentJobPanel = ({
                 <AlertTriangle className="h-4 w-4" />
               </IconButton>
               {onClose && (
-                <IconButton title="Close" onClick={onClose} variant="ghost">
+                <IconButton title="Cerrar" onClick={onClose} variant="ghost">
                   <X className="h-4 w-4" />
                 </IconButton>
               )}
@@ -234,7 +234,7 @@ const InfoTab = ({
     </div>
 
     <div className="grid grid-cols-2 gap-2">
-      <Detail label="Client" value={request.client?.name || 'Client'} />
+      <Detail label="Client" value={request.client?.name || 'Cliente'} />
       <Detail
         label="Duration"
         value={

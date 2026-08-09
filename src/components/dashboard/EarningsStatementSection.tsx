@@ -171,7 +171,7 @@ export const EarningsStatementSection: React.FC<EarningsStatementSectionProps> =
         return {
           date: formatDate(item.completed_at),
           request: `#${item.id_request}`,
-          client: item.client_name || 'Client',
+          client: item.client_name || 'Cliente',
           service: item.service_name,
           base: Number(item.worker_payout || 0),
           commissionBonus: Number(item.commission_bonus || 0),
@@ -191,7 +191,7 @@ export const EarningsStatementSection: React.FC<EarningsStatementSectionProps> =
       ['Statement period', statementPeriodLabel].join(','),
       ['Generated at', formatDate(new Date())].join(','),
       '',
-      ['Date', 'Request', 'Client', 'Service', 'Base earnings', 'Commission bonus', 'Monthly bonus', 'Total', 'Status', 'Payout date'].join(','),
+      ['Fecha', 'Solicitud', 'Cliente', 'Servicio', 'Ganancia base', 'Bono de comision', 'Bono mensual', 'Total', 'Estado', 'Fecha de pago'].join(','),
       ...exportRows.map((row) =>
         [
           row.date,
@@ -306,7 +306,7 @@ export const EarningsStatementSection: React.FC<EarningsStatementSectionProps> =
               disabled={exportRows.length === 0}
               className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-black text-slate-700 transition hover:border-bird-blue/30 hover:bg-bird-blue/5 disabled:cursor-not-allowed disabled:opacity-45 dark:border-white/10 dark:bg-slate-800 dark:text-slate-300 dark:hover:border-bird-blue/40 dark:hover:bg-bird-blue/10"
             >
-              {pdfLoading ? 'Generating PDF...' : 'Preview PDF'}
+              {pdfLoading ? 'Generando PDF...' : 'Vista previa PDF'}
             </button>
             <button
               type="button"
@@ -498,7 +498,7 @@ export const EarningsStatementSection: React.FC<EarningsStatementSectionProps> =
                 <table className="min-w-[760px] divide-y divide-slate-200 dark:divide-slate-700">
                   <thead className="bg-slate-50 dark:bg-slate-800">
                     <tr>
-                      {['Date', 'Request', 'Client', 'Service', 'Base', 'Comm. bonus', 'Monthly bonus', 'Total', 'Status', 'Payout date'].map((label) => (
+                      {['Fecha', 'Solicitud', 'Cliente', 'Servicio', 'Base', 'Bono com.', 'Bono mensual', 'Total', 'Estado', 'Fecha de pago'].map((label) => (
                         <th key={label} className="px-4 py-3 text-left text-[11px] font-black uppercase tracking-[0.16em] text-slate-400 dark:text-slate-500">
                           {label}
                         </th>
@@ -513,7 +513,7 @@ export const EarningsStatementSection: React.FC<EarningsStatementSectionProps> =
                         <tr key={item.id_request}>
                           <td className="px-4 py-4 text-sm font-semibold text-slate-600 dark:text-slate-300">{formatDate(item.completed_at)}</td>
                           <td className="px-4 py-4 text-sm font-black text-slate-900 dark:text-white">#{item.id_request}</td>
-                          <td className="px-4 py-4 text-sm font-semibold text-slate-700 dark:text-slate-300">{item.client_name || 'Client'}</td>
+                          <td className="px-4 py-4 text-sm font-semibold text-slate-700 dark:text-slate-300">{item.client_name || 'Cliente'}</td>
                           <td className="px-4 py-4 text-sm font-black text-slate-900 dark:text-white">{item.service_name}</td>
                           <td className="px-4 py-4 text-sm font-black text-slate-900 dark:text-white">{formatMoney(item.worker_payout)}</td>
                           <td className="px-4 py-4 text-sm font-black text-amber-700 dark:text-amber-400">{formatMoney(item.commission_bonus)}</td>
@@ -542,7 +542,7 @@ export const EarningsStatementSection: React.FC<EarningsStatementSectionProps> =
                     <div className="flex flex-wrap items-center justify-between gap-2">
                       <div>
                         <p className="text-lg font-black text-slate-900 dark:text-white">{item.service_name}</p>
-                        <p className="mt-1 text-sm font-semibold text-slate-500 dark:text-slate-400">#{item.id_request} / {item.client_name || 'Client'}</p>
+                        <p className="mt-1 text-sm font-semibold text-slate-500 dark:text-slate-400">#{item.id_request} / {item.client_name || 'Cliente'}</p>
                       </div>
                       <span className={`rounded-full px-3 py-1 text-[11px] font-black uppercase tracking-[0.14em] ${getStatementStatusChip(rowStatus)}`}>
                         {getStatementStatusLabel(rowStatus)}

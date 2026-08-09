@@ -3,6 +3,7 @@ import { adminApi } from '../api/adminApi';
 import { AdminCard, DetailDrawer, EmptyState, FilterBar, Skeleton, formatAdminLabel } from '../components/AdminUI';
 import { connectSupportSocket, addActivityListener } from '../../../services/supportSocket';
 import { getToken } from '../../../utils/session';
+import { adminActionLabel, adminAuditSummary, adminEntityLabel, useAdminT } from '../adminI18n';
 
 type Item = { id_activity: number; action: string; entity: string; entity_id: number | null; summary: string; created_at: string; admin: { name: string; email: string | null } | null; metadata: unknown };
 
@@ -33,6 +34,8 @@ const Badge = ({ label, style }: { label: string; style: React.CSSProperties }) 
 );
 
 export default function ActivityModule() {
+  const { t, lang } = useAdminT();
+  const locale = lang === 'es' ? 'es-ES' : 'en-US';
   const [allRows, setAllRows] = useState<Item[]>([]);
   const [loading, setLoading] = useState(true);
   const [action, setAction] = useState('all');
@@ -68,40 +71,40 @@ export default function ActivityModule() {
     <div className="admin-page-stack">
       <FilterBar>
         <select value={action} onChange={(e) => setAction(e.target.value)}>
-          {actionOptions.map((v) => <option key={v} value={v}>{v === 'all' ? 'All actions' : formatAdminLabel(v)}</option>)}
+          {actionOptions.map((v) => <option key={v} value={v}>{v === 'all' ? t('activity.allActions') : adminActionLabel(v, lang)}</option>)}
         </select>
         <select value={entity} onChange={(e) => setEntity(e.target.value)}>
-          {entityOptions.map((v) => <option key={v} value={v}>{v === 'all' ? 'All sections' : formatAdminLabel(v)}</option>)}
+          {entityOptions.map((v) => <option key={v} value={v}>{v === 'all' ? t('activity.allSections') : adminEntityLabel(v, lang)}</option>)}
         </select>
       </FilterBar>
 
-      {loading ? <Skeleton rows={8} /> : rows.length === 0 ? <EmptyState title="No activity found" description="Audited admin actions appear here." /> : (
+      {loading ? <Skeleton rows={8} /> : rows.length === 0 ? <EmptyState title={t('activity.emptyTitle')} description={t('activity.emptyDescription')} /> : (
         <AdminCard className="admin-table-card">
           <div className="admin-table-wrap">
             <table className="admin-table">
               <thead>
                 <tr>
-                  <th>Summary</th>
-                  <th>Action</th>
-                  <th>Section</th>
-                  <th>Administrator</th>
-                  <th>Date</th>
+                  <th>{t('activity.summary')}</th>
+                  <th>{t('common.action')}</th>
+                  <th>{t('activity.section')}</th>
+                  <th>{t('admins.administrator')}</th>
+                  <th>{t('common.date')}</th>
                 </tr>
               </thead>
               <tbody>
                 {rows.map((row) => (
                   <tr key={row.id_activity} className="admin-table__clickable" onClick={() => setSelected(row)}>
                     <td>
-                      <p style={{ fontWeight: 600, fontSize: 13, margin: 0 }}>{row.summary}</p>
+                      <p style={{ fontWeight: 600, fontSize: 13, margin: 0 }}>{adminAuditSummary(row.summary, lang)}</p>
                       {row.entity_id && <p style={{ fontSize: 11, color: 'var(--admin-muted)', margin: 0 }}>ID {row.entity_id}</p>}
                     </td>
-                    <td><Badge label={row.action} style={actionStyle(row.action)} /></td>
-                    <td><Badge label={row.entity} style={entityStyle(row.entity)} /></td>
+                    <td><Badge label={adminActionLabel(row.action, lang)} style={actionStyle(row.action)} /></td>
+                    <td><Badge label={adminEntityLabel(row.entity, lang)} style={entityStyle(row.entity)} /></td>
                     <td>
-                      <p style={{ fontWeight: 600, fontSize: 13, margin: 0 }}>{row.admin?.name || 'System'}</p>
+                      <p style={{ fontWeight: 600, fontSize: 13, margin: 0 }}>{row.admin?.name || t('common.system')}</p>
                       <p style={{ fontSize: 11, color: 'var(--admin-muted)', margin: 0 }}>{row.admin?.email || ''}</p>
                     </td>
-                    <td style={{ fontSize: 13, color: 'var(--admin-muted)' }}>{new Date(row.created_at).toLocaleString()}</td>
+                    <td style={{ fontSize: 13, color: 'var(--admin-muted)' }}>{new Date(row.created_at).toLocaleString(locale)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -112,22 +115,22 @@ export default function ActivityModule() {
 
       <DetailDrawer
         open={!!selected}
-        title={selected ? formatAdminLabel(`${selected.action} ${selected.entity}`) : 'Activity detail'}
-        subtitle={selected ? `Audit record #${selected.id_activity}` : undefined}
+        title={selected ? `${adminActionLabel(selected.action, lang)} · ${adminEntityLabel(selected.entity, lang)}` : t('activity.detail')}
+        subtitle={selected ? t('activity.auditRecord', { id: selected.id_activity }) : undefined}
         onClose={() => setSelected(null)}
       >
         {selected && (
           <div className="admin-detail-stack">
             <AdminCard>
-              <div className="admin-kv"><span>Administrator</span><strong>{selected.admin?.name || 'System'}</strong></div>
-              <div className="admin-kv"><span>Email</span><strong>{selected.admin?.email || 'Not available'}</strong></div>
-              <div className="admin-kv"><span>Action</span><Badge label={selected.action} style={actionStyle(selected.action)} /></div>
-              <div className="admin-kv"><span>Section</span><Badge label={selected.entity} style={entityStyle(selected.entity)} />{selected.entity_id ? <span style={{ fontSize: 12, color: 'var(--admin-muted)', marginLeft: 6 }}>#{selected.entity_id}</span> : null}</div>
-              <div className="admin-kv"><span>Timestamp</span><strong>{new Date(selected.created_at).toLocaleString()}</strong></div>
+              <div className="admin-kv"><span>{t('admins.administrator')}</span><strong>{selected.admin?.name || t('common.system')}</strong></div>
+              <div className="admin-kv"><span>{t('common.email')}</span><strong>{selected.admin?.email || t('common.notAvailable')}</strong></div>
+              <div className="admin-kv"><span>{t('common.action')}</span><Badge label={adminActionLabel(selected.action, lang)} style={actionStyle(selected.action)} /></div>
+              <div className="admin-kv"><span>{t('activity.section')}</span><Badge label={adminEntityLabel(selected.entity, lang)} style={entityStyle(selected.entity)} />{selected.entity_id ? <span style={{ fontSize: 12, color: 'var(--admin-muted)', marginLeft: 6 }}>#{selected.entity_id}</span> : null}</div>
+              <div className="admin-kv"><span>{t('activity.timestamp')}</span><strong>{new Date(selected.created_at).toLocaleString(locale)}</strong></div>
             </AdminCard>
             <AdminCard>
-              <p className="admin-section-title">Recorded summary</p>
-              <p className="admin-muted">{selected.summary}</p>
+              <p className="admin-section-title">{t('activity.recordedSummary')}</p>
+              <p className="admin-muted">{adminAuditSummary(selected.summary, lang)}</p>
             </AdminCard>
           </div>
         )}

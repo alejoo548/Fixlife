@@ -86,7 +86,7 @@ export const AppointmentsView: React.FC = () => {
       });
       const payload = await res.json();
       if (res.status === 401) {
-        setError('Worker session could not be validated. Please reopen the dashboard.');
+        setError('No se pudo validar la sesion del trabajador. Vuelve a abrir el dashboard.');
         return;
       }
       if (!res.ok || !payload?.success) {
@@ -95,7 +95,7 @@ export const AppointmentsView: React.FC = () => {
       }
       setAppointments(Array.isArray(payload.appointments) ? payload.appointments : []);
     } catch {
-      setError('Network error loading appointments.');
+      setError('Error de red al cargar proximas visitas.');
     } finally {
       setLoading(false);
     }
@@ -121,7 +121,7 @@ export const AppointmentsView: React.FC = () => {
     <div className="h-full overflow-y-auto p-4 sm:p-6">
       <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <p className="text-[11px] font-black uppercase tracking-[0.18em] text-bird-blue">Upcoming</p>
+          <p className="text-[11px] font-black uppercase tracking-[0.18em] text-bird-blue">Proximas</p>
           <h2 className="mt-1 text-2xl font-black text-slate-900 dark:text-slate-100">Scheduled visits</h2>
         </div>
         <button
@@ -135,7 +135,7 @@ export const AppointmentsView: React.FC = () => {
 
       {loading ? (
         <div className="rounded-3xl border border-slate-200 bg-white p-6 text-sm font-bold text-slate-500 shadow-sm dark:bg-slate-900 dark:border-white/10">
-          Loading appointments...
+          Cargando proximas visitas...
         </div>
       ) : error ? (
         <div className="rounded-3xl border border-red-200 bg-red-50 p-6 text-sm font-bold text-red-700">
@@ -163,7 +163,7 @@ export const AppointmentsView: React.FC = () => {
                     </span>
                     <div>
                       <h3 className="text-lg font-black text-slate-900 dark:text-slate-100">{appointment.service_name}</h3>
-                      <p className="text-xs font-bold text-slate-500">Request #{appointment.id_request}</p>
+                      <p className="text-xs font-bold text-slate-500">Solicitud #{appointment.id_request}</p>
                     </div>
                   </div>
 
@@ -197,7 +197,7 @@ export const AppointmentsView: React.FC = () => {
                 <div className="mt-4 border-t border-slate-100 pt-4 dark:border-white/10">
                   <p className="text-xs font-black uppercase tracking-[0.14em] text-slate-400">Client</p>
                   <p className="mt-1 text-sm font-bold text-slate-700 dark:text-slate-300">
-                    {appointment.client.name || 'Client'}
+                    {appointment.client.name || 'Cliente'}
                     {appointment.client.phone_number ? ` · ${appointment.client.phone_number}` : ''}
                   </p>
                 </div>

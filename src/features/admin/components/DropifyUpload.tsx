@@ -1,6 +1,7 @@
 import React, { useRef, useState } from 'react';
 import { Loader2, UploadCloud, X } from 'lucide-react';
 import { adminApi } from '../api/adminApi';
+import { useAdminT } from '../adminI18n';
 
 interface DropifyUploadProps {
   value?: string | string[]; // current url(s)
@@ -23,10 +24,11 @@ export function DropifyUpload({
   multiple = false,
   maxFiles = 10,
   onError,
-  label = 'Upload Image',
+  label = 'Subir imagen',
   maxSizeMB = 10,
   allowedTypes = ['image/png', 'image/jpeg', 'image/jpg', 'image/webp'],
 }: DropifyUploadProps) {
+  const { t } = useAdminT();
   const [dragActive, setDragActive] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
@@ -45,7 +47,7 @@ export function DropifyUpload({
     // 1. Validation: Mimetypes
     const invalidType = selectedList.find(f => !allowedTypes.includes(f.type));
     if (invalidType) {
-      triggerError('Invalid file type. Only PNG, JPG, JPEG, and WEBP are allowed.');
+      triggerError(t('upload.invalidType'));
       return;
     }
 
@@ -53,7 +55,7 @@ export function DropifyUpload({
     const maxSizeBytes = maxSizeMB * 1024 * 1024;
     const invalidSize = selectedList.find(f => f.size > maxSizeBytes);
     if (invalidSize) {
-      triggerError(`File "${invalidSize.name}" exceeds the ${maxSizeMB}MB limit.`);
+      triggerError(t('upload.sizeLimit', { file: invalidSize.name, size: maxSizeMB }));
       return;
     }
 
@@ -88,10 +90,10 @@ export function DropifyUpload({
         if (res.success && res.image) {
           onChange(res.image);
         } else {
-          triggerError('Failed to upload image. No URL returned.');
+          triggerError(t('upload.noUrl'));
         }
       } catch (err: any) {
-        triggerError(err.message || 'An error occurred during upload.');
+        triggerError(err.message || t('upload.error'));
       } finally {
         setUploading(false);
       }
@@ -159,11 +161,11 @@ export function DropifyUpload({
         {uploading ? (
           <div className="admin-dropzone-state">
             <Loader2 className="animate-spin text-[var(--admin-primary)]" size={32} />
-            <p>Uploading image asset...</p>
+            <p>{t('upload.uploading')}</p>
           </div>
         ) : showSinglePreview ? (
           <div className="admin-dropzone-preview">
-            <img src={value as string} alt="Upload preview" />
+            <img src={value as string} alt={t('upload.previewAlt')} />
             <div className="admin-dropzone-overlay">
               <div className="admin-dropzone-overlay-actions">
                 <button
@@ -174,14 +176,14 @@ export function DropifyUpload({
                     fileInputRef.current?.click();
                   }}
                 >
-                  Change Image
+                  {t('upload.changeImage')}
                 </button>
                 <button
                   type="button"
                   className="admin-dropzone-btn admin-dropzone-btn--danger"
                   onClick={handleRemove}
                 >
-                  <X size={14} /> Remove
+                  <X size={14} /> {t('upload.remove')}
                 </button>
               </div>
             </div>
@@ -190,11 +192,13 @@ export function DropifyUpload({
           <div className="admin-dropzone-state">
             <UploadCloud size={32} />
             <p className="admin-dropzone-title">
-              {multiple ? 'Drag & drop photos here, or ' : 'Drag & drop your image here, or '}
-              <span>browse</span>
+              {multiple ? t('upload.dropPhotosPrefix') : t('upload.dropImagePrefix')}
+              <span>{t('upload.browse')}</span>
             </p>
             <p className="admin-dropzone-subtitle">
-              Supports PNG, JPG or WEBP (Max {maxSizeMB}MB{multiple ? `, up to ${maxFiles} photos` : ''})
+              {multiple
+                ? t('upload.supportedMultiple', { size: maxSizeMB, max: maxFiles })
+                : t('upload.supportedSingle', { size: maxSizeMB })}
             </p>
           </div>
         )}

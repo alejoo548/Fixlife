@@ -95,7 +95,7 @@ export const SettingsView: React.FC = () => {
 
   const authFetch = async (url: string, options: RequestInit = {}) => {
     const token = getSessionToken('worker');
-    if (!token) throw new Error('No token found. Please sign in again.');
+    if (!token) throw new Error('No se encontro token. Inicia sesion de nuevo.');
     const headers = new Headers(options.headers || {});
     headers.set('Authorization', `Bearer ${token}`);
     return fetch(url, { ...options, headers });
@@ -110,7 +110,7 @@ export const SettingsView: React.FC = () => {
     try {
       const res = await authFetch(`${API_URL}/api/worker/me`);
       const data = await res.json();
-      if (!res.ok) throw new Error(data?.error || 'Error loading profile data.');
+      if (!res.ok) throw new Error(data?.error || 'Error al cargar los datos del perfil.');
 
       const user = data?.user || {};
       const workerProfile = data?.worker_profile || {};
@@ -131,7 +131,7 @@ export const SettingsView: React.FC = () => {
         }))
       );
     } catch (error: any) {
-      notyf.error(error.message || 'Could not load settings.');
+      notyf.error(error.message || 'No se pudo cargar la configuracion.');
     } finally {
       setLoading(false);
     }
@@ -187,7 +187,7 @@ export const SettingsView: React.FC = () => {
         body: formData,
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data?.error || 'Could not upload profile image.');
+      if (!res.ok) throw new Error(data?.error || 'No se pudo subir la imagen de perfil.');
 
       const nextProfileImage = data.profile_image_url || toPublicUrl(data.profile_image);
       setProfileImage(nextProfileImage);
@@ -200,7 +200,7 @@ export const SettingsView: React.FC = () => {
         user.profile_image_url = nextProfileImage;
         updateStoredAuthUser(user, 'worker');
       }
-      notyf.success('Profile image updated.');
+      notyf.success('Imagen de perfil actualizada.');
     } catch (error: any) {
       notyf.error(error.message || 'Error updating profile image.');
     } finally {
@@ -219,7 +219,7 @@ export const SettingsView: React.FC = () => {
         method: 'DELETE',
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data?.error || 'Could not remove profile image.');
+      if (!res.ok) throw new Error(data?.error || 'No se pudo eliminar la imagen de perfil.');
 
       setProfileImage(null);
       setProfileImagePreview(null);
@@ -233,7 +233,7 @@ export const SettingsView: React.FC = () => {
         updateStoredAuthUser(user, 'worker');
       }
 
-      notyf.success('Profile image removed.');
+      notyf.success('Imagen de perfil eliminada.');
     } catch (error: any) {
       notyf.error(error.message || 'Error removing profile image.');
     } finally {
@@ -247,11 +247,11 @@ export const SettingsView: React.FC = () => {
     const nextPhoneNumber = formatPhoneInput(phoneNumber);
 
     if (!NAME_REGEX.test(nextFirstName) || nextFirstName.length < 2 || nextFirstName.length > 16) {
-      notyf.error('First name must be 2-16 characters and contain letters only.');
+      notyf.error('El nombre debe tener de 2 a 16 caracteres y solo letras.');
       return;
     }
     if (!NAME_REGEX.test(nextLastName) || nextLastName.length < 2 || nextLastName.length > 16) {
-      notyf.error('Last name must be 2-16 characters and contain letters only.');
+      notyf.error('El apellido debe tener de 2 a 16 caracteres y solo letras.');
       return;
     }
     if (!/^\d{4}-\d{4}$/.test(nextPhoneNumber)) {
@@ -271,7 +271,7 @@ export const SettingsView: React.FC = () => {
         }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data?.error || 'Could not save settings.');
+      if (!res.ok) throw new Error(data?.error || 'No se pudo guardar la configuracion.');
       setFirstName(nextFirstName);
       setLastName(nextLastName);
       setPhoneNumber(nextPhoneNumber);
@@ -279,9 +279,9 @@ export const SettingsView: React.FC = () => {
       if (storedUser) {
         updateStoredAuthUser({ ...storedUser, name: nextFirstName, lastname: nextLastName, phone_number: nextPhoneNumber }, 'worker');
       }
-      notyf.success('Profile updated.');
+      notyf.success('Perfil actualizado.');
     } catch (error: any) {
-      notyf.error(error.message || 'Error saving settings.');
+      notyf.error(error.message || 'Error al guardar la configuracion.');
     } finally {
       setSavingInfo(false);
     }
@@ -301,7 +301,7 @@ export const SettingsView: React.FC = () => {
         body: JSON.stringify({ new_email: trimmedEmail }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data?.error || 'Could not send token.');
+      if (!res.ok) throw new Error(data?.error || 'No se pudo enviar el codigo.');
       notyf.success('Verification token sent to your new email.');
     } catch (error: any) {
       notyf.error(error.message || 'Error sending token.');
@@ -319,7 +319,7 @@ export const SettingsView: React.FC = () => {
         body: JSON.stringify({ token: emailToken }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data?.error || 'Could not verify token.');
+      if (!res.ok) throw new Error(data?.error || 'No se pudo verificar el codigo.');
       setCurrentEmail(data?.new_email || newEmail);
       setNewEmail('');
       setEmailToken('');
@@ -358,12 +358,12 @@ export const SettingsView: React.FC = () => {
     const maxAdd = Math.max(0, 10 - portfolio.length);
     const accepted = selected.slice(0, maxAdd);
     if (accepted.length < selected.length) {
-      notyf.error('Portfolio limit is 10 photos.');
+      notyf.error('El limite del portafolio es de 10 fotos.');
     }
 
     setPortfolioFiles(accepted);
     setPortfolioPreviews(accepted.map((file) => URL.createObjectURL(file)));
-    notyf.success(`${accepted.length} file(s) ready to upload.`);
+    notyf.success(`${accepted.length} archivo(s) listos para subir.`);
   };
 
   const handleUploadPortfolio = async () => {
@@ -382,7 +382,7 @@ export const SettingsView: React.FC = () => {
         body: formData,
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data?.error || 'Could not upload portfolio.');
+      if (!res.ok) throw new Error(data?.error || 'No se pudo subir el portafolio.');
 
       const nextPortfolio = Array.isArray(data?.portfolio) ? data.portfolio : [];
       setPortfolio(
@@ -394,9 +394,9 @@ export const SettingsView: React.FC = () => {
       setPortfolioFiles([]);
       setPortfolioPreviews([]);
       setPortfolioDescription('');
-      notyf.success('Portfolio updated.');
+      notyf.success('Portafolio actualizado.');
     } catch (error: any) {
-      notyf.error(error.message || 'Error uploading portfolio.');
+      notyf.error(error.message || 'Error al subir el portafolio.');
     } finally {
       setUploadingPortfolio(false);
     }
@@ -408,10 +408,10 @@ export const SettingsView: React.FC = () => {
         method: 'DELETE',
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data?.error || 'Could not delete photo.');
+      if (!res.ok) throw new Error(data?.error || 'No se pudo eliminar la foto.');
       setPortfolio((prev) => prev.filter((item) => item.id_photo !== idPhoto));
       setSelectedPortfolioPhoto((current) => (current?.id_photo === idPhoto ? null : current));
-      notyf.success('Portfolio photo deleted.');
+      notyf.success('Foto del portafolio eliminada.');
     } catch (error: any) {
       notyf.error(error.message || 'Error deleting photo.');
     }
@@ -433,7 +433,7 @@ export const SettingsView: React.FC = () => {
         body: JSON.stringify({ description }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data?.error || 'Could not update photo description.');
+      if (!res.ok) throw new Error(data?.error || 'No se pudo actualizar la descripcion de la foto.');
 
       setPortfolio((prev) =>
         prev.map((item) =>
@@ -445,7 +445,7 @@ export const SettingsView: React.FC = () => {
       setSelectedPortfolioPhoto((current) =>
         current ? { ...current, description: data?.photo?.description ?? description } : current
       );
-      notyf.success('Portfolio description updated.');
+      notyf.success('Descripcion del portafolio actualizada.');
     } catch (error: any) {
       notyf.error(error.message || 'Error updating description.');
     } finally {
@@ -462,7 +462,7 @@ export const SettingsView: React.FC = () => {
   if (loading) {
     return (
       <div className="w-full h-full flex items-center justify-center text-gray-600 dark:text-slate-400">
-        Loading settings...
+        Cargando configuracion...
       </div>
     );
   }
@@ -474,7 +474,7 @@ export const SettingsView: React.FC = () => {
           <div className="w-full shrink-0 rounded-t-[28px] bg-slate-950 p-6 text-white lg:w-[340px] lg:rounded-l-[28px] lg:rounded-tr-none">
             <div className="flex items-center justify-between gap-3">
               <div className="min-w-0">
-                <p className="text-[10px] font-black uppercase tracking-[0.22em] text-sky-300">Worker profile</p>
+                <p className="text-[10px] font-black uppercase tracking-[0.22em] text-sky-300">Perfil del trabajador</p>
                 <h2 className="mt-2 truncate text-2xl font-black">{firstName} {lastName}</h2>
               </div>
               <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-emerald-400/20 bg-emerald-400/10 px-3 py-1 text-[10px] font-black uppercase tracking-[0.14em] text-emerald-200">
@@ -504,7 +504,7 @@ export const SettingsView: React.FC = () => {
                 )}
               </div>
               <p className="mt-4 max-w-xs text-sm font-semibold leading-6 text-slate-300">
-                This is what clients see before opening your route, chat and portfolio.
+                Esto es lo que ven los clientes antes de abrir tu ruta, chat y portafolio.
               </p>
             </div>
           </div>
@@ -513,13 +513,13 @@ export const SettingsView: React.FC = () => {
             <div className="min-w-0 flex-1 space-y-5">
               <div>
                 <div className="flex items-center gap-2">
-                  <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">Profile photo</p>
+                  <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">Foto de perfil</p>
                   <span className="inline-flex items-center gap-1 rounded-full bg-sky-100 dark:bg-sky-900/40 px-2 py-0.5 text-[9px] font-black uppercase tracking-[0.1em] text-sky-700 dark:text-sky-300">
                     <Pencil className="h-2.5 w-2.5" />
                     Editable
                   </span>
                 </div>
-                <h3 className="mt-1 text-xl font-black text-slate-950 dark:text-white">Keep your first impression clean</h3>
+                <h3 className="mt-1 text-xl font-black text-slate-950 dark:text-white">Mant?n impecable tu primera impresion</h3>
               </div>
               <label className="group flex cursor-pointer flex-wrap items-center gap-4 rounded-2xl border border-dashed border-slate-300 dark:border-white/15 bg-slate-50 dark:bg-slate-800 p-4 transition hover:border-sky-400 hover:bg-sky-50 dark:hover:bg-sky-900/20">
                 <div className="flex min-w-0 flex-1 items-center gap-3">
@@ -527,8 +527,8 @@ export const SettingsView: React.FC = () => {
                     <Camera className="h-5 w-5" />
                   </span>
                   <div className="min-w-0">
-                    <p className="text-sm font-black text-slate-900 dark:text-slate-100">Upload profile image</p>
-                    <p className="mt-0.5 text-xs font-semibold text-slate-500 dark:text-slate-400">PNG, JPG or WEBP. Maximum 5MB.</p>
+                    <p className="text-sm font-black text-slate-900 dark:text-slate-100">Subir imagen de perfil</p>
+                    <p className="mt-0.5 text-xs font-semibold text-slate-500 dark:text-slate-400">PNG, JPG o WEBP. Maximo 5MB.</p>
                   </div>
                 </div>
                 <span className="shrink-0 rounded-xl bg-slate-950 px-4 py-2 text-xs font-black text-white transition group-hover:bg-sky-600">
@@ -545,7 +545,7 @@ export const SettingsView: React.FC = () => {
                   className="inline-flex items-center gap-2 rounded-xl bg-sky-600 px-4 py-2.5 text-sm font-black text-white transition hover:bg-sky-700 disabled:cursor-not-allowed disabled:bg-slate-300"
                 >
                   <Save className="h-4 w-4" />
-                  {uploadingProfileImage ? 'Saving...' : 'Save photo'}
+                  {uploadingProfileImage ? 'Guardando...' : 'Guardar foto'}
                 </button>
                 <button
                   type="button"
@@ -560,13 +560,13 @@ export const SettingsView: React.FC = () => {
             </div>
 
             <div className="w-full shrink-0 rounded-2xl border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-slate-800 p-4 xl:w-[320px]">
-              <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">Profile strength</p>
+              <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">Fortaleza del perfil</p>
               <div className="mt-4 space-y-3">
                 {[
-                  { label: 'Profile photo', ready: Boolean(profileImage || profileImagePreview) },
+                  { label: 'Foto de perfil', ready: Boolean(profileImage || profileImagePreview) },
                   { label: 'Phone number', ready: /^\d{4}-\d{4}$/.test(phoneNumber) },
                   { label: 'Bio description', ready: bio.trim().length >= 20 },
-                  { label: 'Portfolio photos', ready: portfolio.length > 0 },
+                  { label: 'Fotos del portafolio', ready: portfolio.length > 0 },
                 ].map((item) => (
                   <div key={item.label} className="flex items-center justify-between gap-3 rounded-xl bg-white dark:bg-slate-900 px-3 py-2">
                     <span className="text-xs font-black text-slate-700 dark:text-slate-300">{item.label}</span>
@@ -595,7 +595,7 @@ export const SettingsView: React.FC = () => {
               <div>
                 <label className="mb-1 flex items-center gap-1.5 text-xs font-bold uppercase text-gray-500 dark:text-slate-400">
                   <UserRound className="h-3.5 w-3.5" />
-                  First Name
+                  Nombre
                 </label>
                 <input
                   value={firstName}
@@ -607,7 +607,7 @@ export const SettingsView: React.FC = () => {
               <div>
                 <label className="mb-1 flex items-center gap-1.5 text-xs font-bold uppercase text-gray-500 dark:text-slate-400">
                   <UserRound className="h-3.5 w-3.5" />
-                  Last Name
+                  Apellido
                 </label>
                 <input
                   value={lastName}
@@ -643,7 +643,7 @@ export const SettingsView: React.FC = () => {
             </div>
 
             <div>
-              <label className="block text-xs font-bold text-gray-500 dark:text-slate-400 uppercase mb-1">Description</label>
+              <label className="block text-xs font-bold text-gray-500 dark:text-slate-400 uppercase mb-1">Descripcion</label>
               <textarea
                 value={bio}
                 onChange={(e) => setBio(sanitizeSafeTextInput(e.target.value, 500))}
@@ -659,7 +659,7 @@ export const SettingsView: React.FC = () => {
             disabled={savingInfo}
             className="mt-5 px-5 py-3 rounded-xl bg-blue-500 text-white font-bold hover:bg-blue-600 disabled:bg-gray-300 dark:disabled:bg-slate-700"
           >
-            {savingInfo ? 'Saving...' : 'Save Profile'}
+            {savingInfo ? 'Guardando...' : 'Guardar perfil'}
           </button>
         </div>
 
@@ -698,7 +698,7 @@ export const SettingsView: React.FC = () => {
                 disabled={verifyingEmailToken}
                 className="w-full py-3 rounded-xl bg-slate-900 text-white font-bold hover:bg-black disabled:bg-gray-300 dark:disabled:bg-slate-700"
               >
-                {verifyingEmailToken ? 'Verifying...' : 'Verify Token and Update Email'}
+                {verifyingEmailToken ? 'Verificando...' : 'Verify Token and Update Email'}
               </button>
             </div>
           </div>
@@ -708,9 +708,9 @@ export const SettingsView: React.FC = () => {
       <div className="rounded-[28px] border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900 p-5 shadow-sm md:p-6">
         <div className="mb-5 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
           <div>
-            <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">Portfolio</p>
-            <h3 className="mt-1 text-2xl font-black text-slate-950 dark:text-white">Show your finished work</h3>
-            <p className="mt-1 text-sm font-semibold text-slate-500 dark:text-slate-400">{portfolio.length}/10 photos uploaded</p>
+            <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">Portafolio</p>
+            <h3 className="mt-1 text-2xl font-black text-slate-950 dark:text-white">Muestra tu trabajo terminado</h3>
+            <p className="mt-1 text-sm font-semibold text-slate-500 dark:text-slate-400">{portfolio.length}/10 fotos subidas</p>
           </div>
           <span className="inline-flex w-fit items-center gap-2 rounded-full border border-sky-100 dark:border-sky-900/40 bg-sky-50 dark:bg-sky-900/30 px-3 py-1.5 text-xs font-black text-sky-700 dark:text-sky-300">
             <Images className="h-4 w-4" />
@@ -730,7 +730,7 @@ export const SettingsView: React.FC = () => {
 
             <label className="flex min-h-[180px] cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed border-slate-300 dark:border-white/15 bg-white dark:bg-slate-900 p-5 text-center transition hover:border-sky-400 hover:bg-sky-50 dark:hover:bg-sky-900/20">
               <UploadCloud className="h-8 w-8 text-sky-500" />
-              <div className="mt-3 text-sm font-black text-slate-900 dark:text-slate-100">Add portfolio photos</div>
+              <div className="mt-3 text-sm font-black text-slate-900 dark:text-slate-100">Agregar fotos al portafolio</div>
               <div className="text-gray-500 dark:text-slate-400 text-xs">PNG, JPG or WEBP · max 5MB each · no GIF</div>
               <span className="mt-4 inline-flex items-center gap-2 rounded-xl bg-sky-600 px-4 py-2 text-xs font-black text-white">
                 <ImagePlus className="h-4 w-4" />
@@ -741,10 +741,10 @@ export const SettingsView: React.FC = () => {
 
             {portfolioPreviews.length > 0 && (
               <>
-                <div className="mt-4 mb-2 text-xs font-black uppercase tracking-[0.14em] text-slate-500">Ready to upload</div>
+                <div className="mt-4 mb-2 text-xs font-black uppercase tracking-[0.14em] text-slate-500">Listo para subir</div>
                 <div className="grid grid-cols-3 gap-2">
                   {portfolioPreviews.map((preview, idx) => (
-                    <img key={`${preview}-${idx}`} src={preview} alt="Portfolio preview" loading="lazy" className="aspect-square w-full rounded-xl border border-slate-200 object-cover" />
+                    <img key={`${preview}-${idx}`} src={preview} alt="Vista previa del portafolio" loading="lazy" className="aspect-square w-full rounded-xl border border-slate-200 object-cover" />
                   ))}
                 </div>
                 <button
@@ -752,19 +752,19 @@ export const SettingsView: React.FC = () => {
                   disabled={uploadingPortfolio}
                   className="mt-3 w-full rounded-xl bg-slate-950 px-4 py-3 text-sm font-black text-white transition hover:bg-sky-700 disabled:bg-slate-300"
                 >
-                  {uploadingPortfolio ? 'Uploading...' : `Upload ${portfolioFiles.length} photo${portfolioFiles.length === 1 ? '' : 's'}`}
+                  {uploadingPortfolio ? 'Subiendo...' : `Subir ${portfolioFiles.length} foto${portfolioFiles.length === 1 ? '' : 's'}`}
                 </button>
               </>
             )}
           </div>
 
           <div className="rounded-2xl border border-slate-200 dark:border-white/10 p-4">
-            <div className="mb-3 text-sm font-black text-slate-800 dark:text-slate-200">Your portfolio</div>
+            <div className="mb-3 text-sm font-black text-slate-800 dark:text-slate-200">Tu portafolio</div>
             {portfolio.length === 0 ? (
               <div className="grid min-h-[260px] place-items-center rounded-2xl border border-dashed border-slate-300 dark:border-white/15 bg-slate-50 dark:bg-slate-800 p-6 text-center">
                 <div>
                   <Images className="mx-auto h-10 w-10 text-slate-300 dark:text-slate-600" />
-                  <p className="mt-3 text-sm font-black text-slate-700 dark:text-slate-300">No portfolio photos yet</p>
+                  <p className="mt-3 text-sm font-black text-slate-700 dark:text-slate-300">Aun no hay fotos en el portafolio</p>
                   <p className="mt-1 text-xs font-semibold text-slate-500 dark:text-slate-400">Add clear before/after or finished-work photos.</p>
                 </div>
               </div>
@@ -773,18 +773,18 @@ export const SettingsView: React.FC = () => {
                 {portfolio.map((photo) => (
                   <div key={photo.id_photo} className="group relative overflow-hidden rounded-2xl border border-slate-200 dark:border-white/10 bg-slate-100 dark:bg-slate-800 shadow-sm">
                     {brokenPortfolio[photo.id_photo] ? (
-                      <div className="grid aspect-[4/3] place-items-center text-xs font-bold text-slate-500 dark:text-slate-400">Image not found</div>
+                      <div className="grid aspect-[4/3] place-items-center text-xs font-bold text-slate-500 dark:text-slate-400">Imagen no encontrada</div>
                     ) : (
                       <>
                         <button
                           type="button"
                           onClick={() => openPortfolioPhoto(photo)}
                           className="block w-full text-left"
-                          title="View and edit portfolio photo"
+                          title="Ver y editar foto del portafolio"
                         >
                           <img
                             src={photo.image_full_url || toPublicUrl(photo.image_url) || ''}
-                            alt="Portfolio"
+                            alt="Portafolio"
                             className="aspect-[4/3] w-full object-cover transition duration-300 group-hover:scale-105"
                             onError={() =>
                               setBrokenPortfolio((prev) => ({ ...prev, [photo.id_photo]: true }))
@@ -811,7 +811,7 @@ export const SettingsView: React.FC = () => {
                       type="button"
                       onClick={() => handleDeletePortfolio(photo.id_photo)}
                       className="absolute right-2 top-2 grid h-8 w-8 place-items-center rounded-full bg-red-500 text-white shadow-lg transition hover:bg-red-600"
-                      title="Delete photo"
+                      title="Eliminar foto"
                     >
                       <Trash2 className="h-4 w-4" />
                     </button>
@@ -834,7 +834,7 @@ export const SettingsView: React.FC = () => {
               ) : (
                 <img
                   src={selectedPortfolioPhoto.image_full_url || toPublicUrl(selectedPortfolioPhoto.image_url) || ''}
-                  alt="Portfolio preview"
+                  alt="Vista previa del portafolio"
                   className="max-h-[68vh] w-full rounded-2xl object-contain shadow-[0_24px_70px_rgba(0,0,0,0.28)]"
                   onError={() =>
                     setBrokenPortfolio((prev) => ({ ...prev, [selectedPortfolioPhoto.id_photo]: true }))
@@ -858,7 +858,7 @@ export const SettingsView: React.FC = () => {
                   type="button"
                   onClick={() => setSelectedPortfolioPhoto(null)}
                   className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 transition hover:bg-slate-200 dark:hover:bg-slate-700 hover:text-slate-900 dark:hover:text-white"
-                  title="Close"
+                  title="Cerrar"
                 >
                   <X className="h-5 w-5" />
                 </button>
@@ -885,7 +885,7 @@ export const SettingsView: React.FC = () => {
                   Client preview
                 </p>
                 <p className="mt-2 text-sm font-bold leading-6 text-slate-700 dark:text-slate-300">
-                  {selectedPortfolioDescription.trim() || 'Recent portfolio work'}
+                  {selectedPortfolioDescription.trim() || 'Trabajo reciente del portafolio'}
                 </p>
               </div>
 
@@ -897,7 +897,7 @@ export const SettingsView: React.FC = () => {
                   className="inline-flex items-center justify-center gap-2 rounded-xl bg-sky-600 px-4 py-3 text-sm font-black text-white transition hover:bg-sky-700 disabled:cursor-not-allowed disabled:bg-slate-300"
                 >
                   <Pencil className="h-4 w-4" />
-                  {savingPortfolioDescription ? 'Saving...' : 'Save description'}
+                  {savingPortfolioDescription ? 'Guardando...' : 'Guardar descripcion'}
                 </button>
                 <button
                   type="button"
@@ -919,7 +919,7 @@ export const SettingsView: React.FC = () => {
           className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-red-200 dark:border-red-900/40 bg-red-50 dark:bg-red-900/20 py-3 font-bold text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/30"
         >
           <LogOut className="h-4 w-4" />
-          Sign Out
+          Cerrar sesion
         </button>
       </div>
     </div>

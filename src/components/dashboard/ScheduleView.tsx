@@ -41,7 +41,7 @@ const statusLabel = (status: string) => {
   if (value === 'paid') return 'Ready';
   if (value === 'in_progress') return 'Working';
   if (value === 'awaiting_confirmation') return 'Confirmation';
-  if (value === 'done') return 'Completed';
+  if (value === 'done') return 'Completado';
   return value || 'Pending';
 };
 
@@ -196,7 +196,7 @@ export const ScheduleView: React.FC = () => {
                         : 'text-slate-500 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white'
                     }`}
                   >
-                    {value === 'overview' ? 'Overview' : 'Full calendar'}
+                    {value === 'overview' ? 'Resumen' : 'Full calendar'}
                   </button>
                 ))}
               </div>

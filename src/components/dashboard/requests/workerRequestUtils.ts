@@ -40,10 +40,10 @@ export const formatEta = (durationMin: number) => {
   return minutes > 0 ? `${hours}h ${minutes}m` : `${hours}h`;
 };
 
-export const getServiceIconLabel = (icon: string | null | undefined, serviceName = 'Service') => {
+export const getServiceIconLabel = (icon: string | null | undefined, serviceName = 'Servicio') => {
   const normalized = String(icon || '').trim();
   if (normalized && normalized.length <= 3) return normalized;
-  return String(serviceName || 'Service').trim().charAt(0).toUpperCase() || 'F';
+  return String(serviceName || 'Servicio').trim().charAt(0).toUpperCase() || 'F';
 };
 
 export const workerRequestStatusLabel = (statusRaw: string) => {
@@ -57,7 +57,7 @@ export const workerRequestStatusLabel = (statusRaw: string) => {
   if (status === 'completion_pending') return 'Final approval';
   if (status === 'awaiting_confirmation') return 'Client confirmation';
   if (status === 'in_progress') return 'In progress';
-  if (status === 'done') return 'Completed';
+  if (status === 'done') return 'Completado';
   if (status === 'paid') return 'Final approval';
   return status ? status.charAt(0).toUpperCase() + status.slice(1) : 'Pending';
 };

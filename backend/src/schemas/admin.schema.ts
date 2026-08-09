@@ -49,7 +49,7 @@ export const AdminSchema = {
       .refine(v => serviceDescriptionRegex.test(v), serviceDescriptionMessage)
       .optional()
       .or(z.literal('')),
-    icon: strictText(100).optional().or(z.literal('')),
+    icon: strictText(500).optional().or(z.literal('')),
     min_budget: z.coerce.number().min(1).max(10000).optional(),
     max_budget: z.coerce.number().min(1).max(10000).optional(),
   }),
@@ -63,7 +63,7 @@ export const AdminSchema = {
       .refine(v => serviceDescriptionRegex.test(v), serviceDescriptionMessage)
       .optional()
       .or(z.literal('')),
-    icon: strictText(100).optional().or(z.literal('')),
+    icon: strictText(500).optional().or(z.literal('')),
     min_budget: z.coerce.number().min(1).max(10000).optional(),
     max_budget: z.coerce.number().min(1).max(10000).optional(),
     is_active: z

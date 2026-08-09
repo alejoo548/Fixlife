@@ -32,7 +32,7 @@ const resolveApiUrl = () => {
   // VITE_API_URL points at a (possibly stale) tunnel — the tunnel is only
   // used when the frontend itself is reached through a non-local host.
   if (runtimeIsLocal) {
-    return `${runtime.protocol}//${runtime.hostname}:8000`;
+    return `${runtime.protocol}//127.0.0.1:8000`;
   }
 
   if (envApiUrl && !isLocalApiUrl(envApiUrl)) {

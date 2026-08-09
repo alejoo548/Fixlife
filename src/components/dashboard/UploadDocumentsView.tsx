@@ -78,7 +78,7 @@ export const UploadDocumentsView: React.FC<UploadDocumentsViewProps> = ({ token,
         
         onSuccess(); // Change state to "hasUploadedDocs: true"
       } else {
-        setError(data.error || 'There was an error uploading the documents.');
+        setError(data.error || 'Hubo un error al subir los documentos.');
       }
     } catch (err: any) {
       console.error("Fetch error:", err);
@@ -99,9 +99,9 @@ export const UploadDocumentsView: React.FC<UploadDocumentsViewProps> = ({ token,
           <div className="w-14 h-14 sm:w-16 sm:h-16 bg-bird-blue/10 dark:bg-bird-blue/20 rounded-full flex items-center justify-center mx-auto mb-4">
             <UploadCloud className="w-7 h-7 sm:w-8 sm:h-8 text-bird-blue" />
           </div>
-          <h2 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-slate-100 mb-2">Upload Your Documents</h2>
+          <h2 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-slate-100 mb-2">Sube tus documentos</h2>
           <p className="text-sm sm:text-base text-gray-500 dark:text-slate-400">
-            To ensure the safety of our clients, we need to validate your identity and skills before you can start receiving requests.
+            Para garantizar la seguridad de nuestros clientes, necesitamos validar tu identidad y tus habilidades antes de que puedas empezar a recibir solicitudes.
           </p>
         </div>
 
@@ -123,7 +123,7 @@ export const UploadDocumentsView: React.FC<UploadDocumentsViewProps> = ({ token,
                   <FileUp className="w-8 h-8 sm:w-10 sm:h-10 text-gray-400 dark:text-slate-500 mb-2 sm:mb-3" />
                 )}
                 <p className="mb-1 sm:mb-2 text-sm text-gray-700 dark:text-slate-200 font-semibold">
-                  <span className="text-bird-blue">Upload your ID or Passport</span> (Required)
+                  <span className="text-bird-blue">Sube tu documento de identidad o pasaporte</span> (Obligatorio)
                 </p>
                 <p className="text-xs text-gray-500 dark:text-slate-400 px-4 text-center">
                   {duiFile ? duiFile.name : 'PNG, JPG or PDF (Max 10MB)'}
@@ -148,7 +148,7 @@ export const UploadDocumentsView: React.FC<UploadDocumentsViewProps> = ({ token,
                   <FileUp className="w-8 h-8 sm:w-10 sm:h-10 text-gray-400 dark:text-slate-500 mb-2 sm:mb-3" />
                 )}
                 <p className="mb-1 sm:mb-2 text-sm text-gray-700 dark:text-slate-200 font-semibold">
-                  <span className="text-amber-500">Upload your Certifications</span> (Required)
+                  <span className="text-amber-500">Sube tus certificaciones</span> (Obligatorio)
                 </p>
                 <p className="text-xs text-gray-500 dark:text-slate-400 px-4 text-center">
                   {certFile ? certFile.name : 'Degrees, diplomas or licenses. PNG, JPG or PDF (Max 10MB).'}
@@ -177,10 +177,10 @@ export const UploadDocumentsView: React.FC<UploadDocumentsViewProps> = ({ token,
             {isLoading ? (
               <>
                 <Loader2 className="w-5 h-5 sm:w-6 sm:h-6 animate-spin" />
-                Uploading documents...
+                Subiendo documentos...
               </>
             ) : (
-              'Submit Documents for Review'
+              'Enviar documentos para revision'
             )}
           </motion.button>
         </form>

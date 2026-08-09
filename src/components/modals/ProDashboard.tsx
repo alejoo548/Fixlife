@@ -1,4 +1,5 @@
 import React, { useState, useEffect, Suspense, lazy, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import { ReviewSubmitSection } from '../sections/ReviewSubmitSection';
 import { useLocation } from 'react-router-dom';
 import { useSSE } from '../../hooks/useSSE';
@@ -8,6 +9,7 @@ import { API_URL } from '../../config/api';
 import { AUTH_SESSION_CHANGED_EVENT, getAuthUser, getToken as getSessionToken, isAuthenticated, logoutAndReload, updateStoredAuthUser } from '../../utils/session';
 import { NotificationCenter } from '../common/NotificationCenter';
 import { DashboardThemeToggle } from '../common/DashboardThemeToggle';
+import { LanguageSwitcher } from '../common/LanguageSwitcher';
 import { useDashboardTheme } from '../../hooks/useDashboardTheme';
 import { showSweetAlert } from '../../utils/sweetAlert';
 import { normalizeImageUrl } from '../../utils/imageUrls';
@@ -85,7 +87,7 @@ type WorkerTierUpdatedEvent = {
    benefit?: WorkerTierBenefit | null;
 };
 
-const DashboardPanelFallback: React.FC<{ label?: string }> = ({ label = 'Loading panel...' }) => (
+const DashboardPanelFallback: React.FC<{ label?: string }> = ({ label = 'Cargando panel...' }) => (
    <div className="w-full h-full min-h-[220px] p-4">
       <div className="inline-flex items-center gap-2 rounded-full border border-white/70 bg-white/82 px-3 py-2 shadow-[0_14px_34px_rgba(15,23,42,0.08)] backdrop-blur-xl">
          <div className="h-3.5 w-3.5 rounded-full border-2 border-bird-blue/20 border-t-bird-blue animate-spin" />
@@ -95,6 +97,7 @@ const DashboardPanelFallback: React.FC<{ label?: string }> = ({ label = 'Loading
 );
 
 export const ProDashboard: React.FC<ProDashboardProps> = ({ isOpen, onClose, onSignOut }) => {
+   const { t } = useTranslation();
    const location = useLocation();
    const { theme, isDark, toggleTheme } = useDashboardTheme('worker');
    const [isOnline, setIsOnline] = useState<boolean | null>(null);
@@ -119,7 +122,7 @@ export const ProDashboard: React.FC<ProDashboardProps> = ({ isOpen, onClose, onS
    const formatTierLabel = (tier?: string | null, fallback?: string | null) => {
       if (fallback && fallback.trim()) return fallback.trim();
       const normalized = String(tier || 'standard').trim();
-      if (!normalized) return 'Standard Pro';
+      if (!normalized) return 'Pro estandar';
       return normalized
          .split('_')
          .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
@@ -133,22 +136,22 @@ export const ProDashboard: React.FC<ProDashboardProps> = ({ isOpen, onClose, onS
       if (lastTierAlertRef.current === alertKey) return;
       lastTierAlertRef.current = alertKey;
       const title = isElite
-         ? 'You reached Elite Pro'
-         : `You moved up to ${formatTierLabel(tier, benefits?.badge_label)}`;
+         ? 'Alcanzaste Elite Pro'
+         : `Subiste a ${formatTierLabel(tier, benefits?.badge_label)}`;
       const detailParts = [
-         completedJobs != null ? `Completed jobs: ${Number(completedJobs)}.` : '',
+         completedJobs != null ? `Trabajos completados: ${Number(completedJobs)}.` : '',
          benefits?.benefits_summary ? String(benefits.benefits_summary).trim() : '',
-         benefits?.max_active_leads != null ? `Active leads: up to ${Number(benefits.max_active_leads)}.` : '',
-         benefits?.support_level ? `Support level: ${String(benefits.support_level)}.` : '',
+         benefits?.max_active_leads != null ? `Leads activos: hasta ${Number(benefits.max_active_leads)}.` : '',
+         benefits?.support_level ? `Nivel de soporte: ${String(benefits.support_level)}.` : '',
       ].filter(Boolean);
 
       void showSweetAlert({
          title,
          message: detailParts.join(' ') || (isElite
-            ? 'Your performance unlocked the highest Fixlife professional tier.'
-            : 'Your professional benefits were updated automatically.'),
+            ? 'Tu rendimiento desbloqueo el nivel profesional mas alto de Fixlife.'
+            : 'Tus beneficios profesionales se actualizaron automaticamente.'),
          tone: 'success',
-         confirmText: isElite ? 'View Elite benefits' : 'View my tier',
+         confirmText: isElite ? 'Ver beneficios Elite' : 'Ver mi nivel',
       });
    };
 
@@ -483,7 +486,7 @@ export const ProDashboard: React.FC<ProDashboardProps> = ({ isOpen, onClose, onS
                         animate={{ opacity: 1, x: 0 }}
                         className="flex items-center gap-2 truncate text-lg font-black capitalize text-slate-950 md:gap-3 md:text-xl"
                      >
-                        <span className="truncate">{({ requests: 'Requests', appointments: 'Upcoming', schedule: 'Calendar', earnings: 'Earnings', 'completed-work': 'History', review: 'Leave a Review', settings: 'Profile' } as Record<string, string>)[activeTab] || activeTab.replace('-', ' ')}</span>
+                     <span className="truncate">{({ requests: 'Solicitudes', appointments: 'Proximas', schedule: 'Calendario', earnings: 'Ganancias', 'completed-work': 'Historial', review: 'Dejar resena', settings: 'Perfil' } as Record<string, string>)[activeTab] || activeTab.replace('-', ' ')}</span>
                         {activeTab === 'requests' && (
                            <motion.span
                               initial={{ scale: 0 }}
@@ -505,7 +508,7 @@ export const ProDashboard: React.FC<ProDashboardProps> = ({ isOpen, onClose, onS
                         transition={{ delay: 0.3 }}
                         className="hidden truncate text-xs font-semibold text-slate-500 sm:block"
                      >
-                        {userName ? `Welcome back, ${userName}.` : 'Welcome back.'}
+                        {userName ? t('common.dashboard.welcomeName', { name: userName }) : t('common.dashboard.welcome')}
                      </motion.p>
                   </div>
                   {currentService?.name && (
@@ -547,6 +550,7 @@ export const ProDashboard: React.FC<ProDashboardProps> = ({ isOpen, onClose, onS
                </div>
 
                <div className="flex min-w-0 items-center justify-end gap-1.5 sm:gap-2 md:gap-3">
+                  <LanguageSwitcher />
                   <DashboardThemeToggle
                      theme={theme}
                      onToggle={toggleTheme}
@@ -572,12 +576,12 @@ export const ProDashboard: React.FC<ProDashboardProps> = ({ isOpen, onClose, onS
                         const statusOptions = [
                            {
                               value: true,
-                              title: 'Available for jobs',
+                              title: 'Disponible para trabajos',
                               dotClass: 'bg-emerald-400',
                            },
                            {
                               value: false,
-                              title: 'Pause requests',
+                              title: 'Pausar solicitudes',
                               dotClass: 'bg-slate-400',
                            },
                         ];
@@ -592,7 +596,7 @@ export const ProDashboard: React.FC<ProDashboardProps> = ({ isOpen, onClose, onS
                         <span className={`h-2.5 w-2.5 shrink-0 rounded-full ${isOnline ? 'bg-emerald-400' : 'bg-slate-400'}`} />
                         <div className="min-w-0 flex-1">
                            <div className={`hidden truncate text-[10px] font-black uppercase tracking-[0.16em] sm:block ${isDark ? 'text-white' : 'text-slate-900'}`}>
-                              {isOnline ? 'AVAILABLE' : 'PAUSED'}
+                              {isOnline ? 'DISPONIBLE' : 'PAUSADO'}
                            </div>
                         </div>
                         <svg
@@ -641,7 +645,7 @@ export const ProDashboard: React.FC<ProDashboardProps> = ({ isOpen, onClose, onS
                                                       ? 'bg-emerald-500/15 text-emerald-300'
                                                       : 'bg-emerald-100 text-emerald-700'
                                                 }`}>
-                                                   Active
+                                                   Activo
                                                 </span>
                                              )}
                                           </div>
@@ -660,7 +664,7 @@ export const ProDashboard: React.FC<ProDashboardProps> = ({ isOpen, onClose, onS
 
                   <div className="flex items-center gap-2 md:gap-3 pl-1.5 md:pl-4 border-l border-gray-200">
                      <span className="text-sm font-bold text-gray-700 hidden 2xl:block truncate max-w-[120px]">
-                        {userName || 'User'}
+                        {userName || 'Usuario'}
                      </span>
                      {userAvatar ? (
                         <img
@@ -711,7 +715,7 @@ export const ProDashboard: React.FC<ProDashboardProps> = ({ isOpen, onClose, onS
                         
                         <div className="flex-1 min-w-0">
                            <h3 className="mb-1 flex items-center gap-2 text-base font-black text-amber-950 dark:text-amber-200 md:text-lg">
-                              Account Verification Pending
+                              Verificacion de cuenta pendiente
                               <motion.span
                                  animate={{ opacity: [1, 0.5, 1] }}
                                  transition={{ duration: 2, repeat: Infinity }}
@@ -719,14 +723,14 @@ export const ProDashboard: React.FC<ProDashboardProps> = ({ isOpen, onClose, onS
                               />
                            </h3>
                            <p className="text-sm leading-relaxed text-amber-900/80 dark:text-amber-300/80 md:text-base">
-                              Your account is currently under review. Our team will verify your profile within 24-48 hours. 
-                              You'll receive an email notification once approved and can start accepting requests.
+                              Tu cuenta esta en revision. Nuestro equipo verificara tu perfil en 24 a 48 horas.
+                              Recibiras una notificacion por correo cuando sea aprobada y podras empezar a aceptar solicitudes.
                            </p>
                            <div className="mt-3 flex items-center gap-2 text-xs text-amber-800 dark:text-amber-400 md:text-sm">
                               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                               </svg>
-                              <span className="font-medium">You can explore the dashboard, but requests are disabled until verification.</span>
+                              <span className="font-medium">Puedes explorar el dashboard, pero las solicitudes estan desactivadas hasta la verificacion.</span>
                            </div>
                         </div>
                      </div>
@@ -742,7 +746,7 @@ export const ProDashboard: React.FC<ProDashboardProps> = ({ isOpen, onClose, onS
                className="min-h-0 flex-1 flex flex-col lg:flex-row overflow-hidden relative pb-16 lg:pb-0"
             >
                {!isVerified && !hasUploadedDocs ? (
-                  <Suspense fallback={<DashboardPanelFallback label="Loading documents..." />}>
+                  <Suspense fallback={<DashboardPanelFallback label="Cargando documentos..." />}>
                      <UploadDocumentsView 
                         token={token} 
                         onSuccess={() => {
@@ -765,10 +769,10 @@ export const ProDashboard: React.FC<ProDashboardProps> = ({ isOpen, onClose, onS
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
                                  </svg>
                               </div>
-                              <h3 className="text-2xl font-bold text-gray-900 dark:text-slate-100 mb-3">Dashboard Locked</h3>
+                              <h3 className="text-2xl font-bold text-gray-900 dark:text-slate-100 mb-3">Dashboard bloqueado</h3>
                               <p className="text-gray-600 dark:text-slate-400 leading-relaxed">
-                                 Your documents have been submitted and are currently under review. 
-                                 You will gain full access to the dashboard once your account is verified.
+                                 Tus documentos fueron enviados y estan en revision.
+                                 Obtendras acceso completo al dashboard cuando tu cuenta sea verificada.
                               </p>
                            </motion.div>
                         </div>
@@ -783,7 +787,7 @@ export const ProDashboard: React.FC<ProDashboardProps> = ({ isOpen, onClose, onS
                            transition={{ duration: 0.3 }}
                            className="w-full h-full flex"
                         >
-                           <Suspense fallback={<DashboardPanelFallback label="Loading requests..." />}>
+                           <Suspense fallback={<DashboardPanelFallback label="Cargando solicitudes..." />}>
                               <RequestsView
                                  isOnline={isOnline}
                                  mobileView={mobileView}
@@ -807,7 +811,7 @@ export const ProDashboard: React.FC<ProDashboardProps> = ({ isOpen, onClose, onS
                            transition={{ duration: 0.3 }}
                            className="w-full h-full"
                         >
-                           <Suspense fallback={<DashboardPanelFallback label="Loading earnings..." />}>
+                           <Suspense fallback={<DashboardPanelFallback label="Cargando ganancias..." />}>
                               <EarningsView />
                            </Suspense>
                         </motion.div>
@@ -822,7 +826,7 @@ export const ProDashboard: React.FC<ProDashboardProps> = ({ isOpen, onClose, onS
                            transition={{ duration: 0.3 }}
                            className="w-full h-full"
                         >
-                           <Suspense fallback={<DashboardPanelFallback label="Loading appointments..." />}>
+                           <Suspense fallback={<DashboardPanelFallback label="Cargando proximas visitas..." />}>
                               <AppointmentsView />
                            </Suspense>
                         </motion.div>
@@ -837,7 +841,7 @@ export const ProDashboard: React.FC<ProDashboardProps> = ({ isOpen, onClose, onS
                            transition={{ duration: 0.3 }}
                            className="w-full h-full"
                         >
-                           <Suspense fallback={<DashboardPanelFallback label="Loading schedule..." />}>
+                           <Suspense fallback={<DashboardPanelFallback label="Cargando calendario..." />}>
                               <ScheduleView />
                            </Suspense>
                         </motion.div>
@@ -852,7 +856,7 @@ export const ProDashboard: React.FC<ProDashboardProps> = ({ isOpen, onClose, onS
                            transition={{ duration: 0.3 }}
                            className="w-full h-full"
                         >
-                           <Suspense fallback={<DashboardPanelFallback label="Loading completed work..." />}>
+                           <Suspense fallback={<DashboardPanelFallback label="Cargando historial..." />}>
                               <CompletedWorkView />
                            </Suspense>
                         </motion.div>
@@ -867,7 +871,7 @@ export const ProDashboard: React.FC<ProDashboardProps> = ({ isOpen, onClose, onS
                            transition={{ duration: 0.3 }}
                            className="w-full h-full"
                         >
-                           <Suspense fallback={<DashboardPanelFallback label="Loading settings..." />}>
+                           <Suspense fallback={<DashboardPanelFallback label="Cargando configuracion..." />}>
                               <SettingsView />
                            </Suspense>
                         </motion.div>
@@ -898,13 +902,13 @@ export const ProDashboard: React.FC<ProDashboardProps> = ({ isOpen, onClose, onS
                className="lg:hidden fixed bottom-0 left-0 right-0 h-16 bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl border-t border-gray-200 dark:border-slate-700 flex items-center justify-around px-4 pb-safe z-50 shadow-[0_-5px_20px_rgba(0,0,0,0.1)]"
             >
                {[
-                  { id: 'requests', label: 'Requests', icon: 'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2' },
-                  { id: 'review', label: 'Review', icon: 'M11.48 3.499a.562.562 0 011.04 0l2.125 5.111a.563.563 0 00.475.345l5.518.442c.499.04.701.663.321.988l-4.204 3.602a.563.563 0 00-.182.557l1.285 5.385a.562.562 0 01-.84.61l-4.725-2.885a.563.563 0 00-.586 0L6.982 20.54a.562.562 0 01-.84-.61l1.285-5.386a.562.562 0 00-.182-.557l-4.204-3.602a.562.562 0 01.321-.988l5.518-.442a.563.563 0 00.475-.345L11.48 3.5z' },
-                  { id: 'appointments', label: 'Upcoming', icon: 'M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2zm7 6h-4v4' },
-                  { id: 'schedule', label: 'Calendar', icon: 'M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z' },
-                  { id: 'earnings', label: 'Earnings', icon: 'M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z' },
-                  { id: 'completed-work', label: 'History', icon: 'M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l3.414 3.414a1 1 0 01.293.707V19a2 2 0 01-2 2z' },
-                  { id: 'settings', label: 'Profile', icon: 'M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z' }
+                  { id: 'requests', label: 'Solicitudes', icon: 'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2' },
+                  { id: 'review', label: 'Resena', icon: 'M11.48 3.499a.562.562 0 011.04 0l2.125 5.111a.563.563 0 00.475.345l5.518.442c.499.04.701.663.321.988l-4.204 3.602a.563.563 0 00-.182.557l1.285 5.385a.562.562 0 01-.84.61l-4.725-2.885a.563.563 0 00-.586 0L6.982 20.54a.562.562 0 01-.84-.61l1.285-5.386a.562.562 0 00-.182-.557l-4.204-3.602a.562.562 0 01.321-.988l5.518-.442a.563.563 0 00.475-.345L11.48 3.5z' },
+                  { id: 'appointments', label: 'Proximas', icon: 'M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2zm7 6h-4v4' },
+                  { id: 'schedule', label: 'Calendario', icon: 'M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z' },
+                  { id: 'earnings', label: 'Ganancias', icon: 'M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z' },
+                  { id: 'completed-work', label: 'Historial', icon: 'M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l3.414 3.414a1 1 0 01.293.707V19a2 2 0 01-2 2z' },
+                  { id: 'settings', label: 'Perfil', icon: 'M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z' }
                ].map((item) => {
                   const isActive = activeTab === item.id || (item.id === 'settings' && activeTab.includes('settings'));
                   return (

@@ -12,6 +12,7 @@ import {
 import { useDashboardTheme } from '../../hooks/useDashboardTheme';
 import { SupportProtectedImage } from '../support/SupportProtectedImage';
 import { getSafeSupportDisplayText, hasUnsafeSupportText, sanitizeSupportTextInput } from '../../utils/supportSecurity';
+import { adminStatusLabel, useAdminT } from '../../features/admin/adminI18n';
 
 interface SupportAdminProps {
   token: string | null;
@@ -51,6 +52,7 @@ function Avatar({ name, size = 'md' }: { name: string; size?: 'sm' | 'md' }) {
 }
 
 export const SupportAdmin: React.FC<SupportAdminProps> = ({ token }) => {
+  const { t, lang } = useAdminT();
   const { isDark } = useDashboardTheme('admin');
   const [threads, setThreads] = useState<SupportThread[]>([]);
   const [selectedThread, setSelectedThread] = useState<SupportThread | null>(null);
@@ -83,13 +85,13 @@ export const SupportAdmin: React.FC<SupportAdminProps> = ({ token }) => {
     if (!ALLOWED_IMAGE_TYPES.includes(file.type)) {
       setReplyImage(null);
       if (fileInputRef.current) fileInputRef.current.value = '';
-      setError('Only JPG, PNG or WEBP images are allowed.');
+      setError(t('support.imageTypeError'));
       return;
     }
     if (file.size > MAX_IMAGE_BYTES) {
       setReplyImage(null);
       if (fileInputRef.current) fileInputRef.current.value = '';
-      setError('Image must be 5 MB or smaller.');
+      setError(t('support.imageSizeError'));
       return;
     }
     setReplyImage(file);
@@ -103,11 +105,11 @@ export const SupportAdmin: React.FC<SupportAdminProps> = ({ token }) => {
       const res = await fetch(API_ENDPOINTS.support.allThreads, {
         headers: { Authorization: `Bearer ${token}` },
       });
-      if (!res.ok) throw new Error('Could not load support cases.');
+      if (!res.ok) throw new Error(t('support.loadError'));
       const data = await res.json();
       if (data.success) setThreads(sortThreadsByLastMessage(data.threads || []));
     } catch {
-      setError('Could not load support cases.');
+      setError(t('support.loadError'));
     } finally {
       setIsLoading(false);
     }
@@ -119,11 +121,11 @@ export const SupportAdmin: React.FC<SupportAdminProps> = ({ token }) => {
       const res = await fetch(API_ENDPOINTS.support.messages(threadId), {
         headers: { Authorization: `Bearer ${token}` },
       });
-      if (!res.ok) throw new Error('Could not load messages.');
+      if (!res.ok) throw new Error(t('support.messagesError'));
       const data = await res.json();
       if (data.success) setMessages(data.messages || []);
     } catch {
-      setError('Could not load messages.');
+      setError(t('support.messagesError'));
     }
   }, [token]);
 
@@ -141,7 +143,7 @@ export const SupportAdmin: React.FC<SupportAdminProps> = ({ token }) => {
     const trimmed = newMessage.trim();
     if (!trimmed && !replyImage) return;
     if (hasUnsafeReply) {
-      setError('Malicious characters or patterns are not allowed.');
+      setError(t('support.unsafeText'));
       return;
     }
     setIsSending(true);
@@ -166,7 +168,7 @@ export const SupportAdmin: React.FC<SupportAdminProps> = ({ token }) => {
       });
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
-        throw new Error(err.error || 'Could not send message.');
+        throw new Error(err.error || t('support.sendError'));
       }
       const data = await res.json();
       if (data.message && !isSocketConnected) {
@@ -176,7 +178,7 @@ export const SupportAdmin: React.FC<SupportAdminProps> = ({ token }) => {
       setReplyImage(null);
       if (fileInputRef.current) fileInputRef.current.value = '';
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Could not send message.');
+      setError(e instanceof Error ? e.message : t('support.sendError'));
     } finally {
       setIsSending(false);
     }
@@ -190,13 +192,13 @@ export const SupportAdmin: React.FC<SupportAdminProps> = ({ token }) => {
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({ status }),
       });
-      if (!res.ok) throw new Error('Could not update status.');
+      if (!res.ok) throw new Error(t('support.statusError'));
       if (res.ok) {
         setThreads((prev) => prev.map((t) => t.id === threadId ? { ...t, status: status as any } : t));
         if (selectedThread?.id === threadId) setSelectedThread((t) => t ? { ...t, status: status as any } : t);
       }
     } catch {
-      setError('Could not update status.');
+      setError(t('support.statusError'));
     }
   };
 
@@ -297,12 +299,12 @@ export const SupportAdmin: React.FC<SupportAdminProps> = ({ token }) => {
         <div className={`px-4 py-3 flex items-center justify-between border-b ${border}`}>
           <div className="flex items-center gap-2">
             <span className={`font-bold ${textPrimary} text-base`}>
-              Support {roleFilter === 'worker' ? '· Pros' : roleFilter === 'client' ? '· Clients' : ''}
+              {t('nav.support')} {roleFilter === 'worker' ? `· ${t('overview.pros')}` : roleFilter === 'client' ? `· ${t('support.clients')}` : ''}
             </span>
             <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${
               isSocketConnected ? 'bg-emerald-500/15 text-emerald-500' : 'bg-red-500/15 text-red-500'
             }`}>
-              {isSocketConnected ? '● Live' : '○ Offline'}
+              {isSocketConnected ? t('support.live') : t('support.offline')}
             </span>
           </div>
           <button
@@ -317,9 +319,9 @@ export const SupportAdmin: React.FC<SupportAdminProps> = ({ token }) => {
         {/* Role tabs */}
         <div className={`px-3 pt-2 pb-1 border-b ${border} flex gap-1`}>
           {([
-            { key: 'all', label: 'All', count: threads.length },
-            { key: 'client', label: 'Clients', count: clientCount },
-            { key: 'worker', label: 'Pros', count: workerCount },
+            { key: 'all', label: t('common.all'), count: threads.length },
+            { key: 'client', label: t('support.clients'), count: clientCount },
+            { key: 'worker', label: t('overview.pros'), count: workerCount },
           ] as const).map((tab) => (
             <button
               key={tab.key}
@@ -343,11 +345,11 @@ export const SupportAdmin: React.FC<SupportAdminProps> = ({ token }) => {
             onChange={(e) => setStatusFilter(e.target.value as any)}
             className={`w-full ${selectCls} py-2`}
           >
-            <option value="all">All statuses</option>
-            <option value="open">Open</option>
-            <option value="waiting_for_user">Waiting for user</option>
-            <option value="resolved">Resolved</option>
-            <option value="closed">Closed</option>
+            <option value="all">{t('common.allStatuses')}</option>
+            <option value="open">{adminStatusLabel('open', lang)}</option>
+            <option value="waiting_for_user">{adminStatusLabel('waiting_for_user', lang)}</option>
+            <option value="resolved">{adminStatusLabel('resolved', lang)}</option>
+            <option value="closed">{adminStatusLabel('closed', lang)}</option>
           </select>
           {error && (
             <div className="mt-2 rounded-xl border border-red-500/20 bg-red-500/10 px-3 py-2 text-xs font-medium text-red-500">
@@ -359,9 +361,9 @@ export const SupportAdmin: React.FC<SupportAdminProps> = ({ token }) => {
         {/* Thread list */}
         <div className="flex-1 overflow-y-auto custom-scrollbar">
           {isLoading ? (
-            <div className={`p-8 text-center text-sm ${textMuted}`}>Loading...</div>
+            <div className={`p-8 text-center text-sm ${textMuted}`}>{t('support.loading')}</div>
           ) : filteredThreads.length === 0 ? (
-            <div className={`p-8 text-center text-sm ${textMuted}`}>No cases</div>
+            <div className={`p-8 text-center text-sm ${textMuted}`}>{t('support.noCases')}</div>
           ) : (
             filteredThreads.map((thread) => {
               const active = selectedThread?.id === thread.id;
@@ -388,20 +390,20 @@ export const SupportAdmin: React.FC<SupportAdminProps> = ({ token }) => {
                           </span>
                         ) : (
                           <span className="shrink-0 rounded-full bg-sky-500/15 px-1.5 py-0.5 text-[9px] font-black uppercase tracking-wide text-sky-500">
-                            Client
+                            {t('requests.client')}
                           </span>
                         )}
                       </div>
                       <span className={`text-[9px] px-1.5 py-0.5 rounded-full font-medium flex-shrink-0 ${STATUS_COLORS[thread.status] ?? 'bg-gray-100 text-gray-500'}`}>
-                        {STATUS_LABELS[thread.status] ?? thread.status}
+                        {adminStatusLabel(STATUS_LABELS[thread.status] ? thread.status : thread.status, lang)}
                       </span>
                     </div>
                     <div className={`text-xs ${textSub} truncate leading-snug`}>
-                      {String(thread.userRole || '').toLowerCase() === 'worker' ? 'Request · ' : ''}{thread.subject}
+                      {String(thread.userRole || '').toLowerCase() === 'worker' ? `${t('support.requestPrefix')} · ` : ''}{thread.subject}
                     </div>
                     {thread.priority === 'high' && (
                       <span className={`text-[9px] mt-1 inline-block px-1.5 py-0.5 rounded-full text-red-500 font-medium ${d ? 'bg-red-900/30' : 'bg-red-100'}`}>
-                        High priority
+                        {t('support.highPriority')}
                       </span>
                     )}
                   </div>
@@ -419,9 +421,9 @@ export const SupportAdmin: React.FC<SupportAdminProps> = ({ token }) => {
             <div className={`w-16 h-16 rounded-2xl ${d ? 'bg-gray-700' : 'bg-gray-200'} flex items-center justify-center`}>
               <MessageCircle size={28} />
             </div>
-            <div className={`text-sm font-medium ${textSub}`}>Select a case</div>
+            <div className={`text-sm font-medium ${textSub}`}>{t('support.selectCase')}</div>
             <p className={`text-xs ${textMuted} max-w-[200px] text-center`}>
-              Messages will appear here
+              {t('support.messagesAppear')}
             </p>
           </div>
         ) : (
@@ -441,11 +443,11 @@ export const SupportAdmin: React.FC<SupportAdminProps> = ({ token }) => {
                     <span className="truncate">{selectedThread.userName}</span>
                     {String(selectedThread.userRole || '').toLowerCase() === 'worker' ? (
                       <span className="rounded-full bg-violet-500/15 px-2 py-0.5 text-[10px] font-black uppercase tracking-wide text-violet-500">
-                        Pro request
+                        {t('support.proRequest')}
                       </span>
                     ) : (
                       <span className="rounded-full bg-sky-500/15 px-2 py-0.5 text-[10px] font-black uppercase tracking-wide text-sky-500">
-                        Client message
+                        {t('support.clientMessage')}
                       </span>
                     )}
                   </div>
@@ -460,10 +462,10 @@ export const SupportAdmin: React.FC<SupportAdminProps> = ({ token }) => {
                 onChange={(e) => updateStatus(selectedThread.id, e.target.value)}
                 className={selectCls}
               >
-                <option value="open">Open</option>
-                <option value="waiting_for_user">Waiting for user</option>
-                <option value="resolved">Resolved</option>
-                <option value="closed">Closed</option>
+                <option value="open">{adminStatusLabel('open', lang)}</option>
+                <option value="waiting_for_user">{adminStatusLabel('waiting_for_user', lang)}</option>
+                <option value="resolved">{adminStatusLabel('resolved', lang)}</option>
+                <option value="closed">{adminStatusLabel('closed', lang)}</option>
               </select>
             </div>
 
@@ -474,7 +476,7 @@ export const SupportAdmin: React.FC<SupportAdminProps> = ({ token }) => {
             >
               {messages.length === 0 && (
                 <div className={`text-center text-xs ${textMuted} py-10`}>
-                  No messages yet
+                  {t('support.noMessagesYet')}
                 </div>
               )}
               {messages.map((msg) => {
@@ -503,11 +505,11 @@ export const SupportAdmin: React.FC<SupportAdminProps> = ({ token }) => {
                         )}
                         {safeMessage && <div className="whitespace-pre-wrap">{safeMessage}</div>}
                         <div className={`text-[10px] mt-1 text-right ${isAdmin ? 'text-white/60' : textMuted}`}>
-                          {new Date(msg.createdAt).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
+                          {new Date(msg.createdAt).toLocaleTimeString(lang === 'es' ? 'es-ES' : 'en-US', { hour: '2-digit', minute: '2-digit' })}
                         </div>
                       </div>
                     </div>
-                    {isAdmin && <Avatar name="Admin" size="sm" />}
+                    {isAdmin && <Avatar name={t('nav.admins')} size="sm" />}
                   </div>
                 );
               })}
@@ -552,7 +554,7 @@ export const SupportAdmin: React.FC<SupportAdminProps> = ({ token }) => {
                   value={newMessage}
                   onChange={(e) => setNewMessage(sanitizeSupportTextInput(e.target.value, 2000))}
                   onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey && !isSending) { e.preventDefault(); sendMessage(); } }}
-                  placeholder="Write a response..."
+                  placeholder={t('support.writeResponse')}
                   maxLength={2000}
                   disabled={isSending}
                   className={`flex-1 bg-transparent text-sm ${d ? 'text-gray-100 placeholder:text-gray-500' : 'text-gray-800 placeholder:text-gray-400'} focus:outline-none`}
@@ -567,7 +569,7 @@ export const SupportAdmin: React.FC<SupportAdminProps> = ({ token }) => {
               </div>
               {hasUnsafeReply && (
                 <div className="mt-2 text-center text-[10px] font-medium text-red-500">
-                  Malicious characters or patterns are not allowed.
+                  {t('support.unsafeText')}
                 </div>
               )}
             </div>

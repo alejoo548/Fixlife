@@ -44,7 +44,7 @@ export const WorkerAvailabilitySection: React.FC<WorkerAvailabilitySectionProps>
 
   const authFetch = async (url: string, options: RequestInit = {}) => {
     const token = getSessionToken('worker');
-    if (!token) throw new Error('No token found. Please sign in again.');
+    if (!token) throw new Error('No se encontro token. Inicia sesion de nuevo.');
     const headers = new Headers(options.headers || {});
     headers.set('Authorization', `Bearer ${token}`);
     return fetch(url, { ...options, headers });
@@ -55,7 +55,7 @@ export const WorkerAvailabilitySection: React.FC<WorkerAvailabilitySectionProps>
       setLoading(true);
       const res = await authFetch(API_ENDPOINTS.worker.availability);
       const payload = await res.json();
-      if (!res.ok || !payload?.success) throw new Error(payload?.error || 'Could not load availability.');
+      if (!res.ok || !payload?.success) throw new Error(payload?.error || 'No se pudo cargar la disponibilidad.');
 
       setSlots(
         Array.isArray(payload.slots)
@@ -68,7 +68,7 @@ export const WorkerAvailabilitySection: React.FC<WorkerAvailabilitySectionProps>
           : []
       );
     } catch (error: any) {
-      onError(error.message || 'Could not load availability.');
+      onError(error.message || 'No se pudo cargar la disponibilidad.');
     } finally {
       setLoading(false);
     }
@@ -110,11 +110,11 @@ export const WorkerAvailabilitySection: React.FC<WorkerAvailabilitySectionProps>
         body: JSON.stringify({ slots }),
       });
       const payload = await res.json();
-      if (!res.ok || !payload?.success) throw new Error(payload?.error || 'Could not save availability.');
+      if (!res.ok || !payload?.success) throw new Error(payload?.error || 'No se pudo guardar la disponibilidad.');
       onSuccess('Availability saved.');
       void loadAvailability();
     } catch (error: any) {
-      onError(error.message || 'Could not save availability.');
+      onError(error.message || 'No se pudo guardar la disponibilidad.');
     } finally {
       setSaving(false);
     }
@@ -130,8 +130,8 @@ export const WorkerAvailabilitySection: React.FC<WorkerAvailabilitySectionProps>
             <CalendarDays className="h-6 w-6" />
           </span>
           <div>
-            <p className="text-[11px] font-black uppercase tracking-[0.18em] text-sky-500">Scheduled jobs</p>
-            <h3 className="mt-1 text-2xl font-black text-slate-950">Weekly working hours</h3>
+            <p className="text-[11px] font-black uppercase tracking-[0.18em] text-sky-500">Trabajos programados</p>
+            <h3 className="mt-1 text-2xl font-black text-slate-950">Horario semanal de trabajo</h3>
             <p className="mt-1 max-w-2xl text-sm font-semibold leading-6 text-slate-500">
               These hours are only for scheduled visits. When you are using the dashboard, your live status is handled automatically.
             </p>
@@ -148,7 +148,7 @@ export const WorkerAvailabilitySection: React.FC<WorkerAvailabilitySectionProps>
             disabled={saving || loading}
             className="inline-flex items-center justify-center gap-2 rounded-2xl bg-sky-600 px-5 py-3 text-sm font-black text-white transition hover:bg-sky-700 disabled:cursor-not-allowed disabled:bg-slate-300"
           >
-            {saving ? 'Saving...' : 'Save hours'}
+            {saving ? 'Guardando...' : 'Save hours'}
           </button>
         </div>
       </div>

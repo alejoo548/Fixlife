@@ -81,7 +81,7 @@ export const CompletedWorkView: React.FC = () => {
                       </div>
 
                       <p className="mt-2 truncate text-sm font-semibold text-slate-600 dark:text-slate-300">
-                        {item.client_name || 'Client'} / {formatDate(item.completed_at)}
+                        {item.client_name || 'Cliente'} / {formatDate(item.completed_at)}
                       </p>
                       <p className="mt-2 truncate text-sm text-slate-500 dark:text-slate-400">{item.location_text}</p>
                       <p className="mt-3 text-sm leading-6 text-slate-500 dark:text-slate-400">{item.description}</p>

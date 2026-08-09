@@ -132,7 +132,7 @@ export const WorkerCurrentJobAction = ({
         className={`flex min-h-12 w-full items-center justify-center gap-2 rounded-xl px-4 text-sm font-black transition disabled:cursor-not-allowed disabled:opacity-70 ${tone}`}
       >
         {icon}
-        {busy ? 'Saving...' : label}
+        {busy ? 'Guardando...' : label}
       </button>
       <p className="mt-2 text-center text-[11px] font-semibold leading-4 text-slate-500">
         {hint}

@@ -32,7 +32,7 @@ export const getPayoutStatusLabel = (status: string) => {
 };
 
 export const getBonusProgramLabel = (type: 'commission' | 'royalty') => {
-  return type === 'commission' ? 'Commission bonus' : 'Monthly performance bonus';
+  return type === 'commission' ? 'Bono de comision' : 'Monthly performance bonus';
 };
 
 export const getCalendarItemLabel = (item: Pick<WorkerRewardCalendarItem, 'type' | 'label'>) => {

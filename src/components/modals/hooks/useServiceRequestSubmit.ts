@@ -144,7 +144,10 @@ export const useServiceRequestSubmit = ({
     const minBudget = Number(selectedService.min_budget ?? 1);
     const maxBudget = Number(selectedService.max_budget ?? 1000);
     if (!Number.isFinite(budgetValue) || budgetValue < minBudget || budgetValue > maxBudget) {
-      showToast('error', msg.budgetInvalid);
+      showToast('error', i18n.t('serviceRequest.wizard.submit.budgetInvalidRange', {
+        min: minBudget.toFixed(2),
+        max: maxBudget.toFixed(2),
+      }));
       return;
     }
     if (problemFiles.length === 0) {

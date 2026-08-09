@@ -8,7 +8,7 @@ export const useAdminResource = <T,>(url: string, pick: (payload: any) => T, ini
   const reload = useCallback(async () => {
     setLoading(true); setError('');
     try { setData(pick(await adminApi.get(url))); }
-    catch (reason) { setError(reason instanceof Error ? reason.message : 'Could not load data.'); }
+    catch (reason) { setError(reason instanceof Error ? reason.message : 'No se pudieron cargar los datos.'); }
     finally { setLoading(false); }
   }, [url, pick]);
   useEffect(() => { reload(); }, [reload]);

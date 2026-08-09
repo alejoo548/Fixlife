@@ -126,7 +126,7 @@ export const WorkerRequestChatPanel: React.FC<WorkerRequestChatPanelProps> = ({
                     />
                   ) : (
                     <div className="flex h-11 w-11 items-center justify-center rounded-full bg-sky-100 text-sm font-black text-bird-blue">
-                      {getInitials(request.client?.name || 'Client')}
+                      {getInitials(request.client?.name || 'Cliente')}
                     </div>
                   )}
                   <span
@@ -139,7 +139,7 @@ export const WorkerRequestChatPanel: React.FC<WorkerRequestChatPanelProps> = ({
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2">
                     <h3 className="truncate text-sm font-black text-slate-950">
-                      {request.client?.name || 'Client'}
+                      {request.client?.name || 'Cliente'}
                     </h3>
                     <ShieldCheck className="h-4 w-4 shrink-0 text-bird-blue" />
                   </div>

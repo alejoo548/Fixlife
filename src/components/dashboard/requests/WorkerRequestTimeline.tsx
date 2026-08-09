@@ -7,7 +7,7 @@ const steps = [
   { key: 'in_progress', label: 'Working' },
   { key: 'payment_pending', label: 'Work finished' },
   { key: 'paid', label: 'Paid' },
-  { key: 'done', label: 'Completed' },
+  { key: 'done', label: 'Completado' },
 ] as const;
 
 export const WorkerRequestTimeline = ({
