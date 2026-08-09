@@ -62,14 +62,20 @@ window.addEventListener('unhandledrejection', (event) => {
   renderRuntimeFallback(reason);
 });
 
+const appTree = (
+  <AppErrorBoundary>
+    <BrowserRouter>
+      <AuthProvider>
+        <App />
+      </AuthProvider>
+    </BrowserRouter>
+  </AppErrorBoundary>
+);
+
+// StrictMode double-invokes effects/renders to surface side-effect bugs during
+// development. It has no place in production: it was silently doubling every
+// mount-time API call (auth checks, worker/me, socket connects) across the
+// whole app, which is exactly the "everything feels slow" symptom users hit.
 ReactDOM.createRoot(rootElement).render(
-  <React.StrictMode>
-    <AppErrorBoundary>
-      <BrowserRouter>
-        <AuthProvider>
-          <App />
-        </AuthProvider>
-      </BrowserRouter>
-    </AppErrorBoundary>
-  </React.StrictMode>
+  import.meta.env.DEV ? <React.StrictMode>{appTree}</React.StrictMode> : appTree
 );
