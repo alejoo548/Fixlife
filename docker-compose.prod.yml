@@ -78,6 +78,7 @@ services:
       - WOMPI_TOKEN_URL=${WOMPI_TOKEN_URL:-}
       - WOMPI_API_URL=${WOMPI_API_URL:-}
       - PLATFORM_FEE_RATE=${PLATFORM_FEE_RATE:-0.12}
+      - OSRM_BASE_URL=${OSRM_BASE_URL:-https://router.project-osrm.org}
       - FRONTEND_ORIGIN=${FRONTEND_ORIGIN}
       - FRONTEND_URL=${FRONTEND_URL}
       - PUBLIC_APP_URL=${PUBLIC_APP_URL}
