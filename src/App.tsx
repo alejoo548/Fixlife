@@ -391,6 +391,10 @@ const App: React.FC = () => {
     setIsAuthOpen(true);
   };
 
+  const handleCloseAuth = () => {
+    setIsAuthOpen(false);
+  };
+
   const handleStartBooking = (service?: { id: number; name: string } | null) => {
     const bookingPath = buildBookingPath(service);
 
@@ -644,6 +648,7 @@ const App: React.FC = () => {
               <Navbar
                 navItems={navItems}
                 onOpenAuth={handleOpenAuth}
+                onCloseAuth={handleCloseAuth}
                 onStartBooking={handleStartBooking}
                 onOpenProfile={handleOpenProfile}
                 onGoHome={handleBackToLanding}
@@ -663,6 +668,7 @@ const App: React.FC = () => {
               <Navbar
                 navItems={navItems}
                 onOpenAuth={handleOpenAuth}
+                onCloseAuth={handleCloseAuth}
                 onStartBooking={handleStartBooking}
                 onOpenProfile={handleOpenProfile}
                 onGoHome={handleBackToLanding}
@@ -706,6 +712,7 @@ const App: React.FC = () => {
           <Navbar
             navItems={navItems}
             onOpenAuth={handleOpenAuth}
+            onCloseAuth={handleCloseAuth}
             onStartBooking={handleStartBooking}
             onOpenProfile={handleOpenProfile}
             onGoHome={handleBackToLanding}

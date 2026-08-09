@@ -448,7 +448,7 @@ if (!emailRegex.test(signinEmail)) {
           >
             <h2 className="text-3xl font-bold mb-4 text-bird-blue dark:text-sky-400">{t('auth.createAccountTitle')}</h2>
             <p className="text-xs text-gray-500 dark:text-slate-400 mb-4">{t('auth.registerWithEmail')}</p>
-            <form className="w-full flex flex-col gap-2.5" onSubmit={handleSignup}>
+            <form data-tour="auth-signup-form" className="w-full flex flex-col gap-2.5" onSubmit={handleSignup}>
               <div className="grid grid-cols-2 gap-2.5">
                 <div className="bg-gray-50 dark:bg-slate-800 rounded-lg p-1 border border-gray-200 dark:border-white/10 focus-within:border-bird-blue/50 transition-colors">
                   <input type="text" name="name" maxLength={16} value={formData.name} onChange={handleChange} placeholder={t('auth.fields.firstName')} className="w-full bg-transparent px-3 py-2 text-sm text-gray-900 dark:text-slate-100 outline-none placeholder-gray-500 dark:placeholder-slate-400" />
@@ -504,7 +504,7 @@ if (!emailRegex.test(signinEmail)) {
             <p className="text-sm text-blue-100/80 leading-relaxed">
               {t('auth.helloFriendDescription')}
             </p>
-            <button onClick={toggleView} className="mt-2 px-10 py-3 rounded-full border border-white/40 bg-white/10 text-white font-semibold hover:bg-white hover:text-bird-blue transition-all duration-300 backdrop-blur-sm">
+            <button data-tour="auth-toggle-signup" onClick={toggleView} className="mt-2 px-10 py-3 rounded-full border border-white/40 bg-white/10 text-white font-semibold hover:bg-white hover:text-bird-blue transition-all duration-300 backdrop-blur-sm">
               {t('auth.actions.signUp')}
             </button>
           </div>
@@ -520,14 +520,14 @@ if (!emailRegex.test(signinEmail)) {
 
             <p className="text-xs text-gray-500 dark:text-slate-400 mb-4">{t('auth.signInWithEmail')}</p>
             <form className="w-full flex flex-col gap-3" onSubmit={handleSignin}>
-              <div className="bg-gray-50 dark:bg-slate-800 rounded-lg p-1 border border-gray-200 dark:border-white/10 focus-within:border-bird-blue/50 transition-colors">
+              <div data-tour="auth-signin-email" className="bg-gray-50 dark:bg-slate-800 rounded-lg p-1 border border-gray-200 dark:border-white/10 focus-within:border-bird-blue/50 transition-colors">
                 <input type="email" name="email" maxLength={254} value={formData.email} onChange={handleChange} placeholder={t('auth.fields.email')} className="w-full bg-transparent px-3 py-2 text-sm text-gray-900 dark:text-slate-100 outline-none placeholder-gray-500 dark:placeholder-slate-400" />
               </div>
               <div className="bg-gray-50 dark:bg-slate-800 rounded-lg p-1 border border-gray-200 dark:border-white/10 focus-within:border-bird-blue/50 transition-colors">
                 <PasswordInput maxLength={128}  name="password" value={formData.password} onChange={handleChange} placeholder={t('auth.fields.password')} className="w-full bg-transparent px-3 py-2 text-sm text-gray-900 dark:text-slate-100 outline-none placeholder-gray-500 dark:placeholder-slate-400" />
               </div>
               <button type="button" onClick={() => setView('forgot')} className="text-xs text-gray-500 dark:text-slate-400 hover:text-bird-blue transition-colors self-end my-1"> {t('auth.forgotPassword')} </button>
-              <button className="w-full py-3.5 rounded-full bg-bird-blue text-white font-bold text-sm tracking-wide shadow-lg shadow-bird-blue/20 hover:bg-bird-darkBlue hover:scale-[1.02] transition-all duration-300">
+              <button data-tour="auth-signin-submit" className="w-full py-3.5 rounded-full bg-bird-blue text-white font-bold text-sm tracking-wide shadow-lg shadow-bird-blue/20 hover:bg-bird-darkBlue hover:scale-[1.02] transition-all duration-300">
                 {t('auth.actions.signIn')}
               </button>
             </form>
@@ -546,7 +546,7 @@ if (!emailRegex.test(signinEmail)) {
               <button onClick={() => setView('signin')} className={`flex-1 relative z-10 text-xs font-bold tracking-wide transition-colors duration-300 flex items-center justify-center ${!isSignup ? 'text-white' : 'text-gray-600 dark:text-slate-300 hover:text-gray-900 dark:hover:text-slate-100'}`}>
                 {t('auth.actions.signIn')}
               </button>
-              <button onClick={() => setView('signup')} className={`flex-1 relative z-10 text-xs font-bold tracking-wide transition-colors duration-300 flex items-center justify-center ${isSignup ? 'text-gray-900' : 'text-gray-600 dark:text-slate-300 hover:text-gray-900 dark:hover:text-slate-100'}`}>
+              <button data-tour="auth-toggle-signup" onClick={() => setView('signup')} className={`flex-1 relative z-10 text-xs font-bold tracking-wide transition-colors duration-300 flex items-center justify-center ${isSignup ? 'text-gray-900' : 'text-gray-600 dark:text-slate-300 hover:text-gray-900 dark:hover:text-slate-100'}`}>
                 {t('auth.actions.signUp')}
               </button>
             </div>
@@ -575,7 +575,7 @@ if (!emailRegex.test(signinEmail)) {
 
               <form className="flex flex-col gap-3" onSubmit={isSignup ? handleSignup : handleSignin}>
                 {isSignup && (
-                  <div className="animate-fade-in-up space-y-3">
+                  <div data-tour="auth-signup-form" className="animate-fade-in-up space-y-3">
                     <div className="grid grid-cols-2 gap-3">
                       <div className="bg-gray-50 dark:bg-slate-800 rounded-xl px-4 py-3 border border-gray-200 dark:border-white/10 focus-within:border-bird-blue/50 transition-colors">
                         <input type="text" name="name" maxLength={16} value={formData.name} onChange={handleChange} placeholder={t('auth.fields.name')} className="w-full bg-transparent text-sm text-gray-900 dark:text-slate-100 outline-none placeholder-gray-500 dark:placeholder-slate-400" />
@@ -593,7 +593,7 @@ if (!emailRegex.test(signinEmail)) {
                   </div>
                 )}
 
-                <div className="bg-gray-50 dark:bg-slate-800 rounded-xl px-4 py-3 border border-gray-200 dark:border-white/10 focus-within:border-bird-blue/50 transition-colors">
+                <div data-tour="auth-signin-email" className="bg-gray-50 dark:bg-slate-800 rounded-xl px-4 py-3 border border-gray-200 dark:border-white/10 focus-within:border-bird-blue/50 transition-colors">
                   <input type="email" name="email" maxLength={254} value={formData.email} onChange={handleChange} placeholder={t('auth.fields.emailAddress')} className="w-full bg-transparent text-sm text-gray-900 dark:text-slate-100 outline-none placeholder-gray-500 dark:placeholder-slate-400" />
                 </div>
 
@@ -624,7 +624,7 @@ if (!emailRegex.test(signinEmail)) {
                   </div>
                 )}
 
-                <button className={`mt-4 w-full py-4 rounded-xl font-bold text-sm tracking-wide shadow-lg active:scale-[0.98] transition-all duration-300 ${isSignup ? 'bg-gradient-to-r from-bird-yellow to-bird-orange text-gray-900 shadow-bird-yellow/20' : 'bg-gradient-to-r from-bird-blue to-bird-darkBlue text-white shadow-bird-blue/20'}`}>
+                <button data-tour="auth-signin-submit" className={`mt-4 w-full py-4 rounded-xl font-bold text-sm tracking-wide shadow-lg active:scale-[0.98] transition-all duration-300 ${isSignup ? 'bg-gradient-to-r from-bird-yellow to-bird-orange text-gray-900 shadow-bird-yellow/20' : 'bg-gradient-to-r from-bird-blue to-bird-darkBlue text-white shadow-bird-blue/20'}`}>
                   {isSignup ? t('auth.createAccountTitle') : t('auth.signInButton')}
                 </button>
               </form>

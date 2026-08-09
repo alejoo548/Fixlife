@@ -9,6 +9,7 @@ export type AuthMode = 'signin' | 'signup';
 export interface NavbarProps {
   navItems: NavItemType[];
   onOpenAuth: (mode: AuthMode) => void;
+  onCloseAuth?: () => void;
   onStartBooking: () => void;
   onOpenProfile: () => void;
   onGoHome?: () => void;

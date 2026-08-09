@@ -195,6 +195,7 @@ const getRequestStepIndex = (statusRaw: ClientRequestStatus) => {
 export const Navbar: React.FC<NavbarProps> = ({
   navItems,
   onOpenAuth,
+  onCloseAuth,
   onStartBooking,
   onOpenProfile,
   onGoHome,
@@ -206,7 +207,12 @@ export const Navbar: React.FC<NavbarProps> = ({
   const { t, i18n } = useTranslation();
   const { user, logout } = useAuth();
   const authToken = getToken();
-  const { startTour } = useOnboardingTour({ userId: user?.id, isLoggedIn: Boolean(user) });
+  const { startTour } = useOnboardingTour({
+    userId: user?.id,
+    isLoggedIn: Boolean(user),
+    onOpenAuth: () => onOpenAuth('signin'),
+    onCloseAuth: () => onCloseAuth?.(),
+  });
   const { isDark, toggleTheme } = useUserTheme();
 
   const fullName = [user?.name, user?.lastname].filter(Boolean).join(' ');
