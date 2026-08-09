@@ -1315,7 +1315,7 @@ const interpolate = (value: string, vars?: Record<string, unknown>) =>
 
 export const useAdminT = () => {
   const { i18n } = useTranslation();
-  const lang: Lang = i18n.language.startsWith('es') ? 'es' : 'en';
+  const lang: Lang = String(i18n.language || '').startsWith('es') ? 'es' : 'en';
   const fallback: Lang = lang === 'es' ? 'en' : 'es';
   const t = useCallback(<K extends string>(key: K, vars?: Record<string, unknown>): PathValue<(typeof dict)[Lang], K> => {
     const value = readPath(dict[lang], key) ?? readPath(dict[fallback], key) ?? key;

@@ -24,17 +24,17 @@ describe('AdminShell', () => {
   });
 
   it('persists white and dark mode', async () => {
-    window.localStorage.setItem('fixlife:dashboard-theme:admin', 'light');
+    window.localStorage.setItem('fixlife:dashboard-theme:admin:anon', 'light');
     const { container } = renderShell();
     expect(container.querySelector('.dashboard-theme-light')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Switch to dark mode' }));
     await waitFor(() => expect(container.querySelector('.dashboard-theme-dark')).toBeInTheDocument());
-    expect(window.localStorage.getItem('fixlife:dashboard-theme:admin')).toBe('dark');
+    expect(window.localStorage.getItem('fixlife:dashboard-theme:admin:anon')).toBe('dark');
   });
 
   it('sends global search to request filters', () => {
     renderShell();
-    const search = screen.getByRole('textbox', { name: 'Global search' });
+    const search = screen.getByRole('textbox', { name: 'Search users, requests, services...' });
     fireEvent.change(search, { target: { value: 'Ale Bufalo' } });
     fireEvent.keyDown(search, { key: 'Enter' });
     expect(screen.getByTestId('location')).toHaveTextContent('/admin-dashboard/requests?search=Ale%20Bufalo');
