@@ -118,9 +118,9 @@ const UserProfile: React.FC<UserProfileProps> = ({ onBack }) => {
     const username = formData.username.trim();
 
     if (!name || !lastname || !phone) return t('userProfile.validation.required');
-    if (name.length < 2 || name.length > 16 || !NAME_REGEX.test(name)) return 'First name must be 2-16 characters and contain letters only.';
-    if (lastname.length < 2 || lastname.length > 16 || !NAME_REGEX.test(lastname)) return 'Last name must be 2-16 characters and contain letters only.';
-    if (!PHONE_REGEX.test(phone)) return 'Phone must contain exactly 8 digits, like 6074-6649.';
+    if (name.length < 2 || name.length > 16 || !NAME_REGEX.test(name)) return 'El nombre debe tener de 2 a 16 caracteres y solo letras.';
+    if (lastname.length < 2 || lastname.length > 16 || !NAME_REGEX.test(lastname)) return 'El apellido debe tener de 2 a 16 caracteres y solo letras.';
+    if (!PHONE_REGEX.test(phone)) return 'El telefono debe contener exactamente 8 digitos, como 6074-6649.';
     if (username && !USERNAME_REGEX.test(username)) return t('userProfile.validation.invalidUsername');
 
     return null;
@@ -411,9 +411,9 @@ const UserProfile: React.FC<UserProfileProps> = ({ onBack }) => {
                 onChange={handleInputChange}
                 maxLength={30}
                 autoComplete="username"
-                placeholder={isUsernameLocked && nextUsernameChangeDate ? `Available ${nextUsernameChangeDate.toLocaleDateString()}` : '@username'}
+                placeholder={isUsernameLocked && nextUsernameChangeDate ? `Disponible ${nextUsernameChangeDate.toLocaleDateString()}` : '@username'}
                 disabled={isUsernameLocked}
-                title={isUsernameLocked && nextUsernameChangeDate ? `You can change your username again on ${nextUsernameChangeDate.toLocaleDateString()}` : undefined}
+                title={isUsernameLocked && nextUsernameChangeDate ? `Puedes cambiar tu usuario nuevamente el ${nextUsernameChangeDate.toLocaleDateString()}` : undefined}
                 className="w-full bg-transparent text-base font-bold text-slate-950 dark:text-slate-100 placeholder-slate-400 outline-none disabled:cursor-not-allowed disabled:text-slate-500"
               />
             </div>

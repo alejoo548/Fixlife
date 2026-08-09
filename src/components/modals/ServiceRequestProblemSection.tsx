@@ -20,6 +20,8 @@ interface ServiceRequestProblemSectionProps {
     canSubmitRequest: boolean;
     isSubmittingRequest: boolean;
     isAuthenticated: boolean;
+    minBudget?: number;
+    maxBudget?: number;
     showBudget?: boolean;
     showResults?: boolean;
     showActions?: boolean;
@@ -43,6 +45,8 @@ export function ServiceRequestProblemSection({
     canSubmitRequest,
     isSubmittingRequest,
     isAuthenticated,
+    minBudget = 1,
+    maxBudget = 1000,
     showBudget = true,
     showResults = true,
     showActions = true,
@@ -150,7 +154,10 @@ export function ServiceRequestProblemSection({
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                     </svg>
                     <p id="request-budget-help" className="text-xs font-semibold text-slate-500 dark:text-slate-400">
-                        {t('serviceRequest.problem.suggested')} <span className="text-slate-700 dark:text-slate-300">$40 - $80</span> · {t('serviceRequest.problem.maximum')} $1,000.00
+                        {t('serviceRequest.problem.allowedRange', {
+                            min: Number(minBudget).toFixed(2),
+                            max: Number(maxBudget).toFixed(2),
+                        })}
                     </p>
                 </div>
             </motion.div>}

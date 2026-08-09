@@ -11,6 +11,7 @@ import {
   StatusBadge,
 } from '../components/AdminUI';
 import { UserDetailDrawer } from '../components/UserDetailDrawer';
+import { useAdminT } from '../adminI18n';
 import type { AdminUserDetail } from '../types';
 import { TierBenefitsEditor } from './pros/TierBenefitsEditor';
 
@@ -41,6 +42,7 @@ type PendingProfessional = {
 
 type Decision = { professional: PendingProfessional; action: 'approve' | 'reject' };
 export default function ProsModule() {
+  const { t } = useAdminT();
   const [professionals, setProfessionals] = useState<Professional[]>([]);
   const [pending, setPending] = useState<PendingProfessional[]>([]);
   const [loading, setLoading] = useState(true);
@@ -106,8 +108,8 @@ export default function ProsModule() {
         <AdminCard>
           <div className="admin-section-heading">
             <div>
-              <p className="admin-section-title">Pending verification</p>
-              <p className="admin-muted">Review documents and selected services before deciding.</p>
+              <p className="admin-section-title">{t('pros.pendingVerification')}</p>
+              <p className="admin-muted">{t('pros.pendingVerificationNote')}</p>
             </div>
             <StatusBadge status="pending" />
           </div>
@@ -117,12 +119,12 @@ export default function ProsModule() {
                 <div>
                   <strong>{professional.name} {professional.lastname}</strong>
                   <span>
-                    {professional.email} · {professional.services?.map((service) => service.name).join(', ') || 'No services selected'}
+                    {professional.email} · {professional.services?.map((service) => service.name).join(', ') || t('pros.noServices')}
                   </span>
-                  <small>{professional.phone_number || 'No phone'}{professional.bio ? ` · ${professional.bio}` : ''}</small>
+                  <small>{professional.phone_number || t('common.noPhone')}{professional.bio ? ` · ${professional.bio}` : ''}</small>
                   <div className="admin-document-links">
-                    {professional.dui_document_url && <a href={professional.dui_document_url} target="_blank" rel="noreferrer">View identity</a>}
-                    {professional.cert_document_url && <a href={professional.cert_document_url} target="_blank" rel="noreferrer">View certificate</a>}
+                    {professional.dui_document_url && <a href={professional.dui_document_url} target="_blank" rel="noreferrer">{t('pros.viewIdentity')}</a>}
+                    {professional.cert_document_url && <a href={professional.cert_document_url} target="_blank" rel="noreferrer">{t('pros.viewCertificate')}</a>}
                   </div>
                 </div>
                 <div className="admin-action-row">
@@ -130,13 +132,13 @@ export default function ProsModule() {
                     className="admin-button admin-button--secondary admin-button--small"
                     onClick={() => setDecision({ professional, action: 'reject' })}
                   >
-                    Reject
+                    {t('pros.reject')}
                   </button>
                   <button
                     className="admin-button admin-button--small"
                     onClick={() => setDecision({ professional, action: 'approve' })}
                   >
-                    Approve
+                    {t('pros.approve')}
                   </button>
                 </div>
               </div>
@@ -148,35 +150,35 @@ export default function ProsModule() {
       <FilterBar>
         <label className="admin-search-field">
           <Search size={17} />
-          <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search professionals" maxLength={120} />
+          <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder={t('pros.search')} maxLength={120} />
         </label>
       </FilterBar>
 
       {loading ? (
         <Skeleton rows={7} />
       ) : professionals.length === 0 ? (
-        <EmptyState title="No professionals found" description="No professional accounts match search." />
+        <EmptyState title={t('pros.emptyTitle')} description={t('pros.emptyDescription')} />
       ) : (
         <DataTable
           rows={professionals}
           rowKey={(professional) => professional.id_user}
           onRowClick={openDetail}
           columns={[
-            { key: 'professional', label: 'Professional', render: (professional) => <div className="admin-primary-cell"><strong>{professional.name} {professional.lastname}</strong><span>{professional.email}</span></div> },
-            { key: 'verified', label: 'Verification', render: (professional) => <StatusBadge status={professional.is_verified ? 'approved' : 'pending'} /> },
-            { key: 'tier', label: 'Tier', render: (professional) => <StatusBadge status={professional.membership_tier || 'standard'} /> },
-            { key: 'jobs', label: 'Completed', render: (professional) => <strong>{professional.completed_jobs || 0}</strong> },
-            { key: 'rating', label: 'Rating', render: (professional) => <span className="admin-rating-inline"><Star size={14} />{professional.rating_average?.toFixed(1) || '—'} ({professional.rating_count || 0})</span> },
-            { key: 'status', label: 'Account', render: (professional) => <StatusBadge status={professional.is_active ? 'active' : 'inactive'} /> },
+            { key: 'professional', label: t('pros.professional'), render: (professional) => <div className="admin-primary-cell"><strong>{professional.name} {professional.lastname}</strong><span>{professional.email}</span></div> },
+            { key: 'verified', label: t('pros.verification'), render: (professional) => <StatusBadge status={professional.is_verified ? 'approved' : 'pending'} /> },
+            { key: 'tier', label: t('pros.tier'), render: (professional) => <StatusBadge status={professional.membership_tier || 'standard'} /> },
+            { key: 'jobs', label: t('pros.completed'), render: (professional) => <strong>{professional.completed_jobs || 0}</strong> },
+            { key: 'rating', label: t('pros.rating'), render: (professional) => <span className="admin-rating-inline"><Star size={14} />{professional.rating_average?.toFixed(1) || '-'} ({professional.rating_count || 0})</span> },
+            { key: 'status', label: t('pros.account'), render: (professional) => <StatusBadge status={professional.is_active ? 'active' : 'inactive'} /> },
           ]}
         />
       )}
 
       <ConfirmActionDialog
         open={!!decision}
-        title={`${decision?.action === 'approve' ? 'Approve' : 'Reject'} professional`}
-        description="Decision changes account access and creates permanent audit entry."
-        confirmLabel={decision?.action === 'approve' ? 'Approve professional' : 'Reject professional'}
+        title={decision?.action === 'approve' ? t('pros.approveProfessional') : t('pros.rejectProfessional')}
+        description={t('pros.decisionDescription')}
+        confirmLabel={decision?.action === 'approve' ? t('pros.approveProfessional') : t('pros.rejectProfessional')}
         reason={reason}
         onReasonChange={setReason}
         onCancel={() => { setDecision(null); setReason(''); }}

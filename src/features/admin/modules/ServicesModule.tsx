@@ -1,9 +1,10 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import { DollarSign, Plus, Trash2 } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useState, type ChangeEvent } from 'react';
+import { DollarSign, Image as ImageIcon, Plus, Trash2, Upload } from 'lucide-react';
 import { adminApi } from '../api/adminApi';
 import { AdminCard, AdminNumberInput, DataTable, EmptyState, FormSection, Skeleton, StatusBadge } from '../components/AdminUI';
 import { showSweetAlert, showSweetConfirm, showSweetToast } from '../../../utils/sweetAlert';
 import { getAuthUser } from '../../../utils/session';
+import { adminErrorMessage, adminServiceDescription, adminServiceName, useAdminT } from '../adminI18n';
 
 type Service = {
   id_service: number;
@@ -37,6 +38,34 @@ const emptyForm: ServiceForm = {
   min_budget: '25',
   max_budget: '500',
 };
+const SERVICE_ICON_OPTIONS = [
+  { value: '🧰', label: 'General repair' },
+  { value: '🔧', label: 'Tools' },
+  { value: '🧹', label: 'Cleaning' },
+  { value: '🌿', label: 'Garden' },
+  { value: '⚡', label: 'Electrical' },
+  { value: '🚰', label: 'Plumbing' },
+  { value: '🎨', label: 'Painting' },
+  { value: '🧱', label: 'Construction' },
+  { value: '🔥', label: 'Gas' },
+  { value: '❄️', label: 'AC / cooling' },
+  { value: '🔐', label: 'Security' },
+  { value: '🤝', label: 'Assistance' },
+] as const;
+const SERVICE_ICON_OPTIONS_CLEAN = [
+  { value: '🧰', labelKey: 'services.iconOptions.generalRepair' },
+  { value: '🔧', labelKey: 'services.iconOptions.tools' },
+  { value: '🧹', labelKey: 'services.iconOptions.cleaning' },
+  { value: '🌿', labelKey: 'services.iconOptions.garden' },
+  { value: '⚡', labelKey: 'services.iconOptions.electrical' },
+  { value: '🚰', labelKey: 'services.iconOptions.plumbing' },
+  { value: '🎨', labelKey: 'services.iconOptions.painting' },
+  { value: '🧱', labelKey: 'services.iconOptions.construction' },
+  { value: '🔥', labelKey: 'services.iconOptions.gas' },
+  { value: '❄️', labelKey: 'services.iconOptions.acCooling' },
+  { value: '🔐', labelKey: 'services.iconOptions.security' },
+  { value: '🤝', labelKey: 'services.iconOptions.assistance' },
+] as const;
 const SERVICES_CONFIRM_BUILD_MARKER = 'services-sweet-confirm-v2';
 const serviceNameRegex = /^[\p{L}\s]+$/u;
 const serviceDescriptionRegex = /^[\p{L}\s]+$/u;
@@ -46,14 +75,24 @@ const getErrorMessage = (reason: unknown, fallback: string) =>
 
 const sanitizeServiceNameInput = (value: string) => value.replace(/[^\p{L}\s]/gu, '');
 const sanitizeServiceDescriptionInput = (value: string) => value.replace(/[^\p{L}\s]/gu, '');
+const isImageIcon = (value: string) => /^https?:\/\//i.test(value) || value.startsWith('/uploads/');
+
+const ServiceIconPreview = ({ value }: { value?: string | null }) => {
+  const icon = String(value || '').trim();
+  if (!icon) return <ImageIcon size={18} />;
+  if (isImageIcon(icon)) return <img src={icon} alt="" className="h-6 w-6 rounded-md object-cover" />;
+  return <span className="text-xl leading-none">{icon}</span>;
+};
 
 export default function ServicesModule() {
+  const { t, lang } = useAdminT();
   const [rows, setRows] = useState<Service[]>([]);
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState<Service | null>(null);
   const [form, setForm] = useState<ServiceForm>(emptyForm);
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
+  const [uploadingIcon, setUploadingIcon] = useState(false);
   const isRootAdmin = getAuthUser('admin')?.rol === 'root';
 
   const load = useCallback(async () => {
@@ -63,9 +102,9 @@ export default function ServicesModule() {
       const payload = await adminApi.get<{ services: Service[] }>(adminApi.endpoints.services);
       setRows(payload.services || []);
     } catch (reason) {
-      const message = getErrorMessage(reason, 'Could not load services.');
+      const message = adminErrorMessage(reason, t('services.saveError'), t);
       setError(message);
-      showSweetAlert({ tone: 'error', title: 'Could not load services', message });
+      showSweetAlert({ tone: 'error', title: t('services.saveErrorTitle'), message });
     } finally {
       setLoading(false);
     }
@@ -86,8 +125,8 @@ export default function ServicesModule() {
     if (!serviceName) {
       showSweetAlert({
         tone: 'warning',
-        title: 'Service name required',
-        message: 'Add a clear service name before saving this category.',
+        title: t('services.serviceNameRequired'),
+        message: t('services.serviceNameRequiredMessage'),
       });
       return;
     }
@@ -95,8 +134,8 @@ export default function ServicesModule() {
     if (!serviceNameRegex.test(serviceName)) {
       showSweetAlert({
         tone: 'warning',
-        title: 'Invalid service name',
-        message: 'Use letters and spaces only. Numbers and symbols are not allowed.',
+        title: t('services.invalidName'),
+        message: t('services.lettersOnly'),
       });
       return;
     }
@@ -105,8 +144,8 @@ export default function ServicesModule() {
     if (serviceDescription && !serviceDescriptionRegex.test(serviceDescription)) {
       showSweetAlert({
         tone: 'warning',
-        title: 'Invalid service description',
-        message: 'Use letters and spaces only. Numbers and symbols are not allowed.',
+        title: t('services.invalidDescription'),
+        message: t('services.lettersOnly'),
       });
       return;
     }
@@ -116,8 +155,8 @@ export default function ServicesModule() {
     if (!Number.isFinite(minBudget) || !Number.isFinite(maxBudget) || minBudget < 1 || maxBudget < minBudget) {
       showSweetAlert({
         tone: 'warning',
-        title: 'Budget range required',
-        message: 'Set a realistic minimum and maximum budget for this service. The maximum must be greater than or equal to the minimum.',
+        title: t('services.budgetRequired'),
+        message: t('services.budgetRequiredMessage'),
       });
       return;
     }
@@ -143,13 +182,13 @@ export default function ServicesModule() {
       await load();
       showSweetToast({
         tone: 'success',
-        title: editing ? 'Service updated' : 'Service created',
-        message: 'The service catalog was saved.',
+        title: editing ? t('services.serviceUpdated') : t('services.serviceCreated'),
+        message: t('services.catalogSaved'),
       });
     } catch (reason) {
-      const message = getErrorMessage(reason, 'Could not save service.');
+      const message = adminErrorMessage(reason, t('services.saveError'), t);
       setError(message);
-      showSweetAlert({ tone: 'error', title: 'Could not save service', message });
+      showSweetAlert({ tone: 'error', title: t('services.saveErrorTitle'), message });
     } finally {
       setSaving(false);
     }
@@ -160,10 +199,10 @@ export default function ServicesModule() {
     const confirmed = isActive
       ? await showSweetConfirm({
           tone: 'warning',
-          title: 'Deactivate service?',
-          message: `"${service.name}" will stop appearing for new client requests. ${service.worker_count} professional${service.worker_count === 1 ? '' : 's'} linked to this service will be notified, and current requests/history will stay intact.`,
-          confirmText: 'Deactivate service',
-          cancelText: 'Keep active',
+          title: t('services.deactivateQuestion'),
+          message: t('services.deactivateMessage', { name: service.name, count: service.worker_count }),
+          confirmText: t('services.deactivateService'),
+          cancelText: t('services.keepActive'),
           destructive: true,
         })
       : true;
@@ -177,13 +216,13 @@ export default function ServicesModule() {
       await load();
       showSweetToast({
         tone: 'success',
-        title: isActive ? 'Service deactivated' : 'Service activated',
-        message: `"${service.name}" is now ${isActive ? 'inactive' : 'active'}.`,
+        title: isActive ? t('services.serviceDeactivated') : t('services.serviceActivated'),
+        message: t('services.serviceNowStatus', { name: service.name, status: isActive ? t('common.inactive') : t('common.active') }),
       });
     } catch (reason) {
-      const message = getErrorMessage(reason, 'Could not update service.');
+      const message = adminErrorMessage(reason, t('services.updateError'), t);
       setError(message);
-      showSweetAlert({ tone: 'error', title: 'Could not update service', message });
+      showSweetAlert({ tone: 'error', title: t('services.updateErrorTitle'), message });
     }
   };
 
@@ -191,9 +230,9 @@ export default function ServicesModule() {
     if (!isRootAdmin) {
       showSweetAlert({
         tone: 'warning',
-        title: 'Root required',
-        message: 'Only the root administrator can permanently delete services. Use deactivate to hide it from new requests.',
-        confirmText: 'Got it',
+        title: t('services.rootRequired'),
+        message: t('services.rootRequiredMessage'),
+        confirmText: t('common.gotIt'),
       });
       return;
     }
@@ -201,19 +240,19 @@ export default function ServicesModule() {
     if (service.request_count > 0 || service.worker_count > 0 || service.card_count > 0) {
       showSweetAlert({
         tone: 'warning',
-        title: 'Deactivate instead',
-        message: `"${service.name}" has ${service.worker_count} professional${service.worker_count === 1 ? '' : 's'}, ${service.request_count} request${service.request_count === 1 ? '' : 's'}, and ${service.card_count} homepage card${service.card_count === 1 ? '' : 's'} associated. It cannot be deleted safely.`,
-        confirmText: 'Got it',
+        title: t('services.deactivateInstead'),
+        message: t('services.hasAssociations', { name: service.name, workers: service.worker_count, requests: service.request_count, cards: service.card_count }),
+        confirmText: t('common.gotIt'),
       });
       return;
     }
 
     const confirmed = await showSweetConfirm({
       tone: 'warning',
-      title: 'Delete service?',
-      message: `"${service.name}" has no workers, requests, or homepage cards associated. It will be permanently removed from the catalog.`,
-      confirmText: 'Delete service',
-      cancelText: 'Keep service',
+      title: t('services.deleteQuestion'),
+      message: t('services.deleteMessage', { name: service.name }),
+      confirmText: t('services.deleteService'),
+      cancelText: t('services.keepService'),
       destructive: true,
     });
     if (!confirmed) return;
@@ -224,13 +263,13 @@ export default function ServicesModule() {
       await load();
       showSweetToast({
         tone: 'success',
-        title: 'Service deleted',
-        message: `"${service.name}" was removed from the catalog.`,
+        title: t('services.serviceDeleted'),
+        message: t('services.serviceDeletedMessage', { name: service.name }),
       });
     } catch (reason) {
-      const message = getErrorMessage(reason, 'Could not delete service.');
+      const message = adminErrorMessage(reason, t('services.deleteError'), t);
       setError(message);
-      showSweetAlert({ tone: 'error', title: 'Could not delete service', message });
+      showSweetAlert({ tone: 'error', title: t('services.deleteErrorTitle'), message });
     }
   };
 
@@ -246,21 +285,45 @@ export default function ServicesModule() {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
+  const uploadCustomIcon = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file) return;
+
+    setUploadingIcon(true);
+    try {
+      const payload = new FormData();
+      payload.append('image', file);
+      const response = await adminApi.post<{ image?: string }>(adminApi.endpoints.uploadImageAsset, payload);
+      if (!response.image) throw new Error(t('services.uploadNoUrl'));
+      setForm((current) => ({ ...current, icon: response.image || '' }));
+      showSweetToast({ tone: 'success', title: t('services.iconUploaded'), message: t('services.customIconSelected') });
+    } catch (reason) {
+      showSweetAlert({
+        tone: 'error',
+        title: t('services.uploadErrorTitle'),
+        message: adminErrorMessage(reason, t('services.uploadErrorMessage'), t),
+      });
+    } finally {
+      setUploadingIcon(false);
+    }
+  };
+
   const columns = useMemo(
     () => [
       {
         key: 'name',
-        label: 'Service',
+        label: t('services.service'),
         render: (service: Service) => (
           <div className="admin-primary-cell">
-            <strong>{service.name}</strong>
-            <span>{service.description || 'No description'}</span>
+            <strong className="inline-flex items-center gap-2"><ServiceIconPreview value={service.icon} />{adminServiceName(service.name, lang)}</strong>
+            <span>{service.description ? adminServiceDescription(service.description, lang) : t('services.noDescription')}</span>
           </div>
         ),
       },
       {
         key: 'budget',
-        label: 'Budget range',
+        label: t('services.budgetRange'),
         render: (service: Service) => (
           <span className="admin-rating-inline">
             <DollarSign size={14} />
@@ -270,17 +333,17 @@ export default function ServicesModule() {
       },
       {
         key: 'requests',
-        label: 'Requests',
+        label: t('nav.requests'),
         render: (service: Service) => <strong>{service.request_count}</strong>,
       },
       {
         key: 'workers',
-        label: 'Pros',
+        label: t('overview.pros'),
         render: (service: Service) => <strong>{service.worker_count}</strong>,
       },
       {
         key: 'completed',
-        label: 'Completed',
+        label: t('common.completed'),
         render: (service: Service) =>
           `${service.completed_count} (${
             service.request_count ? Math.round((service.completed_count / service.request_count) * 100) : 0
@@ -288,7 +351,7 @@ export default function ServicesModule() {
       },
       {
         key: 'volume',
-        label: 'Paid volume',
+        label: t('services.paidVolume'),
         render: (service: Service) => (
           <span className="admin-rating-inline">
             <DollarSign size={14} />
@@ -298,12 +361,12 @@ export default function ServicesModule() {
       },
       {
         key: 'status',
-        label: 'Status',
+        label: t('common.status'),
         render: (service: Service) => <StatusBadge status={service.is_active ? 'active' : 'inactive'} />,
       },
       {
         key: 'actions',
-        label: 'Actions',
+        label: t('common.action'),
         render: (service: Service) => (
           <div className="admin-action-row">
             <button
@@ -313,7 +376,7 @@ export default function ServicesModule() {
                 void toggle(service);
               }}
             >
-              {service.is_active ? 'Deactivate' : 'Activate'}
+              {service.is_active ? t('users.deactivate') : t('users.activate')}
             </button>
             <button
               className="admin-button admin-button--danger admin-button--small"
@@ -323,10 +386,10 @@ export default function ServicesModule() {
               }}
               title={
                 !isRootAdmin
-                  ? 'Only root can permanently delete services.'
+            ? t('services.rootOnlyDelete')
                   : service.request_count > 0 || service.worker_count > 0 || service.card_count > 0
-                    ? 'Services with workers, cards, or request history should be deactivated.'
-                    : 'Delete service'
+                    ? t('services.deactivateRecommended')
+                    : t('services.deleteService')
               }
             >
               <Trash2 size={13} />
@@ -335,7 +398,7 @@ export default function ServicesModule() {
         ),
       },
     ],
-    [editing?.id_service, isRootAdmin]
+    [editing?.id_service, isRootAdmin, t]
   );
 
   return (
@@ -343,15 +406,15 @@ export default function ServicesModule() {
       <AdminCard>
         <div className="admin-section-heading">
           <div>
-            <p className="admin-section-title">{editing ? 'Edit service' : 'Add service'}</p>
-            <p className="admin-muted">Operational category. Deactivation pauses new requests and notifies linked professionals; deletion is root-only.</p>
+            <p className="admin-section-title">{editing ? t('services.editService') : t('services.addService')}</p>
+            <p className="admin-muted">{t('services.note')}</p>
           </div>
           <Plus />
         </div>
 
-        <FormSection title="Essential information">
+        <FormSection title={t('services.essentialInformation')}>
           <label className="admin-field">
-            <span>Name</span>
+            <span>{t('services.name')}</span>
             <input
               value={form.name}
               maxLength={100}
@@ -359,7 +422,7 @@ export default function ServicesModule() {
             />
           </label>
           <label className="admin-field admin-field--wide">
-            <span>Description</span>
+            <span>{t('services.description')}</span>
             <textarea
               value={form.description}
               maxLength={500}
@@ -367,21 +430,50 @@ export default function ServicesModule() {
             />
           </label>
           <details className="admin-advanced admin-field--wide">
-            <summary>Advanced presentation</summary>
-            <label className="admin-field">
-              <span>Icon value</span>
-              <input
-                value={form.icon}
-                maxLength={100}
-                onChange={(event) => setForm((current) => ({ ...current, icon: event.target.value }))}
-              />
-            </label>
+            <summary>{t('services.advancedPresentation')}</summary>
+            <div className="admin-field admin-field--wide">
+              <span>{t('services.serviceIcon')}</span>
+              <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_auto] md:items-end">
+                <label className="admin-field" style={{ marginBottom: 0 }}>
+                  <span>{t('services.chooseIcon')}</span>
+                  <select
+                    value={isImageIcon(form.icon) ? '__custom__' : form.icon}
+                    onChange={(event) => {
+                      if (event.target.value !== '__custom__') {
+                        setForm((current) => ({ ...current, icon: event.target.value }));
+                      }
+                    }}
+                  >
+                    <option value="">{t('services.noIcon')}</option>
+                    {SERVICE_ICON_OPTIONS_CLEAN.map((icon) => (
+                      <option key={icon.value} value={icon.value}>{icon.value} {t(icon.labelKey)}</option>
+                    ))}
+                    {isImageIcon(form.icon) && <option value="__custom__">{t('services.customUploadedIcon')}</option>}
+                  </select>
+                </label>
+                <label className="admin-button admin-button--secondary inline-flex cursor-pointer items-center justify-center gap-2">
+                  <Upload size={15} />
+                  <span>{uploadingIcon ? t('services.uploading') : t('services.uploadIcon')}</span>
+                  <input
+                    type="file"
+                    accept="image/png,image/jpeg,image/jpg,image/webp"
+                    className="hidden"
+                    disabled={uploadingIcon}
+                    onChange={uploadCustomIcon}
+                  />
+                </label>
+              </div>
+              <div className="mt-3 inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-bold text-slate-700 dark:border-white/10 dark:bg-slate-900/70 dark:text-slate-200">
+                <ServiceIconPreview value={form.icon} />
+                <span>{form.icon ? t('services.selectedIcon') : t('services.noIconSelected')}</span>
+              </div>
+            </div>
           </details>
         </FormSection>
 
-        <FormSection title="Request budget limits" description="Clients can only submit a budget inside this range for the selected service.">
+        <FormSection title={t('services.budgetLimits')} description={t('services.budgetLimitsNote')}>
           <label className="admin-field">
-            <span>Minimum budget (USD)</span>
+            <span>{t('services.minBudget')}</span>
             <AdminNumberInput
               value={form.min_budget}
               min={1}
@@ -391,7 +483,7 @@ export default function ServicesModule() {
             />
           </label>
           <label className="admin-field">
-            <span>Maximum budget (USD)</span>
+            <span>{t('services.maxBudget')}</span>
             <AdminNumberInput
               value={form.max_budget}
               min={1}
@@ -407,11 +499,11 @@ export default function ServicesModule() {
         <div className="admin-action-row">
           {editing && (
             <button className="admin-button admin-button--secondary" onClick={reset}>
-              Cancel
+              {t('common.cancel')}
             </button>
           )}
           <button className="admin-button" disabled={saving} onClick={() => void save()}>
-            {saving ? 'Saving...' : editing ? 'Save changes' : 'Create service'}
+            {saving ? t('common.saving') : editing ? t('services.saveChanges') : t('services.createService')}
           </button>
         </div>
       </AdminCard>
@@ -419,7 +511,7 @@ export default function ServicesModule() {
       {loading ? (
         <Skeleton rows={6} />
       ) : rows.length === 0 ? (
-        <EmptyState title="No services" description="Create first service category." />
+        <EmptyState title={t('services.emptyTitle')} description={t('services.emptyDescription')} />
       ) : (
         <DataTable rows={rows} rowKey={(service) => service.id_service} onRowClick={edit} columns={columns} />
       )}

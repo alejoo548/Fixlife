@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { API_ENDPOINTS } from '../../../../config/api';
 import { adminApi } from '../../api/adminApi';
+import { adminErrorMessage, useAdminT } from '../../adminI18n';
 
 interface HeroTextData {
   headline_prefix: string;
@@ -50,11 +51,12 @@ const toRoleItems = (roles: string[], prefix: string): RoleItem[] =>
   roles.map((r, i) => ({ id: `${prefix}-${Date.now()}-${i}`, text: r }));
 
 export const HeroTextEditor: React.FC = () => {
+  const { t, lang } = useAdminT();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [activeLang, setActiveLang] = useState<EditorLang>('en');
+  const activeLang: EditorLang = lang;
 
   const [headline, setHeadline] = useState(DEFAULT_HERO_TEXT.headline_prefix);
   const [description, setDescription] = useState(DEFAULT_HERO_TEXT.description);
@@ -145,9 +147,9 @@ export const HeroTextEditor: React.FC = () => {
   const handleSave = async () => {
     const validRoles = roles.map((r) => r.text.trim()).filter((t) => t.length > 0);
     const validRolesEs = rolesEs.map((r) => r.text.trim()).filter((t) => t.length > 0);
-    if (!headline.trim()) { setError('Headline prefix is required.'); return; }
-    if (!description.trim()) { setError('Description is required.'); return; }
-    if (validRoles.length === 0) { setError('At least one carousel role is required.'); return; }
+    if (!headline.trim()) { setError(t('content.validation.headlineRequired')); return; }
+    if (!description.trim()) { setError(t('content.validation.descriptionRequired')); return; }
+    if (validRoles.length === 0) { setError(t('content.validation.roleRequired')); return; }
 
     setSaving(true);
     setError(null);
@@ -169,7 +171,7 @@ export const HeroTextEditor: React.FC = () => {
       setSaved(true);
       setTimeout(() => setSaved(false), 3000);
     } catch (err: any) {
-      setError(err?.message || 'Failed to save hero text.');
+      setError(adminErrorMessage(err, t('content.validation.saveHeroTextFailed'), t));
     } finally {
       setSaving(false);
     }
@@ -179,7 +181,7 @@ export const HeroTextEditor: React.FC = () => {
     return (
       <div className="flex items-center gap-3 py-8 text-slate-400 dark:text-slate-500">
         <Loader2 className="h-5 w-5 animate-spin" />
-        <span className="text-sm font-semibold">Loading hero text settings…</span>
+        <span className="text-sm font-semibold">{t('content.loadingHeroText')}</span>
       </div>
     );
   }
@@ -187,43 +189,25 @@ export const HeroTextEditor: React.FC = () => {
   const activeRole = activeRoles[previewIdx % Math.max(activeRoles.length, 1)]?.text || '';
 
   return (
-    <section className="mb-10">
+    <section className="admin-hero-text-editor mb-10">
       {/* Section Header */}
       <div className="mb-5 flex items-center gap-3">
         <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-bird-blue/10 dark:bg-bird-blue/20">
           <Sparkles className="h-5 w-5 text-bird-blue" />
         </div>
         <div>
-          <h3 className="text-base font-black text-slate-950 dark:text-slate-100">Hero Text &amp; Carousel Roles</h3>
+          <h3 className="text-base font-black text-slate-950 dark:text-slate-100">{t('content.heroTextTitle')}</h3>
           <p className="text-xs font-semibold text-slate-500 dark:text-slate-400">
-            Edit the headline, description, and animated role labels shown in the hero section.
+            {t('content.heroTextNote')}
           </p>
         </div>
       </div>
 
-      {/* Language tabs */}
-      <div className="mb-5 inline-flex rounded-xl border border-slate-200 dark:border-white/10 bg-slate-100 dark:bg-slate-800 p-1">
-        {(['en', 'es'] as const).map((lang) => (
-          <button
-            key={lang}
-            type="button"
-            onClick={() => setActiveLang(lang)}
-            className={`rounded-lg px-4 py-1.5 text-xs font-black uppercase tracking-wider transition ${
-              activeLang === lang
-                ? 'bg-white dark:bg-slate-900 text-bird-blue shadow-sm'
-                : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'
-            }`}
-          >
-            {lang === 'en' ? 'English' : 'Español'}
-          </button>
-        ))}
-      </div>
-
       {/* Live Preview */}
-      <div className="mb-6 overflow-hidden rounded-2xl bg-gradient-to-br from-slate-900 via-slate-950 to-indigo-950 p-6 shadow-xl">
-        <p className="mb-1 text-[10px] font-black uppercase tracking-widest text-slate-500">Live Preview</p>
+      <div className="admin-hero-preview mb-6 overflow-hidden rounded-2xl bg-gradient-to-br from-slate-900 via-slate-950 to-indigo-950 p-6 shadow-xl">
+        <p className="mb-1 text-[10px] font-black uppercase tracking-widest text-slate-500">{t('content.livePreview')}</p>
         <div className="flex flex-col items-start gap-1">
-          <p className="text-xs font-semibold text-white/40 uppercase tracking-widest">Hero Headline</p>
+          <p className="text-xs font-semibold text-white/40 uppercase tracking-widest">{t('content.heroHeadline')}</p>
           <h2 className="text-2xl font-black text-white leading-tight">
             {activeHeadline || DEFAULT_HERO_TEXT.headline_prefix}
             <br />
@@ -236,7 +220,7 @@ export const HeroTextEditor: React.FC = () => {
                 transition={{ duration: 0.3 }}
                 className="bg-gradient-to-r from-bird-blue via-bird-yellow to-bird-orange bg-clip-text text-transparent"
               >
-                {activeRole || 'personal assistant.'}
+                {activeRole || t('content.defaultRole')}
               </motion.span>
             </AnimatePresence>
           </h2>
@@ -251,14 +235,14 @@ export const HeroTextEditor: React.FC = () => {
         <div className="rounded-2xl border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900/60 p-5">
           <label className="mb-2 flex items-center gap-2 text-xs font-black uppercase tracking-widest text-slate-500 dark:text-slate-400">
             <Type className="h-3.5 w-3.5" />
-            Headline Prefix
+            {t('content.headlinePrefix')}
           </label>
           <input
             type="text"
             value={activeHeadline}
             onChange={(e) => setActiveHeadline(e.target.value)}
             maxLength={120}
-            placeholder="Meet Fixlife, your"
+            placeholder={t('content.headlinePlaceholder')}
             className="w-full rounded-xl border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-slate-800 px-4 py-3 text-sm font-bold text-slate-900 dark:text-slate-100 outline-none placeholder-slate-400 focus:border-bird-blue focus:ring-2 focus:ring-bird-blue/20 transition"
           />
           <p className="mt-1 text-right text-[10px] font-semibold text-slate-400">{activeHeadline.length}/120</p>
@@ -268,14 +252,14 @@ export const HeroTextEditor: React.FC = () => {
         <div className="rounded-2xl border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900/60 p-5">
           <label className="mb-2 flex items-center gap-2 text-xs font-black uppercase tracking-widest text-slate-500 dark:text-slate-400">
             <AlignLeft className="h-3.5 w-3.5" />
-            Hero Description
+            {t('content.heroDescription')}
           </label>
           <textarea
             value={activeDescription}
             onChange={(e) => setActiveDescription(e.target.value)}
             maxLength={500}
             rows={3}
-            placeholder="Describe what Fixlife offers…"
+            placeholder={t('content.descriptionPlaceholder')}
             className="w-full resize-none rounded-xl border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-slate-800 px-4 py-3 text-sm font-medium text-slate-900 dark:text-slate-100 leading-relaxed outline-none placeholder-slate-400 focus:border-bird-blue focus:ring-2 focus:ring-bird-blue/20 transition"
           />
           <p className="mt-1 text-right text-[10px] font-semibold text-slate-400">{activeDescription.length}/500</p>
@@ -285,13 +269,13 @@ export const HeroTextEditor: React.FC = () => {
         <div className="rounded-2xl border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900/60 p-5">
           <label className="mb-3 flex items-center gap-2 text-xs font-black uppercase tracking-widest text-slate-500 dark:text-slate-400">
             <List className="h-3.5 w-3.5" />
-            Animated Role Carousel
+            {t('content.animatedRoles')}
             <span className="ml-auto rounded-full bg-bird-blue/10 dark:bg-bird-blue/20 px-2.5 py-0.5 text-[10px] font-black text-bird-blue">
-              {activeRoles.length} items
+              {t('content.itemCount', { count: activeRoles.length })}
             </span>
           </label>
           <p className="mb-3 text-xs text-slate-500 dark:text-slate-400 font-medium">
-            Drag rows to reorder. These labels cycle in the hero headline animation.
+            {t('content.reorderNote')}
           </p>
 
           <Reorder.Group values={activeRoles} onReorder={setActiveRoles} className="flex flex-col gap-2 mb-4">
@@ -308,7 +292,7 @@ export const HeroTextEditor: React.FC = () => {
                     onChange={(e) => handleUpdateRole(role.id, e.target.value)}
                     maxLength={80}
                     className="flex-1 bg-transparent text-sm font-bold text-slate-800 dark:text-slate-100 outline-none placeholder-slate-400"
-                    placeholder="e.g. personal assistant."
+                    placeholder={t('content.rolePlaceholder')}
                   />
                   <span className="text-[10px] font-semibold text-slate-400 shrink-0">{role.text.length}/80</span>
                   <button
@@ -316,7 +300,7 @@ export const HeroTextEditor: React.FC = () => {
                     onClick={() => handleDeleteRole(role.id)}
                     disabled={activeRoles.length <= 1}
                     className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border border-rose-200 dark:border-rose-900/40 bg-rose-50 dark:bg-rose-900/30 text-rose-500 transition hover:bg-rose-100 dark:hover:bg-rose-900/50 disabled:opacity-30"
-                    title="Delete role"
+                    title={t('content.deleteRole')}
                   >
                     <Trash2 className="h-3.5 w-3.5" />
                   </button>
@@ -334,7 +318,7 @@ export const HeroTextEditor: React.FC = () => {
               onChange={(e) => setNewRole(e.target.value)}
               onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleAddRole(); } }}
               maxLength={80}
-              placeholder="Add new role… e.g. expert carpenter."
+              placeholder={t('content.addRolePlaceholder')}
               className="flex-1 rounded-xl border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-slate-800 px-4 py-2.5 text-sm font-medium text-slate-900 dark:text-slate-100 outline-none placeholder-slate-400 focus:border-bird-blue focus:ring-2 focus:ring-bird-blue/20 transition"
             />
             <button
@@ -344,7 +328,7 @@ export const HeroTextEditor: React.FC = () => {
               className="flex items-center gap-1.5 rounded-xl bg-bird-blue hover:bg-bird-darkBlue disabled:opacity-40 px-4 py-2.5 text-xs font-black uppercase tracking-wider text-white transition active:scale-95"
             >
               <Plus className="h-4 w-4" />
-              Add
+              {t('content.add')}
             </button>
           </div>
         </div>
@@ -374,7 +358,7 @@ export const HeroTextEditor: React.FC = () => {
           className="inline-flex items-center gap-2 rounded-xl bg-bird-blue hover:bg-bird-darkBlue disabled:opacity-50 px-5 py-2.5 text-xs font-black uppercase tracking-wider text-white shadow-md shadow-bird-blue/20 transition active:scale-95"
         >
           {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-          {saving ? 'Saving…' : 'Save Changes'}
+          {saving ? t('common.saving') : t('content.saveChanges')}
         </button>
 
         <button
@@ -384,7 +368,7 @@ export const HeroTextEditor: React.FC = () => {
           className="inline-flex items-center gap-2 rounded-xl border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900 px-5 py-2.5 text-xs font-black uppercase tracking-wider text-slate-600 dark:text-slate-300 hover:border-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition"
         >
           <RotateCcw className="h-4 w-4" />
-          Reset to Defaults
+          {t('content.resetDefaults')}
         </button>
 
         <AnimatePresence>
@@ -396,7 +380,7 @@ export const HeroTextEditor: React.FC = () => {
               className="flex items-center gap-1.5 text-sm font-bold text-emerald-500 dark:text-emerald-400"
             >
               <CheckCircle2 className="h-4 w-4" />
-              Saved! Changes live on reload.
+              {t('content.savedReload')}
             </motion.span>
           )}
         </AnimatePresence>

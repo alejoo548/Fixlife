@@ -1527,11 +1527,19 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
         const found = services.find((svc) => svc.name === data.category);
         return found?.name || data.category;
     }, [data.category, services]);
+    const selectedService = useMemo(() => {
+        if (!data.category) return null;
+        return services.find((svc) => svc.name === data.category) || null;
+    }, [data.category, services]);
+    const selectedBudgetLimits = useMemo(() => ({
+        min: Number(selectedService?.min_budget ?? 1),
+        max: Number(selectedService?.max_budget ?? MAX_REQUEST_BUDGET),
+    }), [selectedService]);
     const hasConfirmedLocation = areValidCoordinates(currentCoords) && isSpecificLocationLabel(data.location);
     const hasValidBudget =
         Number.isFinite(Number(data.price)) &&
-        Number(data.price) > 0 &&
-        Number(data.price) <= MAX_REQUEST_BUDGET;
+        Number(data.price) >= selectedBudgetLimits.min &&
+        Number(data.price) <= selectedBudgetLimits.max;
     const canSearchPros = hasConfirmedLocation && !resolvingLocation;
     const problemStepReady = data.description.trim().length >= 10 && problemFiles.length > 0;
     const locationStepReady = hasConfirmedLocation && !resolvingLocation;
@@ -1605,7 +1613,7 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
         if (nextValue === '' || nextValue === '.') return '';
         const parsed = Number(nextValue);
         if (!Number.isFinite(parsed) || parsed < 0) return '';
-        if (parsed > MAX_REQUEST_BUDGET) return String(MAX_REQUEST_BUDGET);
+        if (parsed > selectedBudgetLimits.max) return String(selectedBudgetLimits.max);
         return nextValue;
     };
 
@@ -2356,6 +2364,8 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                                     isSubmittingRequest={isSubmittingRequest}
                                                     isAuthenticated={isAuthenticated()}
                                                     showBudget={false}
+                                                    minBudget={selectedBudgetLimits.min}
+                                                    maxBudget={selectedBudgetLimits.max}
                                                     showResults={false}
                                                     showActions={false}
                                                     onDescriptionChange={(value) => setData({ ...data, description: guardDescriptionValue(sanitizeMessageText(value, 1000)) })}
@@ -2587,11 +2597,17 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                                         <span className="absolute right-4 top-1/2 -translate-y-1/2 text-xs font-black text-slate-400 dark:text-slate-500">USD</span>
                                                     </div>
                                                     <p className="mt-2 text-xs font-semibold text-slate-500 dark:text-slate-400">
-                                                        {t('serviceRequest.wizard.review.budgetHelp')}
+                                                        {t('serviceRequest.problem.allowedRange', {
+                                                            min: selectedBudgetLimits.min.toFixed(2),
+                                                            max: selectedBudgetLimits.max.toFixed(2),
+                                                        })}
                                                     </p>
                                                     {!hasValidBudget && (
                                                         <p className="mt-2 text-xs font-black text-amber-700 dark:text-amber-400">
-                                                            {t('serviceRequest.wizard.review.budgetError')}
+                                                            {t('serviceRequest.wizard.submit.budgetInvalidRange', {
+                                                                min: selectedBudgetLimits.min.toFixed(2),
+                                                                max: selectedBudgetLimits.max.toFixed(2),
+                                                            })}
                                                         </p>
                                                     )}
                                                 </div>
@@ -4110,7 +4126,7 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                                                     onClick={() => handleCancelRequest(request)}
                                                                     className="rounded-lg border border-red-200 dark:border-red-900/50 bg-red-50 dark:bg-red-900/40 px-3 py-2 text-[11px] font-bold text-red-600 dark:text-red-400 hover:bg-red-100 disabled:opacity-50"
                                                                 >
-                                                                    {cancelBusyId === request.id_request ? 'Cancelling...' : 'Cancel request'}
+                                                                    {cancelBusyId === request.id_request ? t('serviceRequest.actions.cancelling') : t('serviceRequest.actions.cancelRequest')}
                                                                 </button>
                                                             </div>
                                                         )}
@@ -4120,10 +4136,10 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                                                 <p className="text-[10px] font-black uppercase tracking-[0.18em] text-blue-700 dark:text-blue-400">{t('serviceRequest.wizardExtra.doubleApproval')}</p>
                                                                 <p className="mt-2 text-sm font-bold text-slate-900 dark:text-slate-100">
                                                                     {['arrived', 'start_pending'].includes(requestStatus)
-                                                                        ? startApproved ? 'Your start approval is saved. Waiting for worker.' : 'Approve starting work when both are ready.'
-                                                                        : finishApproved ? 'Your finish approval is saved. Waiting for worker.' : finishRemainingSeconds > 0
-                                                                            ? `Finish unlocks in ${Math.floor(finishRemainingSeconds / 60)}:${String(finishRemainingSeconds % 60).padStart(2, '0')}`
-                                                                            : 'Approve that work itself has finished.'}
+                                                                        ? startApproved ? t('serviceRequest.wizardExtra.startApprovalSaved') : t('serviceRequest.wizardExtra.approveStartWhenReady')
+                                                                        : finishApproved ? t('serviceRequest.wizardExtra.finishApprovalSaved') : finishRemainingSeconds > 0
+                                                                            ? t('serviceRequest.wizardExtra.finishUnlocksIn', { time: `${Math.floor(finishRemainingSeconds / 60)}:${String(finishRemainingSeconds % 60).padStart(2, '0')}` })
+                                                                            : t('serviceRequest.wizardExtra.approveFinishHelp')}
                                                                 </p>
                                                                 {(canApproveStart || canApproveFinish) && (
                                                                     <button
@@ -4132,7 +4148,7 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                                                         onClick={() => void approveWorkflowAction(request, canApproveStart ? 'start_work' : 'finish_work')}
                                                                         className="mt-3 w-full rounded-xl bg-blue-600 px-4 py-3 text-sm font-black text-white disabled:opacity-50"
                                                                     >
-                                                                        {workflowBusyId === request.id_request ? 'Saving...' : canApproveStart ? 'Approve work start' : 'Approve work finish'}
+                                                                        {workflowBusyId === request.id_request ? t('serviceRequest.actions.save') : canApproveStart ? t('serviceRequest.actions.approveWorkStart') : t('serviceRequest.actions.approveWorkFinish')}
                                                                     </button>
                                                                 )}
                                                             </div>
@@ -4151,14 +4167,14 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                                                         </div>
                                                                         <p className="text-xs font-medium text-slate-600 dark:text-slate-300 mt-2">
                                                                             {paymentStatus === 'released'
-                                                                                ? 'Funds released to the worker.'
+                                                                                ? t('serviceRequest.wizardExtra.fundsReleased')
                                                                                 : paymentStatus === 'paid'
-                                                                                    ? 'Payment successful. Final service approval is now available.'
+                                                                                    ? t('serviceRequest.wizardExtra.paymentSuccessfulApproval')
                                                                                     : isCashReserved
-                                                                                        ? 'Cash payment reserved. Pay the professional directly when the job is done — they will confirm collection from their dashboard.'
+                                                                                        ? t('serviceRequest.wizardExtra.cashReservedHelp')
                                                                                         : canPayNow
-                                                                                            ? 'Both parties finished work. Complete payment to continue.'
-                                                                                            : 'Checkout is ready for this request.'}
+                                                                                            ? t('serviceRequest.wizardExtra.bothFinishedComplete')
+                                                                                            : t('serviceRequest.wizardExtra.checkoutReady')}
                                                                         </p>
                                                                     </div>
                                                                     {request.payment && (
@@ -4171,7 +4187,7 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                                                                         ? 'bg-emerald-50 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-900/50'
                                                                                         : 'bg-white dark:bg-slate-900/70 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-white/10'
                                                                         }`}>
-                                                                            {isCashReserved ? 'cash reserved' : paymentStatus || 'pending'}
+                                                                            {isCashReserved ? t('serviceRequest.wizardExtra.cashReservedBadge') : paymentStatus || t('serviceRequest.wizardExtra.pendingBadge')}
                                                                         </span>
                                                                     )}
                                                                 </div>
@@ -4182,7 +4198,7 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                                                         disabled={paymentBusyId === request.id_request}
                                                                         className="mt-4 w-full py-3.5 rounded-xl bg-slate-900 dark:bg-white text-white dark:text-slate-900 text-[13px] font-bold hover:bg-black disabled:opacity-40 transition-colors shadow-md"
                                                                     >
-                                                                        {paymentBusyId === request.id_request ? 'Processing...' : 'Pay for completed work'}
+                                                                        {paymentBusyId === request.id_request ? t('serviceRequest.wizardExtra.processing') : t('serviceRequest.wizardExtra.payForCompletedWork')}
                                                                     </button>
                                                                 )}
                                                             </div>
@@ -4211,7 +4227,7 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                                             <div className="mb-4 flex items-center justify-between">
                                                                 <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400 dark:text-slate-500">{t('serviceRequest.wizardExtra.serviceTimeline')}</p>
                                                                 <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 bg-white dark:bg-slate-900/70 px-2 py-1 rounded-md border border-slate-200 dark:border-white/10">
-                                                                    {requestStatus === 'pending' ? 'Waiting for pro' : 'Live track'}
+                                                                    {requestStatus === 'pending' ? t('serviceRequest.wizardExtra.waitingForPro') : t('serviceRequest.wizardExtra.liveTrack')}
                                                                 </span>
                                                             </div>
                                                             <div className="grid grid-cols-4 gap-x-2 gap-y-4 sm:grid-cols-7 relative">
@@ -4284,7 +4300,7 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                                                     onClick={() => handleCancelRequest(request)}
                                                                     className="rounded-xl border border-red-100 dark:border-red-900/40 bg-white dark:bg-slate-900/70 px-4 py-2.5 text-xs font-bold text-red-500 hover:bg-red-50 hover:text-red-600 disabled:opacity-50 transition-colors"
                                                                 >
-                                                                    {cancelBusyId === request.id_request ? 'Cancelling...' : 'Cancel Request'}
+                                                                    {cancelBusyId === request.id_request ? t('serviceRequest.actions.cancelling') : t('serviceRequest.actions.cancelRequestCaps')}
                                                                 </button>
                                                             )}
                                                             {canConfirmCompletion && (
@@ -4298,7 +4314,7 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                                                     disabled={completionBusyId === request.id_request}
                                                                     className="w-full sm:w-auto px-4 py-2.5 rounded-xl bg-blue-600 text-white text-[13px] font-bold hover:bg-blue-700 disabled:opacity-50 transition-colors shadow-sm"
                                                                 >
-                                                                    {completionBusyId === request.id_request ? 'Confirming...' : 'Confirm Completion'}
+                                                                    {completionBusyId === request.id_request ? t('serviceRequest.actions.confirming') : t('serviceRequest.actions.confirmCompletion')}
                                                                 </button>
                                                             )}
                                                             {canApproveFinal && (
@@ -4308,7 +4324,7 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                                                     disabled={workflowBusyId === request.id_request}
                                                                     className="w-full sm:w-auto rounded-xl bg-emerald-600 px-4 py-2.5 text-[13px] font-bold text-white hover:bg-emerald-700 disabled:opacity-50"
                                                                 >
-                                                                    {workflowBusyId === request.id_request ? 'Saving...' : 'Approve final service completion'}
+                                                                    {workflowBusyId === request.id_request ? t('serviceRequest.actions.save') : t('serviceRequest.actions.approveFinalCompletion')}
                                                                 </button>
                                                             )}
                                                             {isWorkflowV2 && ['paid', 'completion_pending'].includes(requestStatus) && completeApproved && (
@@ -4334,12 +4350,12 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                                                     disabled={!canUseChat}
                                                                     className="text-xs font-bold px-4 py-2 rounded-xl border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900/70 hover:bg-slate-50 dark:hover:bg-white/[0.04] disabled:opacity-50 disabled:cursor-not-allowed transition-colors shadow-sm"
                                                                 >
-                                                                    {openChatRequestId === request.id_request ? 'Hide Chat' : 'Open Chat'}
+                                                                    {openChatRequestId === request.id_request ? t('serviceRequest.chat.hide') : t('serviceRequest.chat.open')}
                                                                 </button>
                                                             </div>
                                                             {!canUseChat && (
                                                                 <p className="mt-2 text-xs font-semibold text-slate-500 dark:text-slate-400">
-                                                                    Chat unlocks once a pro is assigned to your request.
+                                                                    {t('serviceRequest.chat.unlockHint')}
                                                                 </p>
                                                             )}
 
@@ -4360,7 +4376,7 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                                                                             className={`max-w-[85%] rounded-[1.25rem] px-4 py-3 text-sm shadow-sm flex flex-col ${isMe ? 'self-end bg-slate-900 text-white rounded-tr-sm' : 'self-start bg-slate-100 dark:bg-white/[0.06] text-slate-800 dark:text-slate-100 rounded-tl-sm'}`}
                                                                                         >
                                                                                             <p className={`font-bold text-[10px] uppercase tracking-wider mb-1 ${isMe ? 'text-slate-400 dark:text-slate-500' : 'text-slate-500 dark:text-slate-400'}`}>
-                                                                                                {isMe ? 'You' : 'Pro'}
+                                                                                                {isMe ? t('serviceRequest.chat.you') : t('serviceRequest.chat.pro')}
                                                                                             </p>
                                                                                             {msg.message && <p className="leading-relaxed">{msg.message}</p>}
                                                                                             {msg.image_url && (
@@ -4411,7 +4427,7 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                                                             disabled={chatBusyId === request.id_request}
                                                                             className="px-5 py-3 rounded-xl bg-slate-900 dark:bg-white text-white dark:text-slate-900 text-sm font-bold disabled:opacity-50 hover:bg-black transition-colors shadow-md"
                                                                         >
-                                                                            Send
+                                                                            {t('serviceRequest.chat.send')}
                                                                         </button>
                                                                     </div>
                                                                     {chatImage[request.id_request] && (
@@ -4434,11 +4450,11 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                                         <div className="mt-4 rounded-2xl border border-blue-200/50 bg-blue-50/30 p-4">
                                                             <div className="flex items-center justify-between gap-3">
                                                                 <div>
-                                                                    <p className="text-[11px] font-black uppercase tracking-[0.18em] text-blue-600 dark:text-blue-400">Fixes & Rating</p>
+                                                                    <p className="text-[11px] font-black uppercase tracking-[0.18em] text-blue-600 dark:text-blue-400">{t('serviceRequest.rating.title')}</p>
                                                                     <p className="mt-1 text-xs font-semibold text-slate-600 dark:text-slate-300">
                                                                         {canRate
-                                                                            ? 'The job is complete. You can now leave your review.'
-                                                                            : 'Review unlocks after the job is finished.'}
+                                                                            ? t('serviceRequest.rating.ready')
+                                                                            : t('serviceRequest.rating.locked')}
                                                                     </p>
                                                                 </div>
                                                                 <button
@@ -4451,7 +4467,7 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                                                             : 'border border-slate-200 dark:border-white/10 bg-slate-100 dark:bg-white/[0.06] text-slate-400 dark:text-slate-500 cursor-not-allowed'
                                                                     }`}
                                                                 >
-                                                                    {canRate ? 'Review Pro' : 'Locked'}
+                                                                    {canRate ? t('serviceRequest.actions.reviewPro') : t('serviceRequest.actions.locked')}
                                                                 </button>
                                                             </div>
                                                             <div className="mt-3 flex items-center gap-1.5">

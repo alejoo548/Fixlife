@@ -197,7 +197,9 @@ export function useServiceRequestLocation({
           await reverseGeocodeCoords(
             { lat, lng },
             {
-              toastMessage: accuracy ? `Current location detected within ~${accuracy} m.` : 'Current location detected.',
+              toastMessage: accuracy
+                ? i18n.t('serviceRequest.location.currentLocationDetectedAccuracy', { accuracy })
+                : i18n.t('serviceRequest.location.currentLocationDetected'),
               fallbackLabel: `${lat}, ${lng}`,
             }
           );

@@ -294,7 +294,7 @@ export const createService = async (req: AuthRequest, res: Response): Promise<vo
 
     const trimmedName = sanitizeText(name, 100);
     const trimmedDesc = sanitizeOptionalText(description, 500);
-    const trimmedIcon = sanitizeOptionalText(icon, 255);
+    const trimmedIcon = sanitizeOptionalText(icon, 500);
     const minBudget = Number(min_budget ?? 25);
     const maxBudget = Number(max_budget ?? 500);
     if (!Number.isFinite(minBudget) || !Number.isFinite(maxBudget) || minBudget < 1 || maxBudget < minBudget || maxBudget > 10000) {
@@ -615,7 +615,7 @@ export const updateService = async (req: AuthRequest, res: Response): Promise<vo
 
     if (icon !== undefined) {
       updates.push('icon = ?');
-      values.push(sanitizeOptionalText(icon, 255));
+      values.push(sanitizeOptionalText(icon, 500));
       changedFields.push('icon');
     }
 

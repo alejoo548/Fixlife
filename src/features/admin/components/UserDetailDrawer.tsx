@@ -3,12 +3,14 @@ import { Link } from 'react-router-dom';
 import type { AdminUserDetail } from '../types';
 import { AdminCard, DetailDrawer, FormSection, Skeleton, StatusBadge } from './AdminUI';
 import { normalizeImageUrl } from '../../../utils/imageUrls';
-
-const money = (value: number) => value.toLocaleString('en-US', { style: 'currency', currency: 'USD' });
+import { useAdminT } from '../adminI18n';
 
 export function UserDetailDrawer({ detail, loading, open, onClose }: { detail: AdminUserDetail | null; loading: boolean; open: boolean; onClose: () => void }) {
+  const { t, lang } = useAdminT();
+  const locale = lang === 'es' ? 'es-ES' : 'en-US';
+  const money = (value: number) => value.toLocaleString(locale, { style: 'currency', currency: 'USD' });
   return (
-    <DetailDrawer open={open} title={detail?.name || 'Account detail'} subtitle={detail ? `${detail.role} · User #${detail.id_user}` : 'Loading account'} onClose={onClose}>
+    <DetailDrawer open={open} title={detail?.name || t('userDetail.accountDetail')} subtitle={detail ? `${detail.role} · ${t('userDetail.userNumber', { id: detail.id_user })}` : t('userDetail.loadingAccount')} onClose={onClose}>
       {loading || !detail ? <Skeleton rows={7} /> : (
         <div className="admin-detail-stack">
           <div className="admin-profile-hero">
@@ -17,34 +19,34 @@ export function UserDetailDrawer({ detail, loading, open, onClose }: { detail: A
           </div>
 
           <div className="admin-detail-grid">
-            <AdminCard><Mail /><span>Email</span><strong>{detail.email}</strong><small>Primary account address</small></AdminCard>
-            <AdminCard><Phone /><span>Phone</span><strong>{detail.phone_number || 'Not provided'}</strong><small>Username: {detail.username || 'Not configured'}</small></AdminCard>
-            <AdminCard><UserRound /><span>Joined</span><strong>{new Date(detail.created_at).toLocaleDateString()}</strong><small>Last login: {detail.last_login ? new Date(detail.last_login).toLocaleString() : 'Never'}</small></AdminCard>
-            <AdminCard><BadgeDollarSign /><span>Paid volume</span><strong>{money(detail.summary.paid_volume)}</strong><small>Across visible requests</small></AdminCard>
+            <AdminCard><Mail /><span>Email</span><strong>{detail.email}</strong><small>{t('userDetail.primaryEmail')}</small></AdminCard>
+            <AdminCard><Phone /><span>{t('userDetail.phone')}</span><strong>{detail.phone_number || t('userDetail.notProvided')}</strong><small>{t('userDetail.username')}: {detail.username || t('userDetail.notConfigured')}</small></AdminCard>
+            <AdminCard><UserRound /><span>{t('common.joined')}</span><strong>{new Date(detail.created_at).toLocaleDateString(locale)}</strong><small>{t('common.lastLogin')}: {detail.last_login ? new Date(detail.last_login).toLocaleString(locale) : t('common.never')}</small></AdminCard>
+            <AdminCard><BadgeDollarSign /><span>{t('services.paidVolume')}</span><strong>{money(detail.summary.paid_volume)}</strong><small>{t('userDetail.visibleRequests')}</small></AdminCard>
           </div>
 
           <div className="admin-mini-metrics">
-            <div><FileText /><strong>{detail.summary.request_count}</strong><span>Total requests</span></div>
-            <div><CheckCircle2 /><strong>{detail.summary.completed_count}</strong><span>Completed</span></div>
-            <div><Activity /><strong>{detail.summary.cancelled_count}</strong><span>Cancelled</span></div>
+            <div><FileText /><strong>{detail.summary.request_count}</strong><span>{t('userDetail.totalRequests')}</span></div>
+            <div><CheckCircle2 /><strong>{detail.summary.completed_count}</strong><span>{t('common.completed')}</span></div>
+            <div><Activity /><strong>{detail.summary.cancelled_count}</strong><span>{t('common.cancelled')}</span></div>
           </div>
 
           {detail.professional && (
-            <FormSection title="Professional profile" description={detail.professional.bio || 'No professional biography.'}>
-              <div className="admin-kv"><span>Verification</span><StatusBadge status={detail.professional.is_verified === 1 ? 'approved' : detail.professional.is_verified === 2 ? 'rejected' : 'pending'} /></div>
-              <div className="admin-kv"><span>Tier</span><StatusBadge status={detail.professional.membership_tier} /></div>
-              <div className="admin-kv"><span>Rating</span><strong className="admin-rating-inline"><Star size={14} />{detail.professional.rating.average?.toFixed(1) || 'No rating'} ({detail.professional.rating.count})</strong></div>
-              <div className="admin-kv"><span>Services</span><strong>{detail.professional.services.map((service) => service.name).join(', ') || 'None'}</strong></div>
+            <FormSection title={t('userDetail.professionalProfile')} description={detail.professional.bio || t('userDetail.noBio')}>
+              <div className="admin-kv"><span>{t('pros.verification')}</span><StatusBadge status={detail.professional.is_verified === 1 ? 'approved' : detail.professional.is_verified === 2 ? 'rejected' : 'pending'} /></div>
+              <div className="admin-kv"><span>{t('pros.tier')}</span><StatusBadge status={detail.professional.membership_tier} /></div>
+              <div className="admin-kv"><span>{t('pros.rating')}</span><strong className="admin-rating-inline"><Star size={14} />{detail.professional.rating.average?.toFixed(1) || t('userDetail.noRating')} ({detail.professional.rating.count})</strong></div>
+              <div className="admin-kv"><span>{t('nav.services')}</span><strong>{detail.professional.services.map((service) => service.name).join(', ') || t('common.none')}</strong></div>
               <div className="admin-document-links admin-field--wide">
-                {detail.professional.dui_document_url && <a href={detail.professional.dui_document_url} target="_blank" rel="noreferrer"><FileText size={15} /> View identity document</a>}
-                {detail.professional.cert_document_url && <a href={detail.professional.cert_document_url} target="_blank" rel="noreferrer"><BriefcaseBusiness size={15} /> View certificate</a>}
+        {detail.professional.dui_document_url && <a href={detail.professional.dui_document_url} target="_blank" rel="noreferrer"><FileText size={15} /> {t('pros.viewIdentity')}</a>}
+        {detail.professional.cert_document_url && <a href={detail.professional.cert_document_url} target="_blank" rel="noreferrer"><BriefcaseBusiness size={15} /> {t('pros.viewCertificate')}</a>}
               </div>
             </FormSection>
           )}
 
-          <FormSection title={`Recent requests (${detail.requests.length})`}>
+          <FormSection title={t('userDetail.recentRequests', { count: detail.requests.length })}>
             <div className="admin-detail-list admin-field--wide">
-              {detail.requests.length === 0 ? <p className="admin-muted">No requests associated with this account.</p> : detail.requests.map((request) => (
+              {detail.requests.length === 0 ? <p className="admin-muted">{t('userDetail.noRequests')}</p> : detail.requests.map((request) => (
                 <Link key={request.id_request} to={`../requests?request=${request.id_request}`}>
                   <div><strong>#{request.id_request} · {request.service_name}</strong><span>{request.location_text}</span></div>
                   <div><StatusBadge status={request.status} /><small>{money(request.payment_amount || request.budget)}</small></div>
@@ -53,9 +55,9 @@ export function UserDetailDrawer({ detail, loading, open, onClose }: { detail: A
             </div>
           </FormSection>
 
-          <FormSection title={`Administrative history (${detail.admin_activity.length})`}>
+          <FormSection title={t('userDetail.adminHistory', { count: detail.admin_activity.length })}>
             <div className="admin-event-list admin-field--wide">
-              {detail.admin_activity.length === 0 ? <p className="admin-muted">No administrative changes recorded.</p> : detail.admin_activity.map((item) => <div key={item.id_activity}><StatusBadge status={item.action} /><div><strong>{item.summary}</strong><p>{item.entity}</p></div><time>{new Date(item.created_at).toLocaleString()}</time></div>)}
+              {detail.admin_activity.length === 0 ? <p className="admin-muted">{t('userDetail.noAdminChanges')}</p> : detail.admin_activity.map((item) => <div key={item.id_activity}><StatusBadge status={item.action} /><div><strong>{item.summary}</strong><p>{item.entity}</p></div><time>{new Date(item.created_at).toLocaleString(locale)}</time></div>)}
             </div>
           </FormSection>
         </div>

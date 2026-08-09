@@ -3,6 +3,7 @@ import { Search } from 'lucide-react';
 import { adminApi } from '../api/adminApi';
 import { ConfirmActionDialog, DataTable, EmptyState, FilterBar, Skeleton, StatusBadge } from '../components/AdminUI';
 import { UserDetailDrawer } from '../components/UserDetailDrawer';
+import { useAdminT } from '../adminI18n';
 import type { AdminUserDetail } from '../types';
 
 type User = {
@@ -17,6 +18,7 @@ type User = {
 };
 
 export default function UsersModule() {
+  const { t, lang } = useAdminT();
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -38,7 +40,7 @@ export default function UsersModule() {
       const payload = await adminApi.get<{ users: User[] }>(`${adminApi.endpoints.users}?${query}`);
       setUsers(payload.users || []);
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : 'Could not load users.');
+      setError(reason instanceof Error ? reason.message : t('users.loadError'));
     } finally {
       setLoading(false);
     }
@@ -56,7 +58,7 @@ export default function UsersModule() {
       const payload = await adminApi.get<{ data: AdminUserDetail }>(adminApi.endpoints.userDetail(user.id_user));
       setDetail(payload.data);
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : 'Could not load user detail.');
+      setError(reason instanceof Error ? reason.message : t('users.detailError'));
     } finally {
       setDetailLoading(false);
     }
@@ -74,7 +76,7 @@ export default function UsersModule() {
       setReason('');
       await load();
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : 'Could not update account status.');
+      setError(reason instanceof Error ? reason.message : t('users.updateError'));
     } finally {
       setSaving(false);
     }
@@ -83,22 +85,22 @@ export default function UsersModule() {
   return (
     <div className="admin-page-stack">
       <FilterBar>
-        <label className="admin-search-field"><Search size={17} /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search clients" maxLength={120} /></label>
-        <select value={status} onChange={(event) => setStatus(event.target.value)}><option value="all">All accounts</option><option value="active">Active</option><option value="inactive">Inactive</option></select>
+        <label className="admin-search-field"><Search size={17} /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder={t('users.search')} maxLength={120} /></label>
+        <select value={status} onChange={(event) => setStatus(event.target.value)}><option value="all">{t('common.allAccounts')}</option><option value="active">{t('common.active')}</option><option value="inactive">{t('common.inactive')}</option></select>
       </FilterBar>
 
       {error && <div className="admin-inline-error">{error}</div>}
-      {loading ? <Skeleton rows={7} /> : users.length === 0 ? <EmptyState title="No users found" description="No client accounts match filters." /> : (
+      {loading ? <Skeleton rows={7} /> : users.length === 0 ? <EmptyState title={t('users.emptyTitle')} description={t('users.emptyDescription')} /> : (
         <DataTable
           rows={users}
           rowKey={(user) => user.id_user}
           onRowClick={openDetail}
           columns={[
-            { key: 'user', label: 'User', render: (user) => <div className="admin-primary-cell"><strong>{user.name} {user.lastname}</strong><span>{user.email}</span></div> },
-            { key: 'status', label: 'Status', render: (user) => <StatusBadge status={user.is_active ? 'active' : 'inactive'} /> },
-            { key: 'created', label: 'Joined', render: (user) => new Date(user.created_at).toLocaleDateString() },
-            { key: 'login', label: 'Last login', render: (user) => user.last_login ? new Date(user.last_login).toLocaleString() : 'Never' },
-            { key: 'action', label: 'Action', render: (user) => <button className="admin-button admin-button--secondary admin-button--small" onClick={(event) => { event.stopPropagation(); setTarget(user); }}>{user.is_active ? 'Deactivate' : 'Activate'}</button> },
+            { key: 'user', label: t('users.user'), render: (user) => <div className="admin-primary-cell"><strong>{user.name} {user.lastname}</strong><span>{user.email}</span></div> },
+            { key: 'status', label: t('common.status'), render: (user) => <StatusBadge status={user.is_active ? 'active' : 'inactive'} /> },
+            { key: 'created', label: t('common.joined'), render: (user) => new Date(user.created_at).toLocaleDateString(lang === 'es' ? 'es-ES' : 'en-US') },
+            { key: 'login', label: t('common.lastLogin'), render: (user) => user.last_login ? new Date(user.last_login).toLocaleString(lang === 'es' ? 'es-ES' : 'en-US') : t('common.never') },
+            { key: 'action', label: t('common.action'), render: (user) => <button className="admin-button admin-button--secondary admin-button--small" onClick={(event) => { event.stopPropagation(); setTarget(user); }}>{user.is_active ? t('users.deactivate') : t('users.activate')}</button> },
           ]}
         />
       )}
@@ -106,9 +108,9 @@ export default function UsersModule() {
       <UserDetailDrawer detail={detail} loading={detailLoading} open={detailLoading || !!detail} onClose={() => setDetail(null)} />
       <ConfirmActionDialog
         open={!!target}
-        title={`${target?.is_active ? 'Deactivate' : 'Activate'} ${target?.name || 'account'}`}
-        description="Account access changes immediately and creates audit record."
-        confirmLabel={target?.is_active ? 'Deactivate account' : 'Activate account'}
+        title={`${target?.is_active ? t('users.deactivate') : t('users.activate')} ${target?.name || t('users.account')}`}
+        description={t('users.statusDescription')}
+        confirmLabel={target?.is_active ? t('users.deactivateAccount') : t('users.activateAccount')}
         reason={reason}
         onReasonChange={setReason}
         onCancel={() => { setTarget(null); setReason(''); }}

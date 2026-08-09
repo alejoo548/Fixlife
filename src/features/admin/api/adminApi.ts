@@ -8,7 +8,7 @@ export class AdminApiError extends Error {
 const request = async <T>(url: string, init: RequestInit = {}): Promise<T> => {
   const token = getToken('admin');
   if (!token) {
-    throw new AdminApiError('Admin session expired.', 401);
+    throw new AdminApiError('Sesion de administrador expirada.', 401);
   }
   const response = await fetch(url, {
     ...init,
@@ -24,7 +24,7 @@ const request = async <T>(url: string, init: RequestInit = {}): Promise<T> => {
     window.dispatchEvent(new CustomEvent('fixlife:admin-session-expired'));
   }
   if (!response.ok) {
-    throw new AdminApiError(payload.error || 'Admin request failed.', response.status);
+    throw new AdminApiError(payload.error || 'La solicitud admin fallo.', response.status);
   }
   return payload as T;
 };
