@@ -352,7 +352,13 @@ export const ProDashboard: React.FC<ProDashboardProps> = ({ isOpen, onClose, onS
       } else {
          setIsOnline(readStoredPresence() ?? false);
       }
-   }, [onClose]);
+      // Mount-only initialization — onClose is a parent-supplied callback that
+      // isn't guaranteed to be referentially stable (App.tsx recreates it on
+      // every render, including its own unrelated hero-rotation interval
+      // ticks). Including it here caused this effect — and its syncWorkerStatus
+      // fetch — to re-run every couple seconds instead of once per mount.
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+   }, []);
 
    useEffect(() => {
       if (!isOpen || !token) return;

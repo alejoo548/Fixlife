@@ -1,4 +1,4 @@
-import React, { useState, useEffect, Suspense, lazy } from 'react';
+import React, { useState, useEffect, useCallback, Suspense, lazy } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Navigate, Route, Routes, useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
@@ -443,7 +443,12 @@ const App: React.FC = () => {
     window.scrollTo(0, 0);
   }
 
-  const handleBackToLanding = () => {
+  // Memoized: passed as onClose to lazy-loaded dashboards (ProDashboard,
+  // AdminApp) whose mount effects key off this reference. An unmemoized
+  // function here would get recreated on every App render — including the
+  // hero-rotation interval ticks that fire regardless of route — and retrigger
+  // those effects (and their status-sync fetches) every couple seconds.
+  const handleBackToLanding = useCallback(() => {
     setPendingSection(null);
     clearRememberedProtectedRoute('client');
     const leavingProtectedView =
@@ -454,7 +459,7 @@ const App: React.FC = () => {
 
     navigate('/', { replace: leavingProtectedView });
     window.scrollTo(0, 0);
-  };
+  }, [location.pathname, navigate]);
 
   const handleWorkerSignOut = () => {
     logoutAndReload('worker');
