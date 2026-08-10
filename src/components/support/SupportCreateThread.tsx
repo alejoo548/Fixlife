@@ -38,9 +38,12 @@ export const SupportCreateThread: React.FC<SupportCreateThreadProps> = ({
 
       <form onSubmit={handleSubmit} className="space-y-5">
         <div>
-          <label className="mb-1.5 block text-[10px] font-bold tracking-[0.8px] text-gray-500 dark:text-slate-400">
-            {t('serviceRequest.supportWidget.subjectLabel')}
-          </label>
+          <div className="mb-1.5 flex items-center justify-between">
+            <label className="block text-[10px] font-bold tracking-[0.8px] text-gray-500 dark:text-slate-400">
+              {t('serviceRequest.supportWidget.subjectLabel')}
+            </label>
+            <span className="text-[10px] text-gray-400">{subject.length}/80</span>
+          </div>
           <input
             type="text"
             value={subject}

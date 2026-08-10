@@ -172,7 +172,7 @@ export const AppointmentsView: React.FC = () => {
                     </div>
                   </div>
 
-                  <p className="mt-4 text-sm font-semibold leading-6 text-slate-600 line-clamp-2">
+                  <p className="mt-4 text-sm font-semibold leading-6 text-slate-600 line-clamp-2 break-words">
                     {appointment.description}
                   </p>
                   <p className="mt-3 text-sm font-bold text-slate-800 dark:text-slate-200">{appointment.location_text}</p>

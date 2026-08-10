@@ -86,7 +86,7 @@ export const CompletedWorkView: React.FC = () => {
                         {item.client_name || t('workerDashboard.completedWork.clientFallback')} / {formatDate(item.completed_at)}
                       </p>
                       <p className="mt-2 truncate text-sm text-slate-500 dark:text-slate-400">{item.location_text}</p>
-                      <p className="mt-3 text-sm leading-6 text-slate-500 dark:text-slate-400">{item.description}</p>
+                      <p className="mt-3 line-clamp-2 break-words text-sm leading-6 text-slate-500 dark:text-slate-400">{item.description}</p>
                     </div>
 
                     <div className="grid flex-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">

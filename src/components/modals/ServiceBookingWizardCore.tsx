@@ -3690,7 +3690,7 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                                 ? 'Are you sure you want to cancel this request?'
                                                 : 'Confirm that the work is completed and release the payment?'}
                                         </p>
-                                        <p className="mt-2 text-sm text-slate-600 dark:text-slate-300 line-clamp-3">
+                                        <p className="mt-2 text-sm text-slate-600 dark:text-slate-300 line-clamp-3 break-words">
                                             {pendingRequestAction.request.description}
                                         </p>
                                     </div>
@@ -3986,7 +3986,7 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                                             </div>
                                                         )}
 
-                                                        <p className="text-sm text-slate-600 dark:text-slate-300 mb-4 bg-slate-50 dark:bg-white/[0.04] p-3 rounded-xl border border-slate-100 dark:border-white/5">
+                                                        <p className="text-sm text-slate-600 dark:text-slate-300 mb-4 bg-slate-50 dark:bg-white/[0.04] p-3 rounded-xl border border-slate-100 dark:border-white/5 break-words [overflow-wrap:anywhere]">
                                                             {request.description}
                                                         </p>
 

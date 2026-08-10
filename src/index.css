@@ -2154,16 +2154,21 @@ html {
   justify-content: space-between;
   gap: 24px;
 }
+.admin-detail-hero > div:first-child {
+  min-width: 0;
+}
 .admin-detail-hero h3 {
   font-size: 22px;
   margin: 12px 0 8px;
   font-weight: 800;
+  overflow-wrap: anywhere;
 }
 .admin-detail-hero p {
   font-size: 13px;
   color: #b0c4d8;
   max-width: 500px;
   line-height: 1.6;
+  overflow-wrap: anywhere;
 }
 .admin-detail-hero > div:last-child {
   display: flex;
@@ -2487,6 +2492,7 @@ html {
   color: var(--admin-muted);
   margin: 0 0 4px;
   line-height: 1.5;
+  overflow-wrap: anywhere;
 }
 .admin-timeline > div > div small {
   font-size: 11px;
@@ -2739,6 +2745,7 @@ html {
   font-size: 13px;
   margin: 6px 0 4px;
   line-height: 1.5;
+  overflow-wrap: anywhere;
 }
 .admin-message small {
   color: var(--admin-soft);

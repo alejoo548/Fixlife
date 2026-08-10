@@ -80,7 +80,7 @@ export const WorkerRequestCard: React.FC<WorkerRequestCardProps> = ({
         </div>
       </div>
 
-      <p className="mt-3 line-clamp-2 text-sm font-medium leading-5 text-slate-600 dark:text-slate-300">{request.description}</p>
+      <p className="mt-3 line-clamp-2 break-words text-sm font-medium leading-5 text-slate-600 dark:text-slate-300">{request.description}</p>
 
       <div className="mt-3 flex flex-wrap items-center gap-2">
         <span className={`rounded-full border px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.12em] ${

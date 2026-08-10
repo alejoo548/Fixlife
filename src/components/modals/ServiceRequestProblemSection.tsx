@@ -62,9 +62,12 @@ export function ServiceRequestProblemSection({
     return (
         <>
             <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}>
-                <label className="block text-sm font-bold text-gray-700 dark:text-slate-300 mb-2">{t('serviceRequest.problem.title')}</label>
+                <div className="flex items-center justify-between mb-2">
+                    <label className="block text-sm font-bold text-gray-700 dark:text-slate-300">{t('serviceRequest.problem.title')}</label>
+                    <span className="text-xs font-bold text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded-full">{description.length}/1000</span>
+                </div>
                 <textarea
-                    className="w-full h-32 bg-gray-100 dark:bg-slate-800 border-none rounded-xl p-4 text-gray-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-gray-300 dark:focus:ring-white/20 transition-all resize-none placeholder-gray-400 dark:placeholder-slate-500"
+                    className="w-full h-32 bg-gray-100 dark:bg-slate-800 border-none rounded-xl p-4 text-gray-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-gray-300 dark:focus:ring-white/20 transition-all resize-none placeholder-gray-400 dark:placeholder-slate-500 break-words"
                     placeholder={t('serviceRequest.problem.placeholder')}
                     value={description}
                     maxLength={1000}
