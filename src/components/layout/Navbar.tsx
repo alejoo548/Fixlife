@@ -196,6 +196,8 @@ export const Navbar: React.FC<NavbarProps> = ({
   navItems,
   onOpenAuth,
   onCloseAuth,
+  onOpenWorkerAuth,
+  onCloseWorkerAuth,
   onStartBooking,
   onOpenProfile,
   onGoHome,
@@ -212,6 +214,8 @@ export const Navbar: React.FC<NavbarProps> = ({
     isLoggedIn: Boolean(user),
     onOpenAuth: () => onOpenAuth('signin'),
     onCloseAuth: () => onCloseAuth?.(),
+    onOpenWorkerAuth: (mode) => onOpenWorkerAuth?.(mode),
+    onCloseWorkerAuth: () => onCloseWorkerAuth?.(),
   });
   const { isDark, toggleTheme } = useUserTheme();
 
@@ -935,6 +939,7 @@ export const Navbar: React.FC<NavbarProps> = ({
           <div className="group relative" data-tour="nav-account" onMouseLeave={() => setIsAccountOpen(false)}>
             <button
               type="button"
+              data-tour="nav-account-trigger"
               onClick={() => setIsAccountOpen(!isAccountOpen)}
               className="group flex h-16 items-center gap-2 px-2 text-slate-700 dark:text-slate-200 hover:text-slate-900 dark:hover:text-white transition-all duration-300"
             >
@@ -995,6 +1000,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                   <>
                     <button
                       onClick={handleProfileClick}
+                      data-tour="nav-profile-item"
                       className="w-full flex items-center gap-3 px-4 py-3 text-sm text-gray-600 dark:text-slate-300 hover:bg-bird-blue/5 dark:hover:bg-bird-blue/15 hover:text-bird-blue rounded-lg transition-colors text-left font-medium"
                     >
                       <User className="w-4 h-4 text-gray-400 dark:text-slate-500" />
@@ -1003,6 +1009,7 @@ export const Navbar: React.FC<NavbarProps> = ({
 
                     <button
                       onClick={handleMyRequestClick}
+                      data-tour="nav-my-requests-item"
                       className="w-full flex items-center justify-between gap-3 px-4 py-3 text-sm text-gray-600 dark:text-slate-300 hover:bg-bird-blue/5 dark:hover:bg-bird-blue/15 hover:text-bird-blue rounded-lg transition-colors text-left font-medium"
                     >
                       <div className="flex items-center gap-3">

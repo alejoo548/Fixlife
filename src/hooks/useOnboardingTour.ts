@@ -4,7 +4,7 @@ import 'driver.js/dist/driver.css';
 import '../styles/driver-tour.css';
 import i18n from '../i18n';
 
-const TOUR_VERSION = 'v2';
+const TOUR_VERSION = 'v3';
 
 const storageKey = (userId: string | number) => `fixlife_tour_seen_${TOUR_VERSION}_${userId}`;
 
@@ -12,9 +12,17 @@ interface BuildStepsOptions {
   isLoggedIn: boolean;
   onOpenAuth?: () => void;
   onCloseAuth?: () => void;
+  onOpenWorkerAuth?: (mode: 'signin' | 'signup') => void;
+  onCloseWorkerAuth?: () => void;
 }
 
-const buildSteps = ({ isLoggedIn, onOpenAuth, onCloseAuth }: BuildStepsOptions): DriveStep[] => {
+const buildSteps = ({
+  isLoggedIn,
+  onOpenAuth,
+  onCloseAuth,
+  onOpenWorkerAuth,
+  onCloseWorkerAuth,
+}: BuildStepsOptions): DriveStep[] => {
   const baseSteps: DriveStep[] = [
     {
       popover: {
@@ -101,6 +109,15 @@ const buildSteps = ({ isLoggedIn, onOpenAuth, onCloseAuth }: BuildStepsOptions):
           },
         },
         {
+          element: '[data-tour="auth-forgot-password"]',
+          waitForElement: 2000,
+          popover: {
+            title: i18n.t('onboardingTour.authForgotPassword.title'),
+            description: i18n.t('onboardingTour.authForgotPassword.description'),
+            side: 'top',
+          },
+        },
+        {
           element: '[data-tour="auth-signin-submit"]',
           waitForElement: 2000,
           popover: {
@@ -123,6 +140,54 @@ const buildSteps = ({ isLoggedIn, onOpenAuth, onCloseAuth }: BuildStepsOptions):
             side: 'left',
             onNextClick: (_element, _step, opts) => {
               onCloseAuth?.();
+              window.setTimeout(() => {
+                onOpenWorkerAuth?.('signin');
+                window.setTimeout(() => opts.driver.moveNext(), 250);
+              }, 200);
+            },
+          },
+        },
+        {
+          element: '[data-tour="worker-auth-signin-email"]',
+          waitForElement: 2000,
+          popover: {
+            title: i18n.t('onboardingTour.workerAuthSignIn.title'),
+            description: i18n.t('onboardingTour.workerAuthSignIn.description'),
+            side: 'right',
+          },
+        },
+        {
+          element: '[data-tour="worker-auth-forgot-password"]',
+          waitForElement: 2000,
+          popover: {
+            title: i18n.t('onboardingTour.workerAuthForgotPassword.title'),
+            description: i18n.t('onboardingTour.workerAuthForgotPassword.description'),
+            side: 'top',
+          },
+        },
+        {
+          element: '[data-tour="worker-auth-signin-submit"]',
+          waitForElement: 2000,
+          popover: {
+            title: i18n.t('onboardingTour.workerAuthSignInSubmit.title'),
+            description: i18n.t('onboardingTour.workerAuthSignInSubmit.description'),
+            side: 'top',
+            onNextClick: (_element, _step, opts) => {
+              const toggle = document.querySelector<HTMLElement>('[data-tour="worker-auth-toggle-signup"]');
+              toggle?.click();
+              window.setTimeout(() => opts.driver.moveNext(), 350);
+            },
+          },
+        },
+        {
+          element: '[data-tour="worker-auth-signup-form"]',
+          waitForElement: 2000,
+          popover: {
+            title: i18n.t('onboardingTour.workerAuthSignUp.title'),
+            description: i18n.t('onboardingTour.workerAuthSignUp.description'),
+            side: 'left',
+            onNextClick: (_element, _step, opts) => {
+              onCloseWorkerAuth?.();
               window.setTimeout(() => opts.driver.moveNext(), 200);
             },
           },
@@ -137,6 +202,32 @@ const buildSteps = ({ isLoggedIn, onOpenAuth, onCloseAuth }: BuildStepsOptions):
             title: i18n.t('onboardingTour.accountLoggedIn.title'),
             description: i18n.t('onboardingTour.accountLoggedIn.description'),
             side: 'bottom',
+            onNextClick: (_element, _step, opts) => {
+              document.querySelector<HTMLElement>('[data-tour="nav-account-trigger"]')?.click();
+              window.setTimeout(() => opts.driver.moveNext(), 300);
+            },
+          },
+        },
+        {
+          element: '[data-tour="nav-profile-item"]',
+          waitForElement: 1500,
+          popover: {
+            title: i18n.t('onboardingTour.profileItem.title'),
+            description: i18n.t('onboardingTour.profileItem.description'),
+            side: 'left',
+          },
+        },
+        {
+          element: '[data-tour="nav-my-requests-item"]',
+          waitForElement: 1500,
+          popover: {
+            title: i18n.t('onboardingTour.requestsItem.title'),
+            description: i18n.t('onboardingTour.requestsItem.description'),
+            side: 'left',
+            onNextClick: (_element, _step, opts) => {
+              document.querySelector<HTMLElement>('[data-tour="nav-account-trigger"]')?.click();
+              window.setTimeout(() => opts.driver.moveNext(), 200);
+            },
           },
         },
       ]
@@ -162,6 +253,8 @@ interface UseOnboardingTourOptions {
   autoStart?: boolean;
   onOpenAuth?: () => void;
   onCloseAuth?: () => void;
+  onOpenWorkerAuth?: (mode: 'signin' | 'signup') => void;
+  onCloseWorkerAuth?: () => void;
 }
 
 export function useOnboardingTour({
@@ -170,6 +263,8 @@ export function useOnboardingTour({
   autoStart = true,
   onOpenAuth,
   onCloseAuth,
+  onOpenWorkerAuth,
+  onCloseWorkerAuth,
 }: UseOnboardingTourOptions) {
   const autoStartedRef = useRef(false);
 
@@ -185,15 +280,16 @@ export function useOnboardingTour({
       prevBtnText: i18n.t('onboardingTour.back'),
       doneBtnText: i18n.t('onboardingTour.gotIt'),
       onCloseClick: (_element, _step, opts) => {
-        // Leaving mid-tour shouldn't strand the user with the auth modal
-        // pinned open if we were in the middle of the sign-in/sign-up demo.
+        // Leaving mid-tour shouldn't strand the auth modal (client or worker)
+        // pinned open if the user bails out mid sign-in/sign-up demo.
         onCloseAuth?.();
+        onCloseWorkerAuth?.();
         opts.driver.destroy();
       },
-      steps: buildSteps({ isLoggedIn, onOpenAuth, onCloseAuth }),
+      steps: buildSteps({ isLoggedIn, onOpenAuth, onCloseAuth, onOpenWorkerAuth, onCloseWorkerAuth }),
     });
     tourDriver.drive();
-  }, [isLoggedIn, onOpenAuth, onCloseAuth]);
+  }, [isLoggedIn, onOpenAuth, onCloseAuth, onOpenWorkerAuth, onCloseWorkerAuth]);
 
   useEffect(() => {
     if (!autoStart || autoStartedRef.current || !isLoggedIn || !userId) return;

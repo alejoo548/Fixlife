@@ -10,6 +10,8 @@ export interface NavbarProps {
   navItems: NavItemType[];
   onOpenAuth: (mode: AuthMode) => void;
   onCloseAuth?: () => void;
+  onOpenWorkerAuth?: (mode: AuthMode) => void;
+  onCloseWorkerAuth?: () => void;
   onStartBooking: () => void;
   onOpenProfile: () => void;
   onGoHome?: () => void;

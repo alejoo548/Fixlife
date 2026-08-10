@@ -458,7 +458,7 @@ export const WorkerAuthModal: React.FC<WorkerAuthModalProps> = ({ isOpen, onClos
                   <h2 className="text-3xl font-bold mb-2 text-bird-orange dark:text-amber-400">{t('workerAuth.joinTitle')}</h2>
                   <p className="text-xs text-gray-500 dark:text-slate-400 mb-4">{t('workerAuth.joinDescription')}</p>
 
-                  <form className="w-full flex flex-col gap-2.5" onSubmit={handleSignupSubmit}>
+                  <form className="w-full flex flex-col gap-2.5" data-tour="worker-auth-signup-form" onSubmit={handleSignupSubmit}>
                     <div className="grid grid-cols-2 gap-2.5">
                       <div className="bg-gray-50 dark:bg-slate-800 rounded-lg p-1 border border-gray-200 dark:border-white/10 focus-within:border-bird-orange/50 transition-colors">
                         <input required value={formData.name} onChange={e => setFormData({...formData, name: sanitizeNameInput(e.target.value)})} type="text" maxLength={16} placeholder={t('workerAuth.fields.firstName')} className="w-full bg-transparent px-3 py-2 text-sm text-gray-900 dark:text-slate-100 outline-none placeholder-gray-500 dark:placeholder-slate-400" />
@@ -676,7 +676,7 @@ export const WorkerAuthModal: React.FC<WorkerAuthModalProps> = ({ isOpen, onClos
           <p className="text-sm text-white/90 leading-relaxed">
             {t('workerAuth.joinHeroDescription')}
           </p>
-          <button onClick={toggleView} className="mt-2 px-10 py-3 rounded-full border border-white/50 bg-white/10 text-white font-bold hover:bg-white hover:text-bird-orange transition-all duration-300 backdrop-blur-sm shadow-lg">
+          <button onClick={toggleView} data-tour="worker-auth-toggle-signup" className="mt-2 px-10 py-3 rounded-full border border-white/50 bg-white/10 text-white font-bold hover:bg-white hover:text-bird-orange transition-all duration-300 backdrop-blur-sm shadow-lg">
             {t('workerAuth.actions.signUp')}
           </button>
         </div>
@@ -689,22 +689,23 @@ export const WorkerAuthModal: React.FC<WorkerAuthModalProps> = ({ isOpen, onClos
           <p className="text-xs text-gray-500 dark:text-slate-400 mb-6">{t('workerAuth.signInDescription')}</p>
 
           <form className="w-full flex flex-col gap-4" onSubmit={handleSigninSubmit}>
-            <div className="bg-gray-50 dark:bg-slate-800 rounded-lg p-1 border border-gray-200 dark:border-white/10 focus-within:border-bird-orange/50 transition-colors">
+            <div data-tour="worker-auth-signin-email" className="bg-gray-50 dark:bg-slate-800 rounded-lg p-1 border border-gray-200 dark:border-white/10 focus-within:border-bird-orange/50 transition-colors">
               <input required value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} type="email" maxLength={254} placeholder={t('workerAuth.fields.emailAddress')} className="w-full bg-transparent px-3 py-3 text-sm text-gray-900 dark:text-slate-100 outline-none placeholder-gray-500 dark:placeholder-slate-400" />
             </div>
             <div className="bg-gray-50 dark:bg-slate-800 rounded-lg p-1 border border-gray-200 dark:border-white/10 focus-within:border-bird-orange/50 transition-colors">
               <PasswordInput required value={formData.password} onChange={e => setFormData({...formData, password: e.target.value})}  maxLength={128} placeholder={t('workerAuth.fields.password')} className="w-full bg-transparent px-3 py-3 text-sm text-gray-900 dark:text-slate-100 outline-none placeholder-gray-500 dark:placeholder-slate-400" />
             </div>
-            
+
             <button
               type="button"
+              data-tour="worker-auth-forgot-password"
               onClick={() => setView('forgot')}
               className="text-xs text-gray-500 dark:text-slate-400 hover:text-bird-orange transition-colors self-end my-1"
             >
               {t('workerAuth.forgotPassword')}
             </button>
-            
-            <button disabled={loading} type="submit" className="w-full py-4 rounded-full bg-gradient-to-r from-bird-orange to-bird-gold text-white font-bold text-sm tracking-wide shadow-lg shadow-bird-orange/20 hover:scale-[1.02] transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed">
+
+            <button disabled={loading} type="submit" data-tour="worker-auth-signin-submit" className="w-full py-4 rounded-full bg-gradient-to-r from-bird-orange to-bird-gold text-white font-bold text-sm tracking-wide shadow-lg shadow-bird-orange/20 hover:scale-[1.02] transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed">
               {loading ? t('workerAuth.actions.processing') : t('workerAuth.actions.signIn')}
             </button>
           </form>
@@ -742,6 +743,7 @@ export const WorkerAuthModal: React.FC<WorkerAuthModalProps> = ({ isOpen, onClos
               </button>
               <button
                 onClick={() => { setView('signup'); setError(''); }}
+                data-tour="worker-auth-toggle-signup"
                 className={`flex-1 relative z-10 text-xs font-bold tracking-wide transition-colors duration-300 flex items-center justify-center
                     ${isSignup ? 'text-white' : 'text-gray-600 dark:text-slate-300 hover:text-gray-900 dark:hover:text-slate-100'}`}
               >
@@ -764,7 +766,7 @@ export const WorkerAuthModal: React.FC<WorkerAuthModalProps> = ({ isOpen, onClos
                     <h2 className="text-2xl font-bold text-gray-900 dark:text-slate-100 mb-2">{t('workerAuth.joinTitle')}</h2>
                     <p className="text-xs text-gray-600 dark:text-slate-400 px-4">{t('workerAuth.joinDescription')}</p>
                   </div>
-                  <form className="flex flex-col gap-3" onSubmit={handleSignupSubmit}>
+                  <form className="flex flex-col gap-3" data-tour="worker-auth-signup-form" onSubmit={handleSignupSubmit}>
                     <div className="grid grid-cols-2 gap-3">
                       <div className="bg-white dark:bg-slate-800 rounded-xl px-4 py-3 border border-gray-200 dark:border-white/10 focus-within:border-bird-orange/50 transition-colors shadow-sm">
                         <input required value={formData.name} onChange={e => setFormData({...formData, name: sanitizeNameInput(e.target.value)})} type="text" maxLength={16} placeholder={t('workerAuth.fields.firstName')} className="w-full bg-transparent text-sm text-gray-900 dark:text-slate-100 outline-none placeholder-gray-500 dark:placeholder-slate-400" />
@@ -975,7 +977,7 @@ export const WorkerAuthModal: React.FC<WorkerAuthModalProps> = ({ isOpen, onClos
                     <p className="text-xs text-gray-600 px-4">{t('workerAuth.signInMobileDescription')}</p>
                   </div>
                   <form className="flex flex-col gap-3" onSubmit={handleSigninSubmit}>
-                    <div className="bg-white rounded-xl px-4 py-3 border border-gray-200 focus-within:border-bird-orange/50 transition-colors shadow-sm">
+                    <div data-tour="worker-auth-signin-email" className="bg-white rounded-xl px-4 py-3 border border-gray-200 focus-within:border-bird-orange/50 transition-colors shadow-sm">
                       <input required value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} type="email" maxLength={254} placeholder={t('workerAuth.fields.emailAddress')} className="w-full bg-transparent text-sm text-gray-900 outline-none placeholder-gray-500" />
                     </div>
                     <div className="bg-white rounded-xl px-4 py-3 border border-gray-200 focus-within:border-bird-orange/50 transition-colors shadow-sm">
@@ -984,13 +986,14 @@ export const WorkerAuthModal: React.FC<WorkerAuthModalProps> = ({ isOpen, onClos
                     <div className="flex justify-end mt-1">
                       <button
                         type="button"
+                        data-tour="worker-auth-forgot-password"
                         onClick={() => setView('forgot')}
                         className="text-xs text-gray-600 hover:text-bird-orange transition-colors"
                       >
                         {t('workerAuth.forgotPassword')}
                       </button>
                     </div>
-                    <button disabled={loading} type="submit" className="mt-4 w-full py-4 rounded-xl font-bold text-sm tracking-wide shadow-lg active:scale-[0.98] transition-all duration-300 bg-gradient-to-r from-bird-orange to-bird-gold text-white shadow-bird-orange/20 disabled:opacity-50 disabled:cursor-not-allowed">
+                    <button disabled={loading} type="submit" data-tour="worker-auth-signin-submit" className="mt-4 w-full py-4 rounded-xl font-bold text-sm tracking-wide shadow-lg active:scale-[0.98] transition-all duration-300 bg-gradient-to-r from-bird-orange to-bird-gold text-white shadow-bird-orange/20 disabled:opacity-50 disabled:cursor-not-allowed">
                       {loading ? t('workerAuth.actions.processing') : t('workerAuth.actions.signInMobile', { defaultValue: t('workerAuth.actions.signIn') })}
                     </button>
                   </form>

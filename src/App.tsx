@@ -438,6 +438,10 @@ const App: React.FC = () => {
     setIsWorkerAuthOpen(true);
   }
 
+  const handleCloseWorkerAuth = () => {
+    setIsWorkerAuthOpen(false);
+  }
+
   const handleOpenProfile = () => {
     if (!isAuthenticated()) {
       handleOpenAuth('signin');
@@ -649,6 +653,8 @@ const App: React.FC = () => {
                 navItems={navItems}
                 onOpenAuth={handleOpenAuth}
                 onCloseAuth={handleCloseAuth}
+                onOpenWorkerAuth={handleOpenWorkerAuth}
+                onCloseWorkerAuth={handleCloseWorkerAuth}
                 onStartBooking={handleStartBooking}
                 onOpenProfile={handleOpenProfile}
                 onGoHome={handleBackToLanding}
@@ -669,6 +675,8 @@ const App: React.FC = () => {
                 navItems={navItems}
                 onOpenAuth={handleOpenAuth}
                 onCloseAuth={handleCloseAuth}
+                onOpenWorkerAuth={handleOpenWorkerAuth}
+                onCloseWorkerAuth={handleCloseWorkerAuth}
                 onStartBooking={handleStartBooking}
                 onOpenProfile={handleOpenProfile}
                 onGoHome={handleBackToLanding}
@@ -713,6 +721,8 @@ const App: React.FC = () => {
             navItems={navItems}
             onOpenAuth={handleOpenAuth}
             onCloseAuth={handleCloseAuth}
+            onOpenWorkerAuth={handleOpenWorkerAuth}
+            onCloseWorkerAuth={handleCloseWorkerAuth}
             onStartBooking={handleStartBooking}
             onOpenProfile={handleOpenProfile}
             onGoHome={handleBackToLanding}

@@ -98,14 +98,22 @@
   fill: rgba(2, 6, 23, 0.65) !important;
 }
 
-/* Welcome step: dark card with looping muted video */
+/* Welcome step: dark card with looping muted video.
+   It has no target element, so driver.js falls back to positioning it near
+   the edge of its internal stage box instead of the viewport — pin it to
+   the center of the screen ourselves and give it more breathing room. */
 .driver-popover.fixlife-tour-welcome {
   background: #1e293b;
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 18px;
-  max-width: 360px;
+  width: min(440px, calc(100vw - 32px));
+  max-width: min(440px, calc(100vw - 32px));
   padding: 0;
   overflow: hidden;
+  position: fixed !important;
+  top: 50% !important;
+  left: 50% !important;
+  transform: translate(-50%, -50%) !important;
 }
 
 .fixlife-tour-welcome .driver-popover-title {

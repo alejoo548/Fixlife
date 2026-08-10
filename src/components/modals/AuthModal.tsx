@@ -526,7 +526,7 @@ if (!emailRegex.test(signinEmail)) {
               <div className="bg-gray-50 dark:bg-slate-800 rounded-lg p-1 border border-gray-200 dark:border-white/10 focus-within:border-bird-blue/50 transition-colors">
                 <PasswordInput maxLength={128}  name="password" value={formData.password} onChange={handleChange} placeholder={t('auth.fields.password')} className="w-full bg-transparent px-3 py-2 text-sm text-gray-900 dark:text-slate-100 outline-none placeholder-gray-500 dark:placeholder-slate-400" />
               </div>
-              <button type="button" onClick={() => setView('forgot')} className="text-xs text-gray-500 dark:text-slate-400 hover:text-bird-blue transition-colors self-end my-1"> {t('auth.forgotPassword')} </button>
+              <button type="button" data-tour="auth-forgot-password" onClick={() => setView('forgot')} className="text-xs text-gray-500 dark:text-slate-400 hover:text-bird-blue transition-colors self-end my-1"> {t('auth.forgotPassword')} </button>
               <button data-tour="auth-signin-submit" className="w-full py-3.5 rounded-full bg-bird-blue text-white font-bold text-sm tracking-wide shadow-lg shadow-bird-blue/20 hover:bg-bird-darkBlue hover:scale-[1.02] transition-all duration-300">
                 {t('auth.actions.signIn')}
               </button>
@@ -620,7 +620,7 @@ if (!emailRegex.test(signinEmail)) {
 
                 {!isSignup && (
                   <div className="flex justify-end">
-                    <button type="button" onClick={() => setView('forgot')} className="text-xs text-gray-500 dark:text-slate-400 hover:text-bird-blue transition-colors self-end my-1"> {t('auth.forgotPassword')}</button>
+                    <button type="button" data-tour="auth-forgot-password" onClick={() => setView('forgot')} className="text-xs text-gray-500 dark:text-slate-400 hover:text-bird-blue transition-colors self-end my-1"> {t('auth.forgotPassword')}</button>
                   </div>
                 )}
 
