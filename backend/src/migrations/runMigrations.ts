@@ -271,6 +271,25 @@ const MIGRATIONS: MigrationDefinition[] = [
       await pool.execute(`ALTER TABLE users MODIFY COLUMN pending_email VARCHAR(254) NULL`);
     },
   },
+  {
+    id: '20260810_001_push_subscriptions',
+    description: 'Table storing Web Push subscriptions for real push notifications',
+    run: async () => {
+      await pool.execute(`
+        CREATE TABLE IF NOT EXISTS push_subscriptions (
+          id_subscription INT AUTO_INCREMENT PRIMARY KEY,
+          id_user INT NOT NULL,
+          endpoint VARCHAR(512) NOT NULL,
+          p256dh VARCHAR(255) NOT NULL,
+          auth VARCHAR(255) NOT NULL,
+          user_agent VARCHAR(255) NULL,
+          created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          UNIQUE KEY uniq_endpoint (endpoint(255)),
+          KEY idx_push_subscriptions_user (id_user)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+      `);
+    },
+  },
 ];
 
 const ensureMigrationsTable = async () => {

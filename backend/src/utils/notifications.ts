@@ -3,6 +3,7 @@ import pool from '../config/db';
 import { shouldRunRuntimeSchemaSync } from '../config/schemaSync';
 import { isDatabaseSchemaReady } from '../services/schemaState.service';
 import { emitToUser, emitUserUpdate } from '../services/socketManager';
+import { sendPushToUser } from '../services/webPush.service';
 
 export type NotificationTone = 'info' | 'success' | 'warning';
 
@@ -120,6 +121,14 @@ export const createUserNotification = async (input: {
     message: input.message,
     tone,
     metadata: input.metadata ?? null,
+  });
+
+  // Reaches the user even if the app/tab is closed — sockets above only
+  // cover an open session. Never awaited by callers of this function.
+  void sendPushToUser(input.userId, {
+    title: input.title,
+    body: input.message,
+    url: input.actionUrl ?? null,
   });
 };
 

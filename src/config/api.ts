@@ -96,6 +96,9 @@ export const API_ENDPOINTS = {
     list: `${API_URL}/api/notifications`,
     readAll: `${API_URL}/api/notifications/read-all`,
     readOne: (idNotification: number) => `${API_URL}/api/notifications/${idNotification}/read`,
+    pushPublicKey: `${API_URL}/api/notifications/push/public-key`,
+    pushSubscribe: `${API_URL}/api/notifications/push/subscribe`,
+    pushUnsubscribe: `${API_URL}/api/notifications/push/unsubscribe`,
   },
   admin: {
     services: `${API_URL}/api/admin/services`,

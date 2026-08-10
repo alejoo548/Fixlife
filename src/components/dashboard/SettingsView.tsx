@@ -22,6 +22,7 @@ import { showSweetToast } from '../../utils/sweetAlert';
 import { API_URL } from '../../config/api';
 import { getAuthUser, getToken as getSessionToken, logoutAndReload, updateStoredAuthUser } from '../../utils/session';
 import { WorkerAvailabilitySection } from './WorkerAvailabilitySection';
+import { PushNotificationSettings } from './PushNotificationSettings';
 import { normalizeImageUrl } from '../../utils/imageUrls';
 
 type PortfolioItem = {
@@ -585,6 +586,8 @@ export const SettingsView: React.FC = () => {
         onError={(message) => notyf.error(message)}
         onSuccess={(message) => notyf.success(message)}
       />
+
+      <PushNotificationSettings />
 
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
         <div className="bg-white dark:bg-slate-900 rounded-3xl border border-gray-200 dark:border-white/10 p-5 md:p-6 shadow-sm">
