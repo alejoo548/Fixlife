@@ -14,6 +14,7 @@ import { WorkerRequestChatPanel } from './requests/WorkerRequestChatPanel';
 import { WorkerCurrentJobPanel } from './requests/WorkerCurrentJobPanel';
 import { WorkerDaySummary } from './requests/WorkerDaySummary';
 import { ServiceReportModal } from '../shared/ServiceReportModal';
+import { ServiceCompleteCelebration } from '../shared/ServiceCompleteCelebration';
 import type {
   ChatMessage,
   RequestsViewProps,
@@ -108,6 +109,7 @@ export const RequestsView: React.FC<RequestsViewProps> = ({
   });
   const [loading, setLoading] = useState(false);
   const [busyId, setBusyId] = useState<number | null>(null);
+  const [showCompletionCelebration, setShowCompletionCelebration] = useState(false);
   const [chatPanelOpen, setChatPanelOpen] = useState(false);
   const [requestsPanelOpen, setRequestsPanelOpen] = useState(false);
   const [routePanelExpanded, setRoutePanelExpanded] = useState(false);
@@ -524,11 +526,11 @@ export const RequestsView: React.FC<RequestsViewProps> = ({
         return;
       }
       nextRequestStatus = String(payload.request_status || '').toLowerCase();
-      notify.success(
-        action === 'complete_service' && nextRequestStatus === 'done'
-          ? t('workerDashboard.requests.serviceCompletedHistory')
-          : payload.message || t('workerDashboard.requests.approvalSaved')
-      );
+      // The 'done' case gets the full-screen celebration below instead of a
+      // toast — showing both would just be the same "you're done" news twice.
+      if (!(action === 'complete_service' && nextRequestStatus === 'done')) {
+        notify.success(payload.message || t('workerDashboard.requests.approvalSaved'));
+      }
       success = true;
       await Promise.all([fetchRequests(true), refreshWorkspace(true)]);
     } catch {
@@ -553,7 +555,7 @@ export const RequestsView: React.FC<RequestsViewProps> = ({
         setSelectedRequestId(null);
         setChatPanelOpen(false);
         setRoutePanelExpanded(false);
-        onOpenHistory?.();
+        setShowCompletionCelebration(true);
       }
     }
   };
@@ -1186,6 +1188,13 @@ export const RequestsView: React.FC<RequestsViewProps> = ({
         reporterRole="worker"
         counterpartName={reportRequest?.client?.name || 'the client'}
         onClose={() => setReportRequest(null)}
+      />
+      <ServiceCompleteCelebration
+        open={showCompletionCelebration}
+        onDone={() => {
+          setShowCompletionCelebration(false);
+          onOpenHistory?.();
+        }}
       />
     </>
   );

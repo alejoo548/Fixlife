@@ -5,7 +5,11 @@
 // so the dashboard's own "Redirect URL"/"Url webhook" fields (which must be
 // https, e.g. a placeholder like google.com) are never used by this flow.
 
-const WOMPI_REQUEST_TIMEOUT_MS = 15000;
+// Wompi's token/checkout endpoints normally respond in well under a second;
+// 15s let a single slow call plus its retry stack up to ~60s of dead air
+// before the client ever saw a redirect. 8s still gives real slowness room
+// to recover via the retry below without making the user stare that long.
+const WOMPI_REQUEST_TIMEOUT_MS = 8000;
 
 type WompiTokenCache = { token: string; expiresAt: number };
 let tokenCache: WompiTokenCache | null = null;

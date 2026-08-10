@@ -1169,6 +1169,15 @@ const PaymentCheckoutPage: React.FC<PaymentCheckoutPageProps> = ({ requestId, on
                                 )}
                             </div>
 
+                            {isPaying && (paymentMethod === 'wompi' || paymentMethod === 'paypal') && (
+                                <div className="mt-4 flex items-center justify-center gap-2.5 rounded-2xl border border-blue-100 bg-blue-50/70 px-4 py-3 text-center dark:border-blue-400/20 dark:bg-blue-500/10">
+                                    <div className="h-4 w-4 shrink-0 rounded-full border-2 border-blue-200 border-t-blue-600 animate-spin" />
+                                    <p className="text-xs font-bold text-blue-700 dark:text-blue-300">
+                                        {t('paymentCheckout.redirectingHint', { provider: paymentMethod === 'wompi' ? 'Wompi' : 'PayPal' })}
+                                    </p>
+                                </div>
+                            )}
+
                             {isAlreadyPaid && (
                                 <p className="mt-4 text-center text-sm font-bold text-emerald-600">
                                     {t('paymentCheckout.alreadyPaid')}

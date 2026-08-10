@@ -2721,6 +2721,7 @@ export const resources = {
           express: 'Express service',
         },
         chooseMethod: 'Choose your payment method',
+        redirectingHint: "Connecting to {{provider}}'s secure checkout — this can take a few seconds, hang tight.",
         methods: {
           paypal: {
             name: 'PayPal',
@@ -3012,6 +3013,12 @@ export const resources = {
         next: 'Next',
         back: 'Back',
         gotIt: 'Got it',
+      },
+      serviceComplete: {
+        title: 'Service Complete!',
+        subtitle: 'Nice work — this request is officially wrapped up.',
+        dismiss: 'Awesome',
+        mascotAlt: 'Fixlife mascot celebrating',
       },
       appErrorBoundary: {
         title: 'We hit a display issue',
@@ -5883,6 +5890,7 @@ export const resources = {
           express: 'Servicio exprés',
         },
         chooseMethod: 'Elige tu método de pago',
+        redirectingHint: 'Conectando con el pago seguro de {{provider}} — puede tardar unos segundos, no cierres esta página.',
         methods: {
           paypal: {
             name: 'PayPal',
@@ -6174,6 +6182,12 @@ export const resources = {
         next: 'Siguiente',
         back: 'Atrás',
         gotIt: 'Entendido',
+      },
+      serviceComplete: {
+        title: '¡Servicio completo!',
+        subtitle: 'Buen trabajo — esta solicitud quedó cerrada oficialmente.',
+        dismiss: 'Genial',
+        mascotAlt: 'Mascota de Fixlife celebrando',
       },
       appErrorBoundary: {
         title: 'Tuvimos un problema al mostrar la pantalla',

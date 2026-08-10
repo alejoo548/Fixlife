@@ -6,6 +6,7 @@ import i18n from '../../i18n';
 import { addResilientTileLayer, loadLeaflet } from '../../utils/leafletLoader';
 import { API_ENDPOINTS } from '../../config/api';
 import { useIsDarkTheme } from '../../hooks/useIsDarkTheme';
+import { ServiceCompleteCelebration } from '../shared/ServiceCompleteCelebration';
 import {
     buildRouteDistanceProfile,
     durationMinFromDistanceKm,
@@ -232,6 +233,7 @@ const ClientLiveRequestTracker: React.FC<ClientLiveRequestTrackerProps> = ({ lea
     const [displayedWorkerCoords, setDisplayedWorkerCoords] = useState<{ lat: number; lng: number } | null>(null);
     const [metrics, setMetrics] = useState<{ distanceKm: number; durationMin: number } | null>(null);
     const [trackerStage, setTrackerStage] = useState<TrackerStage>(statusToStage(request.status));
+    const [showCompletionCelebration, setShowCompletionCelebration] = useState(false);
     const [isMapExpanded, setIsMapExpanded] = useState(false);
     const [manualLeafletReady, setManualLeafletReady] = useState(false);
     const [showLoadFailure, setShowLoadFailure] = useState(false);
@@ -826,6 +828,8 @@ const ClientLiveRequestTracker: React.FC<ClientLiveRequestTrackerProps> = ({ lea
             showTrackerToast('info', `${workerName} is arriving now.`);
         } else if (trackerStage === 'arrived') {
             showTrackerToast('success', `${workerName} has arrived.`);
+        } else if (trackerStage === 'completed') {
+            setShowCompletionCelebration(true);
         }
 
         previousStageRef.current = trackerStage;
@@ -982,6 +986,11 @@ const ClientLiveRequestTracker: React.FC<ClientLiveRequestTrackerProps> = ({ lea
                     </div>
                 </motion.div>
             </div>
+
+            <ServiceCompleteCelebration
+                open={showCompletionCelebration}
+                onDone={() => setShowCompletionCelebration(false)}
+            />
         </div>
     );
 };
