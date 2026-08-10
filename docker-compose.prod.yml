@@ -78,7 +78,7 @@ services:
       - WOMPI_TOKEN_URL=${WOMPI_TOKEN_URL:-}
       - WOMPI_API_URL=${WOMPI_API_URL:-}
       - PLATFORM_FEE_RATE=${PLATFORM_FEE_RATE:-0.12}
-      - OSRM_BASE_URL=${OSRM_BASE_URL:-https://router.project-osrm.org}
+      - OSRM_BASE_URL=${OSRM_BASE_URL:-http://osrm:5000}
       - FRONTEND_ORIGIN=${FRONTEND_ORIGIN}
       - FRONTEND_URL=${FRONTEND_URL}
       - PUBLIC_APP_URL=${PUBLIC_APP_URL}
@@ -86,6 +86,26 @@ services:
     depends_on:
       mysql:
         condition: service_healthy
+      osrm:
+        condition: service_healthy
+    networks:
+      - fixlife-network
+
+  osrm:
+    image: ghcr.io/project-osrm/osrm-backend
+    container_name: fixlife_osrm_prod
+    restart: unless-stopped
+    mem_limit: 256m
+    cpus: 0.5
+    command: osrm-routed --algorithm mld /data/el-salvador-latest.osrm
+    volumes:
+      - ./docker/osrm/data:/data:ro
+    healthcheck:
+      test: ["CMD", "bash", "-c", "exec 3<>/dev/tcp/127.0.0.1/5000 && echo -e 'GET /route/v1/driving/-89.2182,13.6929;-89.2724,13.6799 HTTP/1.0\\r\\n\\r\\n' >&3 && head -1 <&3 | grep -q 200"]
+      timeout: 10s
+      retries: 5
+      interval: 15s
+      start_period: 10s
     networks:
       - fixlife-network
 
