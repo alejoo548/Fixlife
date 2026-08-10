@@ -850,6 +850,131 @@ export const getWorkerRewardsDashboard = async (req: AuthRequest, res: Response)
   }
 };
 
+// Lightweight insights panel: earnings trend, month-over-month comparison,
+// and what's in demand nearby — separate from the rewards dashboard above
+// since that one is already a large, cycle-anchored payout view.
+export const getWorkerAnalytics = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const userId = req.user?.user_id;
+    if (!userId) {
+      res.status(401).json({ error: 'Unauthorized' });
+      return;
+    }
+
+    await ensureServiceRequestTables();
+
+    const [profileRows] = await pool.execute<RowDataPacket[]>(
+      `SELECT id_worker_profile, latitude, longitude, coverage_km
+       FROM worker_profiles
+       WHERE id_user = ?
+       LIMIT 1`,
+      [userId]
+    );
+
+    if (profileRows.length === 0) {
+      res.status(404).json({ error: 'Worker profile not found.' });
+      return;
+    }
+
+    const profile = profileRows[0];
+    const profileId = Number(profile.id_worker_profile);
+
+    const [weeklyRows] = await pool.execute<RowDataPacket[]>(
+      `SELECT
+         YEARWEEK(COALESCE(srp.released_at, sr.updated_at, sr.created_at), 3) AS week_key,
+         MIN(DATE(COALESCE(srp.released_at, sr.updated_at, sr.created_at))) AS week_start,
+         COALESCE(SUM(COALESCE(srp.worker_payout, sr.final_budget, sr.budget, 0)), 0) AS total,
+         COUNT(*) AS jobs
+       FROM service_requests sr
+       LEFT JOIN service_request_payments srp ON srp.id_request = sr.id_request
+       WHERE sr.assigned_worker_profile = ?
+         AND sr.status = 'done'
+         AND COALESCE(srp.released_at, sr.updated_at, sr.created_at) >= DATE_SUB(NOW(), INTERVAL 8 WEEK)
+       GROUP BY week_key
+       ORDER BY week_key ASC`,
+      [profileId]
+    );
+
+    const [monthCompareRows] = await pool.execute<RowDataPacket[]>(
+      `SELECT
+         (COALESCE(srp.released_at, sr.updated_at, sr.created_at) >= DATE_FORMAT(NOW(), '%Y-%m-01')) AS is_current_month,
+         COALESCE(SUM(COALESCE(srp.worker_payout, sr.final_budget, sr.budget, 0)), 0) AS total,
+         COUNT(*) AS jobs
+       FROM service_requests sr
+       LEFT JOIN service_request_payments srp ON srp.id_request = sr.id_request
+       WHERE sr.assigned_worker_profile = ?
+         AND sr.status = 'done'
+         AND COALESCE(srp.released_at, sr.updated_at, sr.created_at) >= DATE_SUB(DATE_FORMAT(NOW(), '%Y-%m-01'), INTERVAL 1 MONTH)
+       GROUP BY is_current_month`,
+      [profileId]
+    );
+
+    const currentMonth = monthCompareRows.find((r) => Number(r.is_current_month) === 1) || { total: 0, jobs: 0 };
+    const previousMonth = monthCompareRows.find((r) => Number(r.is_current_month) === 0) || { total: 0, jobs: 0 };
+    const currentMonthTotal = Number(currentMonth.total || 0);
+    const previousMonthTotal = Number(previousMonth.total || 0);
+    const monthOverMonthChangePct = previousMonthTotal > 0
+      ? Number((((currentMonthTotal - previousMonthTotal) / previousMonthTotal) * 100).toFixed(1))
+      : null;
+
+    let demandRows: RowDataPacket[] = [];
+    const lat = profile.latitude != null ? Number(profile.latitude) : null;
+    const lng = profile.longitude != null ? Number(profile.longitude) : null;
+    if (lat != null && lng != null && Number.isFinite(lat) && Number.isFinite(lng)) {
+      const radiusKm = Math.min(Math.max(Number(profile.coverage_km) || 15, 5), 50);
+      const [rows] = await pool.execute<RowDataPacket[]>(
+        `SELECT
+           s.id_service,
+           s.name AS service_name,
+           COUNT(*) AS request_count,
+           COALESCE(AVG(COALESCE(sr.final_budget, sr.budget)), 0) AS avg_budget,
+           (
+             6371 * ACOS(
+               COS(RADIANS(?)) * COS(RADIANS(sr.latitude)) * COS(RADIANS(sr.longitude) - RADIANS(?))
+               + SIN(RADIANS(?)) * SIN(RADIANS(sr.latitude))
+             )
+           ) AS distance_km
+         FROM service_requests sr
+         INNER JOIN services s ON s.id_service = sr.id_service
+         WHERE sr.created_at >= DATE_SUB(NOW(), INTERVAL 60 DAY)
+           AND sr.latitude IS NOT NULL
+           AND sr.longitude IS NOT NULL
+         HAVING distance_km <= ?
+         GROUP BY s.id_service, s.name
+         ORDER BY request_count DESC
+         LIMIT 5`,
+        [lat, lng, lat, radiusKm]
+      );
+      demandRows = rows;
+    }
+
+    res.json({
+      success: true,
+      weekly_earnings: weeklyRows.map((row) => ({
+        week_start: row.week_start,
+        total: Number(row.total || 0),
+        jobs: Number(row.jobs || 0),
+      })),
+      month_comparison: {
+        current_total: currentMonthTotal,
+        current_jobs: Number(currentMonth.jobs || 0),
+        previous_total: previousMonthTotal,
+        previous_jobs: Number(previousMonth.jobs || 0),
+        change_pct: monthOverMonthChangePct,
+      },
+      nearby_demand: demandRows.map((row) => ({
+        id_service: row.id_service,
+        service_name: row.service_name,
+        request_count: Number(row.request_count || 0),
+        avg_budget: Number(row.avg_budget || 0),
+      })),
+    });
+  } catch (error: any) {
+    console.error('Error in getWorkerAnalytics:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
 export const downloadWorkerRewardsStatementPdf = async (
   req: AuthRequest,
   res: Response

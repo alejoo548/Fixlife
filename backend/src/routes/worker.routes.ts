@@ -8,6 +8,7 @@ import {
   deletePortfolioImage,
   downloadWorkerRewardsStatementPdf,
   getWorkerMe,
+  getWorkerAnalytics,
   getWorkerAppointments,
   getWorkerAvailability,
   getWorkerRewardsDashboard,
@@ -45,6 +46,7 @@ router.get('/me', getWorkerMe);
 router.get('/availability', getWorkerAvailability);
 router.put('/availability', sensitiveLimiter, validate(WorkerSchema.availability), updateWorkerAvailability);
 router.get('/rewards-dashboard', requireVerifiedWorker, getWorkerRewardsDashboard);
+router.get('/analytics', requireVerifiedWorker, getWorkerAnalytics);
 router.get('/rewards-dashboard/statement.pdf', requireVerifiedWorker, downloadWorkerRewardsStatementPdf);
 router.get('/requests', requireVerifiedWorker, getWorkerRequests);
 router.get('/workspace', requireVerifiedWorker, getWorkerWorkspace);

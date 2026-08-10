@@ -1535,6 +1535,25 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
         min: Number(selectedService?.min_budget ?? 1),
         max: Number(selectedService?.max_budget ?? MAX_REQUEST_BUDGET),
     }), [selectedService]);
+
+    const [priceSuggestion, setPriceSuggestion] = useState<{ min: number; max: number; avg: number; sample_size: number } | null>(null);
+
+    useEffect(() => {
+        const idService = selectedService?.id_service;
+        if (!idService) {
+            setPriceSuggestion(null);
+            return;
+        }
+        let cancelled = false;
+        setPriceSuggestion(null);
+        fetch(API_ENDPOINTS.services.priceSuggestion(idService))
+            .then((res) => res.json())
+            .then((payload) => {
+                if (!cancelled && payload?.success) setPriceSuggestion(payload.suggestion || null);
+            })
+            .catch(() => { /* estimate is a nice-to-have, ignore failures */ });
+        return () => { cancelled = true; };
+    }, [selectedService?.id_service]);
     const hasConfirmedLocation = areValidCoordinates(currentCoords) && isSpecificLocationLabel(data.location);
     const hasValidBudget =
         Number.isFinite(Number(data.price)) &&
@@ -2602,6 +2621,23 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                                             max: selectedBudgetLimits.max.toFixed(2),
                                                         })}
                                                     </p>
+                                                    {priceSuggestion && (
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => setData({ ...data, price: sanitizeBudgetInput(priceSuggestion.avg.toFixed(2)) })}
+                                                            className="mt-2 flex w-full items-center justify-between rounded-xl border border-emerald-200 dark:border-emerald-900/40 bg-emerald-50 dark:bg-emerald-950/30 px-3 py-2 text-left transition hover:border-emerald-300"
+                                                        >
+                                                            <span className="text-xs font-bold text-emerald-800 dark:text-emerald-300">
+                                                                {t('serviceRequest.wizard.review.priceSuggestion', {
+                                                                    min: priceSuggestion.min.toFixed(0),
+                                                                    max: priceSuggestion.max.toFixed(0),
+                                                                })}
+                                                            </span>
+                                                            <span className="shrink-0 text-[10px] font-black uppercase tracking-[0.1em] text-emerald-600 dark:text-emerald-400">
+                                                                {t('serviceRequest.wizard.review.useSuggested', { amount: priceSuggestion.avg.toFixed(0) })}
+                                                            </span>
+                                                        </button>
+                                                    )}
                                                     {!hasValidBudget && (
                                                         <p className="mt-2 text-xs font-black text-amber-700 dark:text-amber-400">
                                                             {t('serviceRequest.wizard.submit.budgetInvalidRange', {

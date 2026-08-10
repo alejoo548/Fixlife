@@ -3,6 +3,7 @@ import { motion } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
 import { BadgeDollarSign, CalendarClock, TrendingUp } from 'lucide-react';
 import { useWorkerRewardsDashboard } from '../../hooks/useWorkerRewardsDashboard';
+import { WorkerAnalyticsSection } from './WorkerAnalyticsSection';
 import {formatDate,formatMoney,getBonusProgramLabel,getCalendarBatchSummary,getNextPayoutLabel,} from './workerRewardsUi';
 
 const ProgressBar: React.FC<{ value: number; tone?: 'blue' | 'amber' | 'emerald' }> = ({
@@ -181,6 +182,8 @@ export const EarningsView: React.FC = () => {
           </div>
         </div>
       </motion.div>
+
+      <WorkerAnalyticsSection />
 
       <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
         {overviewCards.map((card, index) => (

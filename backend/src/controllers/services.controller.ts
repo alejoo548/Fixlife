@@ -784,6 +784,55 @@ export const getActiveServices = async (_req: Request, res: Response): Promise<v
   }
 };
 
+// Rough "what do people usually pay for this" range, computed from recent
+// real requests for the same service — helps a client pick a budget that
+// won't sit unanswered (too low) or overpay (too high). Returns null when
+// there isn't enough history yet, rather than guessing from too few samples.
+export const getServicePriceSuggestion = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const idService = Number(req.params.idService);
+    if (!Number.isFinite(idService) || idService <= 0) {
+      res.status(400).json({ error: 'Invalid service id.' });
+      return;
+    }
+
+    const [rows] = await pool.execute<RowDataPacket[]>(
+      `SELECT
+         COUNT(*) AS sample_size,
+         MIN(COALESCE(final_budget, budget)) AS min_price,
+         MAX(COALESCE(final_budget, budget)) AS max_price,
+         AVG(COALESCE(final_budget, budget)) AS avg_price
+       FROM service_requests
+       WHERE id_service = ?
+         AND status <> 'cancelled'
+         AND COALESCE(final_budget, budget) > 0
+         AND created_at >= DATE_SUB(NOW(), INTERVAL 120 DAY)`,
+      [idService]
+    );
+
+    const row = rows[0];
+    const sampleSize = Number(row?.sample_size || 0);
+
+    if (sampleSize < 3) {
+      res.json({ success: true, suggestion: null });
+      return;
+    }
+
+    res.json({
+      success: true,
+      suggestion: {
+        min: Number(row.min_price),
+        max: Number(row.max_price),
+        avg: Number(Number(row.avg_price).toFixed(2)),
+        sample_size: sampleSize,
+      },
+    });
+  } catch (error: any) {
+    console.error('Error in getServicePriceSuggestion:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
 export const getPublicServiceCards = async (req: Request, res: Response): Promise<void> => {
   try {
     await ensureServiceCardsTable();

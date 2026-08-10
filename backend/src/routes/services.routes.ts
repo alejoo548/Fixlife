@@ -28,6 +28,7 @@ import {
   getRequestAssignedWorkerProfile,
   postRequestChatMessage,
   getPublicServiceCards,
+  getServicePriceSuggestion,
   handleVirtualWalletWebhook,
   suggestLocations,
   submitRequestRating,
@@ -47,6 +48,7 @@ const router = Router();
 
 router.get('/', getActiveServices);
 router.get('/cards', getPublicServiceCards);
+router.get('/price-suggestion/:idService', lookupLimiter, getServicePriceSuggestion);
 router.get('/geocode', lookupLimiter, geocodeLocation);
 router.get('/geocode/suggest', lookupLimiter, suggestLocations);
 router.get('/geocode/reverse', lookupLimiter, reverseGeocode);

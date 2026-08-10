@@ -62,6 +62,7 @@ export const API_ENDPOINTS = {
   services: {
     getActive: `${API_URL}/api/services`,
     cards: `${API_URL}/api/services/cards`,
+    priceSuggestion: (idService: number) => `${API_URL}/api/services/price-suggestion/${idService}`,
     faqItems: `${API_URL}/api/admin/faq-items/public`,
     geocode: `${API_URL}/api/services/geocode`,
     geocodeSuggest: `${API_URL}/api/services/geocode/suggest`,
@@ -149,6 +150,7 @@ export const API_ENDPOINTS = {
     me: `${API_URL}/api/worker/me`,
     availability: `${API_URL}/api/worker/availability`,
     rewardsDashboard: `${API_URL}/api/worker/rewards-dashboard`,
+    analytics: `${API_URL}/api/worker/analytics`,
     rewardsStatementPdf: `${API_URL}/api/worker/rewards-dashboard/statement.pdf`,
     requests: `${API_URL}/api/worker/requests`,
     workspace: `${API_URL}/api/worker/workspace`,
