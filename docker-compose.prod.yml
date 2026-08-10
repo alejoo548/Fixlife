@@ -7,6 +7,13 @@ services:
     cpus: 0.5
     labels:
       - "autoheal=true"
+      - "traefik.enable=true"
+      - "traefik.docker.network=fixlife_fixlife-network"
+      - "traefik.http.routers.fixlife-frontend.rule=Host(`fixlife.site`) || Host(`www.fixlife.site`)"
+      - "traefik.http.routers.fixlife-frontend.entrypoints=websecure"
+      - "traefik.http.routers.fixlife-frontend.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.fixlife-frontend.priority=1"
+      - "traefik.http.services.fixlife-frontend.loadbalancer.server.port=80"
     healthcheck:
       test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:80"]
       timeout: 10s
@@ -19,27 +26,6 @@ services:
     networks:
       - fixlife-network
 
-  caddy:
-    image: caddy:2-alpine
-    container_name: fixlife_caddy_prod
-    restart: unless-stopped
-    mem_limit: 128m
-    cpus: 0.5
-    ports:
-      - "80:80"
-      - "443:443"
-    volumes:
-      - ./docker/Caddyfile:/etc/caddy/Caddyfile:ro
-      - caddy_data_prod:/data
-      - caddy_config_prod:/config
-    depends_on:
-      backend:
-        condition: service_healthy
-      frontend:
-        condition: service_started
-    networks:
-      - fixlife-network
-
   backend:
     image: ghcr.io/alejoo548/fixlife-backend:${FIXLIFE_IMAGE_TAG:-latest}
     container_name: fixlife_backend_prod
@@ -48,6 +34,13 @@ services:
     cpus: 1.5
     labels:
       - "autoheal=true"
+      - "traefik.enable=true"
+      - "traefik.docker.network=fixlife_fixlife-network"
+      - "traefik.http.routers.fixlife-backend.rule=(Host(`fixlife.site`) || Host(`www.fixlife.site`)) && (PathPrefix(`/api`) || PathPrefix(`/uploads`) || PathPrefix(`/socket.io`))"
+      - "traefik.http.routers.fixlife-backend.entrypoints=websecure"
+      - "traefik.http.routers.fixlife-backend.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.fixlife-backend.priority=10"
+      - "traefik.http.services.fixlife-backend.loadbalancer.server.port=8000"
     healthcheck:
       test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:8000/api/health').then((res) => process.exit(res.ok ? 0 : 1)).catch(() => process.exit(1))"]
       timeout: 10s
@@ -192,5 +185,3 @@ networks:
 volumes:
   mysql_data_prod:
   mysql_backups_prod:
-  caddy_data_prod:
-  caddy_config_prod:
