@@ -939,8 +939,8 @@ export const getWorkerAnalytics = async (req: AuthRequest, res: Response): Promi
          WHERE sr.created_at >= DATE_SUB(NOW(), INTERVAL 60 DAY)
            AND sr.latitude IS NOT NULL
            AND sr.longitude IS NOT NULL
-         HAVING distance_km <= ?
          GROUP BY s.id_service, s.name
+         HAVING distance_km <= ?
          ORDER BY request_count DESC
          LIMIT 5`,
         [lat, lng, lat, radiusKm]
