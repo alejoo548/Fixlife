@@ -41,8 +41,11 @@ export const WorkerAnalyticsSection: React.FC = () => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const token = getToken();
-    if (!token) return;
+    const token = getToken('worker');
+    if (!token) {
+      setLoading(false);
+      return;
+    }
     let cancelled = false;
 
     (async () => {

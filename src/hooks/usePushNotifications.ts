@@ -44,7 +44,7 @@ export function usePushNotifications() {
       await navigator.serviceWorker.ready;
 
       const keyRes = await fetch(API_ENDPOINTS.notifications.pushPublicKey, {
-        headers: { Authorization: `Bearer ${getToken()}` },
+        headers: { Authorization: `Bearer ${getToken('worker')}` },
       });
       const keyPayload = await keyRes.json();
       if (!keyRes.ok || !keyPayload?.public_key) return false;
@@ -60,7 +60,7 @@ export function usePushNotifications() {
       const json = subscription.toJSON();
       await fetch(API_ENDPOINTS.notifications.pushSubscribe, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken()}` },
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken('worker')}` },
         body: JSON.stringify({ endpoint: json.endpoint, keys: json.keys }),
       });
 
@@ -82,7 +82,7 @@ export function usePushNotifications() {
     await subscription.unsubscribe();
     await fetch(API_ENDPOINTS.notifications.pushUnsubscribe, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken()}` },
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken('worker')}` },
       body: JSON.stringify({ endpoint }),
     });
   }, [supported]);
