@@ -13,6 +13,7 @@ import { LanguageSwitcher } from '../common/LanguageSwitcher';
 import { useDashboardTheme } from '../../hooks/useDashboardTheme';
 import { showSweetAlert } from '../../utils/sweetAlert';
 import { normalizeImageUrl } from '../../utils/imageUrls';
+import { localizeClientServiceName } from '../../utils/clientTranslations';
 
 const RequestsView = lazy(() =>
    import('../dashboard/RequestsView').then((module) => ({
@@ -100,7 +101,7 @@ const DashboardPanelFallback: React.FC<{ label?: string }> = ({ label }) => {
 };
 
 export const ProDashboard: React.FC<ProDashboardProps> = ({ isOpen, onClose, onSignOut }) => {
-   const { t } = useTranslation();
+   const { t, i18n } = useTranslation();
    const location = useLocation();
    const { theme, isDark, toggleTheme } = useDashboardTheme('worker');
    const [isOnline, setIsOnline] = useState<boolean | null>(null);
@@ -550,7 +551,7 @@ export const ProDashboard: React.FC<ProDashboardProps> = ({ isOpen, onClose, onS
                            <span className={`max-w-[180px] truncate text-xs font-black ${
                               isDark ? 'text-white' : 'text-slate-900'
                            }`}>
-                              {currentService.name}
+                              {localizeClientServiceName(currentService.name, i18n.language)}
                            </span>
                            {serviceCount > 1 && (
                               <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-black ${

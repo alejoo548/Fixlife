@@ -5,6 +5,7 @@ import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YA
 import { ArrowDownRight, ArrowUpRight, Sparkles } from 'lucide-react';
 import { API_ENDPOINTS } from '../../config/api';
 import { getToken } from '../../utils/session';
+import { localizeClientServiceName } from '../../utils/clientTranslations';
 
 interface WeeklyEarning {
   week_start: string;
@@ -176,7 +177,7 @@ export const WorkerAnalyticsSection: React.FC = () => {
             {demand.map((item) => (
               <div key={item.id_service}>
                 <div className="flex items-center justify-between text-sm">
-                  <span className="font-bold text-slate-800 dark:text-slate-200">{item.service_name}</span>
+                  <span className="font-bold text-slate-800 dark:text-slate-200">{localizeClientServiceName(item.service_name, i18n.language)}</span>
                   <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">
                     {t('workerDashboard.analytics.requestCount', { count: item.request_count })} · {formatMoney(item.avg_budget)} {t('workerDashboard.analytics.avgShort')}
                   </span>

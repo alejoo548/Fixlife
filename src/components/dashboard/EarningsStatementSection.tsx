@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { localizeClientServiceName } from '../../utils/clientTranslations';
 import i18n from '../../i18n';
 import { createPortal } from 'react-dom';
 import { AnimatePresence, motion } from 'framer-motion';
@@ -77,7 +78,7 @@ interface EarningsStatementSectionProps {
 }
 
 export const EarningsStatementSection: React.FC<EarningsStatementSectionProps> = ({ history }) => {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const [periodFilter, setPeriodFilter] = useState<StatementPeriod>('all');
   const [statusFilter, setStatusFilter] = useState<StatementStatus>('all');
   const [fromDate, setFromDate] = useState('');
@@ -517,7 +518,7 @@ export const EarningsStatementSection: React.FC<EarningsStatementSectionProps> =
                           <td className="px-4 py-4 text-sm font-semibold text-slate-600 dark:text-slate-300">{formatDate(item.completed_at)}</td>
                           <td className="px-4 py-4 text-sm font-black text-slate-900 dark:text-white">#{item.id_request}</td>
                           <td className="px-4 py-4 text-sm font-semibold text-slate-700 dark:text-slate-300">{item.client_name || t('workerDashboard.earningsStatement.clientFallback')}</td>
-                          <td className="px-4 py-4 text-sm font-black text-slate-900 dark:text-white">{item.service_name}</td>
+                          <td className="px-4 py-4 text-sm font-black text-slate-900 dark:text-white">{localizeClientServiceName(item.service_name, i18n.language)}</td>
                           <td className="px-4 py-4 text-sm font-black text-slate-900 dark:text-white">{formatMoney(item.worker_payout)}</td>
                           <td className="px-4 py-4 text-sm font-black text-amber-700 dark:text-amber-400">{formatMoney(item.commission_bonus)}</td>
                           <td className="px-4 py-4 text-sm font-black text-emerald-700 dark:text-emerald-400">{formatMoney(item.royalty_bonus)}</td>
@@ -544,7 +545,7 @@ export const EarningsStatementSection: React.FC<EarningsStatementSectionProps> =
                   <div key={item.id_request} className="rounded-3xl border border-slate-200 bg-slate-50 p-4 dark:border-white/10 dark:bg-slate-800/60">
                     <div className="flex flex-wrap items-center justify-between gap-2">
                       <div>
-                        <p className="text-lg font-black text-slate-900 dark:text-white">{item.service_name}</p>
+                        <p className="text-lg font-black text-slate-900 dark:text-white">{localizeClientServiceName(item.service_name, i18n.language)}</p>
                         <p className="mt-1 text-sm font-semibold text-slate-500 dark:text-slate-400">#{item.id_request} / {item.client_name || t('workerDashboard.earningsStatement.clientFallback')}</p>
                       </div>
                       <span className={`rounded-full px-3 py-1 text-[11px] font-black uppercase tracking-[0.14em] ${getStatementStatusChip(rowStatus)}`}>

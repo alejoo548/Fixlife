@@ -4,7 +4,7 @@ import { Link } from 'react-router-dom';
 import type { AdminUserDetail } from '../types';
 import { AdminCard, DetailDrawer, DocumentPreviewModal, FormSection, Skeleton, StatusBadge } from './AdminUI';
 import { normalizeImageUrl } from '../../../utils/imageUrls';
-import { adminActionLabel, adminStatusLabel, useAdminT } from '../adminI18n';
+import { adminActionLabel, adminServiceName, adminStatusLabel, useAdminT } from '../adminI18n';
 
 export function UserDetailDrawer({ detail, loading, open, onClose }: { detail: AdminUserDetail | null; loading: boolean; open: boolean; onClose: () => void }) {
   const { t, lang } = useAdminT();
@@ -50,7 +50,7 @@ export function UserDetailDrawer({ detail, loading, open, onClose }: { detail: A
             <div className="admin-detail-list admin-field--wide">
               {detail.requests.length === 0 ? <p className="admin-muted">{t('userDetail.noRequests')}</p> : detail.requests.map((request) => (
                 <Link key={request.id_request} to={`../requests?request=${request.id_request}`}>
-                  <div><strong>#{request.id_request} · {request.service_name}</strong><span>{request.location_text}</span></div>
+                  <div><strong>#{request.id_request} · {adminServiceName(request.service_name, lang)}</strong><span>{request.location_text}</span></div>
                   <div><StatusBadge status={request.status} /><small>{money(request.payment_amount || request.budget)}</small></div>
                 </Link>
               ))}

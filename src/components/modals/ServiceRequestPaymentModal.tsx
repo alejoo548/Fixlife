@@ -2,6 +2,7 @@ import React from 'react';
 import { motion } from 'framer-motion';
 import { AlertCircle, Banknote, CreditCard, ShieldCheck, Wallet } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
+import { localizeClientServiceName } from '../../utils/clientTranslations';
 import PasswordInput from '../common/PasswordInput';
 
 type PaymentMethod = 'card' | 'paypal' | 'cash';
@@ -73,7 +74,7 @@ export function ServiceRequestPaymentModal({
     onPaymentFormChange,
     onConfirmPayment,
 }: ServiceRequestPaymentModalProps) {
-    const { t } = useTranslation();
+    const { t, i18n } = useTranslation();
     const amount = Number(
         paymentModalRequest.final_budget ?? paymentModalRequest.proposed_budget ?? paymentModalRequest.budget ?? 0
     ).toFixed(2);
@@ -152,7 +153,7 @@ export function ServiceRequestPaymentModal({
 
                         <div className="relative mt-10 rounded-3xl border border-white/10 bg-white/[0.06] p-5 backdrop-blur-sm">
                             <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-300">{t('serviceRequest.paymentModal.currentRequest')}</p>
-                            <p className="mt-2 text-2xl font-black">{paymentModalRequest.service_name}</p>
+                            <p className="mt-2 text-2xl font-black">{localizeClientServiceName(paymentModalRequest.service_name, i18n.language)}</p>
                             <p className="mt-2 line-clamp-3 text-sm text-slate-300">{paymentModalRequest.description}</p>
                             <div className="mt-5 grid grid-cols-2 gap-3">
                                 <div className="rounded-2xl border border-white/10 bg-white/[0.06] px-4 py-3">

@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
+import { localizeClientServiceName } from '../utils/clientTranslations';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { showSweetToast } from '../utils/sweetAlert';
 import { API_ENDPOINTS, VIRTUAL_WALLET_CONFIG } from '../config/api';
@@ -223,7 +224,7 @@ const renderStageIcon = (stage: CheckoutStage) => {
 };
 
 const PaymentCheckoutPage: React.FC<PaymentCheckoutPageProps> = ({ requestId, onBack }) => {
-    const { t } = useTranslation();
+    const { t, i18n } = useTranslation();
     const navigate = useNavigate();
     const location = useLocation();
     const [loading, setLoading] = useState(true);
@@ -858,7 +859,7 @@ const PaymentCheckoutPage: React.FC<PaymentCheckoutPageProps> = ({ requestId, on
                 <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">{t('paymentCheckout.recap.title')}</p>
                 <div className="mt-4 grid gap-4 sm:grid-cols-2">
                     <div>
-                        <p className="text-sm font-black text-slate-900 dark:text-slate-100">{request?.service_name}</p>
+                        <p className="text-sm font-black text-slate-900 dark:text-slate-100">{localizeClientServiceName(request?.service_name, i18n.language)}</p>
                         <p className="mt-1 text-xs font-black uppercase tracking-[0.16em] text-blue-600">{bookingLabel}</p>
                         {scheduledWindow && <p className="mt-1 text-sm font-semibold text-slate-600">{scheduledWindow}</p>}
                         <p className="mt-1 text-sm text-slate-500">{locationMeta.primary}</p>
@@ -982,7 +983,7 @@ const PaymentCheckoutPage: React.FC<PaymentCheckoutPageProps> = ({ requestId, on
                         <div className="p-8 pb-6 border-b border-slate-100 dark:border-white/10">
                             <p className="text-[11px] font-black uppercase tracking-[0.24em] text-slate-400 text-center">{t('paymentCheckout.header.securePayment')}</p>
                             <h1 className="mt-4 text-3xl font-black text-slate-900 text-center dark:text-slate-100">{t('paymentCheckout.header.title')}</h1>
-                            <p className="mt-2 text-sm text-slate-500 text-center">{request.service_name}</p>
+                            <p className="mt-2 text-sm text-slate-500 text-center">{localizeClientServiceName(request.service_name, i18n.language)}</p>
                             <div className="mt-3 flex flex-col items-center gap-1">
                                 <span className="rounded-full border border-blue-100 bg-blue-50 px-3 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-blue-700">
                                     {bookingLabel}

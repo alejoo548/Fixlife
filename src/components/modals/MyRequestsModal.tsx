@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, MapPin, Calendar, User, CheckCircle2, ShieldAlert } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
+import { localizeClientServiceName } from '../../utils/clientTranslations';
 
 import { useServiceRequestHistory } from './hooks/useServiceRequestHistory';
 import { useActiveTrackedRequest } from './hooks/useActiveTrackedRequest';
@@ -18,7 +19,7 @@ interface MyRequestsModalProps {
 }
 
 export const MyRequestsModal: React.FC<MyRequestsModalProps> = ({ isOpen, onClose }) => {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const token = getToken();
   const {
     myRequests,
@@ -194,7 +195,7 @@ export const MyRequestsModal: React.FC<MyRequestsModalProps> = ({ isOpen, onClos
                     <button onClick={() => handleSelectRequest(req.id_request)} className="w-full text-left">
                       <div className="flex items-start justify-between gap-3">
                         <div className="min-w-0 flex-1">
-                          <div className="font-black text-slate-950 dark:text-slate-100 truncate">{req.service_name}</div>
+                          <div className="font-black text-slate-950 dark:text-slate-100 truncate">{localizeClientServiceName(req.service_name, i18n.language)}</div>
                           <div className="mt-0.5 flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400">
                             <MapPin size={12} /> <span className="truncate">{req.location_text || t('serviceRequest.history.locationOnFile')}</span>
                           </div>
@@ -251,7 +252,7 @@ export const MyRequestsModal: React.FC<MyRequestsModalProps> = ({ isOpen, onClos
                 <div className="mb-3 flex items-center justify-between">
                   <div>
                     <div className="text-sm font-bold text-slate-500 dark:text-slate-400">{t('serviceRequest.history.liveTracking')}</div>
-                    <div className="font-black text-xl text-slate-950 dark:text-slate-100">{trackableRequest.service_name}</div>
+                    <div className="font-black text-xl text-slate-950 dark:text-slate-100">{localizeClientServiceName(trackableRequest.service_name, i18n.language)}</div>
                   </div>
                   <div className={`rounded-full px-3 py-1 text-xs font-black uppercase tracking-wider ${statusBadgeClasses(trackableRequest.status)}`}>
                     {statusLabel(trackableRequest.status)}

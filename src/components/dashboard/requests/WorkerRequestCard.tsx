@@ -1,5 +1,6 @@
 import React from 'react';
 import { useTranslation } from 'react-i18next';
+import { localizeClientServiceName } from '../../../utils/clientTranslations';
 import {
   ArrowRight,
   CalendarClock,
@@ -40,7 +41,7 @@ export const WorkerRequestCard: React.FC<WorkerRequestCardProps> = ({
   onCounter,
   onOpenRoute,
 }) => {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const scheduled = isScheduledRequest(request);
   const scheduledWindow = formatScheduledWindow(request);
   const isFastMatch = String(request.selection_mode || '').toLowerCase() === 'auto_assign';
@@ -70,7 +71,7 @@ export const WorkerRequestCard: React.FC<WorkerRequestCardProps> = ({
             {getServiceIconLabel(request.service_icon, request.service_name)}
           </div>
           <div className="min-w-0">
-            <h3 className="truncate text-base font-black text-slate-950 dark:text-slate-100">{request.service_name}</h3>
+            <h3 className="truncate text-base font-black text-slate-950 dark:text-slate-100">{localizeClientServiceName(request.service_name, i18n.language)}</h3>
             <p className="mt-0.5 text-[11px] font-bold text-slate-400 dark:text-slate-400">{t('workerDashboard.requestCard.requestHash', { id: request.id_request })}</p>
           </div>
         </div>

@@ -1,5 +1,6 @@
 ﻿import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { localizeClientServiceName } from '../../utils/clientTranslations';
 import { API_ENDPOINTS } from '../../config/api';
 import { useSSE } from '../../hooks/useSSE';
 import { getAuthUser, getToken } from '../../utils/session';
@@ -62,7 +63,7 @@ const statusClass = (status: string) => {
 };
 
 export const AppointmentsView: React.FC = () => {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -167,7 +168,7 @@ export const AppointmentsView: React.FC = () => {
                       {appointment.service_icon || appointment.service_name.charAt(0)}
                     </span>
                     <div>
-                      <h3 className="text-lg font-black text-slate-900 dark:text-slate-100">{appointment.service_name}</h3>
+                      <h3 className="text-lg font-black text-slate-900 dark:text-slate-100">{localizeClientServiceName(appointment.service_name, i18n.language)}</h3>
                       <p className="text-xs font-bold text-slate-500">{t('workerDashboard.appointments.requestHash', { id: appointment.id_request })}</p>
                     </div>
                   </div>

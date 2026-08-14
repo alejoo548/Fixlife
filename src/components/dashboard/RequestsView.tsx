@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { localizeClientServiceName } from '../../utils/clientTranslations';
 import { AnimatePresence, motion } from 'framer-motion';
 import { BriefcaseBusiness, MapPinned, Navigation, RefreshCw, WifiOff, X } from 'lucide-react';
 import { API_ENDPOINTS } from '../../config/api';
@@ -90,7 +91,7 @@ export const RequestsView: React.FC<RequestsViewProps> = ({
   isDark = false,
   onOpenHistory,
 }) => {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const [statusFilter, setStatusFilter] = useState<RequestTab>('new');
   const [requests, setRequests] = useState<WorkerRequest[]>([]);
   const [selectedRequestId, setSelectedRequestId] = useState<number | null>(null);
@@ -816,7 +817,7 @@ export const RequestsView: React.FC<RequestsViewProps> = ({
                     {t('workerDashboard.requests.currentAssignedJob')}
                   </p>
                   <h3 className="mt-1 truncate text-base font-black text-slate-950">
-                    {currentAssignedRequest.service_name} #{currentAssignedRequest.id_request}
+                    {localizeClientServiceName(currentAssignedRequest.service_name, i18n.language)} #{currentAssignedRequest.id_request}
                   </h3>
                   <p className="mt-1 text-xs font-semibold leading-5 text-slate-600">
                     {isScheduledRequest(currentAssignedRequest)

@@ -1,5 +1,6 @@
 import React from 'react';
 import { useTranslation } from 'react-i18next';
+import { localizeClientServiceName } from '../../utils/clientTranslations';
 
 interface ActiveTrackedRequestSummary {
     id_request: number;
@@ -32,7 +33,7 @@ export function ServiceRequestHistorySection({
     onHistoryStatusChange,
     children,
 }: ServiceRequestHistorySectionProps) {
-    const { t } = useTranslation();
+    const { t, i18n } = useTranslation();
     return (
         <div className="mt-5 rounded-2xl border border-gray-200 bg-white p-4 dark:bg-slate-900 dark:border-white/10">
             <div className="flex items-center justify-between gap-2 mb-3">
@@ -59,7 +60,7 @@ export function ServiceRequestHistorySection({
                     <div className="flex items-start justify-between gap-3">
                         <div className="min-w-0">
                             <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">{t('serviceRequest.history.liveServiceActive')}</p>
-                            <p className="mt-1 text-base font-black text-slate-900 truncate dark:text-slate-100">{activeTrackedRequest.service_name}</p>
+                            <p className="mt-1 text-base font-black text-slate-900 truncate dark:text-slate-100">{localizeClientServiceName(activeTrackedRequest.service_name, i18n.language)}</p>
                             <p className="text-xs font-medium text-slate-500 line-clamp-1">{activeTrackedRequest.location_text}</p>
                         </div>
                         <span className={`shrink-0 rounded-full border px-3 py-1 text-[10px] font-black uppercase tracking-[0.16em] ${statusBadgeClass}`}>

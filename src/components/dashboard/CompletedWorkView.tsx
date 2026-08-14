@@ -1,5 +1,6 @@
 import React from 'react';
 import { useTranslation } from 'react-i18next';
+import { localizeClientServiceName } from '../../utils/clientTranslations';
 import { motion } from 'framer-motion';
 import { useWorkerRewardsDashboard } from '../../hooks/useWorkerRewardsDashboard';
 import {
@@ -18,7 +19,7 @@ const CompletedWorkSkeleton: React.FC = () => (
 );
 
 export const CompletedWorkView: React.FC = () => {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const { data, loading, error } = useWorkerRewardsDashboard();
 
   if (loading && !data) return <CompletedWorkSkeleton />;
@@ -69,7 +70,7 @@ export const CompletedWorkView: React.FC = () => {
                   <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
                     <div className="min-w-0 xl:max-w-[44%]">
                       <div className="flex flex-wrap items-center gap-2">
-                        <p className="truncate text-lg font-black text-slate-900 dark:text-white">{item.service_name}</p>
+                        <p className="truncate text-lg font-black text-slate-900 dark:text-white">{localizeClientServiceName(item.service_name, i18n.language)}</p>
                         <span
                           className={`rounded-full px-3 py-1 text-[11px] font-black uppercase tracking-[0.16em] ${getPayoutStatusBadge(item.worker_payout_status)}`}
                         >

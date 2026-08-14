@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import type { WorkerRequest } from './workerRequestTypes';
 import { normalizeImageUrl } from '../../../utils/imageUrls';
+import { localizeClientServiceName } from '../../../utils/clientTranslations';
 import {
   formatEta,
   formatScheduledWindow,
@@ -86,7 +87,7 @@ export const WorkerCurrentJobPanel = ({
   onFinalize,
   onConfirmCash,
 }: WorkerCurrentJobPanelProps) => {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const overlay = layout === 'overlay';
   const [tab, setTab] = useState<PanelTab>('info');
 
@@ -114,7 +115,7 @@ export const WorkerCurrentJobPanel = ({
               </div>
               <div className="min-w-0">
                 <div className="flex items-center gap-2">
-                  <h3 className="truncate text-base font-black text-slate-950 dark:text-slate-100">{request.service_name}</h3>
+                  <h3 className="truncate text-base font-black text-slate-950 dark:text-slate-100">{localizeClientServiceName(request.service_name, i18n.language)}</h3>
                   <span className="shrink-0 text-[10px] font-black text-slate-400 dark:text-slate-400">#{request.id_request}</span>
                 </div>
                 <div className="mt-0.5 flex items-center gap-2">

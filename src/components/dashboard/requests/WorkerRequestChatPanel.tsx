@@ -1,6 +1,7 @@
 ﻿import React, { useEffect, useMemo, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { AnimatePresence, motion } from 'framer-motion';
+import { localizeClientServiceName } from '../../../utils/clientTranslations';
 import {
   CheckCheck,
   ImagePlus,
@@ -155,7 +156,7 @@ export const WorkerRequestChatPanel: React.FC<WorkerRequestChatPanelProps> = ({
                     )}
                     {connected ? t('workerDashboard.chatPanel.liveChat') : t('workerDashboard.chatPanel.reconnecting')}
                     <span className="text-slate-300">•</span>
-                    <span className="truncate">{request.service_name} #{request.id_request}</span>
+                    <span className="truncate">{localizeClientServiceName(request.service_name, i18n.language)} #{request.id_request}</span>
                   </p>
                 </div>
 

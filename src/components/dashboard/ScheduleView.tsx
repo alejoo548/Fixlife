@@ -12,6 +12,7 @@ import {
   Wifi,
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
+import { localizeClientServiceName } from '../../utils/clientTranslations';
 import { useWorkerWorkspace, WorkerAgendaJob } from '../../hooks/useWorkerWorkspace';
 import { getToken } from '../../utils/session';
 import i18n from '../../i18n';
@@ -50,7 +51,7 @@ const statusLabel = (status: string) => {
 };
 
 export const ScheduleView: React.FC = () => {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const token = getToken('worker');
   const [mode, setMode] = useState<ViewMode>('week');
   const [displayMode, setDisplayMode] = useState<DisplayMode>('overview');
@@ -417,7 +418,7 @@ const SchedulePlanner = ({
 
                   {firstJob ? (
                     <div className="mt-4 overflow-hidden rounded-xl bg-slate-100 p-3 dark:bg-slate-950/70">
-                      <p className="truncate text-xs font-black text-slate-950 dark:text-white">{firstJob.service_name}</p>
+                      <p className="truncate text-xs font-black text-slate-950 dark:text-white">{localizeClientServiceName(firstJob.service_name, i18n.language)}</p>
                       <p className="mt-1 flex items-center gap-1.5 text-[11px] font-bold text-slate-500 dark:text-slate-400">
                         <Clock3 className="h-3.5 w-3.5" />
                         {new Date(firstJob.scheduled_start_time || 0).toLocaleTimeString(dateLocale(), {
@@ -769,7 +770,7 @@ const MonthCalendarView = ({
                       conflict ? 'border-amber-400/40 bg-amber-400/10' : 'border-sky-400/30 bg-sky-500/15'
                     }`}
                   >
-                    <p className="truncate text-xs font-black text-slate-950 dark:text-white">{firstJob.service_name}</p>
+                    <p className="truncate text-xs font-black text-slate-950 dark:text-white">{localizeClientServiceName(firstJob.service_name, i18n.language)}</p>
                     <p className="mt-1 flex items-center gap-1.5 text-[10px] font-bold text-slate-500 dark:text-slate-400">
                       <Clock3 className="h-3.5 w-3.5 shrink-0" />
                       {formatJobTimeRange(firstJob)}
@@ -852,7 +853,7 @@ const FullCalendarJob = ({
       >
         <div className="flex min-w-0 items-start justify-between gap-2">
           <div className="min-w-0">
-            <p className="truncate text-xs font-black">{job.service_name}</p>
+            <p className="truncate text-xs font-black">{localizeClientServiceName(job.service_name, i18n.language)}</p>
             <p className={`mt-1 flex items-center gap-1.5 text-[10px] font-bold ${selected ? 'text-white/80' : 'text-slate-600 dark:text-slate-400'}`}>
               <Clock3 className="h-3.5 w-3.5 shrink-0" />
               {formatJobTimeRange(job)}
@@ -967,7 +968,7 @@ const SelectedDayAgenda = ({
 
               <div className="min-w-0">
                 <div className="flex min-w-0 flex-wrap items-center gap-2">
-                  <p className="min-w-0 max-w-full truncate text-base font-black text-slate-950 dark:text-white">{job.service_name}</p>
+                  <p className="min-w-0 max-w-full truncate text-base font-black text-slate-950 dark:text-white">{localizeClientServiceName(job.service_name, i18n.language)}</p>
                   <span className="rounded-full bg-slate-100 px-2 py-1 text-[10px] font-black uppercase text-slate-600 dark:bg-white/10 dark:text-slate-300">
                     {statusLabel(job.status)}
                   </span>
@@ -1017,7 +1018,7 @@ const VisitDetailsCard = ({
     ) : (
       <div className="mt-4">
         <h4 className="break-words text-xl font-black text-slate-950 [overflow-wrap:anywhere] dark:text-white">
-          {selectedJob.service_name}
+          {localizeClientServiceName(selectedJob.service_name, i18n.language)}
         </h4>
         <div className="mt-4 space-y-4 text-sm font-semibold text-slate-600 dark:text-slate-300">
           <p className="flex gap-3">

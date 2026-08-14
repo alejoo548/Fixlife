@@ -1,6 +1,7 @@
 import React, { Suspense, lazy, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
+import { localizeClientServiceName } from '../../utils/clientTranslations';
 import i18n from '../../i18n';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useSSE } from '../../hooks/useSSE';
@@ -374,7 +375,7 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
     const [ratingModalRequest, setRatingModalRequest] = useState<MyServiceRequest | null>(null);
     const [fixesSuccessRequest, setFixesSuccessRequest] = useState<MyServiceRequest | null>(null);
     const [reportRequest, setReportRequest] = useState<MyServiceRequest | null>(null);
-    const { t } = useTranslation();
+    const { t, i18n } = useTranslation();
     const isDesktopSheet = useResponsiveSheet();
     const lastToastRef = useRef<{ type: 'success' | 'error' | 'info'; message: string; at: number } | null>(null);
     const previousRequestStatusesRef = useRef<Record<number, string>>({});
@@ -2788,7 +2789,7 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                                 <div>
                                                     <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-900 dark:text-slate-100">{t('serviceRequest.rating.completedService')}</p>
                                                     <p className="mt-1 text-lg font-black text-slate-900 dark:text-slate-100">
-                                                        {ratingModalRequest.service_name}
+                                                        {localizeClientServiceName(ratingModalRequest.service_name, i18n.language)}
                                                     </p>
                                                     <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
                                                         {ratingModalRequest.assigned_worker?.name || t('serviceRequest.rating.yourProFallback')}
@@ -3711,7 +3712,7 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                         {pendingRequestAction.type === 'cancel' ? 'Cancel request' : 'Confirm completion'}
                                     </p>
                                     <h3 className="mt-2 text-xl font-black text-slate-900 dark:text-slate-100">
-                                        #{pendingRequestAction.request.id_request} - {pendingRequestAction.request.service_name}
+                                        #{pendingRequestAction.request.id_request} - {localizeClientServiceName(pendingRequestAction.request.service_name, i18n.language)}
                                     </h3>
                                 </div>
 
@@ -3983,7 +3984,7 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                                                     <span className="w-1 h-1 rounded-full bg-slate-300 dark:bg-white/[0.10]"></span>
                                                                     <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400">{new Date(request.created_at).toLocaleDateString()}</span>
                                                                 </div>
-                                                                <h3 className="text-lg font-black text-slate-900 dark:text-slate-100 truncate leading-tight">{request.service_name}</h3>
+                                                                <h3 className="text-lg font-black text-slate-900 dark:text-slate-100 truncate leading-tight">{localizeClientServiceName(request.service_name, i18n.language)}</h3>
                                                                 <div className="mt-2 flex flex-wrap items-center gap-1.5">
                                                                     <span className={`rounded-full px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.14em] ${
                                                                         isScheduled

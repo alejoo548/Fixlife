@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
+import { localizeClientServiceName } from '../../utils/clientTranslations';
 import { showSweetToast } from '../../utils/sweetAlert';
 import i18n from '../../i18n';
 import { addResilientTileLayer, loadLeaflet } from '../../utils/leafletLoader';
@@ -204,7 +205,7 @@ const createTrackerIcon = (L: any, kind: 'worker' | 'client') =>
     });
 
 const ClientLiveRequestTracker: React.FC<ClientLiveRequestTrackerProps> = ({ leafletReady, request, onClose }) => {
-    const { t } = useTranslation();
+    const { t, i18n } = useTranslation();
     const mapContainerRef = useRef<HTMLDivElement | null>(null);
     const mapInstanceRef = useRef<any>(null);
     const routeGlowRef = useRef<any>(null);
@@ -939,7 +940,7 @@ const ClientLiveRequestTracker: React.FC<ClientLiveRequestTrackerProps> = ({ lea
                             </div>
                             <div className="min-w-0">
                                 <h3 className="truncate text-lg sm:text-xl font-black text-slate-950 dark:text-slate-100 tracking-tight">{workerName}</h3>
-                                <p className="truncate text-sm font-bold text-slate-500 dark:text-slate-400 mt-0.5">{request.service_name}</p>
+                                <p className="truncate text-sm font-bold text-slate-500 dark:text-slate-400 mt-0.5">{localizeClientServiceName(request.service_name, i18n.language)}</p>
                                 {isScheduledRequest(request) && scheduledWindow && (
                                     <p className="mt-1 truncate text-xs font-black text-bird-blue">{scheduledWindow}</p>
                                 )}
