@@ -38,20 +38,6 @@ const emptyForm: ServiceForm = {
   min_budget: '25',
   max_budget: '500',
 };
-const SERVICE_ICON_OPTIONS = [
-  { value: '🧰', label: 'General repair' },
-  { value: '🔧', label: 'Tools' },
-  { value: '🧹', label: 'Cleaning' },
-  { value: '🌿', label: 'Garden' },
-  { value: '⚡', label: 'Electrical' },
-  { value: '🚰', label: 'Plumbing' },
-  { value: '🎨', label: 'Painting' },
-  { value: '🧱', label: 'Construction' },
-  { value: '🔥', label: 'Gas' },
-  { value: '❄️', label: 'AC / cooling' },
-  { value: '🔐', label: 'Security' },
-  { value: '🤝', label: 'Assistance' },
-] as const;
 const SERVICE_ICON_OPTIONS_CLEAN = [
   { value: '🧰', labelKey: 'services.iconOptions.generalRepair' },
   { value: '🔧', labelKey: 'services.iconOptions.tools' },

@@ -3,14 +3,14 @@ import { Link } from 'react-router-dom';
 import type { AdminUserDetail } from '../types';
 import { AdminCard, DetailDrawer, FormSection, Skeleton, StatusBadge } from './AdminUI';
 import { normalizeImageUrl } from '../../../utils/imageUrls';
-import { useAdminT } from '../adminI18n';
+import { adminActionLabel, adminStatusLabel, useAdminT } from '../adminI18n';
 
 export function UserDetailDrawer({ detail, loading, open, onClose }: { detail: AdminUserDetail | null; loading: boolean; open: boolean; onClose: () => void }) {
   const { t, lang } = useAdminT();
   const locale = lang === 'es' ? 'es-ES' : 'en-US';
   const money = (value: number) => value.toLocaleString(locale, { style: 'currency', currency: 'USD' });
   return (
-    <DetailDrawer open={open} title={detail?.name || t('userDetail.accountDetail')} subtitle={detail ? `${detail.role} · ${t('userDetail.userNumber', { id: detail.id_user })}` : t('userDetail.loadingAccount')} onClose={onClose}>
+    <DetailDrawer open={open} title={detail?.name || t('userDetail.accountDetail')} subtitle={detail ? `${adminStatusLabel(detail.role, lang)} · ${t('userDetail.userNumber', { id: detail.id_user })}` : t('userDetail.loadingAccount')} onClose={onClose}>
       {loading || !detail ? <Skeleton rows={7} /> : (
         <div className="admin-detail-stack">
           <div className="admin-profile-hero">
@@ -57,7 +57,7 @@ export function UserDetailDrawer({ detail, loading, open, onClose }: { detail: A
 
           <FormSection title={t('userDetail.adminHistory', { count: detail.admin_activity.length })}>
             <div className="admin-event-list admin-field--wide">
-              {detail.admin_activity.length === 0 ? <p className="admin-muted">{t('userDetail.noAdminChanges')}</p> : detail.admin_activity.map((item) => <div key={item.id_activity}><StatusBadge status={item.action} /><div><strong>{item.summary}</strong><p>{item.entity}</p></div><time>{new Date(item.created_at).toLocaleString(locale)}</time></div>)}
+              {detail.admin_activity.length === 0 ? <p className="admin-muted">{t('userDetail.noAdminChanges')}</p> : detail.admin_activity.map((item) => <div key={item.id_activity}><span className="admin-badge admin-badge--info">{adminActionLabel(item.action, lang)}</span><div><strong>{item.summary}</strong><p>{item.entity}</p></div><time>{new Date(item.created_at).toLocaleString(locale)}</time></div>)}
             </div>
           </FormSection>
         </div>

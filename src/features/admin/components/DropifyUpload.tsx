@@ -24,7 +24,7 @@ export function DropifyUpload({
   multiple = false,
   maxFiles = 10,
   onError,
-  label = 'Subir imagen',
+  label,
   maxSizeMB = 10,
   allowedTypes = ['image/png', 'image/jpeg', 'image/jpg', 'image/webp'],
 }: DropifyUploadProps) {

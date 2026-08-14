@@ -575,7 +575,7 @@ export const ProDashboard: React.FC<ProDashboardProps> = ({ isOpen, onClose, onS
                      labelClassName="hidden 2xl:block"
                      shortLabelClassName="hidden"
                   />
-                  <NotificationCenter token={token} isActive={isOnline === true} variant="panel" />
+                  <NotificationCenter token={token} isActive={isOnline === true} variant="panel" theme={theme} />
                   <motion.div
                      ref={presenceMenuRef}
                      initial={{ scale: 0, opacity: 0 }}

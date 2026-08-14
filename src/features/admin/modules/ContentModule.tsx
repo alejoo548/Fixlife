@@ -46,7 +46,7 @@ const emptyForm = {
   badge: '',
   headline: '',
   summary: '',
-  cta_label: 'Learn more',
+  cta_label: '',
   sort_order: '1',
   is_active: true,
 };
@@ -161,7 +161,7 @@ export default function ContentModule() {
       badge: card.badge || '',
       headline: card.headline || '',
       summary: card.summary || '',
-      cta_label: card.cta_label || 'Learn more',
+      cta_label: card.cta_label || t('content.cards.defaultCtaLabel'),
       sort_order: String(card.sort_order),
       is_active: Boolean(card.is_active),
     });
@@ -187,7 +187,7 @@ export default function ContentModule() {
         badge: form.badge.trim(),
         headline: form.headline.trim(),
         summary: form.summary.trim(),
-        cta_label: form.cta_label.trim(),
+        cta_label: form.cta_label.trim() || t('content.cards.defaultCtaLabel'),
         sort_order: Number(form.sort_order),
         is_active: form.is_active,
       };

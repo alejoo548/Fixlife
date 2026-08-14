@@ -632,6 +632,7 @@ const dict = {
         image: 'Homepage card image',
         badge: 'Badge',
         ctaLabel: 'CTA label',
+        defaultCtaLabel: 'Learn more',
         displayOrder: 'Display order',
         visibleHomepage: 'Visible on homepage',
         serviceRequired: 'Service is required.',
@@ -1282,6 +1283,7 @@ const dict = {
         image: 'Imagen de la tarjeta de inicio',
         badge: 'Etiqueta',
         ctaLabel: 'Texto CTA',
+        defaultCtaLabel: 'Conocer mas',
         displayOrder: 'Orden de visualizacion',
         visibleHomepage: 'Visible en inicio',
         serviceRequired: 'El servicio es obligatorio.',
@@ -1332,6 +1334,20 @@ export const adminStatusLabel = (status: string, lang: Lang) => {
   const value = String(status || '').toLowerCase();
   const labels = dict[lang].common as Record<string, string>;
   if (value === 'done') return labels.completed;
+  if (value === 'new') return lang === 'es' ? 'Nuevo' : 'New';
+  if (value === 'accepted') return lang === 'es' ? 'Aceptado' : 'Accepted';
+  if (value === 'declined') return lang === 'es' ? 'Rechazado' : 'Declined';
+  if (value === 'expired') return lang === 'es' ? 'Expirado' : 'Expired';
+  if (value === 'not_eligible') return lang === 'es' ? 'No elegible' : 'Not eligible';
+  if (value === 'complete') return labels.completed;
+  if (value === 'client') return lang === 'es' ? 'Cliente' : 'Client';
+  if (value === 'worker') return lang === 'es' ? 'Profesional' : 'Worker';
+  if (value === 'assigned') return lang === 'es' ? 'Asignado' : 'Assigned';
+  if (value === 'route_in_progress') return lang === 'es' ? 'En camino' : 'On the way';
+  if (value === 'arrived') return lang === 'es' ? 'Ha llegado' : 'Arrived';
+  if (value === 'start_pending') return lang === 'es' ? 'Por iniciar' : 'Start pending';
+  if (value === 'finish_pending') return lang === 'es' ? 'Por finalizar' : 'Finish pending';
+  if (value === 'completion_pending') return lang === 'es' ? 'Confirmacion pendiente' : 'Completion pending';
   if (value === 'payment_pending') return lang === 'es' ? 'Pago pendiente' : 'Payment pending';
   if (value === 'in_progress') return lang === 'es' ? 'En progreso' : 'In progress';
   if (value === 'awaiting_confirmation') return lang === 'es' ? 'Esperando confirmacion' : 'Awaiting confirmation';

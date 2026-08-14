@@ -2282,7 +2282,7 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                 hasActiveTrackedRequest={!!activeTrackedRequest}
                 onClose={onClose}
                 onBack={step === 1 ? () => setStep(0) : onClose}
-                notificationCenter={<NotificationCenter token={getToken()} variant="panel" />}
+                notificationCenter={<NotificationCenter token={getToken()} variant="panel" theme={isDarkMode ? 'dark' : 'light'} />}
             >
                 <AnimatePresence mode="wait">
                         {step === 0 && (
