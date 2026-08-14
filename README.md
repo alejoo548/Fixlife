@@ -1,3 +1,9 @@
+## Manual de instalacion
+
+Para instalar y correr el proyecto en una computadora nueva (Windows o Linux), ver [INSTALACION.md](INSTALACION.md).
+
+---
+
 # 🏠 Fixlife — Plataforma de servicios del hogar
 
 <img width="1024" height="1024" alt="Fixilogo" src="https://github.com/user-attachments/assets/4196b4fb-bc62-4ca1-ac24-3c69a22dce42" />
@@ -8,7 +14,7 @@ Fixlife conecta clientes con profesionales (pros) para resolver servicios del ho
 
 ## 🚀 Stack actual
 
-- Frontend: React 18 + Vite + TypeScript + Tailwind + Framer Motion
+- Frontend: React 19 + Vite + TypeScript + Tailwind + Framer Motion
 - Backend: Node.js + Express + TypeScript
 - DB: MySQL 8 + phpMyAdmin
 - Seguridad: JWT, Helmet, rate limiting, validación Zod
@@ -94,14 +100,15 @@ Fixlife/
 │   ├── config/api.ts
 │   ├── components/modals/ServiceRequestWizard.tsx
 │   ├── components/modals/ClientLiveRequestTracker.tsx
-│   ├── components/modals/AdminDashboard.tsx
 │   ├── components/modals/ProDashboard.tsx
+│   ├── features/admin/ (dashboard admin: modules, layout, i18n propio)
 │   └── pages/PaymentCheckoutPage.tsx
 ├── docker/
 │   ├── fixlife_db.sql
-│   └── mysql-init.sql
+│   └── mysql-init.sh
 ├── docker-compose.yml
 ├── .env.example
+├── INSTALACION.md
 └── FIXLIFE_ZOD.md
 ```
 
