@@ -767,16 +767,6 @@ const App: React.FC = () => {
             {/* Centered Hero Content */}
             <div className="relative z-20 w-full max-w-[1400px] mx-auto px-4 lg:px-8 flex flex-col items-center">
               <div className="max-w-4xl text-center flex flex-col items-center w-full">
-                <motion.div
-                  initial={{ opacity: 0, y: -20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.5 }}
-                  className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-white/10 border border-white/20 text-xs font-semibold text-white mb-8 backdrop-blur-md"
-                >
-                  <span className="px-2 py-0.5 rounded-full bg-white text-[10px] font-black text-slate-900 uppercase tracking-wider">{t('landing.newBadge')}</span>
-                  <span className="font-semibold tracking-tight">{t('landing.assistBadge')}</span>
-                </motion.div>
-
                 <motion.h1
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
