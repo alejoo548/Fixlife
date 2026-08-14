@@ -5,6 +5,7 @@ import { AdminCard, AdminNumberInput, DataTable, EmptyState, FormSection, Skelet
 import { showSweetAlert, showSweetConfirm, showSweetToast } from '../../../utils/sweetAlert';
 import { getAuthUser } from '../../../utils/session';
 import { adminErrorMessage, adminServiceDescription, adminServiceName, useAdminT } from '../adminI18n';
+import { normalizeImageUrl } from '../../../utils/imageUrls';
 
 type Service = {
   id_service: number;
@@ -66,7 +67,7 @@ const isImageIcon = (value: string) => /^https?:\/\//i.test(value) || value.star
 const ServiceIconPreview = ({ value }: { value?: string | null }) => {
   const icon = String(value || '').trim();
   if (!icon) return <ImageIcon size={18} />;
-  if (isImageIcon(icon)) return <img src={icon} alt="" className="h-6 w-6 rounded-md object-cover" />;
+  if (isImageIcon(icon)) return <img src={normalizeImageUrl(icon)} alt="" className="h-6 w-6 rounded-md object-cover" />;
   return <span className="text-xl leading-none">{icon}</span>;
 };
 

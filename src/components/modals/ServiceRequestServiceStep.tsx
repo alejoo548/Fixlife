@@ -2,6 +2,7 @@ import React from 'react';
 import { motion } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
 import { localizeClientServiceDescription, localizeClientServiceName } from '../../utils/clientTranslations';
+import { normalizeImageUrl } from '../../utils/imageUrls';
 
 interface ServiceOptionCard {
     id_service: number;
@@ -61,7 +62,7 @@ export function ServiceRequestServiceStep({
                             <div className="w-12 h-12 rounded-xl bg-gray-50 dark:bg-slate-700 flex items-center justify-center shrink-0 border border-gray-100 dark:border-white/10">
                                 {cat.icon ? (
                                     /^(https?:|data:image\/|\/)/i.test(cat.icon) ? (
-                                        <img src={cat.icon} alt={localizedName} className="w-6 h-6 object-contain" />
+                                        <img src={normalizeImageUrl(cat.icon)} alt={localizedName} className="w-6 h-6 object-contain" />
                                     ) : (
                                         <span className="text-2xl leading-none">
                                             {cat.icon.length <= 3 ? cat.icon : '🧰'}

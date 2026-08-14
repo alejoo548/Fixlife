@@ -11,6 +11,7 @@ import {
   X,
 } from 'lucide-react';
 import type { WorkerRequest } from './workerRequestTypes';
+import { normalizeImageUrl } from '../../../utils/imageUrls';
 import {
   formatEta,
   formatScheduledWindow,
@@ -267,13 +268,13 @@ const InfoTab = ({
           {request.images.slice(0, 3).map((image, index) => (
             <a
               key={`${image.file_name}-${index}`}
-              href={image.url}
+              href={normalizeImageUrl(image.url)}
               target="_blank"
               rel="noreferrer"
               className="aspect-square overflow-hidden rounded-xl border border-slate-200 dark:border-white/10 bg-slate-100 dark:bg-slate-800"
             >
               <img
-                src={image.url}
+                src={normalizeImageUrl(image.url)}
                 alt={t('workerDashboard.currentJobPanel.problemAttachment', { index: index + 1 })}
                 className="h-full w-full object-cover"
               />

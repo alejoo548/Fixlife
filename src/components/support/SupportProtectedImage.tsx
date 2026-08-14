@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { API_URL } from '../../config/api';
 import { getToken } from '../../utils/session';
+import { normalizeImageUrl } from '../../utils/imageUrls';
 
 interface SupportProtectedImageProps {
   imageUrl: string;
@@ -10,8 +11,11 @@ interface SupportProtectedImageProps {
 
 const resolveProtectedImageUrl = (value: string) => {
   const raw = value.trim();
-  if (/^https?:\/\//i.test(raw) || raw.startsWith('blob:') || raw.startsWith('data:')) {
+  if (raw.startsWith('blob:') || raw.startsWith('data:')) {
     return raw;
+  }
+  if (/^https?:\/\//i.test(raw)) {
+    return normalizeImageUrl(raw);
   }
 
   const cleanName = raw.replace(/^\/+/, '').replace(/^api\/uploads\/protected\//, '');

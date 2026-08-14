@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { RefreshCw, Moon, Sun, HelpCircle, User } from 'lucide-react';
-import { API_ENDPOINTS, API_URL } from '../../config/api';
+import { API_ENDPOINTS } from '../../config/api';
 import { NavbarProps, AuthMode } from '../../types';
 import { Logo } from '../common/Logo';
 import { useAuth } from '../../context/AuthContext';
@@ -228,25 +228,7 @@ export const Navbar: React.FC<NavbarProps> = ({
     .join('')
     .slice(0, 2);
 
-  const profileImageUrl = useMemo(() => {
-    const raw = user?.profile_image;
-    if (!raw) return '';
-
-    const rawString = String(raw);
-
-    if (rawString.startsWith('http://') || rawString.startsWith('https://')) {
-      return rawString;
-    }
-
-    const apiPublicUrl = API_URL.replace(/\/api\/?$/, '');
-    const cleanPath = rawString.replace(/^\/+/, '');
-
-    if (cleanPath.startsWith('uploads/')) {
-      return `${apiPublicUrl}/${cleanPath}`;
-    }
-
-    return `${apiPublicUrl}/uploads/${cleanPath}`;
-  }, [user?.profile_image]);
+  const profileImageUrl = useMemo(() => normalizeImageUrl(user?.profile_image), [user?.profile_image]);
 
   const translateNavLabel = (value: string) => {
     const labels: Record<string, string> = {

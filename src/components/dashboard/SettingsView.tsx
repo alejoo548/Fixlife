@@ -124,7 +124,7 @@ export const SettingsView: React.FC = () => {
       setCurrentEmail(user.email || '');
       setPhoneNumber(formatPhoneInput(user.phone_number || ''));
       setBio(workerProfile.bio || '');
-      setProfileImage(user.profile_image_url || toPublicUrl(user.profile_image));
+      setProfileImage(toPublicUrl(user.profile_image_url) || toPublicUrl(user.profile_image));
       setProfileImgBroken(false);
       setProfileImagePreview(null);
       setPortfolio(
@@ -192,7 +192,7 @@ export const SettingsView: React.FC = () => {
       const data = await res.json();
       if (!res.ok) throw new Error(data?.error || t('workerDashboard.settings.profileImageUploadFailed'));
 
-      const nextProfileImage = data.profile_image_url || toPublicUrl(data.profile_image);
+      const nextProfileImage = toPublicUrl(data.profile_image_url) || toPublicUrl(data.profile_image);
       setProfileImage(nextProfileImage);
       setProfileImagePreview(null);
       setProfileImageFile(null);

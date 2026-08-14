@@ -2,8 +2,8 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { showSweetToast } from '../utils/sweetAlert';
 import { useAuth } from '../context/AuthContext';
-import { API_URL } from '../config/api';
 import { removeProfileImage, updateProfile, uploadProfileImage } from '../services/authService';
+import { normalizeImageUrl } from '../utils/imageUrls';
 
 interface UserProfileProps {
   onBack: () => void;
@@ -90,20 +90,7 @@ const UserProfile: React.FC<UserProfileProps> = ({ onBack }) => {
     .join('')
     .slice(0, 2);
 
-  const profileImageUrl = useMemo(() => {
-    const raw = user?.profile_image;
-    if (!raw) return '';
-    const rawString = String(raw);
-    if (rawString.startsWith('http://') || rawString.startsWith('https://')) {
-      return rawString;
-    }
-    const apiPublicUrl = API_URL.replace(/\/api\/?$/, '');
-    const cleanPath = rawString.replace(/^\/+/, '');
-    if (cleanPath.startsWith('uploads/')) {
-      return `${apiPublicUrl}/${cleanPath}`;
-    }
-    return `${apiPublicUrl}/uploads/${cleanPath}`;
-  }, [user?.profile_image]);
+  const profileImageUrl = useMemo(() => normalizeImageUrl(user?.profile_image), [user?.profile_image]);
 
   const nextUsernameChangeDate = getNextUsernameChangeDate(user?.username_changed_at);
   const isUsernameLocked = Boolean(nextUsernameChangeDate);
