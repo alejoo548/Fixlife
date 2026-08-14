@@ -79,6 +79,8 @@ services:
       - FRONTEND_URL=${FRONTEND_URL}
       - PUBLIC_APP_URL=${PUBLIC_APP_URL}
       - ALLOWED_ORIGINS=${ALLOWED_ORIGINS:-}
+    volumes:
+      - backend_uploads_prod:/app/uploads
     depends_on:
       mysql:
         condition: service_healthy
@@ -188,3 +190,4 @@ networks:
 volumes:
   mysql_data_prod:
   mysql_backups_prod:
+  backend_uploads_prod:
