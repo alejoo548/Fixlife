@@ -2310,7 +2310,8 @@ html {
   gap: 12px;
   margin-top: 14px;
 }
-.admin-document-links a {
+.admin-document-links a,
+.admin-document-links button {
   flex: 1;
   display: inline-flex;
   align-items: center;
@@ -2324,9 +2325,11 @@ html {
   font-size: 12px;
   font-weight: 700;
   text-decoration: none;
+  cursor: pointer;
   transition: all 0.2s ease;
 }
-.admin-document-links a:hover {
+.admin-document-links a:hover,
+.admin-document-links button:hover {
   background: var(--admin-primary-soft);
   color: var(--admin-primary);
   border-color: var(--admin-primary);
@@ -2851,6 +2854,58 @@ html {
   justify-content: flex-end;
   gap: 8px;
   margin-top: 18px;
+}
+.admin-document-preview {
+  width: min(860px, 100%);
+  max-height: calc(100vh - 40px);
+  display: flex;
+  flex-direction: column;
+  background: var(--admin-surface);
+  border: 1px solid var(--admin-border);
+  border-radius: var(--admin-radius-lg);
+  box-shadow: var(--admin-shadow-lg);
+  animation: adminSlideUp 0.25s ease-out;
+  overflow: hidden;
+}
+.admin-document-preview__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--admin-border);
+}
+.admin-document-preview__header h2 {
+  font-weight: 800;
+  font-size: 16px;
+}
+.admin-document-preview__actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.admin-document-preview__body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--admin-surface-muted);
+  overflow: auto;
+  padding: 16px;
+}
+.admin-document-preview__body img {
+  max-width: 100%;
+  max-height: calc(100vh - 140px);
+  object-fit: contain;
+  border-radius: 8px;
+}
+.admin-document-preview__body iframe {
+  width: 100%;
+  height: calc(100vh - 140px);
+  border: 0;
+  border-radius: 8px;
+  background: #fff;
 }
 
 /* ── JSON viewer ── */

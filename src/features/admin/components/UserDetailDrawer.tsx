@@ -1,12 +1,14 @@
-﻿import { Activity, BadgeDollarSign, BriefcaseBusiness, CheckCircle2, FileText, Mail, Phone, Star, UserRound } from 'lucide-react';
+﻿import { useState } from 'react';
+import { Activity, BadgeDollarSign, BriefcaseBusiness, CheckCircle2, FileText, Mail, Phone, Star, UserRound } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import type { AdminUserDetail } from '../types';
-import { AdminCard, DetailDrawer, FormSection, Skeleton, StatusBadge } from './AdminUI';
+import { AdminCard, DetailDrawer, DocumentPreviewModal, FormSection, Skeleton, StatusBadge } from './AdminUI';
 import { normalizeImageUrl } from '../../../utils/imageUrls';
 import { adminActionLabel, adminStatusLabel, useAdminT } from '../adminI18n';
 
 export function UserDetailDrawer({ detail, loading, open, onClose }: { detail: AdminUserDetail | null; loading: boolean; open: boolean; onClose: () => void }) {
   const { t, lang } = useAdminT();
+  const [preview, setPreview] = useState<{ url: string; title: string } | null>(null);
   const locale = lang === 'es' ? 'es-ES' : 'en-US';
   const money = (value: number) => value.toLocaleString(locale, { style: 'currency', currency: 'USD' });
   return (
@@ -38,8 +40,8 @@ export function UserDetailDrawer({ detail, loading, open, onClose }: { detail: A
               <div className="admin-kv"><span>{t('pros.rating')}</span><strong className="admin-rating-inline"><Star size={14} />{detail.professional.rating.average?.toFixed(1) || t('userDetail.noRating')} ({detail.professional.rating.count})</strong></div>
               <div className="admin-kv"><span>{t('nav.services')}</span><strong>{detail.professional.services.map((service) => service.name).join(', ') || t('common.none')}</strong></div>
               <div className="admin-document-links admin-field--wide">
-        {detail.professional.dui_document_url && <a href={detail.professional.dui_document_url} target="_blank" rel="noreferrer"><FileText size={15} /> {t('pros.viewIdentity')}</a>}
-        {detail.professional.cert_document_url && <a href={detail.professional.cert_document_url} target="_blank" rel="noreferrer"><BriefcaseBusiness size={15} /> {t('pros.viewCertificate')}</a>}
+        {detail.professional.dui_document_url && <button type="button" onClick={() => setPreview({ url: detail.professional!.dui_document_url!, title: t('pros.viewIdentity') })}><FileText size={15} /> {t('pros.viewIdentity')}</button>}
+        {detail.professional.cert_document_url && <button type="button" onClick={() => setPreview({ url: detail.professional!.cert_document_url!, title: t('pros.viewCertificate') })}><BriefcaseBusiness size={15} /> {t('pros.viewCertificate')}</button>}
               </div>
             </FormSection>
           )}
@@ -62,6 +64,7 @@ export function UserDetailDrawer({ detail, loading, open, onClose }: { detail: A
           </FormSection>
         </div>
       )}
+      <DocumentPreviewModal url={preview?.url ?? null} title={preview?.title ?? ''} onClose={() => setPreview(null)} />
     </DetailDrawer>
   );
 }

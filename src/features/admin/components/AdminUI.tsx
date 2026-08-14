@@ -1,6 +1,7 @@
 import React, { ReactNode, useEffect, useMemo, useRef, useState } from 'react';
-import { AlertTriangle, CalendarDays, ChevronLeft, ChevronRight, X } from 'lucide-react';
+import { AlertTriangle, CalendarDays, ChevronLeft, ChevronRight, ExternalLink, X } from 'lucide-react';
 import { adminStatusLabel, useAdminT } from '../adminI18n';
+import { normalizeImageUrl } from '../../../utils/imageUrls';
 
 export const AdminCard = ({ children, className = '', as: Tag = 'section' }: { children: ReactNode; className?: string; as?: React.ElementType }) => (
   <Tag className={`admin-card ${className}`}>{children}</Tag>
@@ -263,6 +264,40 @@ export const ConfirmActionDialog = ({ open, title, description, confirmLabel, re
       <div className="admin-dialog__actions"><button className="admin-button admin-button--secondary" onClick={onCancel}>{t('common.cancel')}</button><button className="admin-button admin-button--danger" disabled={busy || reason.trim().length < 8} onClick={onConfirm}>{busy ? t('common.processing') : confirmLabel}</button></div>
     </div></div>
   ) : null;
+};
+
+export const DocumentPreviewModal = ({ url, title, onClose }: { url: string | null; title: string; onClose: () => void }) => {
+  const { t } = useAdminT();
+  useEffect(() => {
+    if (!url) return;
+    const close = (event: KeyboardEvent) => event.key === 'Escape' && onClose();
+    window.addEventListener('keydown', close);
+    return () => window.removeEventListener('keydown', close);
+  }, [url, onClose]);
+  if (!url) return null;
+  const resolved = normalizeImageUrl(url);
+  const isPdf = /\.pdf(\?|$)/i.test(resolved);
+  return (
+    <div className="admin-dialog-layer admin-document-preview-layer" role="dialog" aria-modal="true" aria-label={title}>
+      <button className="admin-drawer-backdrop" onClick={onClose} aria-label={t('common.close')} />
+      <div className="admin-document-preview">
+        <header className="admin-document-preview__header">
+          <h2>{title}</h2>
+          <div className="admin-document-preview__actions">
+            <a href={resolved} target="_blank" rel="noreferrer" className="admin-icon-button" aria-label={t('pros.openInNewTab')}><ExternalLink size={18} /></a>
+            <button className="admin-icon-button" onClick={onClose} aria-label={t('common.close')}><X size={20} /></button>
+          </div>
+        </header>
+        <div className="admin-document-preview__body">
+          {isPdf ? (
+            <iframe src={resolved} title={title} />
+          ) : (
+            <img src={resolved} alt={title} />
+          )}
+        </div>
+      </div>
+    </div>
+  );
 };
 
 export function DataTable<T>({ columns, rows, rowKey, onRowClick, pagination, onPageChange }: { columns: Array<{ key: string; label: string; render: (row: T) => ReactNode; className?: string }>; rows: T[]; rowKey: (row: T) => React.Key; onRowClick?: (row: T) => void; pagination?: { page: number; pages: number; total: number }; onPageChange?: (page: number) => void }) {

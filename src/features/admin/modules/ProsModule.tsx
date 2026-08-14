@@ -5,6 +5,7 @@ import {
   AdminCard,
   ConfirmActionDialog,
   DataTable,
+  DocumentPreviewModal,
   EmptyState,
   FilterBar,
   Skeleton,
@@ -52,6 +53,7 @@ export default function ProsModule() {
   const [saving, setSaving] = useState(false);
   const [detail, setDetail] = useState<AdminUserDetail | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
+  const [preview, setPreview] = useState<{ url: string; title: string } | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -123,8 +125,8 @@ export default function ProsModule() {
                   </span>
                   <small>{professional.phone_number || t('common.noPhone')}{professional.bio ? ` · ${professional.bio}` : ''}</small>
                   <div className="admin-document-links">
-                    {professional.dui_document_url && <a href={professional.dui_document_url} target="_blank" rel="noreferrer">{t('pros.viewIdentity')}</a>}
-                    {professional.cert_document_url && <a href={professional.cert_document_url} target="_blank" rel="noreferrer">{t('pros.viewCertificate')}</a>}
+                    {professional.dui_document_url && <button type="button" onClick={() => setPreview({ url: professional.dui_document_url!, title: t('pros.viewIdentity') })}>{t('pros.viewIdentity')}</button>}
+                    {professional.cert_document_url && <button type="button" onClick={() => setPreview({ url: professional.cert_document_url!, title: t('pros.viewCertificate') })}>{t('pros.viewCertificate')}</button>}
                   </div>
                 </div>
                 <div className="admin-action-row">
@@ -186,6 +188,7 @@ export default function ProsModule() {
         busy={saving}
       />
       <UserDetailDrawer detail={detail} loading={detailLoading} open={detailLoading || !!detail} onClose={() => setDetail(null)} />
+      <DocumentPreviewModal url={preview?.url ?? null} title={preview?.title ?? ''} onClose={() => setPreview(null)} />
     </div>
   );
 }
