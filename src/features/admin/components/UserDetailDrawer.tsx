@@ -19,7 +19,7 @@ export function UserDetailDrawer({ detail, loading, open, onClose }: { detail: A
           </div>
 
           <div className="admin-detail-grid">
-            <AdminCard><Mail /><span>Email</span><strong>{detail.email}</strong><small>{t('userDetail.primaryEmail')}</small></AdminCard>
+            <AdminCard><Mail /><span>{t('common.email')}</span><strong>{detail.email}</strong><small>{t('userDetail.primaryEmail')}</small></AdminCard>
             <AdminCard><Phone /><span>{t('userDetail.phone')}</span><strong>{detail.phone_number || t('userDetail.notProvided')}</strong><small>{t('userDetail.username')}: {detail.username || t('userDetail.notConfigured')}</small></AdminCard>
             <AdminCard><UserRound /><span>{t('common.joined')}</span><strong>{new Date(detail.created_at).toLocaleDateString(locale)}</strong><small>{t('common.lastLogin')}: {detail.last_login ? new Date(detail.last_login).toLocaleString(locale) : t('common.never')}</small></AdminCard>
             <AdminCard><BadgeDollarSign /><span>{t('services.paidVolume')}</span><strong>{money(detail.summary.paid_volume)}</strong><small>{t('userDetail.visibleRequests')}</small></AdminCard>

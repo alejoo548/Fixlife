@@ -49,6 +49,8 @@ const dict = {
       reasonPlaceholder: 'Explain why this action is necessary...',
       profile: 'User profile',
       system: 'System',
+      admin: 'Admin',
+      root: 'Root',
       rootAdmin: 'Root administrator',
       signOut: 'Sign out',
       discard: 'Discard',
@@ -697,6 +699,8 @@ const dict = {
       reasonPlaceholder: 'Explica por que esta accion es necesaria...',
       profile: 'Perfil de usuario',
       system: 'Sistema',
+      admin: 'Administrador',
+      root: 'Root',
       rootAdmin: 'Administrador root',
       signOut: 'Cerrar sesion',
       discard: 'Descartar',
@@ -1341,6 +1345,7 @@ export const adminStatusLabel = (status: string, lang: Lang) => {
   if (value === 'standard') return lang === 'es' ? 'Estandar' : 'Standard';
   if (value === 'verified') return lang === 'es' ? 'Verificado' : 'Verified';
   if (value === 'trusted') return lang === 'es' ? 'Confiable' : 'Trusted';
+  if (value === 'premium') return lang === 'es' ? 'Premium' : 'Premium';
   if (value === 'elite') return lang === 'es' ? 'Elite' : 'Elite';
   if (labels[value]) return labels[value];
   return value.replace(/_/g, ' ').replace(/\b\w/g, (char) => char.toUpperCase());

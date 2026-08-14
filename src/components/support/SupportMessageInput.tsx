@@ -64,7 +64,7 @@ export const SupportMessageInput: React.FC<SupportMessageInputProps> = ({
   };
 
   return (
-    <div className="border-t border-white/50 bg-white/70 p-3 backdrop-blur">
+    <div className="border-t border-white/50 bg-white/70 p-3 backdrop-blur dark:border-white/10 dark:bg-slate-900/70">
       {image && (
         <div className="mb-2 flex items-center justify-between rounded-2xl border border-gray-200/70 bg-white px-3 py-2 text-xs text-gray-600 dark:bg-slate-900 dark:text-slate-400 dark:border-white/10">
           <span className="truncate pr-3">{image.name}</span>
@@ -104,7 +104,7 @@ export const SupportMessageInput: React.FC<SupportMessageInputProps> = ({
           onKeyDown={handleKeyDown}
           placeholder={t('serviceRequest.supportWidget.typeMessage')}
           maxLength={2000}
-          className="flex-1 bg-transparent text-[15px] placeholder:text-gray-400 focus:outline-none"
+          className="flex-1 bg-transparent text-[15px] text-gray-900 placeholder:text-gray-400 focus:outline-none dark:text-slate-100 dark:placeholder:text-slate-500"
           disabled={disabled}
         />
 

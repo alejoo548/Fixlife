@@ -55,11 +55,11 @@ export default function AdminsModule() {
   const RoleBadge = ({ rol }: { rol: string }) =>
     rol === 'root' ? (
       <span className="admin-pill" style={{ background: 'rgba(245,158,11,0.14)', color: '#b45309', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-        <Crown size={13} /> Root
+        <Crown size={13} /> {t('common.root')}
       </span>
     ) : (
       <span className="admin-pill" style={{ background: 'rgba(0,144,255,0.12)', color: '#0070e0', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-        <ShieldCheck size={13} /> Admin
+        <ShieldCheck size={13} /> {t('common.admin')}
       </span>
     );
 

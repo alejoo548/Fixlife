@@ -121,7 +121,7 @@ export const AdminShell = ({ onClose }: { onClose: () => void }) => {
             {profileOpen && (
               <div className="admin-profile-dropdown">
                 <div className="admin-profile-dropdown-header">
-                  <strong>{user?.name || t('common.system')} {(user?.lastname as string | undefined) || 'Admin'}</strong>
+                  <strong>{user?.name || t('common.system')} {(user?.lastname as string | undefined) || t('common.admin')}</strong>
                   <span>{user?.rol === 'root' ? t('common.rootAdmin') : t('nav.admins')}</span>
                 </div>
                 <NavLink to="/admin-dashboard/settings" className="admin-profile-dropdown-item" onClick={() => setProfileOpen(false)}>

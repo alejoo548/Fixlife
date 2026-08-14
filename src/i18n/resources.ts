@@ -3037,6 +3037,10 @@ export const resources = {
         back: 'Back',
         gotIt: 'Got it',
       },
+      adminApi: {
+        sessionExpired: 'Admin session expired.',
+        requestFailed: 'The admin request failed.',
+      },
       serviceComplete: {
         title: 'Service Complete!',
         subtitle: 'Nice work — this request is officially wrapped up.',
@@ -6228,6 +6232,10 @@ export const resources = {
         next: 'Siguiente',
         back: 'Atrás',
         gotIt: 'Entendido',
+      },
+      adminApi: {
+        sessionExpired: 'Sesión de administrador expirada.',
+        requestFailed: 'La solicitud de administrador falló.',
       },
       serviceComplete: {
         title: '¡Servicio completo!',

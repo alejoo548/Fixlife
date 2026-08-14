@@ -103,10 +103,10 @@ export const SupportChatWidget: React.FC<SupportChatWidgetProps> = ({ token, use
               animate={{ y: 0, opacity: 1, scale: 1 }}
               exit={{ y: 60, opacity: 0, scale: 0.985 }}
               transition={{ type: 'spring', damping: 28, stiffness: 260 }}
-              className="relative z-10 flex h-[94vh] w-full max-w-[440px] flex-col overflow-hidden rounded-t-[26px] border border-white/60 bg-white/95 shadow-[0_25px_70px_-15px_rgba(15,23,42,0.18),0_10px_20px_-5px_rgba(15,23,42,0.1)] backdrop-blur-2xl lg:h-[640px] lg:rounded-[26px]"
+              className="relative z-10 flex h-[94vh] w-full max-w-[440px] flex-col overflow-hidden rounded-t-[26px] border border-white/60 bg-white/95 shadow-[0_25px_70px_-15px_rgba(15,23,42,0.18),0_10px_20px_-5px_rgba(15,23,42,0.1)] backdrop-blur-2xl dark:border-white/10 dark:bg-slate-900/95 lg:h-[640px] lg:rounded-[26px]"
             >
               {/* Header - softer */}
-              <div className="flex items-center justify-between border-b border-white/50 bg-white/70 px-5 py-4 backdrop-blur-xl">
+              <div className="flex items-center justify-between border-b border-white/50 bg-white/70 px-5 py-4 backdrop-blur-xl dark:border-white/10 dark:bg-slate-900/70">
                 <div className="min-w-0">
                   <div className="flex items-center gap-2">
                     <div className="text-[17px] font-black tracking-[-0.2px] text-gray-900 dark:text-slate-100">{panelTitle}</div>
@@ -134,7 +134,7 @@ export const SupportChatWidget: React.FC<SupportChatWidgetProps> = ({ token, use
 
                   <button
                     onClick={() => setIsOpen(false)}
-                    className="flex h-9 w-9 items-center justify-center rounded-2xl text-gray-400 transition hover:bg-white/70 hover:text-gray-600 dark:text-slate-500"
+                    className="flex h-9 w-9 items-center justify-center rounded-2xl text-gray-400 transition hover:bg-white/70 hover:text-gray-600 dark:text-slate-500 dark:hover:bg-white/10 dark:hover:text-slate-300"
                   >
                     <X size={20} />
                   </button>
@@ -168,7 +168,7 @@ export const SupportChatWidget: React.FC<SupportChatWidgetProps> = ({ token, use
               </div>
 
               {/* Footer - more subtle */}
-              <div className="border-t border-white/50 bg-white/60 px-5 py-3 text-center text-[11px] font-medium text-gray-500 backdrop-blur dark:text-slate-400">
+              <div className="border-t border-white/50 bg-white/60 px-5 py-3 text-center text-[11px] font-medium text-gray-500 backdrop-blur dark:border-white/10 dark:bg-slate-900/60 dark:text-slate-400">
                 {footerCopy}
               </div>
             </motion.div>

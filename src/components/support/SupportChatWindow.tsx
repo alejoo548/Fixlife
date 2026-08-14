@@ -37,7 +37,7 @@ export const SupportChatWindow: React.FC<SupportChatWindowProps> = ({
   };
 
   return (
-    <div className="flex h-full flex-col bg-[#f8f9fb]">
+    <div className="flex h-full flex-col bg-[#f8f9fb] dark:bg-slate-950">
       {/* Chat Header */}
       <div className="flex items-center gap-3 border-b bg-white px-4 py-3 dark:bg-slate-900">
         <button

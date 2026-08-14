@@ -180,7 +180,7 @@ export default function OverviewModule() {
       {/* Greeting Banner */}
       <div className="admin-card flex flex-col md:flex-row md:items-center justify-between gap-4" style={{ background: 'linear-gradient(135deg, var(--admin-primary), #0070e0)', color: '#fff', border: '0' }}>
         <div>
-          <h2 className="text-xl md:text-2xl font-black">{getGreeting()}, {user?.name || 'Admin'}!</h2>
+          <h2 className="text-xl md:text-2xl font-black">{getGreeting()}, {user?.name || at('common.admin')}!</h2>
           <p className="text-sm opacity-90 mt-1">{t('admin.overview.hero.subtitle')}</p>
         </div>
         <div className="flex items-center gap-3">

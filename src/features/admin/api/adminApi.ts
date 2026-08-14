@@ -1,5 +1,6 @@
 import { API_ENDPOINTS } from '../../../config/api';
 import { getToken, logoutAuthSession } from '../../../utils/session';
+import i18n from '../../../i18n';
 
 export class AdminApiError extends Error {
   constructor(message: string, public status: number) { super(message); }
@@ -8,7 +9,7 @@ export class AdminApiError extends Error {
 const request = async <T>(url: string, init: RequestInit = {}): Promise<T> => {
   const token = getToken('admin');
   if (!token) {
-    throw new AdminApiError('Sesion de administrador expirada.', 401);
+    throw new AdminApiError(i18n.t('adminApi.sessionExpired'), 401);
   }
   const response = await fetch(url, {
     ...init,
@@ -24,7 +25,7 @@ const request = async <T>(url: string, init: RequestInit = {}): Promise<T> => {
     window.dispatchEvent(new CustomEvent('fixlife:admin-session-expired'));
   }
   if (!response.ok) {
-    throw new AdminApiError(payload.error || 'La solicitud admin fallo.', response.status);
+    throw new AdminApiError(payload.error || i18n.t('adminApi.requestFailed'), response.status);
   }
   return payload as T;
 };
