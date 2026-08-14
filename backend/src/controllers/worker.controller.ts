@@ -927,20 +927,19 @@ export const getWorkerAnalytics = async (req: AuthRequest, res: Response): Promi
            s.id_service,
            s.name AS service_name,
            COUNT(*) AS request_count,
-           COALESCE(AVG(COALESCE(sr.final_budget, sr.budget)), 0) AS avg_budget,
-           (
-             6371 * ACOS(
-               COS(RADIANS(?)) * COS(RADIANS(sr.latitude)) * COS(RADIANS(sr.longitude) - RADIANS(?))
-               + SIN(RADIANS(?)) * SIN(RADIANS(sr.latitude))
-             )
-           ) AS distance_km
+           COALESCE(AVG(COALESCE(sr.final_budget, sr.budget)), 0) AS avg_budget
          FROM service_requests sr
          INNER JOIN services s ON s.id_service = sr.id_service
          WHERE sr.created_at >= DATE_SUB(NOW(), INTERVAL 60 DAY)
            AND sr.latitude IS NOT NULL
            AND sr.longitude IS NOT NULL
+           AND (
+             6371 * ACOS(
+               COS(RADIANS(?)) * COS(RADIANS(sr.latitude)) * COS(RADIANS(sr.longitude) - RADIANS(?))
+               + SIN(RADIANS(?)) * SIN(RADIANS(sr.latitude))
+             )
+           ) <= ?
          GROUP BY s.id_service, s.name
-         HAVING distance_km <= ?
          ORDER BY request_count DESC
          LIMIT 5`,
         [lat, lng, lat, radiusKm]
