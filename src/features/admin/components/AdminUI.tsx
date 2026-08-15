@@ -268,12 +268,30 @@ export const ConfirmActionDialog = ({ open, title, description, confirmLabel, re
 
 export const DocumentPreviewModal = ({ url, title, onClose }: { url: string | null; title: string; onClose: () => void }) => {
   const { t } = useAdminT();
+  const [status, setStatus] = useState<'loading' | 'ok' | 'error'>('loading');
   useEffect(() => {
     if (!url) return;
     const close = (event: KeyboardEvent) => event.key === 'Escape' && onClose();
     window.addEventListener('keydown', close);
     return () => window.removeEventListener('keydown', close);
   }, [url, onClose]);
+  useEffect(() => {
+    if (!url) return;
+    let cancelled = false;
+    setStatus('loading');
+    fetch(normalizeImageUrl(url), { method: 'GET' })
+      .then((res) => {
+        if (cancelled) return;
+        const contentType = res.headers.get('content-type') || '';
+        setStatus(res.ok && !contentType.includes('application/json') ? 'ok' : 'error');
+      })
+      .catch(() => {
+        if (!cancelled) setStatus('error');
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [url]);
   if (!url) return null;
   const resolved = normalizeImageUrl(url);
   const isPdf = /\.pdf(\?|$)/i.test(resolved);
@@ -289,10 +307,14 @@ export const DocumentPreviewModal = ({ url, title, onClose }: { url: string | nu
           </div>
         </header>
         <div className="admin-document-preview__body">
-          {isPdf ? (
+          {status === 'loading' ? (
+            <p className="admin-document-preview__status">{t('pros.documentLoading')}</p>
+          ) : status === 'error' ? (
+            <p className="admin-document-preview__status">{t('pros.documentUnavailable')}</p>
+          ) : isPdf ? (
             <iframe src={resolved} title={title} />
           ) : (
-            <img src={resolved} alt={title} />
+            <img src={resolved} alt={title} onError={() => setStatus('error')} />
           )}
         </div>
       </div>

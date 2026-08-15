@@ -2907,6 +2907,13 @@ html {
   border-radius: 8px;
   background: #fff;
 }
+.admin-document-preview__status {
+  max-width: 360px;
+  text-align: center;
+  color: var(--admin-muted);
+  font-weight: 600;
+  padding: 24px;
+}
 
 /* ── JSON viewer ── */
 .admin-json-view {
