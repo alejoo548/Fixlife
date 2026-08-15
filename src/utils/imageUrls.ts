@@ -21,7 +21,7 @@ export const normalizeImageUrl = (value?: string | null): string => {
   }
 
   if (/^[^/:?#]+\.(png|jpe?g|webp|avif|svg)$/i.test(raw)) {
-    return `${API_PUBLIC_URL}/uploads/${encodeURIComponent(raw)}`;
+    return `${API_PUBLIC_URL}/uploads/public/${encodeURIComponent(raw)}`;
   }
 
   return raw;
