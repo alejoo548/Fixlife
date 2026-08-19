@@ -105,6 +105,8 @@ export const API_ENDPOINTS = {
     serviceCards: `${API_URL}/api/admin/service-cards`,
     faqItems: `${API_URL}/api/admin/faq-items`,
     faqItem: (idFaq: number) => `${API_URL}/api/admin/faq-items/${idFaq}`,
+    platformReviews: `${API_URL}/api/admin/platform-reviews`,
+    platformReview: (idReview: number) => `${API_URL}/api/admin/platform-reviews/${idReview}`,
     uploadImageAsset: `${API_URL}/api/admin/hero-slides/image-upload`,
     heroSlides: `${API_URL}/api/admin/hero-slides`,
     heroText: `${API_URL}/api/admin/hero-text`,

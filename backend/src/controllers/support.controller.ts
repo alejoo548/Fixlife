@@ -22,6 +22,7 @@ import { deleteUploadIfExists } from '../utils/assets';
 import { sanitizeImageInPlace, ImageSanitizeError } from '../utils/imageSanitizer';
 import { notifyAdmins } from '../utils/notifications';
 import { sanitizeNameLike, sanitizeMessage } from '../utils/sanitize';
+import { moderateUserText } from '../utils/moderation';
 
 const getUploadedSupportImages = (req: Request): Express.Multer.File[] => {
   if (req.file) return [req.file];
@@ -89,6 +90,12 @@ export const createSupportThread = async (req: AuthRequest, res: Response) => {
 
     if (!subject || subject.length < 3) {
       res.status(400).json({ error: 'Subject is required (min 3 characters)' });
+      return;
+    }
+    const subjectModeration = moderateUserText(subject, { allowLinks: false, allowHelpSeeking: true });
+    const messageModeration = moderateUserText(initialMessage, { allowLinks: false, allowHelpSeeking: true });
+    if (!subjectModeration.ok || !messageModeration.ok) {
+      res.status(400).json({ error: subjectModeration.reason || messageModeration.reason || 'Support case contains content that is not allowed.' });
       return;
     }
 
@@ -186,6 +193,14 @@ export const sendSupportMessage = async (req: AuthRequest, res: Response) => {
     if (!trimmed && uploadedImages.length === 0) {
       res.status(400).json({ error: 'Message or image is required' });
       return;
+    }
+    if (trimmed) {
+      const moderation = moderateUserText(trimmed, { allowLinks: false, allowHelpSeeking: true });
+      if (!moderation.ok) {
+        removeUploadedSupportImages(uploadedImages);
+        res.status(400).json({ error: moderation.reason || 'Message contains content that is not allowed.' });
+        return;
+      }
     }
 
     if (uploadedImages.length > 0) {

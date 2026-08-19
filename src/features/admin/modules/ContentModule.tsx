@@ -31,6 +31,17 @@ type FaqItem = {
   sort_order: number;
   is_active: number | boolean;
 };
+type PlatformReview = {
+  id_review: number;
+  id_user: number;
+  author_name: string;
+  author_role: string;
+  service_category: string | null;
+  rating: number;
+  review_text: string;
+  created_at: string;
+  user_email: string | null;
+};
 
 const localizeCardText = (value: string | null | undefined, lang: string, fallback = '') => {
   const raw = String(value || '').trim();
@@ -111,6 +122,7 @@ export default function ContentModule() {
   const { t, lang } = useAdminT();
   const [cards, setCards] = useState<ServiceCard[]>([]);
   const [faqs, setFaqs] = useState<FaqItem[]>([]);
+  const [reviews, setReviews] = useState<PlatformReview[]>([]);
   const [services, setServices] = useState<Service[]>([]);
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState<ServiceCard | null>(null);
@@ -126,12 +138,14 @@ export default function ContentModule() {
     setLoading(true);
     setError('');
     try {
-      const [cardsPayload, servicesPayload] = await Promise.all([
+      const [cardsPayload, servicesPayload, reviewsPayload] = await Promise.all([
         adminApi.get<{ cards: ServiceCard[] }>(adminApi.endpoints.serviceCards),
         adminApi.get<{ services: Service[] }>(adminApi.endpoints.services),
+        adminApi.get<{ reviews: PlatformReview[] }>(adminApi.endpoints.platformReviews),
       ]);
       setCards(cardsPayload.cards || []);
       setServices(servicesPayload.services || []);
+      setReviews(reviewsPayload.reviews || []);
       const faqPayload = await adminApi.get<{ faqs: FaqItem[] }>(adminApi.endpoints.faqItems);
       setFaqs(faqPayload.faqs || []);
     } catch (reason) {
@@ -336,6 +350,31 @@ export default function ContentModule() {
     }
   };
 
+  const deleteReview = async (review: PlatformReview) => {
+    const confirmed = await showSweetConfirm({
+      tone: 'warning',
+      title: lang === 'es' ? 'Eliminar resena?' : 'Delete review?',
+      message: `"${review.review_text.slice(0, 120)}${review.review_text.length > 120 ? '...' : ''}"`,
+      confirmText: t('content.faq.deleteButton'),
+      cancelText: t('content.faq.keep'),
+      destructive: true,
+    });
+    if (!confirmed) return;
+    try {
+      await adminApi.delete(adminApi.endpoints.platformReview(review.id_review));
+      await load();
+      showSweetToast({
+        tone: 'success',
+        title: lang === 'es' ? 'Resena eliminada' : 'Review deleted',
+        message: lang === 'es' ? 'La resena publica fue eliminada.' : 'The public review was removed.',
+      });
+    } catch (reason) {
+      const message = adminErrorMessage(reason, lang === 'es' ? 'No se pudo eliminar la resena.' : 'Could not delete review.', t);
+      setError(message);
+      showSweetAlert({ tone: 'error', title: lang === 'es' ? 'No se pudo eliminar' : 'Could not delete', message });
+    }
+  };
+
   return (
     <div className="admin-page-stack">
       <HeroTextEditor />
@@ -437,6 +476,43 @@ export default function ContentModule() {
           ))}
         </div>
       )}
+
+      <AdminCard>
+        <div className="admin-section-heading">
+          <div>
+            <p className="admin-section-title">{lang === 'es' ? 'Resenas publicas' : 'Public reviews'}</p>
+            <p className="admin-muted">
+              {lang === 'es'
+                ? 'Administra las resenas que aparecen en el carrusel publico.'
+                : 'Manage the reviews shown in the public carousel.'}
+            </p>
+          </div>
+          <StatusBadge status="active" />
+        </div>
+        {reviews.length === 0 ? (
+          <EmptyState
+            title={lang === 'es' ? 'Sin resenas' : 'No reviews'}
+            description={lang === 'es' ? 'Todavia no hay resenas publicas.' : 'There are no public reviews yet.'}
+          />
+        ) : (
+          <div className="admin-detail-stack">
+            {reviews.map((review) => (
+              <div className="admin-message" key={review.id_review}>
+                <strong>{review.author_name} - {Number(review.rating || 0)}/5</strong>
+                <p>{review.review_text}</p>
+                <small>
+                  {review.user_email || `User #${review.id_user}`} - {new Date(review.created_at).toLocaleString()}
+                </small>
+                <div className="admin-action-row">
+                  <button className="admin-button admin-button--danger admin-button--small" onClick={() => deleteReview(review)}>
+                    <Trash2 size={13} /> {t('content.faq.deleteButton')}
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </AdminCard>
 
       <AdminCard>
         <div className="admin-section-heading">

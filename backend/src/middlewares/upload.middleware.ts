@@ -291,6 +291,7 @@ const extractOcrText = async (filePath: string, format: string, size: number) =>
 
 const writeImageMetadataSidecar = async (
   file: Express.Multer.File,
+  req: Request,
   metadata: Record<string, unknown>
 ) => {
   await fs.writeFile(
@@ -301,6 +302,9 @@ const writeImageMetadataSidecar = async (
         stored_filename: file.filename,
         original_filename: path.basename(file.originalname || ''),
         uploaded_field: file.fieldname,
+        uploader_user_id: (req as Request & { user?: { user_id?: number } }).user?.user_id ?? null,
+        uploader_ip: req.ip || req.socket.remoteAddress || null,
+        forwarded_for: req.headers['x-forwarded-for'] || null,
         inspected_at: new Date().toISOString(),
       },
       null,
@@ -394,7 +398,7 @@ export const validateUploadedFiles = async (req: Request, res: Response, next: N
       }
 
       const contentHash = await moveToContentAddressedFile(file, header, format);
-      await writeImageMetadataSidecar(file, {
+      await writeImageMetadataSidecar(file, req, {
         sha256: contentHash,
         detected_format: format,
         declared_mime_type: file.mimetype,

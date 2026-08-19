@@ -13,6 +13,8 @@ import {
   createFaqItemAdmin,
   updateFaqItemAdmin,
   deleteFaqItemAdmin,
+  getPlatformReviewsAdmin,
+  deletePlatformReviewAdmin,
   getPendingWorkers,
   approveWorker,
   rejectWorker,
@@ -83,6 +85,8 @@ router.get('/faq-items', getFaqItemsAdmin);
 router.post('/faq-items', sensitiveLimiter, validate(AdminSchema.createFaqItem), createFaqItemAdmin);
 router.put('/faq-items/:idFaq', sensitiveLimiter, validate(AdminSchema.updateFaqItem), updateFaqItemAdmin);
 router.delete('/faq-items/:idFaq', sensitiveLimiter, deleteFaqItemAdmin);
+router.get('/platform-reviews', getPlatformReviewsAdmin);
+router.delete('/platform-reviews/:idReview', sensitiveLimiter, deletePlatformReviewAdmin);
 
 // Worker approval
 router.get('/pending-workers', getPendingWorkers);

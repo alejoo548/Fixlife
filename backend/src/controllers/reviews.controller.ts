@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import { ResultSetHeader, RowDataPacket } from 'mysql2';
 import pool from '../config/db';
 import { AuthRequest } from '../middlewares/auth.middleware';
+import { moderateUserText } from '../utils/moderation';
 
 const SAFE_TEXT_RE = /^[a-zA-Z0-9\s.,!?'"""''()\-–—@#&*+=/\\:;áéíóúüñÁÉÍÓÚÜÑàèìòùÀÈÌÒÙâêîôûÂÊÎÔÛ]+$/u;
 const MAX_CHARS = 500;
@@ -106,6 +107,11 @@ export const submitPlatformReview = async (req: AuthRequest, res: Response): Pro
     }
     if (!SAFE_TEXT_RE.test(text)) {
       res.status(400).json({ success: false, message: 'Review contains unsupported characters. Please use letters, numbers, and common punctuation only.' });
+      return;
+    }
+    const moderation = moderateUserText(text);
+    if (!moderation.ok) {
+      res.status(400).json({ success: false, message: moderation.reason || 'Review contains content that is not allowed.' });
       return;
     }
 

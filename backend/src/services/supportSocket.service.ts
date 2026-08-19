@@ -9,6 +9,7 @@ import {
   userCanAccessThread,
 } from './support.service';
 import { sanitizeMessage } from '../utils/sanitize';
+import { moderateUserText } from '../utils/moderation';
 
 const SUPPORT_ADMIN_ROOM = 'support_admins';
 
@@ -140,6 +141,11 @@ export function initializeSupportSocket(ioServer: Server) {
       const message = sanitizeMessage(data?.message, 2000);
 
       if (!message) return;
+      const moderation = moderateUserText(message, { allowLinks: false, allowHelpSeeking: true });
+      if (!moderation.ok) {
+        socket.emit('support:error', { message: moderation.reason || 'Message contains content that is not allowed.' });
+        return;
+      }
 
       if (isMessageRateLimited(socket.user.user_id)) {
         socket.emit('support:error', { message: 'You are sending messages too quickly. Please slow down.' });

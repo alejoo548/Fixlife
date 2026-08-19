@@ -1335,6 +1335,77 @@ export const deleteFaqItemAdmin = async (req: AuthRequest, res: Response): Promi
   }
 };
 
+export const getPlatformReviewsAdmin = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const page = Math.max(1, Number(req.query.page || 1));
+    const limit = Math.min(100, Math.max(10, Number(req.query.limit || 25)));
+    const offset = (page - 1) * limit;
+
+    const [rows] = await pool.execute<RowDataPacket[]>(
+      `SELECT pr.id_review, pr.id_user, pr.author_name, pr.author_role, pr.service_category,
+              pr.rating, pr.review_text, pr.created_at, u.email AS user_email
+       FROM platform_reviews pr
+       LEFT JOIN users u ON u.id_user = pr.id_user
+       ORDER BY pr.created_at DESC, pr.id_review DESC
+       LIMIT ${limit} OFFSET ${offset}`
+    );
+
+    const [countRows] = await pool.execute<RowDataPacket[]>(
+      `SELECT COUNT(*) AS total FROM platform_reviews`
+    );
+
+    const total = Number(countRows[0]?.total || 0);
+    res.json({
+      success: true,
+      reviews: rows.map((row) => ({
+        id_review: Number(row.id_review),
+        id_user: Number(row.id_user),
+        author_name: String(row.author_name || ''),
+        author_role: String(row.author_role || 'client'),
+        service_category: row.service_category || null,
+        rating: Number(row.rating || 0),
+        review_text: String(row.review_text || ''),
+        created_at: row.created_at,
+        user_email: row.user_email || null,
+      })),
+      pagination: {
+        page,
+        limit,
+        total,
+        pages: Math.max(1, Math.ceil(total / limit)),
+      },
+    });
+  } catch (error) {
+    console.error('Error in getPlatformReviewsAdmin:', error);
+    res.status(500).json({ error: 'Could not load platform reviews.' });
+  }
+};
+
+export const deletePlatformReviewAdmin = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const idReview = parsePositiveInt(req.params.idReview, 'review id');
+    const [rows] = await pool.execute<RowDataPacket[]>(
+      `SELECT id_review, author_name, review_text FROM platform_reviews WHERE id_review = ? LIMIT 1`,
+      [idReview]
+    );
+    if (rows.length === 0) {
+      res.status(404).json({ error: 'Review not found.' });
+      return;
+    }
+
+    await pool.execute<ResultSetHeader>(`DELETE FROM platform_reviews WHERE id_review = ?`, [idReview]);
+    await logAdminActivity(req, 'delete', 'platform_review', `Deleted platform review #${idReview}`, idReview, {
+      author_name: rows[0].author_name || null,
+      preview: String(rows[0].review_text || '').slice(0, 120),
+    });
+
+    res.json({ success: true, message: 'Review deleted.' });
+  } catch (error: any) {
+    console.error('Error in deletePlatformReviewAdmin:', error);
+    res.status(400).json({ error: error?.message || 'Could not delete platform review.' });
+  }
+};
+
 export const getPendingWorkers = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     await ensureUsersPendingWorkerColumn();

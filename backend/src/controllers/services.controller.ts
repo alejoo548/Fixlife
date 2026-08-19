@@ -45,6 +45,7 @@ import { storeRawVirtualWalletWebhookEvent } from '../services/virtualWalletWebh
 import { isDatabaseSchemaReady } from '../services/schemaState.service';
 import { recordSystemEvent } from '../services/systemEvents.service';
 import { sanitizeLettersOnly, sanitizeMessage, sanitizeStrictText } from '../utils/sanitize';
+import { moderateUserText } from '../utils/moderation';
 
 const assertRequestOwnership = async (idRequest: number, userId: number): Promise<boolean> => {
   const [rows] = await pool.execute<RowDataPacket[]>(
@@ -3296,6 +3297,14 @@ export const postRequestChatMessage = async (req: AuthRequest, res: Response): P
       res.status(400).json({ error: 'Message or image is required.' });
       return;
     }
+    if (message) {
+      const moderation = moderateUserText(message, { allowLinks: false });
+      if (!moderation.ok) {
+        removeUploadedFiles(files);
+        res.status(400).json({ error: moderation.reason || 'Message contains content that is not allowed.' });
+        return;
+      }
+    }
 
     const participant = await resolveRequestParticipant(idRequest, userId);
     if (!participant) {
@@ -5431,6 +5440,13 @@ export const submitRequestRating = async (req: AuthRequest, res: Response): Prom
     if (metrics.some((m) => !Number.isInteger(m) || m < 1 || m > 5)) {
       res.status(400).json({ error: 'Ratings must be integers between 1 and 5.' });
       return;
+    }
+    if (comment) {
+      const moderation = moderateUserText(comment, { allowLinks: false });
+      if (!moderation.ok) {
+        res.status(400).json({ error: moderation.reason || 'Review contains content that is not allowed.' });
+        return;
+      }
     }
 
     const [rows] = await pool.execute<RowDataPacket[]>(
