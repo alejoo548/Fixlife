@@ -1025,21 +1025,24 @@ const PaymentCheckoutPage: React.FC<PaymentCheckoutPageProps> = ({ requestId, on
                             <p className="text-[12px] font-bold text-slate-500 mb-4 text-center dark:text-slate-400">{t('paymentCheckout.chooseMethod')}</p>
 
                             <div className="space-y-2.5">
-                                <button
+                                <motion.button
                                     type="button"
+                                    whileHover={!isPaying && !isAlreadyPaid ? { scale: 1.015, y: -1 } : undefined}
+                                    whileTap={!isPaying && !isAlreadyPaid ? { scale: 0.985 } : undefined}
+                                    transition={{ type: 'spring', stiffness: 400, damping: 25 }}
                                     onClick={() => {
                                         setPaymentMethod('paypal');
                                         void handleSecurePayment('paypal');
                                     }}
                                     disabled={isPaying || isAlreadyPaid}
                                     aria-pressed={paymentMethod === 'paypal'}
-                                    className={`w-full flex items-center gap-4 rounded-2xl border px-5 py-4 text-left transition disabled:cursor-not-allowed disabled:opacity-50 ${
+                                    className={`w-full flex items-center gap-4 rounded-2xl border px-5 py-4 text-left shadow-sm transition disabled:cursor-not-allowed disabled:opacity-50 ${
                                         paymentMethod === 'paypal' && isPaying
                                             ? 'border-blue-400 bg-blue-50/70 ring-1 ring-blue-400/20 dark:border-blue-400/60 dark:bg-blue-500/10'
-                                            : 'border-slate-200 bg-white hover:border-slate-300 dark:border-white/10 dark:bg-slate-900 dark:hover:border-white/30'
+                                            : 'border-slate-200 bg-white hover:border-blue-300 hover:shadow-md dark:border-white/10 dark:bg-slate-900 dark:hover:border-blue-400/40'
                                     }`}
                                 >
-                                    <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-white ring-1 ring-slate-200 dark:ring-white/10">
+                                    <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-white shadow-[0_2px_8px_rgba(0,0,0,0.08)] ring-1 ring-slate-200 dark:ring-white/10">
                                         {isPaying && paymentMethod === 'paypal' ? (
                                             <div className="h-4 w-4 rounded-full border-2 border-slate-800/30 border-t-slate-800 animate-spin" />
                                         ) : (
@@ -1058,27 +1061,33 @@ const PaymentCheckoutPage: React.FC<PaymentCheckoutPageProps> = ({ requestId, on
                                     <span className="shrink-0 rounded-full bg-emerald-100 px-2.5 py-1 text-[10px] font-black uppercase tracking-wide text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300">
                                         {t('paymentCheckout.methods.active')}
                                     </span>
-                                </button>
+                                </motion.button>
 
-                                <button
+                                <motion.button
                                     type="button"
+                                    whileHover={!isPaying && !isAlreadyPaid ? { scale: 1.015, y: -1 } : undefined}
+                                    whileTap={!isPaying && !isAlreadyPaid ? { scale: 0.985 } : undefined}
+                                    transition={{ type: 'spring', stiffness: 400, damping: 25 }}
                                     onClick={() => {
                                         setPaymentMethod('wompi');
                                         void handleSecurePayment('wompi');
                                     }}
                                     disabled={isPaying || isAlreadyPaid}
                                     aria-pressed={paymentMethod === 'wompi'}
-                                    className={`w-full flex items-center gap-4 rounded-2xl border px-5 py-4 text-left transition disabled:cursor-not-allowed disabled:opacity-50 ${
+                                    className={`w-full flex items-center gap-4 rounded-2xl border px-5 py-4 text-left shadow-sm transition disabled:cursor-not-allowed disabled:opacity-50 ${
                                         paymentMethod === 'wompi' && isPaying
                                             ? 'border-[#4353FF]/60 bg-[#4353FF]/5 ring-1 ring-[#4353FF]/20 dark:bg-[#4353FF]/10'
-                                            : 'border-slate-200 bg-white hover:border-slate-300 dark:border-white/10 dark:bg-slate-900 dark:hover:border-white/30'
+                                            : 'border-slate-200 bg-white hover:border-[#4353FF]/40 hover:shadow-md dark:border-white/10 dark:bg-slate-900 dark:hover:border-[#4353FF]/40'
                                     }`}
                                 >
-                                    <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[#4353FF]">
+                                    <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[#4353FF] shadow-[0_2px_8px_rgba(67,83,255,0.35)]">
                                         {isPaying && paymentMethod === 'wompi' ? (
                                             <div className="h-4 w-4 rounded-full border-2 border-white/30 border-t-white animate-spin" />
                                         ) : (
-                                            <span className="font-black text-white text-lg italic tracking-tighter select-none">W</span>
+                                            <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="white" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+                                                <path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z" />
+                                                <path d="m9 12 2 2 4-4" />
+                                            </svg>
                                         )}
                                     </span>
                                     <span className="min-w-0 flex-1">
@@ -1088,23 +1097,26 @@ const PaymentCheckoutPage: React.FC<PaymentCheckoutPageProps> = ({ requestId, on
                                     <span className="shrink-0 rounded-full bg-emerald-100 px-2.5 py-1 text-[10px] font-black uppercase tracking-wide text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300">
                                         {t('paymentCheckout.methods.active')}
                                     </span>
-                                </button>
+                                </motion.button>
 
-                                <button
+                                <motion.button
                                     type="button"
+                                    whileHover={!isPaying && !isAlreadyPaid ? { scale: 1.015, y: -1 } : undefined}
+                                    whileTap={!isPaying && !isAlreadyPaid ? { scale: 0.985 } : undefined}
+                                    transition={{ type: 'spring', stiffness: 400, damping: 25 }}
                                     onClick={() => {
                                         setPaymentMethod('cash');
                                         void handleSecurePayment('cash');
                                     }}
                                     disabled={isPaying || isAlreadyPaid}
                                     aria-pressed={paymentMethod === 'cash'}
-                                    className={`w-full flex items-center gap-4 rounded-2xl border px-5 py-4 text-left transition disabled:cursor-not-allowed disabled:opacity-50 ${
+                                    className={`w-full flex items-center gap-4 rounded-2xl border px-5 py-4 text-left shadow-sm transition disabled:cursor-not-allowed disabled:opacity-50 ${
                                         paymentMethod === 'cash' && isPaying
                                             ? 'border-emerald-400 bg-emerald-50/70 ring-1 ring-emerald-400/20 dark:bg-emerald-500/10'
-                                            : 'border-slate-200 bg-white hover:border-slate-300 dark:border-white/10 dark:bg-slate-900 dark:hover:border-white/30'
+                                            : 'border-slate-200 bg-white hover:border-emerald-300 hover:shadow-md dark:border-white/10 dark:bg-slate-900 dark:hover:border-emerald-400/40'
                                     }`}
                                 >
-                                    <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-emerald-600 text-white">
+                                    <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-emerald-500 to-teal-600 text-white shadow-[0_2px_8px_rgba(16,185,129,0.35)]">
                                         {isPaying && paymentMethod === 'cash' ? (
                                             <div className="h-4 w-4 rounded-full border-2 border-white/30 border-t-white animate-spin" />
                                         ) : (
@@ -1122,20 +1134,23 @@ const PaymentCheckoutPage: React.FC<PaymentCheckoutPageProps> = ({ requestId, on
                                     <span className="shrink-0 rounded-full bg-emerald-100 px-2.5 py-1 text-[10px] font-black uppercase tracking-wide text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300">
                                         {t('paymentCheckout.methods.active')}
                                     </span>
-                                </button>
+                                </motion.button>
 
-                                <button
+                                <motion.button
                                     type="button"
+                                    whileHover={!isPaying && !isAlreadyPaid && !vwCheckout ? { scale: 1.015, y: -1 } : undefined}
+                                    whileTap={!isPaying && !isAlreadyPaid && !vwCheckout ? { scale: 0.985 } : undefined}
+                                    transition={{ type: 'spring', stiffness: 400, damping: 25 }}
                                     onClick={() => void startVirtualWalletCheckout()}
                                     disabled={isPaying || isAlreadyPaid || Boolean(vwCheckout)}
                                     aria-pressed={paymentMethod === 'virtual_wallet'}
-                                    className={`w-full flex items-center gap-4 rounded-2xl border px-5 py-4 text-left transition disabled:cursor-not-allowed disabled:opacity-50 ${
+                                    className={`w-full flex items-center gap-4 rounded-2xl border px-5 py-4 text-left shadow-sm transition disabled:cursor-not-allowed disabled:opacity-50 ${
                                         paymentMethod === 'virtual_wallet' && isPaying
                                             ? 'border-violet-400 bg-violet-50/70 ring-1 ring-violet-400/20 dark:bg-violet-500/10'
-                                            : 'border-slate-200 bg-white hover:border-slate-300 dark:border-white/10 dark:bg-slate-900 dark:hover:border-white/30'
+                                            : 'border-slate-200 bg-white hover:border-violet-300 hover:shadow-md dark:border-white/10 dark:bg-slate-900 dark:hover:border-violet-400/40'
                                     }`}
                                 >
-                                    <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-violet-600 to-fuchsia-500 text-white">
+                                    <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-violet-600 to-fuchsia-500 text-white shadow-[0_2px_8px_rgba(139,92,246,0.35)]">
                                         {isPaying && paymentMethod === 'virtual_wallet' ? (
                                             <div className="h-4 w-4 rounded-full border-2 border-white/30 border-t-white animate-spin" />
                                         ) : (
@@ -1151,16 +1166,24 @@ const PaymentCheckoutPage: React.FC<PaymentCheckoutPageProps> = ({ requestId, on
                                     <span className="shrink-0 rounded-full bg-emerald-100 px-2.5 py-1 text-[10px] font-black uppercase tracking-wide text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300">
                                         {t('paymentCheckout.methods.active')}
                                     </span>
-                                </button>
+                                </motion.button>
 
                                 {vwCheckout && (
-                                    <div className="rounded-2xl border border-violet-200 bg-violet-50/60 p-4 dark:border-violet-400/20 dark:bg-violet-500/10">
+                                    <motion.div
+                                        initial={{ opacity: 0, height: 0, y: -8 }}
+                                        animate={{ opacity: 1, height: 'auto', y: 0 }}
+                                        transition={{ duration: 0.25, ease: 'easeOut' }}
+                                        className="overflow-hidden rounded-2xl border border-violet-200 bg-gradient-to-br from-violet-50 to-fuchsia-50 p-4 dark:border-violet-400/20 dark:from-violet-500/10 dark:to-fuchsia-500/10"
+                                    >
                                         <p className="text-[11px] font-black uppercase tracking-[0.18em] text-violet-500 dark:text-violet-300">{t('paymentCheckout.virtualWallet.label')}</p>
                                         <input type="hidden" id="vw_monto" value={vwCheckout.amount} readOnly />
                                         <input type="hidden" id="DescCarrito" value={vwCheckout.reference} readOnly />
                                         <div id="virtual-wallet-checkout" className="mt-2 flex justify-center" />
                                         {vwMounting && (
-                                            <p className="mt-2 text-center text-xs font-semibold text-slate-500 dark:text-slate-400">{t('paymentCheckout.virtualWallet.loadingWidget')}</p>
+                                            <div className="mt-2 flex items-center justify-center gap-2">
+                                                <div className="h-3.5 w-3.5 rounded-full border-2 border-violet-200 border-t-violet-600 animate-spin dark:border-violet-400/30 dark:border-t-violet-400" />
+                                                <p className="text-center text-xs font-semibold text-slate-500 dark:text-slate-400">{t('paymentCheckout.virtualWallet.loadingWidget')}</p>
+                                            </div>
                                         )}
                                         {vwLoadError && (
                                             <div className="mt-2 rounded-xl border border-red-200 bg-red-50 p-3 text-center dark:border-red-400/20 dark:bg-red-500/10">
@@ -1174,7 +1197,7 @@ const PaymentCheckoutPage: React.FC<PaymentCheckoutPageProps> = ({ requestId, on
                                                 </button>
                                             </div>
                                         )}
-                                    </div>
+                                    </motion.div>
                                 )}
                             </div>
 
