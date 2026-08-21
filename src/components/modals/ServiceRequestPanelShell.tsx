@@ -7,6 +7,8 @@ interface ServiceRequestPanelShellProps {
     guidedBooking?: boolean;
     guidedBookingAlign?: 'center' | 'left';
     hasActiveTrackedRequest: boolean;
+    /** Shrinks the mobile bottom sheet so the map behind it stays visible — used on the location step. */
+    compactForMap?: boolean;
     onClose: () => void;
     onBack?: () => void;
     notificationCenter: React.ReactNode;
@@ -19,6 +21,7 @@ export function ServiceRequestPanelShell({
     guidedBooking = false,
     guidedBookingAlign = 'center',
     hasActiveTrackedRequest,
+    compactForMap = false,
     onClose,
     onBack,
     notificationCenter,
@@ -37,7 +40,13 @@ export function ServiceRequestPanelShell({
                             ? 'absolute inset-y-0 left-8 my-auto h-[min(88vh,860px)] w-[min(640px,calc(100vw-64px))] overflow-hidden rounded-[28px] border border-white/80 dark:border-white/10 shadow-[0_32px_90px_rgba(15,23,42,0.28)]'
                             : 'absolute inset-0 m-auto h-[min(88vh,860px)] w-[min(760px,calc(100vw-64px))] overflow-hidden rounded-[28px] border border-white/80 dark:border-white/10 shadow-[0_32px_90px_rgba(15,23,42,0.28)]'
                         : 'relative h-full w-[430px] overflow-visible border-r border-slate-200/80 dark:border-white/10 shadow-[2px_0_24px_rgba(15,23,42,0.10)] lg:w-[500px]'
-                    : `${step === 1 && !hasActiveTrackedRequest ? 'h-[92vh]' : 'h-[82vh]'} relative mt-auto w-full overflow-hidden rounded-t-[2rem] border border-b-0 shadow-[0_-12px_40px_rgba(15,23,42,0.12)]`
+                    : `${
+                          compactForMap && !hasActiveTrackedRequest
+                              ? 'h-[56vh] sm:h-[52vh]'
+                              : step === 1 && !hasActiveTrackedRequest
+                              ? 'h-[92vh]'
+                              : 'h-[82vh]'
+                      } relative mt-auto w-full overflow-hidden rounded-t-[2rem] border border-b-0 shadow-[0_-12px_40px_rgba(15,23,42,0.16)] transition-[height] duration-300 ease-out`
             }`}
         >
             {/* Mobile drag handle */}

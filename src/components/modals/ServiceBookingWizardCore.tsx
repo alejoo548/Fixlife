@@ -2281,6 +2281,7 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                 guidedBooking
                 guidedBookingAlign={step === 1 && requestFlowStep === 1 ? 'left' : 'center'}
                 hasActiveTrackedRequest={!!activeTrackedRequest}
+                compactForMap={step === 1 && requestFlowStep === 1}
                 onClose={onClose}
                 onBack={step === 1 ? () => setStep(0) : onClose}
                 notificationCenter={<NotificationCenter token={getToken()} variant="panel" theme={isDarkMode ? 'dark' : 'light'} />}

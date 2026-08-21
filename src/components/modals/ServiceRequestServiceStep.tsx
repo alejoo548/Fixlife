@@ -45,7 +45,7 @@ export function ServiceRequestServiceStep({
                 </div>
             ) : (
                 <div className="space-y-3">
-                    {services.map((cat) => {
+                    {services.map((cat, index) => {
                         const localizedName = localizeClientServiceName(cat.name, i18n.language);
                         const localizedDescription = cat.description
                             ? localizeClientServiceDescription(cat.description, i18n.language)
@@ -54,10 +54,13 @@ export function ServiceRequestServiceStep({
                         return (
                         <motion.button
                             key={cat.id_service}
-                            whileHover={{ scale: 1.01 }}
+                            initial={{ opacity: 0, y: 10 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            transition={{ delay: Math.min(index * 0.04, 0.3), duration: 0.25, ease: 'easeOut' }}
+                            whileHover={{ scale: 1.015, y: -1 }}
                             whileTap={{ scale: 0.98 }}
                             onClick={() => onSelectService(cat.name)}
-                            className="w-full flex items-center p-4 bg-white dark:bg-slate-800 hover:bg-gray-50 dark:hover:bg-slate-700 rounded-2xl border border-gray-100 dark:border-white/10 shadow-sm transition-all gap-4 text-left"
+                            className="w-full flex items-center p-4 bg-white dark:bg-slate-800 hover:bg-gray-50 dark:hover:bg-slate-700 hover:shadow-md rounded-2xl border border-gray-100 dark:border-white/10 shadow-sm transition-all gap-4 text-left"
                         >
                             <div className="w-12 h-12 rounded-xl bg-gray-50 dark:bg-slate-700 flex items-center justify-center shrink-0 border border-gray-100 dark:border-white/10">
                                 {cat.icon ? (
