@@ -575,6 +575,17 @@ const PaymentCheckoutPage: React.FC<PaymentCheckoutPageProps> = ({ requestId, on
             const reference = readString(checkoutPayload?.checkout?.checkout_reference);
             const chargeAmount = Number(checkoutPayload?.checkout?.amount ?? amount);
             setVwCheckout({ reference, amount: chargeAmount });
+            // Virtual Wallet's widget redirects the browser to a single, globally
+            // configured URL after payment — it has no way to carry our id_request
+            // in that redirect. Stash it here so the redirect landing page (served
+            // by the backend at the same URL) can read it back and route the
+            // browser to the right checkout page.
+            try {
+                window.sessionStorage.setItem('vw_pending_request_id', String(request.id_request));
+            } catch {
+                // sessionStorage unavailable (private mode etc.) — non-fatal, the
+                // client can still confirm manually with the button.
+            }
         } catch {
             notyf.error(t('paymentCheckout.messages.vwNetworkError'));
             moveToErrorStage(t('paymentCheckout.messages.vwNetworkErrorStage'));
@@ -583,7 +594,7 @@ const PaymentCheckoutPage: React.FC<PaymentCheckoutPageProps> = ({ requestId, on
         }
     };
 
-    const confirmVirtualWalletPayment = async () => {
+    const confirmVirtualWalletPayment = async (intentId?: string) => {
         const token = getToken();
         if (!token || !request) {
             moveToErrorStage(t('paymentCheckout.messages.vwSessionExpired'));
@@ -598,6 +609,7 @@ const PaymentCheckoutPage: React.FC<PaymentCheckoutPageProps> = ({ requestId, on
                 headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     payment_method: 'virtual_wallet',
+                    intent_id: intentId || undefined,
                     payer: {
                         full_name: readString(authUser?.name) || 'Fixlife Client',
                         email: readString(authUser?.email) || '',
@@ -686,6 +698,14 @@ const PaymentCheckoutPage: React.FC<PaymentCheckoutPageProps> = ({ requestId, on
             if (methodFromUrl === 'wompi') {
                 paypalReturnHandledRef.current = true;
                 void handleWompiReturnConfirmation();
+                return;
+            }
+
+            if (methodFromUrl === 'virtual_wallet') {
+                paypalReturnHandledRef.current = true;
+                const intentIdFromUrl = readString(params.get('intent_id'));
+                navigate(`/checkout/${request.id_request}`, { replace: true });
+                void confirmVirtualWalletPayment(intentIdFromUrl || undefined);
                 return;
             }
 

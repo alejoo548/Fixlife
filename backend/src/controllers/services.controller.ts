@@ -4242,11 +4242,18 @@ export const confirmRequestPayment = async (req: AuthRequest, res: Response): Pr
       return;
     }
 
-    // Virtual Wallet has no client-side capture step yet — same rule as Wompi:
-    // the client can never self-declare a Virtual Wallet payment as paid. Only a
-    // verified server-to-server webhook may flip payment_status to 'paid'. This
-    // endpoint just reports whatever has already been recorded.
-    if (paymentMethod === 'virtual_wallet') {
+    // Virtual Wallet's sandbox has no real server-to-server webhook (see
+    // handleVirtualWalletWebhook/handleVirtualWalletReturnRedirect) — the only
+    // signal available is the client reporting the intent_id its widget
+    // handed back on the post-payment browser redirect. That's weaker than a
+    // signed webhook, but it's the only mechanism this sandbox provider
+    // offers, and it's gated on the request already being in
+    // payment_pending, so it can't be used to fabricate a payment on an
+    // arbitrary request. When intent_id is present we fall through to the
+    // same persistPaidPayment path paypal/cash use below; otherwise this just
+    // reports whatever's already on record (e.g. while polling).
+    const virtualWalletIntentId = paymentMethod === 'virtual_wallet' ? sanitizePaymentValue(req.body?.intent_id, 64) : '';
+    if (paymentMethod === 'virtual_wallet' && !virtualWalletIntentId) {
       await connection.rollback();
       const currentPaymentStatus = storedPaymentRow ? String(storedPaymentRow.payment_status || 'pending').toLowerCase() : 'pending';
       res.json({
@@ -4344,7 +4351,7 @@ export const confirmRequestPayment = async (req: AuthRequest, res: Response): Pr
     const persistOutcome = await persistPaidPayment(connection, {
       idRequest,
       paymentMethod,
-      providerPaymentId: paypalOrderId,
+      providerPaymentId: paymentMethod === 'virtual_wallet' ? virtualWalletIntentId : paypalOrderId,
       providerCaptureId,
       requestRow,
       paymentRows,
@@ -4749,6 +4756,30 @@ export const handleVirtualWalletWebhook = async (req: Request, res: Response): P
     console.error('Error in handleVirtualWalletWebhook:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
+};
+
+// Virtual Wallet's sandbox never calls the POST webhook above — instead its
+// widget redirects the whole browser to this same configured URL (GET) once
+// payment completes, with only `?intent_id=`. It has no way to carry which
+// Fixlife request that belongs to, so the client stashes id_request in
+// sessionStorage right before opening the widget; this landing page reads it
+// back (client-side, since sessionStorage isn't visible to the server) and
+// routes the browser to that request's checkout page to finish confirming.
+export const handleVirtualWalletReturnRedirect = (req: Request, res: Response): void => {
+  const intentId = String(req.query.intent_id || '').replace(/[^a-zA-Z0-9_-]/g, '');
+  res.setHeader('Content-Type', 'text/html; charset=utf-8');
+  res.send(`<!doctype html>
+<html><head><meta charset="utf-8"><title>Fixlife</title></head>
+<body>
+<script>
+  var id = sessionStorage.getItem('vw_pending_request_id');
+  sessionStorage.removeItem('vw_pending_request_id');
+  var target = id
+    ? '/checkout/' + id + '?payment=success&method=virtual_wallet&intent_id=${intentId}'
+    : '/?openRequests=true';
+  window.location.replace(target);
+</script>
+</body></html>`);
 };
 
 // Wompi has no documented webhook signature scheme (unlike PayPal's

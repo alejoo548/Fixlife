@@ -30,6 +30,7 @@ import {
   getPublicServiceCards,
   getServicePriceSuggestion,
   handleVirtualWalletWebhook,
+  handleVirtualWalletReturnRedirect,
   suggestLocations,
   submitRequestRating,
   updateSavedLocation,
@@ -57,6 +58,7 @@ router.get('/nearby-workers', lookupLimiter, getNearbyWorkers);
 router.post('/payments/paypal/webhook', handlePaypalWebhook);
 router.post('/payments/wompi/webhook/:token', handleWompiWebhook);
 router.post('/payments/virtual-wallet/webhook', handleVirtualWalletWebhook);
+router.get('/payments/virtual-wallet/webhook', handleVirtualWalletReturnRedirect);
 router.get('/saved-locations', verifyToken, getSavedLocations);
 router.post('/saved-locations', verifyToken, createSavedLocation);
 router.patch('/saved-locations/:idSavedLocation', verifyToken, updateSavedLocation);
