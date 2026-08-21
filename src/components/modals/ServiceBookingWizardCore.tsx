@@ -2281,7 +2281,7 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                 guidedBooking
                 guidedBookingAlign={step === 1 && requestFlowStep === 1 ? 'left' : 'center'}
                 hasActiveTrackedRequest={!!activeTrackedRequest}
-                compactForMap={step === 1 && requestFlowStep === 1}
+                compactForMap={step === 0 || (step === 1 && requestFlowStep === 1)}
                 onClose={onClose}
                 onBack={step === 1 ? () => setStep(0) : onClose}
                 notificationCenter={<NotificationCenter token={getToken()} variant="panel" theme={isDarkMode ? 'dark' : 'light'} />}
@@ -3832,7 +3832,7 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                 <div ref={mapContainerRef} className="absolute inset-0 z-0" />
                 <div
                     className={`pointer-events-none absolute inset-0 z-[1] transition-all duration-300 ${
-                        step === 1 && requestFlowStep === 1
+                        step === 0 || (step === 1 && requestFlowStep === 1)
                             ? 'bg-transparent'
                             : 'bg-slate-950/15 backdrop-blur-[1px]'
                     }`}
