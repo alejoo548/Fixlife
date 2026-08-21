@@ -42,7 +42,7 @@ export function ServiceRequestPanelShell({
                         : 'relative h-full w-[430px] overflow-visible border-r border-slate-200/80 dark:border-white/10 shadow-[2px_0_24px_rgba(15,23,42,0.10)] lg:w-[500px]'
                     : `${
                           compactForMap && !hasActiveTrackedRequest
-                              ? 'h-[56vh] sm:h-[52vh]'
+                              ? 'h-[42vh] sm:h-[38vh]'
                               : step === 1 && !hasActiveTrackedRequest
                               ? 'h-[92vh]'
                               : 'h-[82vh]'
@@ -50,24 +50,24 @@ export function ServiceRequestPanelShell({
             }`}
         >
             {/* Mobile drag handle */}
-            <div className="w-full flex justify-center pt-4 pb-0 md:hidden bg-white dark:bg-slate-900">
+            <div className={`w-full flex justify-center md:hidden bg-white dark:bg-slate-900 ${compactForMap && !isDesktopSheet ? 'pt-2.5 pb-0' : 'pt-4 pb-0'}`}>
                 <div className="w-12 h-1.5 bg-gray-300 dark:bg-white/10 rounded-full" />
             </div>
 
             {/* Header */}
-            <div className="h-16 flex items-center justify-between px-5 border-b border-slate-200/80 dark:border-white/10 bg-white/95 dark:bg-slate-900/70 shrink-0 backdrop-blur">
+            <div className={`flex items-center justify-between px-5 border-b border-slate-200/80 dark:border-white/10 bg-white/95 dark:bg-slate-900/70 shrink-0 backdrop-blur ${compactForMap && !isDesktopSheet ? 'h-11' : 'h-16'}`}>
                 <motion.button
                     whileHover={{ scale: 1.05 }}
                     whileTap={{ scale: 0.95 }}
                     className="flex items-center gap-2 group"
                     onClick={onBack ?? onClose}
                 >
-                    <div className="w-10 h-10 rounded-full bg-gray-100 dark:bg-white/[0.06] flex items-center justify-center text-gray-600 dark:text-slate-400 group-hover:bg-bird-blue group-hover:text-white transition-all">
-                        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <div className={`rounded-full bg-gray-100 dark:bg-white/[0.06] flex items-center justify-center text-gray-600 dark:text-slate-400 group-hover:bg-bird-blue group-hover:text-white transition-all ${compactForMap && !isDesktopSheet ? 'w-7 h-7' : 'w-10 h-10'}`}>
+                        <svg className={compactForMap && !isDesktopSheet ? 'w-4 h-4' : 'w-5 h-5'} fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
                         </svg>
                     </div>
-                    <span className="font-bold text-gray-900 dark:text-slate-100 text-lg">Fixlife</span>
+                    <span className={`font-bold text-gray-900 dark:text-slate-100 ${compactForMap && !isDesktopSheet ? 'text-sm' : 'text-lg'}`}>Fixlife</span>
                 </motion.button>
 
                 <div className="flex items-center gap-3">
