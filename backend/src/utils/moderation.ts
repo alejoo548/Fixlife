@@ -1,4 +1,4 @@
-type ModerationCategory = 'threat' | 'sexual' | 'harassment' | 'spam';
+type ModerationCategory = 'threat' | 'sexual' | 'harassment' | 'profanity' | 'spam';
 
 type ModerationResult = {
   ok: boolean;
@@ -29,6 +29,14 @@ const harassmentPatterns = [
   /\b(asco|mierda|idiota|estupido|puta|puto|maricon|pervertido)\b.{0,24}\b(trans|gay|lesbiana|lesbian|homosexual)\b/i,
 ];
 
+// Standalone vulgar/insulting language — unlike harassmentPatterns above,
+// these block on their own regardless of whether an identity term is nearby,
+// since generic profanity/insults aimed at a named person are still abusive.
+const profanityPatterns = [
+  /\b(puta|puto|putas|putos|pendejo|pendeja|cabron|cabrona|marica|maricon|mariconazo|hp|hdp|hijueputa|hijoeputa|imbecil|gilipollas|joder|cono|malparido|malparida|zorra|perra|estupido|estupida|idiota|mierda|verga|pito)\b/i,
+  /\b(fuck|fucking|shit|bitch|asshole|bastard|motherfucker|slut|whore|cunt|dumbass|jackass)\b/i,
+];
+
 const spamPatterns = [
   /\bhttps?:\/\/\S+/i,
   /\bwww\.\S+/i,
@@ -46,6 +54,7 @@ export const moderateUserText = (
     ['threat', threatPatterns],
     ['sexual', sexualPatterns],
     ['harassment', harassmentPatterns],
+    ['profanity', profanityPatterns],
   ];
 
   if (!options.allowLinks) {
