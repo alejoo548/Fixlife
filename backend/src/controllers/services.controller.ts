@@ -4762,28 +4762,13 @@ export const handleVirtualWalletWebhook = async (req: Request, res: Response): P
 // widget redirects the whole browser to this same configured URL (GET) once
 // payment completes, with only `?intent_id=`. It has no way to carry which
 // Fixlife request that belongs to, so the client stashes id_request in
-// sessionStorage right before opening the widget; this landing page reads it
-// back (client-side, since sessionStorage isn't visible to the server) and
-// routes the browser to that request's checkout page to finish confirming.
+// sessionStorage right before opening the widget. A plain 302 here (instead
+// of serving an HTML page with an inline script) lets the browser follow the
+// redirect natively with no extra render/script-execution round trip; the SPA
+// picks up `vw_return`/`intent_id` on load and reads sessionStorage itself.
 export const handleVirtualWalletReturnRedirect = (req: Request, res: Response): void => {
   const intentId = String(req.query.intent_id || '').replace(/[^a-zA-Z0-9_-]/g, '');
-  // This page's only job is reading sessionStorage (server can't see it) and
-  // navigating away — helmet's default CSP blocks inline <script> tags, which
-  // would otherwise leave the browser stuck on a blank page here.
-  res.removeHeader('Content-Security-Policy');
-  res.setHeader('Content-Type', 'text/html; charset=utf-8');
-  res.send(`<!doctype html>
-<html><head><meta charset="utf-8"><title>Fixlife</title></head>
-<body>
-<script>
-  var id = sessionStorage.getItem('vw_pending_request_id');
-  sessionStorage.removeItem('vw_pending_request_id');
-  var target = id
-    ? '/checkout/' + id + '?payment=success&method=virtual_wallet&intent_id=${intentId}'
-    : '/?openRequests=true';
-  window.location.replace(target);
-</script>
-</body></html>`);
+  res.redirect(302, `/?vw_return=1&intent_id=${encodeURIComponent(intentId)}`);
 };
 
 // Wompi has no documented webhook signature scheme (unlike PayPal's

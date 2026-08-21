@@ -859,19 +859,19 @@ const PaymentCheckoutPage: React.FC<PaymentCheckoutPageProps> = ({ requestId, on
         <motion.div
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
-            className="relative overflow-hidden rounded-[36px] border border-white/70 bg-white/92 p-8 text-center shadow-[0_24px_60px_rgba(15,23,42,0.12)] backdrop-blur sm:p-10"
+            className="relative overflow-hidden rounded-[36px] border border-white/70 bg-white/92 p-8 text-center shadow-[0_24px_60px_rgba(15,23,42,0.12)] backdrop-blur sm:p-10 dark:border-white/10 dark:bg-slate-900/90"
         >
             <div className={`pointer-events-none absolute inset-0 bg-gradient-to-br ${stageAccentClass}`} />
-            <div className="pointer-events-none absolute -right-20 -top-24 h-56 w-56 rounded-full bg-white/45 blur-3xl" />
+            <div className="pointer-events-none absolute -right-20 -top-24 h-56 w-56 rounded-full bg-white/45 blur-3xl dark:bg-white/5" />
             <div className="relative">
             {renderStageIcon(checkoutStage)}
             <p className={`mt-6 text-[11px] font-black uppercase tracking-[0.24em] ${checkoutStage === 'success' ? 'text-emerald-500' : checkoutStage === 'pending' ? 'text-blue-500' : 'text-amber-500'}`}>
                 {checkoutStage === 'success' ? t('paymentCheckout.stage.complete') : checkoutStage === 'pending' ? t('paymentCheckout.stage.confirming') : t('paymentCheckout.stage.issue')}
             </p>
-            <h2 className="mt-3 text-3xl font-black text-slate-950">
+            <h2 className="mt-3 text-3xl font-black text-slate-950 dark:text-slate-100">
                 {checkoutStage === 'success' ? t('paymentCheckout.stage.successTitle') : checkoutStage === 'pending' ? t('paymentCheckout.stage.pendingTitle') : t('paymentCheckout.stage.errorTitle')}
             </h2>
-            <p className="mx-auto mt-3 max-w-xl text-sm leading-6 text-slate-500">
+            <p className="mx-auto mt-3 max-w-xl text-sm leading-6 text-slate-500 dark:text-slate-400">
                 {checkoutMessage}
             </p>
 
@@ -880,32 +880,32 @@ const PaymentCheckoutPage: React.FC<PaymentCheckoutPageProps> = ({ requestId, on
                 <div className="mt-4 grid gap-4 sm:grid-cols-2">
                     <div>
                         <p className="text-sm font-black text-slate-900 dark:text-slate-100">{localizeClientServiceName(request?.service_name, i18n.language)}</p>
-                        <p className="mt-1 text-xs font-black uppercase tracking-[0.16em] text-blue-600">{bookingLabel}</p>
-                        {scheduledWindow && <p className="mt-1 text-sm font-semibold text-slate-600">{scheduledWindow}</p>}
-                        <p className="mt-1 text-sm text-slate-500">{locationMeta.primary}</p>
+                        <p className="mt-1 text-xs font-black uppercase tracking-[0.16em] text-blue-600 dark:text-blue-400">{bookingLabel}</p>
+                        {scheduledWindow && <p className="mt-1 text-sm font-semibold text-slate-600 dark:text-slate-300">{scheduledWindow}</p>}
+                        <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">{locationMeta.primary}</p>
                         <p className="mt-1 text-xs text-slate-400">{locationMeta.secondary}</p>
                     </div>
                     <div className="text-left sm:text-right">
                         <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">{t('paymentCheckout.recap.chargeLabel')}</p>
-                        <p className="mt-2 text-3xl font-black text-slate-950">${amount.toFixed(2)}</p>
+                        <p className="mt-2 text-3xl font-black text-slate-950 dark:text-slate-100">${amount.toFixed(2)}</p>
                     </div>
                 </div>
             </div>
 
             <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                <div className="rounded-[24px] border border-slate-200 bg-white/85 p-4 text-left shadow-sm dark:border-white/10">
+                <div className="rounded-[24px] border border-slate-200 bg-white/85 p-4 text-left shadow-sm dark:border-white/10 dark:bg-slate-800/60">
                     <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">{t('paymentCheckout.recap.referenceLabel')}</p>
-                    <p className="mt-2 text-base font-black text-slate-950">
+                    <p className="mt-2 text-base font-black text-slate-950 dark:text-slate-100">
                         {request?.payment?.checkout_reference || t('paymentCheckout.recap.referenceFallback')}
                     </p>
-                    <p className="mt-1 text-xs text-slate-500">{t('paymentCheckout.recap.referenceHint')}</p>
+                    <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">{t('paymentCheckout.recap.referenceHint')}</p>
                 </div>
-                <div className="rounded-[24px] border border-slate-200 bg-white/85 p-4 text-left shadow-sm dark:border-white/10">
+                <div className="rounded-[24px] border border-slate-200 bg-white/85 p-4 text-left shadow-sm dark:border-white/10 dark:bg-slate-800/60">
                     <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">{t('paymentCheckout.recap.statusLabel')}</p>
-                    <p className="mt-2 text-base font-black text-slate-950">
+                    <p className="mt-2 text-base font-black text-slate-950 dark:text-slate-100">
                         {checkoutStage === 'success' ? t('paymentCheckout.recap.statusFundsSecured') : checkoutStage === 'pending' ? t('paymentCheckout.recap.statusWaitingWompi') : t('paymentCheckout.recap.statusRetryAvailable')}
                     </p>
-                    <p className="mt-1 text-xs text-slate-500">
+                    <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
                         {checkoutStage === 'success'
                             ? t('paymentCheckout.recap.statusDescSuccess')
                             : checkoutStage === 'pending'
@@ -970,7 +970,7 @@ const PaymentCheckoutPage: React.FC<PaymentCheckoutPageProps> = ({ requestId, on
                 <button
                     type="button"
                     onClick={onBack}
-                    className="mb-8 inline-flex items-center gap-2 text-sm font-bold text-slate-500 hover:text-slate-900 transition-colors"
+                    className="mb-8 inline-flex items-center gap-2 text-sm font-bold text-slate-500 hover:text-slate-900 transition-colors dark:text-slate-400 dark:hover:text-slate-100"
                 >
                     <span className="text-lg leading-none">&larr;</span>
                     {t('paymentCheckout.back')}
@@ -979,13 +979,13 @@ const PaymentCheckoutPage: React.FC<PaymentCheckoutPageProps> = ({ requestId, on
                 {loading ? (
                     <div className="rounded-[32px] bg-white p-8 shadow-sm border border-slate-100 flex flex-col items-center justify-center min-h-[400px] dark:bg-slate-900 dark:border-white/10">
                          <div className="h-8 w-8 rounded-full border-4 border-slate-100 border-t-bird-blue animate-spin dark:border-white/10" />
-                         <p className="mt-4 text-sm font-semibold text-slate-500">{t('paymentCheckout.loading')}</p>
+                         <p className="mt-4 text-sm font-semibold text-slate-500 dark:text-slate-400">{t('paymentCheckout.loading')}</p>
                     </div>
                 ) : !request ? (
                     <div className="rounded-[32px] bg-white p-10 text-center shadow-sm border border-slate-100 dark:bg-slate-900 dark:border-white/10">
                         <p className="text-[11px] font-black uppercase tracking-[0.24em] text-slate-400">{t('paymentCheckout.errors.title')}</p>
                         <h1 className="mt-3 text-2xl font-black text-slate-900 dark:text-slate-100">{t('paymentCheckout.errors.notFound')}</h1>
-                        <p className="mt-2 text-sm text-slate-500">{t('paymentCheckout.errors.notFoundDesc')}</p>
+                        <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">{t('paymentCheckout.errors.notFoundDesc')}</p>
                         <button
                             type="button"
                             onClick={onBack}
@@ -1005,24 +1005,24 @@ const PaymentCheckoutPage: React.FC<PaymentCheckoutPageProps> = ({ requestId, on
                             <h1 className="mt-4 text-3xl font-black text-slate-900 text-center dark:text-slate-100">{t('paymentCheckout.header.title')}</h1>
                             <p className="mt-2 text-sm text-slate-500 text-center">{localizeClientServiceName(request.service_name, i18n.language)}</p>
                             <div className="mt-3 flex flex-col items-center gap-1">
-                                <span className="rounded-full border border-blue-100 bg-blue-50 px-3 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-blue-700">
+                                <span className="rounded-full border border-blue-100 bg-blue-50 px-3 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-blue-700 dark:border-blue-400/20 dark:bg-blue-500/10 dark:text-blue-300">
                                     {bookingLabel}
                                 </span>
                                 {scheduledWindow && (
-                                    <span className="text-sm font-bold text-slate-600">{scheduledWindow}</span>
+                                    <span className="text-sm font-bold text-slate-600 dark:text-slate-300">{scheduledWindow}</span>
                                 )}
                             </div>
-                            
+
                             <div className="mt-8 flex justify-center">
                                 <div className="text-center">
-                                    <span className="text-5xl font-black text-slate-950">${amount.toFixed(2)}</span>
+                                    <span className="text-5xl font-black text-slate-950 dark:text-slate-100">${amount.toFixed(2)}</span>
                                     <span className="ml-1 text-sm font-bold text-slate-400">{displayCurrency}</span>
                                 </div>
                             </div>
                         </div>
 
                         <div className="p-8 bg-slate-50/50 dark:bg-slate-800">
-                            <p className="text-[12px] font-bold text-slate-500 mb-4 text-center">{t('paymentCheckout.chooseMethod')}</p>
+                            <p className="text-[12px] font-bold text-slate-500 mb-4 text-center dark:text-slate-400">{t('paymentCheckout.chooseMethod')}</p>
 
                             <div className="space-y-2.5">
                                 <button
@@ -1035,11 +1035,11 @@ const PaymentCheckoutPage: React.FC<PaymentCheckoutPageProps> = ({ requestId, on
                                     aria-pressed={paymentMethod === 'paypal'}
                                     className={`w-full flex items-center gap-4 rounded-2xl border px-5 py-4 text-left transition disabled:cursor-not-allowed disabled:opacity-50 ${
                                         paymentMethod === 'paypal' && isPaying
-                                            ? 'border-blue-400 bg-blue-50/70 ring-1 ring-blue-400/20'
-                                            : 'border-slate-200 bg-white hover:border-slate-300'
+                                            ? 'border-blue-400 bg-blue-50/70 ring-1 ring-blue-400/20 dark:border-blue-400/60 dark:bg-blue-500/10'
+                                            : 'border-slate-200 bg-white hover:border-slate-300 dark:border-white/10 dark:bg-slate-900 dark:hover:border-white/30'
                                     }`}
                                 >
-                                    <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[#FFC439]">
+                                    <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-white ring-1 ring-slate-200 dark:ring-white/10">
                                         {isPaying && paymentMethod === 'paypal' ? (
                                             <div className="h-4 w-4 rounded-full border-2 border-slate-800/30 border-t-slate-800 animate-spin" />
                                         ) : (
@@ -1053,9 +1053,9 @@ const PaymentCheckoutPage: React.FC<PaymentCheckoutPageProps> = ({ requestId, on
                                     </span>
                                     <span className="min-w-0 flex-1">
                                         <span className="block text-sm font-black text-slate-900 dark:text-slate-100">{t('paymentCheckout.methods.paypal.name')}</span>
-                                        <span className="mt-0.5 block text-xs font-semibold text-slate-500">{t('paymentCheckout.methods.paypal.desc')}</span>
+                                        <span className="mt-0.5 block text-xs font-semibold text-slate-500 dark:text-slate-400">{t('paymentCheckout.methods.paypal.desc')}</span>
                                     </span>
-                                    <span className="shrink-0 rounded-full bg-emerald-100 px-2.5 py-1 text-[10px] font-black uppercase tracking-wide text-emerald-700">
+                                    <span className="shrink-0 rounded-full bg-emerald-100 px-2.5 py-1 text-[10px] font-black uppercase tracking-wide text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300">
                                         {t('paymentCheckout.methods.active')}
                                     </span>
                                 </button>
@@ -1070,25 +1070,22 @@ const PaymentCheckoutPage: React.FC<PaymentCheckoutPageProps> = ({ requestId, on
                                     aria-pressed={paymentMethod === 'wompi'}
                                     className={`w-full flex items-center gap-4 rounded-2xl border px-5 py-4 text-left transition disabled:cursor-not-allowed disabled:opacity-50 ${
                                         paymentMethod === 'wompi' && isPaying
-                                            ? 'border-[#4353FF]/60 bg-[#4353FF]/5 ring-1 ring-[#4353FF]/20'
-                                            : 'border-slate-200 bg-white hover:border-slate-300'
+                                            ? 'border-[#4353FF]/60 bg-[#4353FF]/5 ring-1 ring-[#4353FF]/20 dark:bg-[#4353FF]/10'
+                                            : 'border-slate-200 bg-white hover:border-slate-300 dark:border-white/10 dark:bg-slate-900 dark:hover:border-white/30'
                                     }`}
                                 >
                                     <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[#4353FF]">
                                         {isPaying && paymentMethod === 'wompi' ? (
                                             <div className="h-4 w-4 rounded-full border-2 border-white/30 border-t-white animate-spin" />
                                         ) : (
-                                            <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="white" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
-                                                <path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z" />
-                                                <path d="m9 12 2 2 4-4" />
-                                            </svg>
+                                            <span className="font-black text-white text-lg italic tracking-tighter select-none">W</span>
                                         )}
                                     </span>
                                     <span className="min-w-0 flex-1">
                                         <span className="block text-sm font-black text-slate-900 dark:text-slate-100">{t('paymentCheckout.methods.wompi.name')}</span>
-                                        <span className="mt-0.5 block text-xs font-semibold text-slate-500">{t('paymentCheckout.methods.wompi.desc')}</span>
+                                        <span className="mt-0.5 block text-xs font-semibold text-slate-500 dark:text-slate-400">{t('paymentCheckout.methods.wompi.desc')}</span>
                                     </span>
-                                    <span className="shrink-0 rounded-full bg-emerald-100 px-2.5 py-1 text-[10px] font-black uppercase tracking-wide text-emerald-700">
+                                    <span className="shrink-0 rounded-full bg-emerald-100 px-2.5 py-1 text-[10px] font-black uppercase tracking-wide text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300">
                                         {t('paymentCheckout.methods.active')}
                                     </span>
                                 </button>
@@ -1103,8 +1100,8 @@ const PaymentCheckoutPage: React.FC<PaymentCheckoutPageProps> = ({ requestId, on
                                     aria-pressed={paymentMethod === 'cash'}
                                     className={`w-full flex items-center gap-4 rounded-2xl border px-5 py-4 text-left transition disabled:cursor-not-allowed disabled:opacity-50 ${
                                         paymentMethod === 'cash' && isPaying
-                                            ? 'border-emerald-400 bg-emerald-50/70 ring-1 ring-emerald-400/20'
-                                            : 'border-slate-200 bg-white hover:border-slate-300'
+                                            ? 'border-emerald-400 bg-emerald-50/70 ring-1 ring-emerald-400/20 dark:bg-emerald-500/10'
+                                            : 'border-slate-200 bg-white hover:border-slate-300 dark:border-white/10 dark:bg-slate-900 dark:hover:border-white/30'
                                     }`}
                                 >
                                     <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-emerald-600 text-white">
@@ -1120,9 +1117,9 @@ const PaymentCheckoutPage: React.FC<PaymentCheckoutPageProps> = ({ requestId, on
                                     </span>
                                     <span className="min-w-0 flex-1">
                                         <span className="block text-sm font-black text-slate-900 dark:text-slate-100">{t('paymentCheckout.methods.cash.name')}</span>
-                                        <span className="mt-0.5 block text-xs font-semibold text-slate-500">{t('paymentCheckout.methods.cash.desc')}</span>
+                                        <span className="mt-0.5 block text-xs font-semibold text-slate-500 dark:text-slate-400">{t('paymentCheckout.methods.cash.desc')}</span>
                                     </span>
-                                    <span className="shrink-0 rounded-full bg-emerald-100 px-2.5 py-1 text-[10px] font-black uppercase tracking-wide text-emerald-700">
+                                    <span className="shrink-0 rounded-full bg-emerald-100 px-2.5 py-1 text-[10px] font-black uppercase tracking-wide text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300">
                                         {t('paymentCheckout.methods.active')}
                                     </span>
                                 </button>
@@ -1134,11 +1131,11 @@ const PaymentCheckoutPage: React.FC<PaymentCheckoutPageProps> = ({ requestId, on
                                     aria-pressed={paymentMethod === 'virtual_wallet'}
                                     className={`w-full flex items-center gap-4 rounded-2xl border px-5 py-4 text-left transition disabled:cursor-not-allowed disabled:opacity-50 ${
                                         paymentMethod === 'virtual_wallet' && isPaying
-                                            ? 'border-violet-400 bg-violet-50/70 ring-1 ring-violet-400/20'
-                                            : 'border-slate-200 bg-white hover:border-slate-300'
+                                            ? 'border-violet-400 bg-violet-50/70 ring-1 ring-violet-400/20 dark:bg-violet-500/10'
+                                            : 'border-slate-200 bg-white hover:border-slate-300 dark:border-white/10 dark:bg-slate-900 dark:hover:border-white/30'
                                     }`}
                                 >
-                                    <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-violet-600 text-white">
+                                    <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-violet-600 to-fuchsia-500 text-white">
                                         {isPaying && paymentMethod === 'virtual_wallet' ? (
                                             <div className="h-4 w-4 rounded-full border-2 border-white/30 border-t-white animate-spin" />
                                         ) : (
@@ -1149,43 +1146,34 @@ const PaymentCheckoutPage: React.FC<PaymentCheckoutPageProps> = ({ requestId, on
                                     </span>
                                     <span className="min-w-0 flex-1">
                                         <span className="block text-sm font-black text-slate-900 dark:text-slate-100">{t('paymentCheckout.methods.virtualWallet.name')}</span>
-                                        <span className="mt-0.5 block text-xs font-semibold text-slate-500">{t('paymentCheckout.methods.virtualWallet.desc')}</span>
+                                        <span className="mt-0.5 block text-xs font-semibold text-slate-500 dark:text-slate-400">{t('paymentCheckout.methods.virtualWallet.desc')}</span>
                                     </span>
-                                    <span className="shrink-0 rounded-full bg-emerald-100 px-2.5 py-1 text-[10px] font-black uppercase tracking-wide text-emerald-700">
+                                    <span className="shrink-0 rounded-full bg-emerald-100 px-2.5 py-1 text-[10px] font-black uppercase tracking-wide text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300">
                                         {t('paymentCheckout.methods.active')}
                                     </span>
                                 </button>
 
                                 {vwCheckout && (
-                                    <div className="rounded-2xl border border-violet-200 bg-violet-50/60 p-4">
-                                        <p className="text-[11px] font-black uppercase tracking-[0.18em] text-violet-500">{t('paymentCheckout.virtualWallet.label')}</p>
+                                    <div className="rounded-2xl border border-violet-200 bg-violet-50/60 p-4 dark:border-violet-400/20 dark:bg-violet-500/10">
+                                        <p className="text-[11px] font-black uppercase tracking-[0.18em] text-violet-500 dark:text-violet-300">{t('paymentCheckout.virtualWallet.label')}</p>
                                         <input type="hidden" id="vw_monto" value={vwCheckout.amount} readOnly />
                                         <input type="hidden" id="DescCarrito" value={vwCheckout.reference} readOnly />
                                         <div id="virtual-wallet-checkout" className="mt-2 flex justify-center" />
                                         {vwMounting && (
-                                            <p className="mt-2 text-center text-xs font-semibold text-slate-500">{t('paymentCheckout.virtualWallet.loadingWidget')}</p>
+                                            <p className="mt-2 text-center text-xs font-semibold text-slate-500 dark:text-slate-400">{t('paymentCheckout.virtualWallet.loadingWidget')}</p>
                                         )}
                                         {vwLoadError && (
-                                            <div className="mt-2 rounded-xl border border-red-200 bg-red-50 p-3 text-center">
-                                                <p className="text-xs font-bold text-red-600">{t('paymentCheckout.virtualWallet.loadError')}</p>
+                                            <div className="mt-2 rounded-xl border border-red-200 bg-red-50 p-3 text-center dark:border-red-400/20 dark:bg-red-500/10">
+                                                <p className="text-xs font-bold text-red-600 dark:text-red-400">{t('paymentCheckout.virtualWallet.loadError')}</p>
                                                 <button
                                                     type="button"
                                                     onClick={() => setVwCheckout((prev) => (prev ? { ...prev } : prev))}
-                                                    className="mt-2 text-xs font-black text-red-700 underline"
+                                                    className="mt-2 text-xs font-black text-red-700 underline dark:text-red-300"
                                                 >
                                                     {t('paymentCheckout.virtualWallet.retry')}
                                                 </button>
                                             </div>
                                         )}
-                                        <button
-                                            type="button"
-                                            onClick={() => void confirmVirtualWalletPayment()}
-                                            disabled={vwConfirming}
-                                            className="mt-3 w-full rounded-xl bg-violet-600 px-4 py-2.5 text-sm font-black text-white transition hover:bg-violet-700 disabled:cursor-not-allowed disabled:opacity-50"
-                                        >
-                                            {vwConfirming ? t('paymentCheckout.virtualWallet.confirming') : t('paymentCheckout.virtualWallet.confirmButton')}
-                                        </button>
-                                        <p className="mt-2 text-center text-[11px] text-slate-500">{t('paymentCheckout.virtualWallet.finishHint')}</p>
                                     </div>
                                 )}
                             </div>
@@ -1205,37 +1193,37 @@ const PaymentCheckoutPage: React.FC<PaymentCheckoutPageProps> = ({ requestId, on
                                 </p>
                             )}
 
-                            <div className="mt-5 grid gap-3 rounded-[24px] border border-slate-200 bg-white/80 p-4 sm:grid-cols-3 dark:border-white/10">
+                            <div className="mt-5 grid gap-3 rounded-[24px] border border-slate-200 bg-white/80 p-4 sm:grid-cols-3 dark:border-white/10 dark:bg-slate-900/60">
                                 <div>
                                     <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">{isScheduledRequest(request) ? t('paymentCheckout.summary.visitPayment') : t('paymentCheckout.summary.protectedNow')}</p>
-                                    <p className="mt-2 text-lg font-black text-slate-950">
+                                    <p className="mt-2 text-lg font-black text-slate-950 dark:text-slate-100">
                                         ${amount.toFixed(2)} <span className="text-xs font-bold text-slate-400">{displayCurrency}</span>
                                     </p>
                                 </div>
                                 <div>
                                     <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">{t('paymentCheckout.summary.platformProtection')}</p>
-                                    <p className="mt-2 text-lg font-black text-slate-950">${platformFee.toFixed(2)}</p>
-                                    <p className="mt-1 text-[11px] text-slate-500">{t('paymentCheckout.summary.commission', { rate: (commissionRate * 100).toFixed(1) })}</p>
+                                    <p className="mt-2 text-lg font-black text-slate-950 dark:text-slate-100">${platformFee.toFixed(2)}</p>
+                                    <p className="mt-1 text-[11px] text-slate-500 dark:text-slate-400">{t('paymentCheckout.summary.commission', { rate: (commissionRate * 100).toFixed(1) })}</p>
                                 </div>
                                 <div>
                                     <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">{t('paymentCheckout.summary.proRelease')}</p>
-                                    <p className="mt-2 text-lg font-black text-slate-950">${workerPayout.toFixed(2)}</p>
-                                    <p className="mt-1 text-[11px] text-slate-500">{t('paymentCheckout.summary.releasedAfter')}</p>
+                                    <p className="mt-2 text-lg font-black text-slate-950 dark:text-slate-100">${workerPayout.toFixed(2)}</p>
+                                    <p className="mt-1 text-[11px] text-slate-500 dark:text-slate-400">{t('paymentCheckout.summary.releasedAfter')}</p>
                                 </div>
                             </div>
-                            <div className="mt-3 rounded-[22px] border border-slate-200 bg-white/70 p-4 dark:border-white/10">
+                            <div className="mt-3 rounded-[22px] border border-slate-200 bg-white/70 p-4 dark:border-white/10 dark:bg-slate-900/60">
                                 <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">{t('paymentCheckout.summary.commissionPolicy')}</p>
                                 <p className="mt-2 text-sm font-semibold text-slate-700 dark:text-slate-300">{commissionLabel}</p>
                                 {appliedCommissionRules && (
-                                    <p className="mt-1 text-xs text-slate-500">{appliedCommissionRules}</p>
+                                    <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">{appliedCommissionRules}</p>
                                 )}
                             </div>
 
                             <div className="mt-6 flex items-center justify-center gap-2 opacity-50">
-                                <svg className="h-4 w-4 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <svg className="h-4 w-4 text-slate-500 dark:text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
                                 </svg>
-                                <span className="text-xs font-semibold text-slate-500">{t('paymentCheckout.secureNote')}</span>
+                                <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">{t('paymentCheckout.secureNote')}</span>
                             </div>
                         </div>
                     </motion.div>

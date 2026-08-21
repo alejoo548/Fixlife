@@ -291,6 +291,30 @@ const App: React.FC = () => {
   const [roleIndex, setRoleIndex] = useState(0);
   const [heroText, setHeroText] = useState<typeof DEFAULT_HERO_TEXT>(() => getHeroText(i18n.language));
 
+  // Virtual Wallet's sandbox widget redirects the whole browser to a single,
+  // globally configured URL after payment (it can't carry which checkout it
+  // belongs to). The backend 302s that straight to "/?vw_return=1&intent_id=",
+  // and this picks it up on first mount to route the client-side, single-hop,
+  // to the right checkout page — instead of a second full page reload.
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    if (params.get('vw_return') !== '1') return;
+    const intentId = params.get('intent_id') || '';
+    let pendingRequestId = '';
+    try {
+      pendingRequestId = window.sessionStorage.getItem('vw_pending_request_id') || '';
+      window.sessionStorage.removeItem('vw_pending_request_id');
+    } catch {
+      // sessionStorage unavailable — fall back to the requests list below.
+    }
+    if (pendingRequestId) {
+      navigate(`/checkout/${pendingRequestId}?payment=success&method=virtual_wallet&intent_id=${encodeURIComponent(intentId)}`, { replace: true });
+    } else {
+      navigate('/?openRequests=true', { replace: true });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   useEffect(() => {
     setRoleIndex(0);
     fetchHeroText(i18n.language).then((data) => setHeroText(data));
