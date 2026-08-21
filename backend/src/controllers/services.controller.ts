@@ -4767,6 +4767,10 @@ export const handleVirtualWalletWebhook = async (req: Request, res: Response): P
 // routes the browser to that request's checkout page to finish confirming.
 export const handleVirtualWalletReturnRedirect = (req: Request, res: Response): void => {
   const intentId = String(req.query.intent_id || '').replace(/[^a-zA-Z0-9_-]/g, '');
+  // This page's only job is reading sessionStorage (server can't see it) and
+  // navigating away — helmet's default CSP blocks inline <script> tags, which
+  // would otherwise leave the browser stuck on a blank page here.
+  res.removeHeader('Content-Security-Policy');
   res.setHeader('Content-Type', 'text/html; charset=utf-8');
   res.send(`<!doctype html>
 <html><head><meta charset="utf-8"><title>Fixlife</title></head>
