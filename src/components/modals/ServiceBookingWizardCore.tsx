@@ -1001,25 +1001,31 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
         }
     ) => {
         const compact = options?.compact ?? false;
+        // Compact mode is used inline next to saved-place cards on narrow
+        // mobile sheets — full text+icon buttons for all 3 actions don't fit
+        // side by side there and were overflowing/overlapping the card, so
+        // compact renders icon-only circular buttons instead.
         const buttonClass = compact
-            ? 'group inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-[11px] font-bold transition'
+            ? 'group inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full border transition'
             : 'group inline-flex items-center gap-1.5 rounded-xl border px-3 py-2 text-[11px] font-bold transition';
 
         return (
-            <div className={`flex flex-wrap items-center gap-2 ${compact ? '' : 'pt-1'}`}>
+            <div className={`flex items-center gap-1.5 ${compact ? '' : 'flex-wrap pt-1'}`}>
                 <motion.button
                     type="button"
                     onClick={(e) => {
                         e.stopPropagation();
                         handleUseSavedLocation(location, options?.nextStep);
                     }}
-                    whileHover={{ y: -2, scale: 1.02 }}
-                    whileTap={{ scale: 0.98 }}
+                    whileHover={{ y: -2, scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
                     transition={{ type: 'spring', stiffness: 320, damping: 22 }}
+                    aria-label={t('serviceRequest.wizardExtra.useAction')}
+                    title={compact ? t('serviceRequest.wizardExtra.useAction') : undefined}
                     className={`${buttonClass} ${getSavedPlaceActionClassName('use')}`}
                 >
                     {renderSavedPlaceActionIcon('use', 'h-3.5 w-3.5 transition-transform duration-200 group-hover:translate-x-0.5 group-hover:scale-110')}
-                    Use
+                    {!compact && t('serviceRequest.wizardExtra.useAction')}
                 </motion.button>
                 <motion.button
                     type="button"
@@ -1027,13 +1033,15 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                         e.stopPropagation();
                         requestRenameSavedLocation(location);
                     }}
-                    whileHover={{ y: -2, scale: 1.02 }}
-                    whileTap={{ scale: 0.98 }}
+                    whileHover={{ y: -2, scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
                     transition={{ type: 'spring', stiffness: 320, damping: 22 }}
+                    aria-label={t('serviceRequest.wizardExtra.renameAction')}
+                    title={compact ? t('serviceRequest.wizardExtra.renameAction') : undefined}
                     className={`${buttonClass} ${getSavedPlaceActionClassName('rename')}`}
                 >
                     {renderSavedPlaceActionIcon('rename', 'h-3.5 w-3.5 transition-transform duration-200 group-hover:-rotate-6 group-hover:scale-110')}
-                    Rename
+                    {!compact && t('serviceRequest.wizardExtra.renameAction')}
                 </motion.button>
                 <motion.button
                     type="button"
@@ -1041,13 +1049,15 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                         e.stopPropagation();
                         requestDeleteSavedLocation(location);
                     }}
-                    whileHover={{ y: -2, scale: 1.02 }}
-                    whileTap={{ scale: 0.98 }}
+                    whileHover={{ y: -2, scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
                     transition={{ type: 'spring', stiffness: 320, damping: 22 }}
+                    aria-label={t('serviceRequest.wizardExtra.deleteAction')}
+                    title={compact ? t('serviceRequest.wizardExtra.deleteAction') : undefined}
                     className={`${buttonClass} ${getSavedPlaceActionClassName('delete')}`}
                 >
                     {renderSavedPlaceActionIcon('delete', 'h-3.5 w-3.5 transition-transform duration-200 group-hover:-translate-y-0.5 group-hover:scale-105')}
-                    Delete
+                    {!compact && t('serviceRequest.wizardExtra.deleteAction')}
                 </motion.button>
             </div>
         );
@@ -2308,19 +2318,19 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                 transition={{ duration: 0.3 }}
                                 className="flex h-full flex-col"
                             >
-                                <div className="border-b border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900/70 px-5 py-4 sm:px-7">
-                                    <div className="flex items-start justify-between gap-4">
+                                <div className="border-b border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900/70 px-4 py-2.5 sm:px-7 sm:py-4">
+                                    <div className="flex items-start justify-between gap-3">
                                         <div className="min-w-0">
-                                            <p className="text-[10px] font-black uppercase tracking-[0.2em] text-bird-blue">
+                                            <p className="text-[9px] sm:text-[10px] font-black uppercase tracking-[0.2em] text-bird-blue">
                                                 {t('serviceRequest.wizard.progress', { current: requestFlowStep + 1, total: REQUEST_FLOW_STEPS.length })}
                                             </p>
-                                            <h2 className="mt-1 text-2xl font-black text-slate-950 dark:text-slate-100">
+                                            <h2 className="mt-0.5 sm:mt-1 text-lg sm:text-2xl font-black text-slate-950 dark:text-slate-100 leading-tight">
                                                 {requestFlowStep === 0 && t('serviceRequest.wizard.headings.problem')}
                                                 {requestFlowStep === 1 && t('serviceRequest.wizard.headings.location')}
                                                 {requestFlowStep === 2 && t('serviceRequest.wizard.headings.schedule')}
                                                 {requestFlowStep === 3 && t('serviceRequest.wizard.headings.review')}
                                             </h2>
-                                            <p className="mt-1 truncate text-sm font-bold text-slate-500 dark:text-slate-400">
+                                            <p className="mt-0.5 sm:mt-1 truncate text-xs sm:text-sm font-bold text-slate-500 dark:text-slate-400">
                                                 {selectedServiceTitle || t('serviceRequest.serviceStep.selectedService')}
                                             </p>
                                         </div>
@@ -2330,13 +2340,13 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                                 setRequestFlowStep(0);
                                                 setStep(0);
                                             }}
-                                            className="shrink-0 rounded-xl border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900/70 px-3 py-2 text-xs font-black text-slate-600 dark:text-slate-300 hover:border-bird-blue hover:text-bird-blue"
+                                            className="shrink-0 rounded-xl border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900/70 px-2.5 py-1.5 sm:px-3 sm:py-2 text-[11px] sm:text-xs font-black text-slate-600 dark:text-slate-300 hover:border-bird-blue hover:text-bird-blue"
                                         >
                                             {t('serviceRequest.serviceStep.changeService')}
                                         </button>
                                     </div>
 
-                                    <div className="mt-4 grid grid-cols-4 gap-2">
+                                    <div className="mt-2.5 sm:mt-4 grid grid-cols-4 gap-2">
                                         {REQUEST_FLOW_STEPS.map((flowStep, index) => {
                                             const active = index === requestFlowStep;
                                             const complete = index < requestFlowStep;
@@ -2349,10 +2359,10 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                                     }}
                                                     className="min-w-0 text-left"
                                                 >
-                                                    <span className={`mb-2 block h-1.5 rounded-full transition ${
+                                                    <span className={`mb-1.5 sm:mb-2 block h-1.5 rounded-full transition ${
                                                         active || complete ? 'bg-bird-blue' : 'bg-slate-200 dark:bg-white/[0.08]'
                                                     }`} />
-                                                    <span className={`block truncate text-[10px] font-black uppercase tracking-[0.08em] ${
+                                                    <span className={`block truncate text-[9px] sm:text-[10px] font-black uppercase tracking-[0.08em] ${
                                                         active ? 'text-slate-950 dark:text-slate-100' : complete ? 'text-bird-blue' : 'text-slate-400 dark:text-slate-500'
                                                     }`}>
                                                         {flowStep.label}
@@ -2363,7 +2373,7 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                     </div>
                                 </div>
 
-                                <div className="flex-1 overflow-y-auto p-5 sm:p-7">
+                                <div className="flex-1 overflow-y-auto p-4 sm:p-7">
                                     <AnimatePresence mode="wait">
                                         {requestFlowStep === 0 && (
                                             <motion.div
@@ -2960,7 +2970,7 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                                     onClick={() => setShowSavedPlacesModal(false)}
                                                     className="rounded-2xl border-none bg-gray-50/80 dark:bg-white/[0.04] hover:bg-gray-100 dark:hover:bg-white/[0.06] transition-colors px-3 py-2 text-xs font-bold text-gray-500 dark:text-slate-400 hover:text-gray-700 dark:hover:text-slate-300"
                                                 >
-                                                    Close
+                                                    {t('serviceRequest.wizardExtra.closeModal')}
                                                 </button>
                                             </div>
 
@@ -2990,10 +3000,10 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
 
                                                 <div className="flex flex-wrap gap-2">
                                                     {[
-                                                        { key: 'all', label: 'All', count: quickAccessLocations.length },
-                                                        { key: 'primary', label: 'Home & Work', count: groupedSavedLocations.primary.length },
-                                                        { key: 'favorite', label: 'Favorites', count: groupedSavedLocations.favorites.length },
-                                                        { key: 'recent', label: 'Recent', count: groupedSavedLocations.recents.length },
+                                                        { key: 'all', label: t('serviceRequest.wizardExtra.allFilter'), count: quickAccessLocations.length },
+                                                        { key: 'primary', label: t('serviceRequest.wizardExtra.homeAndWorkFilter'), count: groupedSavedLocations.primary.length },
+                                                        { key: 'favorite', label: t('serviceRequest.wizardExtra.favorites'), count: groupedSavedLocations.favorites.length },
+                                                        { key: 'recent', label: t('serviceRequest.wizardExtra.recent'), count: groupedSavedLocations.recents.length },
                                                     ].map((option) => (
                                                         <button
                                                             key={option.key}
@@ -3032,14 +3042,14 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                                 <>
                                                     {filteredSavedLocations.primary.length > 0 && (
                                                         <div>
-                                                            <p className="mb-3 text-[11px] font-bold uppercase tracking-wide text-gray-400 dark:text-slate-500">Home & Work</p>
+                                                            <p className="mb-3 text-[11px] font-bold uppercase tracking-wide text-gray-400 dark:text-slate-500">{t('serviceRequest.wizardExtra.homeAndWorkFilter')}</p>
                                                             <div className="space-y-3">
                                                                 {filteredSavedLocations.primary.map((location, index) => {
                                                                     const visual = getLocationVisual(location.kind);
                                                                     const distanceLabel = currentCoords && !sameCoords(currentCoords, location)
                                                                         ? formatDistanceLabel(distanceKmBetween(currentCoords, location))
                                                                         : sameCoords(currentCoords, location)
-                                                                            ? 'Current place'
+                                                                            ? t('serviceRequest.wizardExtra.currentPlace')
                                                                             : null;
 
                                                                     return (
@@ -3080,7 +3090,7 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                                                     const distanceLabel = currentCoords && !sameCoords(currentCoords, location)
                                                                         ? formatDistanceLabel(distanceKmBetween(currentCoords, location))
                                                                         : sameCoords(currentCoords, location)
-                                                                            ? 'Current place'
+                                                                            ? t('serviceRequest.wizardExtra.currentPlace')
                                                                             : null;
 
                                                                     return (
@@ -3125,7 +3135,7 @@ export const ServiceRequestWizard: React.FC<ServiceRequestWizardProps> = ({ isOp
                                                                     onClick={() => void clearRecentLocations()}
                                                                     className="text-[11px] font-bold text-red-500 hover:text-red-600"
                                                                 >
-                                                                    Clear
+                                                                    {t('serviceRequest.wizardExtra.clearRecent')}
                                                                 </button>
                                                             </div>
                                                             <div className="flex flex-wrap gap-2">

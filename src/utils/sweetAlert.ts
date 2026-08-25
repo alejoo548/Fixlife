@@ -66,10 +66,16 @@ export const showSweetToast = (input: {
   message: string;
   tone?: AlertTone;
   duration?: number;
-}) =>
-  Swal.fire({
+}) => {
+  // A fixed top-end toast reads fine on desktop but on a narrow phone it
+  // gets squeezed into the corner and clipped. Below the sm breakpoint,
+  // center it near the top and let it span the viewport width instead.
+  const isMobile = typeof window !== 'undefined' && window.innerWidth < 640;
+
+  return Swal.fire({
     toast: true,
-    position: 'top-end',
+    position: isMobile ? 'top' : 'top-end',
+    width: isMobile ? 'calc(100vw - 24px)' : undefined,
     icon: input.tone || 'info',
     title: input.title || input.message,
     text: input.title ? input.message : undefined,
@@ -78,8 +84,9 @@ export const showSweetToast = (input: {
     timerProgressBar: true,
     buttonsStyling: false,
     customClass: {
-      popup: 'rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-2xl dark:border-slate-700 dark:bg-slate-900',
+      popup: `rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-2xl dark:border-slate-700 dark:bg-slate-900 ${isMobile ? 'mt-2' : ''}`,
       title: 'text-sm font-black text-slate-950 dark:text-slate-100',
       htmlContainer: 'text-xs font-semibold text-slate-600 dark:text-slate-300',
     },
   });
+};
