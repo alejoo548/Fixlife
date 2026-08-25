@@ -229,9 +229,9 @@ const buildSubmittedRequestSummaryHtml = (request: {
         <div class="mt-2 text-left">
             <div class="rounded-3xl border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-white/[0.04] p-4">
                 <div class="flex items-start justify-between gap-3">
-                    <div>
+                    <div class="min-w-0 flex-1">
                         <p class="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">${escapeHtml(i18n.t('serviceRequest.wizard.submitted.request'))} ${escapeHtml(requestNumber)}</p>
-                        <h3 class="mt-1 text-lg font-black leading-tight text-slate-950 dark:text-slate-100">${escapeHtml(request.service_name)}</h3>
+                        <h3 class="mt-1 truncate text-lg font-black leading-tight text-slate-950 dark:text-slate-100">${escapeHtml(request.service_name)}</h3>
                     </div>
                     <span class="shrink-0 rounded-full bg-emerald-100 dark:bg-emerald-900/40 px-3 py-1 text-[10px] font-black uppercase tracking-[0.12em] text-emerald-700 dark:text-emerald-400">${escapeHtml(statusLabelText)}</span>
                 </div>

@@ -91,6 +91,10 @@ const UserProfile: React.FC<UserProfileProps> = ({ onBack }) => {
     .slice(0, 2);
 
   const profileImageUrl = useMemo(() => normalizeImageUrl(user?.profile_image), [user?.profile_image]);
+  const [profileImgBroken, setProfileImgBroken] = useState(false);
+  useEffect(() => {
+    setProfileImgBroken(false);
+  }, [profileImageUrl]);
 
   const nextUsernameChangeDate = getNextUsernameChangeDate(user?.username_changed_at);
   const isUsernameLocked = Boolean(nextUsernameChangeDate);
@@ -255,10 +259,11 @@ const UserProfile: React.FC<UserProfileProps> = ({ onBack }) => {
             {/* Avatar block with camera upload overlay */}
             <div className="relative group shrink-0">
               <div className="w-24 h-24 sm:w-28 sm:h-28 rounded-2xl p-1 bg-gradient-to-tr from-bird-blue via-sky-400 to-indigo-500 shadow-[0_10px_30px_rgba(0,144,255,0.3)]">
-                {profileImageUrl ? (
+                {profileImageUrl && !profileImgBroken ? (
                   <img
                     src={profileImageUrl}
                     alt={t('userProfile.photoTitle')}
+                    onError={() => setProfileImgBroken(true)}
                     className="w-full h-full rounded-[14px] object-cover border-2 border-white dark:border-slate-900"
                   />
                 ) : (

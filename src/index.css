@@ -717,10 +717,13 @@ html {
   }
 }
 
-/* Improved mobile touch targets */
+/* Improved mobile touch targets. .no-min-tap opts an element out — for
+   small decorative controls (carousel dots, icon-only compact actions)
+   where the visual size is intentional and the tap target is already
+   reachable via generous padding on its wrapper. */
 @media (max-width: 768px) {
-  button,
-  a {
+  button:not(.no-min-tap),
+  a:not(.no-min-tap) {
     min-height: 44px;
     min-width: 44px;
   }

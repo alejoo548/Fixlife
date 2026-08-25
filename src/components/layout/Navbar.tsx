@@ -1710,27 +1710,27 @@ export const Navbar: React.FC<NavbarProps> = ({
                           <div className="relative mx-auto flex min-h-[460px] max-w-5xl flex-col gap-5">
                             <div className="rounded-[28px] border border-slate-200/80 dark:border-white/10 bg-white dark:bg-slate-900 p-5 shadow-[0_20px_55px_rgba(15,23,42,0.08)] sm:p-7">
                               <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
-                                <div className="flex min-w-0 items-start gap-4 sm:gap-5">
-                                  <div className="relative grid h-20 w-20 shrink-0 place-items-center rounded-[24px] bg-sky-50 dark:bg-sky-950/50 text-bird-blue ring-1 ring-sky-100 sm:h-24 sm:w-24">
-                                    <span className="absolute inset-2 animate-pulse rounded-[20px] bg-bird-blue/10" />
-                                    <svg className="relative h-10 w-10 sm:h-12 sm:w-12" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <div className="flex min-w-0 items-start gap-3 sm:gap-5">
+                                  <div className="relative grid h-14 w-14 shrink-0 place-items-center rounded-2xl bg-sky-50 dark:bg-sky-950/50 text-bird-blue ring-1 ring-sky-100 sm:h-24 sm:w-24 sm:rounded-[24px]">
+                                    <span className="absolute inset-2 animate-pulse rounded-[16px] bg-bird-blue/10 sm:rounded-[20px]" />
+                                    <svg className="relative h-7 w-7 sm:h-12 sm:w-12" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.2} d="M21 21l-4.35-4.35m1.6-5.4a7 7 0 11-14 0 7 7 0 0114 0z" />
                                     </svg>
                                   </div>
-                                  <div className="min-w-0">
-                                    <div className="flex flex-wrap items-center gap-2">
-                                      <span className="inline-flex items-center gap-2 rounded-full bg-sky-50 dark:bg-sky-950/50 px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.16em] text-bird-blue">
-                                        <span className="h-2 w-2 rounded-full bg-bird-blue" />
+                                  <div className="min-w-0 flex-1">
+                                    <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
+                                      <span className="inline-flex items-center gap-1.5 sm:gap-2 rounded-full bg-sky-50 dark:bg-sky-950/50 px-2.5 py-1 sm:px-3 sm:py-1.5 text-[9px] sm:text-[10px] font-black uppercase tracking-[0.1em] sm:tracking-[0.16em] text-bird-blue">
+                                        <span className="h-1.5 w-1.5 sm:h-2 sm:w-2 rounded-full bg-bird-blue" />
                                         {t('navbar.myRequestTracker.matchingInProgress')}
                                       </span>
-                                      <span className="rounded-full bg-amber-50 dark:bg-amber-950/50 px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.14em] text-amber-700 dark:text-amber-400">
+                                      <span className="rounded-full bg-amber-50 dark:bg-amber-950/50 px-2.5 py-1 sm:px-3 sm:py-1.5 text-[9px] sm:text-[10px] font-black uppercase tracking-[0.1em] sm:tracking-[0.14em] text-amber-700 dark:text-amber-400">
                                         {t('navbar.myRequestTracker.requestHash', { id: primaryRequest.id_request })}
                                       </span>
                                     </div>
-                                    <h3 className="mt-4 text-3xl font-black leading-[1.05] text-slate-950 dark:text-slate-100 sm:text-4xl">
+                                    <h3 className="mt-2.5 sm:mt-4 text-xl sm:text-4xl font-black leading-tight sm:leading-[1.05] text-slate-950 dark:text-slate-100">
                                       {t('navbar.myRequestTracker.findingRightPro')}
                                     </h3>
-                                    <p className="mt-3 max-w-2xl text-sm font-semibold leading-6 text-slate-600 dark:text-slate-400">
+                                    <p className="mt-2 sm:mt-3 max-w-2xl text-xs sm:text-sm font-semibold leading-5 sm:leading-6 text-slate-600 dark:text-slate-400">
                                       {t('navbar.myRequestTracker.checkingVerifiedPros')}
                                     </p>
                                   </div>

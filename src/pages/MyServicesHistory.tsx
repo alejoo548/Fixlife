@@ -329,14 +329,14 @@ const MyServicesHistory: React.FC<Props> = ({ onOpenReview, onGoHome }) => {
                                 <ShieldCheck className="h-3.5 w-3.5" />
                                 {t('common.serviceHistory.badge')}
                             </div>
-                            <h1 className="mt-5 text-4xl font-black tracking-tight sm:text-5xl">
+                            <h1 className="mt-5 text-3xl font-black tracking-tight sm:text-5xl">
                                 {t('common.serviceHistory.title')}
                             </h1>
                             <p className="mt-3 max-w-md text-sm font-medium text-slate-300 sm:text-base">
                                 {t('common.serviceHistory.description')}
                             </p>
                         </div>
-                        <div className="grid w-full max-w-md grid-cols-3 gap-3 lg:w-auto">
+                        <div className="grid w-full max-w-md grid-cols-3 gap-2 sm:gap-3 lg:w-auto">
                             <HeroStat label={t('common.serviceHistory.stats.totalSpent')} value={money(summary.totalSpent, 'USD', i18n.language)} accent />
                             <HeroStat label={t('common.serviceHistory.stats.completed')} value={String(summary.completed)} />
                             <HeroStat label={t('common.serviceHistory.stats.active')} value={String(summary.active)} />
@@ -650,12 +650,12 @@ const MyServicesHistory: React.FC<Props> = ({ onOpenReview, onGoHome }) => {
 
 const HeroStat: React.FC<{ label: string; value: string; accent?: boolean }> = ({ label, value, accent = false }) => (
     <div
-        className={`rounded-2xl border p-3 backdrop-blur ${
+        className={`min-w-0 rounded-2xl border p-2.5 sm:p-3 backdrop-blur ${
             accent ? 'border-cyan-300/30 bg-cyan-400/10' : 'border-white/10 bg-white/[0.06]'
         }`}
     >
-        <p className="text-[10px] font-black uppercase tracking-[0.18em] text-cyan-100/80">{label}</p>
-        <p className={`mt-2 truncate text-xl font-black ${accent ? 'text-cyan-300' : 'text-white'}`}>{value}</p>
+        <p className="truncate text-[9px] sm:text-[10px] font-black uppercase tracking-[0.1em] sm:tracking-[0.18em] text-cyan-100/80">{label}</p>
+        <p className={`mt-1.5 sm:mt-2 truncate text-base sm:text-xl font-black ${accent ? 'text-cyan-300' : 'text-white'}`}>{value}</p>
     </div>
 );
 

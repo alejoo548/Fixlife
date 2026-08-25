@@ -311,12 +311,20 @@ export const TestimonialsCarousel: React.FC = () => {
             key={item.id}
             onClick={() => goToSlide(index)}
             aria-label={t('testimonials.a11y.goTo', { index: index + 1 })}
-            className={`transition-all duration-300 ${
+            className={`no-min-tap flex items-center justify-center transition-all duration-300 ${
               index === currentIndex
-                ? 'h-1.5 w-5 rounded-full bg-bird-blue shadow-[0_2px_8px_rgba(0,144,255,0.3)]'
-                : 'h-1.5 w-1.5 rounded-full bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700'
+                ? 'h-6 w-8'
+                : 'h-6 w-4'
             }`}
-          />
+          >
+            <span
+              className={`block transition-all duration-300 ${
+                index === currentIndex
+                  ? 'h-1.5 w-5 rounded-full bg-bird-blue shadow-[0_2px_8px_rgba(0,144,255,0.3)]'
+                  : 'h-1.5 w-1.5 rounded-full bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700'
+              }`}
+            />
+          </button>
         ))}
       </div>
     </div>
