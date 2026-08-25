@@ -35,7 +35,7 @@ const Badge = ({ label, style }: { label: string; style: React.CSSProperties }) 
 
 export default function ActivityModule() {
   const { t, lang } = useAdminT();
-  const locale = lang === 'es' ? 'es-ES' : 'en-US';
+  const locale = lang === 'es' ? 'es-SV' : 'en-US';
   const [allRows, setAllRows] = useState<Item[]>([]);
   const [loading, setLoading] = useState(true);
   const [action, setAction] = useState('all');

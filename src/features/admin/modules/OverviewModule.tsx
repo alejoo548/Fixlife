@@ -439,7 +439,7 @@ export default function OverviewModule() {
             {requests.map((r) => (
               <Link to={`../requests?request=${r.id_request}`} key={r.id_request}>
                 <div><strong>#{r.id_request} · {adminServiceName(r.service_name, lang)}</strong><span>{r.client?.name || at('common.guest')} · {r.location_text}</span></div>
-                <div><StatusBadge status={r.status} /><small>{new Date(r.created_at).toLocaleString(lang === 'es' ? 'es-ES' : 'en-US')}</small></div>
+                <div><StatusBadge status={r.status} /><small>{new Date(r.created_at).toLocaleString(lang === 'es' ? 'es-SV' : 'en-US')}</small></div>
               </Link>
             ))}
           </div>

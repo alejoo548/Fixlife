@@ -98,8 +98,8 @@ export default function UsersModule() {
           columns={[
             { key: 'user', label: t('users.user'), render: (user) => <div className="admin-primary-cell"><strong>{user.name} {user.lastname}</strong><span>{user.email}</span></div> },
             { key: 'status', label: t('common.status'), render: (user) => <StatusBadge status={user.is_active ? 'active' : 'inactive'} /> },
-            { key: 'created', label: t('common.joined'), render: (user) => new Date(user.created_at).toLocaleDateString(lang === 'es' ? 'es-ES' : 'en-US') },
-            { key: 'login', label: t('common.lastLogin'), render: (user) => user.last_login ? new Date(user.last_login).toLocaleString(lang === 'es' ? 'es-ES' : 'en-US') : t('common.never') },
+            { key: 'created', label: t('common.joined'), render: (user) => new Date(user.created_at).toLocaleDateString(lang === 'es' ? 'es-SV' : 'en-US') },
+            { key: 'login', label: t('common.lastLogin'), render: (user) => user.last_login ? new Date(user.last_login).toLocaleString(lang === 'es' ? 'es-SV' : 'en-US') : t('common.never') },
             { key: 'action', label: t('common.action'), render: (user) => <button className="admin-button admin-button--secondary admin-button--small" onClick={(event) => { event.stopPropagation(); setTarget(user); }}>{user.is_active ? t('users.deactivate') : t('users.activate')}</button> },
           ]}
         />

@@ -13,7 +13,7 @@ type WorkerResponse = {
 
 export function WorkerResponses({ responses }: { responses: Array<Record<string, unknown>> }) {
   const { t, lang } = useAdminT();
-  const locale = lang === 'es' ? 'es-ES' : 'en-US';
+  const locale = lang === 'es' ? 'es-SV' : 'en-US';
   const money = (value: number | null | undefined) =>
     value == null ? t('requests.noOffer') : Number(value).toLocaleString(locale, { style: 'currency', currency: 'USD' });
   const items = responses as WorkerResponse[];

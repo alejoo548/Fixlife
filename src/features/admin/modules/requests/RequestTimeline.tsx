@@ -5,7 +5,7 @@ import { adminServiceDescription, adminStatusLabel, useAdminT } from '../../admi
 
 export function RequestTimeline({ request }: { request: AdminRequestDetail }) {
   const { t, lang } = useAdminT();
-  const locale = lang === 'es' ? 'es-ES' : 'en-US';
+  const locale = lang === 'es' ? 'es-SV' : 'en-US';
   const isOverallComplete = String(request.status || '').toLowerCase() === 'done';
   const formatDate = (value: string | null | undefined) =>
     value ? new Date(value).toLocaleString(locale) : t('common.notAvailable');

@@ -18,7 +18,7 @@ type AdminAccount = {
 
 export default function AdminsModule() {
   const { t, lang } = useAdminT();
-  const locale = lang === 'es' ? 'es-ES' : 'en-US';
+  const locale = lang === 'es' ? 'es-SV' : 'en-US';
   const [admins, setAdmins] = useState<AdminAccount[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');

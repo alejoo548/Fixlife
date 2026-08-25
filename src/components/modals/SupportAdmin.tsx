@@ -505,7 +505,7 @@ export const SupportAdmin: React.FC<SupportAdminProps> = ({ token }) => {
                         )}
                         {safeMessage && <div className="whitespace-pre-wrap">{safeMessage}</div>}
                         <div className={`text-[10px] mt-1 text-right ${isAdmin ? 'text-white/60' : textMuted}`}>
-                          {new Date(msg.createdAt).toLocaleTimeString(lang === 'es' ? 'es-ES' : 'en-US', { hour: '2-digit', minute: '2-digit' })}
+                          {new Date(msg.createdAt).toLocaleTimeString(lang === 'es' ? 'es-SV' : 'en-US', { hour: '2-digit', minute: '2-digit' })}
                         </div>
                       </div>
                     </div>

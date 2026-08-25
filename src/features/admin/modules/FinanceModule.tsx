@@ -13,7 +13,7 @@ type RewardForm = { trial_min_completed_jobs:string; commission_rate_percent:str
 
 export default function FinanceModule() {
   const { t, lang } = useAdminT();
-  const locale = lang === 'es' ? 'es-ES' : 'en-US';
+  const locale = lang === 'es' ? 'es-SV' : 'en-US';
   const money = (value: number, currency = 'USD') => Number(value || 0).toLocaleString(locale, { style: 'currency', currency });
   const [tab, setTab] = useState<FinanceTab>('overview');
   const [loading, setLoading] = useState(true);

@@ -9,7 +9,7 @@ import { adminActionLabel, adminServiceName, adminStatusLabel, useAdminT } from 
 export function UserDetailDrawer({ detail, loading, open, onClose }: { detail: AdminUserDetail | null; loading: boolean; open: boolean; onClose: () => void }) {
   const { t, lang } = useAdminT();
   const [preview, setPreview] = useState<{ url: string; title: string } | null>(null);
-  const locale = lang === 'es' ? 'es-ES' : 'en-US';
+  const locale = lang === 'es' ? 'es-SV' : 'en-US';
   const money = (value: number) => value.toLocaleString(locale, { style: 'currency', currency: 'USD' });
   return (
     <DetailDrawer open={open} title={detail?.name || t('userDetail.accountDetail')} subtitle={detail ? `${adminStatusLabel(detail.role, lang)} · ${t('userDetail.userNumber', { id: detail.id_user })}` : t('userDetail.loadingAccount')} onClose={onClose}>

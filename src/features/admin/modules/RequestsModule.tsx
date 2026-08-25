@@ -11,7 +11,7 @@ import { WorkerResponses } from './requests/WorkerResponses';
 
 export default function RequestsModule() {
   const { t, lang } = useAdminT();
-  const locale = lang === 'es' ? 'es-ES' : 'en-US';
+  const locale = lang === 'es' ? 'es-SV' : 'en-US';
   const money = (value: number | null | undefined) => Number(value || 0).toLocaleString(locale, { style: 'currency', currency: 'USD' });
   const date = (value: string | null | undefined) => value ? new Date(value).toLocaleString(locale) : t('common.notAvailable');
   const [params, setParams] = useSearchParams();

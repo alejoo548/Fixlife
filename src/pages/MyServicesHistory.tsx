@@ -120,7 +120,7 @@ const statusTone = (status: string) => {
 };
 
 const money = (value: number, currency = 'USD', language = 'en-US') =>
-    Number(value || 0).toLocaleString(language, { style: 'currency', currency });
+    Number(value || 0).toLocaleString(language.startsWith('es') ? 'es-SV' : 'en-US', { style: 'currency', currency });
 
 const formatDate = (iso: string, language = 'en-US') => {
     const d = new Date(iso);

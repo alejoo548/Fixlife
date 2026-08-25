@@ -58,7 +58,7 @@ export const AdminDatePicker = ({
   placeholder: string;
 }) => {
   const { t, lang } = useAdminT();
-  const locale = lang === 'es' ? 'es-ES' : 'en-US';
+  const locale = lang === 'es' ? 'es-SV' : 'en-US';
   const selectedDate = parseDateInputValue(value);
   const [open, setOpen] = useState(false);
   const [visibleMonth, setVisibleMonth] = useState(() => selectedDate || new Date());
@@ -328,6 +328,6 @@ export function DataTable<T>({ columns, rows, rowKey, onRowClick, pagination, on
     <div className="admin-table-wrap"><table className="admin-table"><thead><tr>{columns.map((column) => <th key={column.key} className={column.className}>{column.label}</th>)}</tr></thead>
       <tbody>{rows.map((row) => <tr key={rowKey(row)} onClick={() => onRowClick?.(row)} className={onRowClick ? 'admin-table__clickable' : ''}>{columns.map((column) => <td key={column.key} className={column.className}>{column.render(row)}</td>)}</tr>)}</tbody>
     </table></div>
-  {pagination && <footer className="admin-pagination"><span>{t('common.records', { count: pagination.total.toLocaleString(lang === 'es' ? 'es-ES' : 'en-US') })}</span><div><button aria-label={t('common.previousPage')} disabled={pagination.page <= 1} onClick={() => onPageChange?.(pagination.page - 1)}><ChevronLeft size={16} /></button><span>{t('common.pageOf', { page: pagination.page, pages: pagination.pages })}</span><button aria-label={t('common.nextPage')} disabled={pagination.page >= pagination.pages} onClick={() => onPageChange?.(pagination.page + 1)}><ChevronRight size={16} /></button></div></footer>}
+  {pagination && <footer className="admin-pagination"><span>{t('common.records', { count: pagination.total.toLocaleString(lang === 'es' ? 'es-SV' : 'en-US') })}</span><div><button aria-label={t('common.previousPage')} disabled={pagination.page <= 1} onClick={() => onPageChange?.(pagination.page - 1)}><ChevronLeft size={16} /></button><span>{t('common.pageOf', { page: pagination.page, pages: pagination.pages })}</span><button aria-label={t('common.nextPage')} disabled={pagination.page >= pagination.pages} onClick={() => onPageChange?.(pagination.page + 1)}><ChevronRight size={16} /></button></div></footer>}
   </AdminCard>;
 }
