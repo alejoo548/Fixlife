@@ -7,8 +7,14 @@ interface ServiceRequestPanelShellProps {
     guidedBooking?: boolean;
     guidedBookingAlign?: 'center' | 'left';
     hasActiveTrackedRequest: boolean;
-    /** Shrinks the mobile bottom sheet so the map behind it stays visible — used on the location step. */
-    compactForMap?: boolean;
+    /**
+     * Shrinks the mobile bottom sheet so the map behind it stays visible.
+     * 'tight' — short lists (service picker) that need little room.
+     * 'roomy' — the location step, which has an address input, save-place
+     * panel, saved places and a radius selector and needs more headroom
+     * to stay comfortably scrollable while still showing the map above it.
+     */
+    mapSheetSize?: 'tight' | 'roomy';
     onClose: () => void;
     onBack?: () => void;
     notificationCenter: React.ReactNode;
@@ -21,12 +27,13 @@ export function ServiceRequestPanelShell({
     guidedBooking = false,
     guidedBookingAlign = 'center',
     hasActiveTrackedRequest,
-    compactForMap = false,
+    mapSheetSize,
     onClose,
     onBack,
     notificationCenter,
     children,
 }: ServiceRequestPanelShellProps) {
+    const compactForMap = Boolean(mapSheetSize) && !hasActiveTrackedRequest;
     return (
         <motion.div
             initial={isDesktopSheet ? { opacity: 0, x: -16 } : { y: '100%', opacity: 0 }}
@@ -41,8 +48,10 @@ export function ServiceRequestPanelShell({
                             : 'absolute inset-0 m-auto h-[min(88vh,860px)] w-[min(760px,calc(100vw-64px))] overflow-hidden rounded-[28px] border border-white/80 dark:border-white/10 shadow-[0_32px_90px_rgba(15,23,42,0.28)]'
                         : 'relative h-full w-[430px] overflow-visible border-r border-slate-200/80 dark:border-white/10 shadow-[2px_0_24px_rgba(15,23,42,0.10)] lg:w-[500px]'
                     : `${
-                          compactForMap && !hasActiveTrackedRequest
-                              ? 'h-[42vh] sm:h-[38vh]'
+                          compactForMap
+                              ? mapSheetSize === 'roomy'
+                                  ? 'h-[68vh] sm:h-[64vh]'
+                                  : 'h-[42vh] sm:h-[38vh]'
                               : step === 1 && !hasActiveTrackedRequest
                               ? 'h-[92vh]'
                               : 'h-[82vh]'
