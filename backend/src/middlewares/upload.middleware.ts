@@ -63,7 +63,7 @@ const uploadLimits = {
 };
 const imageUploadLimits = {
   ...uploadLimits,
-  fileSize: 5 * MB,
+  fileSize: 10 * MB,
   files: 10,
 };
 
