@@ -32,7 +32,7 @@ const navGroups = [
 ];
 
 export const AdminShell = ({ onClose }: { onClose: () => void }) => {
-  const { theme, toggleTheme } = useDashboardTheme('admin');
+  const { theme, toggleTheme } = useDashboardTheme('admin', { syncDocumentClass: true });
   const { t, lang } = useAdminT();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(false);

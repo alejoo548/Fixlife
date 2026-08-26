@@ -35,7 +35,18 @@ const getInitialTheme = (role: DashboardThemeRole): DashboardTheme => {
   return getSystemTheme();
 };
 
-export const useDashboardTheme = (role: DashboardThemeRole) => {
+export const useDashboardTheme = (
+  role: DashboardThemeRole,
+  // Only the persistent top-level shell (ProDashboard, AdminShell) should
+  // own the <html class="dark"> side effect — child components (tabs,
+  // modules) also call this hook just to read `isDark` for their own
+  // prop-driven styling, and mount/unmount far more often than the shell
+  // does. If every instance synced the document class, an inner tab
+  // unmounting would race the shell's own effect and reset <html> to the
+  // client-facing theme while the dashboard is still on screen.
+  options: { syncDocumentClass?: boolean } = {}
+) => {
+  const { syncDocumentClass = false } = options;
   const [accountId, setAccountId] = useState<string>(() => getAccountId(role));
   const [theme, setTheme] = useState<DashboardTheme>(() => getInitialTheme(role));
   const storageKey = useMemo(() => `${STORAGE_PREFIX}:${role}:${accountId}`, [role, accountId]);
@@ -106,6 +117,32 @@ export const useDashboardTheme = (role: DashboardThemeRole) => {
       }
     };
   }, [storageKey]);
+
+  // Drive the actual <html class="dark"> that Tailwind's `dark:` variant
+  // reads. Without this, raw `dark:*` utilities inside the dashboard
+  // markup keep following whatever the client-facing site's theme
+  // (fixlife:user-theme) last set, ignoring this dashboard's own toggle —
+  // e.g. a worker switching their dashboard to light mode while <html>
+  // still carries a leftover 'dark' class from the main site.
+  useEffect(() => {
+    if (!syncDocumentClass || typeof document === 'undefined') return;
+    const root = document.documentElement;
+    if (theme === 'dark') root.classList.add('dark');
+    else root.classList.remove('dark');
+  }, [syncDocumentClass, theme]);
+
+  // On unmount (leaving the dashboard back to the client-facing pages),
+  // restore whatever theme those pages themselves are set to instead of
+  // leaving this dashboard's class stuck on <html>.
+  useEffect(() => {
+    if (!syncDocumentClass) return;
+    return () => {
+      if (typeof document === 'undefined' || typeof window === 'undefined') return;
+      const clientTheme = window.localStorage.getItem('fixlife:user-theme');
+      if (clientTheme === 'dark') document.documentElement.classList.add('dark');
+      else document.documentElement.classList.remove('dark');
+    };
+  }, [syncDocumentClass]);
 
   const toggleTheme = useCallback(() => {
     setTheme((currentTheme) => (currentTheme === 'dark' ? 'light' : 'dark'));

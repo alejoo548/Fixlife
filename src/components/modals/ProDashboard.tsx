@@ -103,7 +103,7 @@ const DashboardPanelFallback: React.FC<{ label?: string }> = ({ label }) => {
 export const ProDashboard: React.FC<ProDashboardProps> = ({ isOpen, onClose, onSignOut }) => {
    const { t, i18n } = useTranslation();
    const location = useLocation();
-   const { theme, isDark, toggleTheme } = useDashboardTheme('worker');
+   const { theme, isDark, toggleTheme } = useDashboardTheme('worker', { syncDocumentClass: true });
    const [isOnline, setIsOnline] = useState<boolean | null>(null);
    const [activeTab, setActiveTab] = useState('requests');
    const [mobileView, setMobileView] = useState<'list' | 'map'>('list');
