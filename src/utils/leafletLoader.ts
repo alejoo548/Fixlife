@@ -57,18 +57,40 @@ export const loadLeaflet = async (scope: string) => {
 };
 
 export const addResilientTileLayer = (L: any, map: any, dark: boolean = false) => {
-  // CARTO now requires an API key for basemaps.cartocdn.com (returns a 200
-  // "API KEY REQUIRED" watermark tile instead of erroring, so tileerror never
-  // fires). Use OSM's free, key-less tiles for both modes; dark is achieved
-  // via the CSS filter on .fixlife-map-tiles-dark (see index.css).
-  const primaryLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    maxZoom: 19,
-    attribution: '&copy; OpenStreetMap contributors',
+  let fallbackAdded = false;
+  // Light: CARTO Positron — minimal grey/white basemap (Uber/rideshare-app
+  // look), swapped from the old colorful Voyager tiles. Dark: CARTO Dark
+  // Matter, softened with a CSS filter (see .fixlife-map-tiles-dark in
+  // index.css) so roads/water/labels stay legible instead of near-black.
+  const tileUrl = dark
+    ? 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png'
+    : 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png';
+  const primaryLayer = L.tileLayer(tileUrl, {
+    maxZoom: 20,
+    attribution: '&copy; OpenStreetMap &copy; CARTO',
     keepBuffer: 1,
     updateWhenIdle: true,
     updateWhenZooming: false,
     className: dark ? 'fixlife-map-tiles-dark' : '',
   }).addTo(map);
+
+  primaryLayer.on('tileerror', () => {
+    if (fallbackAdded) return;
+    fallbackAdded = true;
+    try {
+      map.removeLayer(primaryLayer);
+    } catch {
+    }
+    // Fallback only fires if CARTO is unreachable; plain OSM tiles are light,
+    // not dark, but keeping the map usable matters more than the theme here.
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      maxZoom: 19,
+      attribution: '&copy; OpenStreetMap contributors',
+      keepBuffer: 1,
+      updateWhenIdle: true,
+      updateWhenZooming: false,
+    }).addTo(map);
+  });
 
   return primaryLayer;
 };
