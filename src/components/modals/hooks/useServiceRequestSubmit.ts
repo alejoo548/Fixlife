@@ -11,6 +11,48 @@ interface Coordinates {
   lng: number;
 }
 
+const MAX_UPLOAD_DIMENSION = 1600;
+const UPLOAD_JPEG_QUALITY = 0.75;
+
+const compressImageForUpload = (file: File): Promise<File> =>
+  new Promise((resolve) => {
+    if (!file.type.startsWith('image/') || file.type === 'image/svg+xml') {
+      resolve(file);
+      return;
+    }
+    const img = new Image();
+    const objectUrl = URL.createObjectURL(file);
+    img.onload = () => {
+      URL.revokeObjectURL(objectUrl);
+      const scale = Math.min(1, MAX_UPLOAD_DIMENSION / Math.max(img.width, img.height));
+      const canvas = document.createElement('canvas');
+      canvas.width = Math.round(img.width * scale);
+      canvas.height = Math.round(img.height * scale);
+      const ctx = canvas.getContext('2d');
+      if (!ctx) {
+        resolve(file);
+        return;
+      }
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+      canvas.toBlob(
+        (blob) => {
+          if (!blob || blob.size >= file.size) {
+            resolve(file);
+            return;
+          }
+          resolve(new File([blob], file.name.replace(/\.\w+$/, '.jpg'), { type: 'image/jpeg' }));
+        },
+        'image/jpeg',
+        UPLOAD_JPEG_QUALITY
+      );
+    };
+    img.onerror = () => {
+      URL.revokeObjectURL(objectUrl);
+      resolve(file);
+    };
+    img.src = objectUrl;
+  });
+
 interface ServiceOptionLike {
   id_service: number;
   name: string;
@@ -192,7 +234,8 @@ export const useServiceRequestSubmit = ({
       }
       form.append('lat', String(currentCoords.lat));
       form.append('lng', String(currentCoords.lng));
-      problemFiles.forEach((file) => form.append('problem_images', file));
+      const compressedFiles = await Promise.all(problemFiles.map(compressImageForUpload));
+      compressedFiles.forEach((file) => form.append('problem_images', file));
 
       const token = getToken();
       const res = await fetch(API_ENDPOINTS.services.createRequest, {
