@@ -135,7 +135,7 @@ export const getPreviewTileUrl = (lat: number, lng: number, zoom = 15) => {
         scale - 1
     );
 
-    return `https://a.basemaps.cartocdn.com/rastertiles/voyager/${zoom}/${x}/${y}.png`;
+    return `https://a.tile.openstreetmap.org/${zoom}/${x}/${y}.png`;
 };
 
 export const sameCoords = (
