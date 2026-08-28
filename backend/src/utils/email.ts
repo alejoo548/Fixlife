@@ -186,6 +186,80 @@ export const sendProfileChangeNotice = async (
   }
 };
 
+export const sendAccountStatusChangeEmail = async (
+  to: string,
+  name: string,
+  isActive: boolean,
+  reason: string | null
+) => {
+  const statusLabel = isActive ? 'reactivated' : 'deactivated';
+  const mailOptions = {
+    from: `"Fixlife Support" <${process.env.EMAIL_USER || 'no-reply@fixlife.local'}>`,
+    to,
+    subject: `Your Fixlife account has been ${statusLabel}`,
+    html: `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; border: 1px solid #e5e7eb; border-radius: 8px; overflow: hidden;">
+        <div style="background-color: ${isActive ? '#0F52BA' : '#111827'}; padding: 20px; text-align: center;">
+          <h2 style="color: #ffffff; margin: 0;">Account ${isActive ? 'Reactivated' : 'Deactivated'}</h2>
+        </div>
+        <div style="padding: 20px; color: #111827;">
+          <p>Hi ${escapeHtml(name)},</p>
+          <p>An administrator has ${statusLabel} your Fixlife account.</p>
+          ${reason ? `<p><strong>Reason:</strong> ${escapeHtml(reason)}</p>` : ''}
+          <p style="font-size: 14px; color: #4b5563;">If you believe this is a mistake, contact Fixlife support.</p>
+          <p>Fixlife Team</p>
+        </div>
+      </div>
+    `,
+  };
+
+  try {
+    const info = await transporter.sendMail(mailOptions);
+    console.log('Account status change email sent: %s', info.messageId);
+    return true;
+  } catch (error) {
+    console.error('Error sending account status change email:', error);
+    return false;
+  }
+};
+
+export const sendWorkerApplicationDecisionEmail = async (
+  to: string,
+  name: string,
+  approved: boolean,
+  reason: string | null
+) => {
+  const mailOptions = {
+    from: `"Fixlife Support" <${process.env.EMAIL_USER || 'no-reply@fixlife.local'}>`,
+    to,
+    subject: approved ? 'Your Fixlife worker application was approved' : 'Your Fixlife worker application was rejected',
+    html: `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; border: 1px solid #e5e7eb; border-radius: 8px; overflow: hidden;">
+        <div style="background-color: ${approved ? '#0F52BA' : '#111827'}; padding: 20px; text-align: center;">
+          <h2 style="color: #ffffff; margin: 0;">Application ${approved ? 'Approved' : 'Rejected'}</h2>
+        </div>
+        <div style="padding: 20px; color: #111827;">
+          <p>Hi ${escapeHtml(name)},</p>
+          <p>${approved
+            ? 'Congratulations! Your worker application has been approved. You can now start receiving service requests.'
+            : 'Your worker application was not approved at this time.'}</p>
+          ${reason ? `<p><strong>${approved ? 'Note' : 'Reason'}:</strong> ${escapeHtml(reason)}</p>` : ''}
+          <p>Fixlife Team</p>
+        </div>
+      </div>
+    `,
+  };
+
+  try {
+    const info = await transporter.sendMail(mailOptions);
+    console.log('Worker application decision email sent: %s', info.messageId);
+    return true;
+  } catch (error) {
+    console.error('Error sending worker application decision email:', error);
+    return false;
+  }
+};
+
 export const sendPasswordResetEmail = async (to: string, otp: string, name: string) => {
   const mailOptions = {
     from: `"Fixlife Support" <${process.env.EMAIL_USER || 'no-reply@fixlife.local'}>`,

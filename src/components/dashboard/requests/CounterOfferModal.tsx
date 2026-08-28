@@ -21,8 +21,14 @@ const sanitizeCounterAmount = (value: string) => {
     ? `${whole.slice(0, 4) || '0'}.${decimals.slice(0, 2)}`
     : whole.slice(0, 4);
   if (!limited) return '';
-  return Number(limited) > 1000 ? '1000' : limited;
+  const numeric = Number(limited);
+  if (!Number.isFinite(numeric)) return '';
+  if (numeric > 1000) return '1000';
+  return limited;
 };
+
+const NOTE_STRIP_PATTERN = new RegExp('[\\u0000-\\u001F\\u007F<>`]', 'g');
+const sanitizeCounterNote = (value: string) => value.replace(NOTE_STRIP_PATTERN, '').slice(0, 255);
 
 export const CounterOfferModal: React.FC<CounterOfferModalProps> = ({
   open,
@@ -35,6 +41,8 @@ export const CounterOfferModal: React.FC<CounterOfferModalProps> = ({
 }) => {
   const { t } = useTranslation();
   const { warning: noteWarning, guardValue } = useProfanityGuard();
+  const amountValue = Number(amount);
+  const amountInvalid = amount.length > 0 && (!Number.isFinite(amountValue) || amountValue <= 0);
   return (
   <AnimatePresence>
     {open && (
@@ -66,9 +74,15 @@ export const CounterOfferModal: React.FC<CounterOfferModalProps> = ({
               maxLength={7}
               value={amount}
               onChange={(event) => onAmountChange(sanitizeCounterAmount(event.target.value))}
-              className="w-full bg-gray-50 border-2 border-gray-200 rounded-xl py-3 pl-10 pr-4 text-gray-900 font-bold focus:outline-none focus:border-amber-500 transition-colors dark:bg-slate-800 dark:text-slate-100 dark:border-white/10"
+              className={`w-full bg-gray-50 border-2 rounded-xl py-3 pl-10 pr-4 text-gray-900 font-bold focus:outline-none transition-colors dark:bg-slate-800 dark:text-slate-100 ${
+                amountInvalid
+                  ? 'border-red-400 focus:border-red-500'
+                  : 'border-gray-200 focus:border-amber-500 dark:border-white/10'
+              }`}
             />
-            <p className="mt-2 text-xs font-semibold text-gray-500 dark:text-slate-400">{t('workerDashboard.counterOffer.maximum')}</p>
+            <p className={`mt-2 text-xs font-semibold ${amountInvalid ? 'text-red-500' : 'text-gray-500 dark:text-slate-400'}`}>
+              {amountInvalid ? t('workerDashboard.counterOffer.invalidAmount') : t('workerDashboard.counterOffer.maximum')}
+            </p>
           </div>
 
           <label className="block text-xs uppercase tracking-wider font-bold text-gray-500 mb-2 dark:text-slate-400">
@@ -76,7 +90,7 @@ export const CounterOfferModal: React.FC<CounterOfferModalProps> = ({
           </label>
           <textarea
             value={note}
-            onChange={(event) => onNoteChange(guardValue(event.target.value))}
+            onChange={(event) => onNoteChange(sanitizeCounterNote(guardValue(event.target.value)))}
             maxLength={255}
             placeholder={t('workerDashboard.counterOffer.notePlaceholder')}
             className="w-full bg-gray-50 border-2 border-gray-200 rounded-xl py-3 px-4 resize-none h-24 text-sm focus:outline-none focus:border-amber-500 transition-colors dark:bg-slate-800 dark:border-white/10"
@@ -96,7 +110,8 @@ export const CounterOfferModal: React.FC<CounterOfferModalProps> = ({
             <button
               type="button"
               onClick={onConfirm}
-              className="py-3 rounded-xl bg-gradient-to-r from-amber-400 to-orange-500 text-white font-bold shadow-lg shadow-amber-500/30 hover:shadow-xl transition-all"
+              disabled={amountInvalid || amount.length === 0}
+              className="py-3 rounded-xl bg-gradient-to-r from-amber-400 to-orange-500 text-white font-bold shadow-lg shadow-amber-500/30 hover:shadow-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none"
             >
               {t('workerDashboard.counterOffer.sendOffer')}
             </button>

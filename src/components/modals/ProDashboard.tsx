@@ -286,7 +286,11 @@ export const ProDashboard: React.FC<ProDashboardProps> = ({ isOpen, onClose, onS
 
          setIsVerified(verified);
          setIsOnline(online);
-         setHasUploadedDocs(uploaded);
+         // Only ever move false -> true here: a worker who already uploaded
+         // (optimistic local state, or a prior successful sync) must never
+         // be asked to re-upload because this background refetch raced a
+         // stale read and briefly disagreed with what actually happened.
+         setHasUploadedDocs((prev) => prev || uploaded);
          setCurrentTier(currentTier);
          setCurrentTierLabel(formatTierLabel(currentTier, currentTierBenefits?.badge_label));
          setCurrentService(servicesOffered[0] || null);

@@ -556,7 +556,9 @@ export const renderWorkerPayoutStatementPdf = async (payload: WorkerStatementPay
   doc.y = 424;
 
   const tableHeaders = ['Date', 'Request', 'Client', 'Service', 'Base', 'Bonus', 'Total', 'Status', 'Payout'];
-  const columnWidths = [58, 50, 84, 88, 54, 54, 56, 58, 54];
+  // Must sum to <= the A4 content width (595.28 - 2*40 margin = 515.28pt),
+  // otherwise the last columns and their zebra-stripe rects run off the page.
+  const columnWidths = [54, 46, 78, 81, 50, 50, 52, 54, 50];
   const tableX = 40;
   const tableWidth = columnWidths.reduce((sum, width) => sum + width, 0);
 
@@ -566,7 +568,11 @@ export const renderWorkerPayoutStatementPdf = async (payload: WorkerStatementPay
     doc.rect(tableX, headerY - 4, tableWidth, 22).fill('#EFF6FF');
     doc.fillColor('#1D4ED8').fontSize(8).font('Helvetica-Bold');
     tableHeaders.forEach((header, index) => {
-      doc.text(header, cursorX + 4, headerY + 2, { width: columnWidths[index] - 8 });
+      doc.text(header, cursorX + 4, headerY + 2, {
+        width: columnWidths[index] - 8,
+        ellipsis: true,
+        lineBreak: false,
+      });
       cursorX += columnWidths[index];
     });
     doc.y = headerY + 22;

@@ -2836,6 +2836,12 @@ html {
   backdrop-filter: blur(4px);
   padding: 20px;
 }
+/* Document/certificate preview reuses .admin-dialog-layer for positioning
+   only — the backdrop blur above must not carry over, or the compositing
+   makes the document image read as soft/out-of-focus. */
+.admin-document-preview-layer {
+  backdrop-filter: none;
+}
 .admin-dialog {
   width: min(460px, 100%);
   background: var(--admin-surface);

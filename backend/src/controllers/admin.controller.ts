@@ -5,6 +5,7 @@ import pool from '../config/db';
 import { AuthRequest } from '../middlewares/auth.middleware';
 import {getAllBonusPayoutsForAdmin,getWorkerRewardsSettings,markWorkerBonusPayoutAsPaid,syncAllWorkerBonusPayouts,updateWorkerRewardsSettings,} from '../utils/workerRewards';
 import { createUserNotification } from '../utils/notifications';
+import { sendAccountStatusChangeEmail, sendWorkerApplicationDecisionEmail } from '../utils/email';
 import { emitToUser } from '../services/socketManager';
 import { emitAdminActivity } from '../services/supportSocket.service';
 import { recordSystemEvent } from '../services/systemEvents.service';
@@ -1466,7 +1467,7 @@ export const approveWorker = async (req: AuthRequest, res: Response): Promise<vo
       await connection.beginTransaction();
 
       const [userRows] = await connection.execute<RowDataPacket[]>(
-        `SELECT u.id_user, u.pending_worker, u.rol, u.name, u.lastname, wp.is_verified
+        `SELECT u.id_user, u.pending_worker, u.rol, u.name, u.lastname, u.email, wp.is_verified
          FROM users u
          INNER JOIN worker_profiles wp ON wp.id_user = u.id_user
          WHERE u.id_user = ?
@@ -1525,6 +1526,13 @@ export const approveWorker = async (req: AuthRequest, res: Response): Promise<vo
         metadata: { targetUserId: userId, actor: req.user?.user_id },
       }).catch(() => undefined);
 
+      const approvedEmail = String(userRows[0]?.email || '').trim();
+      if (approvedEmail) {
+        sendWorkerApplicationDecisionEmail(approvedEmail, workerName || 'there', true, reason || null).catch(
+          () => undefined
+        );
+      }
+
       res.json({ success: true, message: 'Worker approved successfully.' });
     } catch (error) {
       await connection.rollback();
@@ -1554,7 +1562,7 @@ export const rejectWorker = async (req: AuthRequest, res: Response): Promise<voi
       await connection.beginTransaction();
 
       const [userRows] = await connection.execute<RowDataPacket[]>(
-        `SELECT u.id_user, u.pending_worker, u.rol, u.name, u.lastname, wp.is_verified
+        `SELECT u.id_user, u.pending_worker, u.rol, u.name, u.lastname, u.email, wp.is_verified
          FROM users u
          INNER JOIN worker_profiles wp ON wp.id_user = u.id_user
          WHERE u.id_user = ?
@@ -1610,6 +1618,13 @@ export const rejectWorker = async (req: AuthRequest, res: Response): Promise<voi
         message: 'Worker profile rejected.',
         metadata: { targetUserId: userId, actor: req.user?.user_id, reason },
       }).catch(() => undefined);
+
+      const rejectedEmail = String(userRows[0]?.email || '').trim();
+      if (rejectedEmail) {
+        sendWorkerApplicationDecisionEmail(rejectedEmail, workerName || 'there', false, reason || null).catch(
+          () => undefined
+        );
+      }
 
       res.json({ success: true, message: 'Worker rejected successfully.' });
     } catch (error) {
@@ -1990,7 +2005,7 @@ export const updateUserStatus = async (req: AuthRequest, res: Response): Promise
     }
 
     const [rows] = await pool.execute<RowDataPacket[]>(
-      `SELECT id_user, rol, name, lastname FROM users WHERE id_user = ?`,
+      `SELECT id_user, rol, name, lastname, email FROM users WHERE id_user = ?`,
       [userId]
     );
     if (rows.length === 0) {
@@ -2039,6 +2054,13 @@ export const updateUserStatus = async (req: AuthRequest, res: Response): Promise
       message: `User status changed to ${desiredActive === 1 ? 'active' : 'inactive'}.`,
       metadata: { targetUserId: userId, is_active: desiredActive, actor: req.user?.user_id },
     }).catch(() => undefined);
+
+    const targetEmail = String(rows[0]?.email || '').trim();
+    if (targetEmail) {
+      sendAccountStatusChangeEmail(targetEmail, userName || 'there', desiredActive === 1, reason || null).catch(
+        () => undefined
+      );
+    }
 
     res.json({ success: true, message: 'User status updated successfully.' });
   } catch (error: any) {
